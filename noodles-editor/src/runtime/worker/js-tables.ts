@@ -18,7 +18,7 @@ export class JsTables {
     if (!js || this.made.has(js.table)) return
     let d: unknown = []
     if (js.input) {
-      d = await readPlainRows(this.sql, js.input)
+      d = await this.readInput(js.input)
     } else if (js.url) {
       // A JSON file read whole, as CodeOp's input from a JSON FileOp was the parsed file
       const [file] = await this.sql.rows(
@@ -34,7 +34,11 @@ export class JsTables {
       throw new Error(`Code: ${error instanceof Error ? error.message : String(error)}`)
     }
     const table = `"${js.table}"`
-    if (isFeatureCollection(result)) {
+    if (isFeatureCollection(result) && result.features.length === 0) {
+      await this.sql.exec(
+        `CREATE OR REPLACE TEMP TABLE ${table} AS SELECT NULL::GEOMETRY AS geom WHERE false`
+      )
+    } else if (isFeatureCollection(result)) {
       // GeoJSON: one row per feature with its geometry, as a geojson node reads them
       const file = `${js.table}.geojson`
       this.sql.registerText(file, JSON.stringify(result))
@@ -53,6 +57,26 @@ export class JsTables {
       throw new Error('Code must return an array of rows or a GeoJSON FeatureCollection')
     }
     this.made.add(js.table)
+  }
+
+  // An input with a geometry column is features, so `d` is a FeatureCollection turf can take;
+  // any other input is its rows as plain objects
+  private async readInput(relation: string): Promise<unknown> {
+    const columns = await this.sql.rows(`DESCRIBE SELECT * FROM ${relation}`)
+    const geom = columns.find(c => c.column_name === 'geom' && c.column_type === 'GEOMETRY')
+    if (!geom) return readPlainRows(this.sql, relation)
+    const rows = await readPlainRows(
+      this.sql,
+      `(SELECT * EXCLUDE (geom), ST_AsGeoJSON(geom) AS "__geometry" FROM ${relation})`
+    )
+    return {
+      type: 'FeatureCollection',
+      features: rows.map(({ __geometry, ...properties }) => ({
+        type: 'Feature',
+        geometry: __geometry ? JSON.parse(String(__geometry)) : null,
+        properties,
+      })),
+    }
   }
 
   /**

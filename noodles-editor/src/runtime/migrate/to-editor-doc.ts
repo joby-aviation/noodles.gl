@@ -23,6 +23,7 @@ import {
 } from '@noodles.gl/planner'
 import { migrateTimelineData } from '../../timeline/migrate-timeline'
 import type { TimelineData } from '../../timeline/types'
+import { GIS_CONVERSIONS, GisConversionError } from './gis-conversions'
 import { OP_CATALOG } from './op-catalog'
 
 export interface NoodlesNode {
@@ -693,16 +694,32 @@ export function toEditorDoc(original: NoodlesProject): Migrated {
     const n = byId.get(id)
     if (!n) throw new MigrationError(`Missing node ${id}`)
     const i = inputs(n)
+    if (geometry && n.type !== 'FileOp') {
+      // GeoJSON an operator makes: its features as the vertex rows a layer draws
+      const made = features(id, port)
+      const rowsId = `${id}-rows`
+      nodes.push({
+        id: rowsId,
+        op: 'geojson',
+        name: segment(rowsId),
+        ...position(n),
+        y: position(n).y + 160,
+        params: { url: '' },
+      })
+      edge(made.node, made.port, rowsId, 'in')
+      sourcePort.set(rowsId, 'all')
+      sources.set(id, rowsId)
+      return rowsId
+    }
     if (geometry) {
-      const format = String(i.format)
-      if (
-        n.type !== 'FileOp' ||
-        !['json', 'geojson'].includes(format) ||
-        typeof i.url !== 'string'
-      ) {
-        throw new MigrationError(`${id} (${n.type}) is not a GeoJSON file`)
-      }
-      nodes.push({ id, op: 'geojson', name: segment(id), ...position(n), params: { url: i.url } })
+      if (!isGeoJsonFile(n)) throw new MigrationError(`${id} (${n.type}) is not a GeoJSON file`)
+      nodes.push({
+        id,
+        op: 'geojson',
+        name: segment(id),
+        ...position(n),
+        params: { url: String(i.url) },
+      })
       sourcePort.set(id, 'all')
     } else if (
       n.type === 'ExpressionOp' &&
@@ -797,6 +814,97 @@ export function toEditorDoc(original: NoodlesProject): Migrated {
     used.add(id)
     sources.set(id, id)
     return id
+  }
+
+  const isGeoJsonFile = (n: NoodlesNode) =>
+    n.type === 'FileOp' &&
+    ['json', 'geojson'].includes(String(inputs(n).format)) &&
+    typeof inputs(n).url === 'string'
+
+  // --- GeoJSON -> tables of features ------------------------------------------------------
+  /** Where a Noodles GeoJSON value is in the document: the node and port of its features. */
+  const featureTables = new Map<string, { node: string; port: string }>()
+  const features = (id: string, port = ''): { node: string; port: string } => {
+    const key = `${id}\u0000${port}`
+    const cached = featureTables.get(key)
+    if (cached) return cached
+    const n = byId.get(id)
+    if (!n) throw new MigrationError(`Missing node ${id}`)
+    let made: { node: string; port: string }
+    if (n.type === 'FileOp') {
+      // The file's geojson node: `features` here, its vertex rows for layers
+      source(id, true)
+      made = { node: id, port: 'features' }
+    } else if (n.type === 'CodeOp') {
+      if (!sources.has(id) && !codeNode(n)) {
+        throw new MigrationError(
+          `${id}: GeoJSON from a CodeOp that reads op(), the timeline or this is not converted`
+        )
+      }
+      used.add(id)
+      sources.set(id, id)
+      made = { node: id, port: 'out' }
+    } else if (n.type === 'GeoJsonOp') {
+      // A FeatureCollection of features other operators made: their rows, together
+      used.add(id)
+      nodes.push({ id, op: 'union', name: segment(id), ...position(n), params: {} })
+      incoming(id, 'features').forEach((e, k) => {
+        const from = features(e.source, handleField(e.sourceHandle))
+        edge(from.node, from.port, id, 'in', k)
+      })
+      made = { node: id, port: 'out' }
+    } else if (n.type === 'KmlToGeoJsonOp') {
+      // DuckDB spatial reads KML itself, from the file the KML text was read from
+      const e = incomingOne(id, 'kml')
+      const file = e ? byId.get(e.source) : undefined
+      const url = file?.type === 'FileOp' ? inputs(file).url : undefined
+      if (typeof url !== 'string') {
+        throw new MigrationError(`${id}: KML that is not read from a file is not converted`)
+      }
+      used.add(id)
+      if (file) used.add(file.id)
+      nodes.push({ id, op: 'geojson', name: segment(id), ...position(n), params: { url } })
+      made = { node: id, port: 'features' }
+    } else if (GIS_CONVERSIONS[n.type]) {
+      made = gisNode(n, port)
+    } else {
+      throw new MigrationError(`${id}: GeoJSON from ${n.type} is not converted`)
+    }
+    featureTables.set(key, made)
+    return made
+  }
+
+  /** A turf operator as the planner's geometry operator, wired from the features it reads. */
+  const gisNode = (n: NoodlesNode, port: string): { node: string; port: string } => {
+    const c = GIS_CONVERSIONS[n.type]
+    const i = { ...c.defaults, ...(n.data?.inputs ?? {}) }
+    if (!used.has(n.id)) {
+      let params: Record<string, ParamValue>
+      try {
+        params = c.params(i)
+      } catch (err) {
+        if (err instanceof GisConversionError) throw new MigrationError(`${n.id}: ${err.message}`)
+        throw err
+      }
+      used.add(n.id)
+      nodes.push({ id: n.id, op: c.op, name: segment(n.id), ...position(n), params })
+      for (const e of project.edges.filter(x => x.target === n.id)) {
+        const field = handleField(e.targetHandle)
+        const into = c.inputs[field]
+        if (into) {
+          const from = features(e.source, handleField(e.sourceHandle))
+          edge(from.node, from.port, n.id, into)
+        } else if (c.numbers?.[field]) {
+          wiredNumber(n.id, field, n.id, c.numbers[field])
+        } else {
+          throw new MigrationError(`${n.id}: a wired ${field} is not converted`)
+        }
+      }
+    }
+    const outputs = typeof c.outputs === 'function' ? c.outputs(i) : c.outputs
+    const out = outputs[port || Object.keys(outputs)[0]]
+    if (!out) throw new MigrationError(`${n.id}: its ${port} output is not converted`)
+    return { node: n.id, port: out }
   }
 
   // --- accessors -> row nodes, grouped by the data source they read ---------------------

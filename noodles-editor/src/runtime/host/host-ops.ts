@@ -16,6 +16,7 @@ import {
   NumberField,
 } from '../../noodles/fields'
 import { type IOperator, type Operator, opTypes } from '../../noodles/operators'
+import { OP_CATALOG } from '../migrate/op-catalog'
 
 /** Noodles operators the conversion replaces with planner operators. */
 export const PLANNER_REPLACED = new Set([
@@ -50,9 +51,16 @@ type OperatorClass = new (id: string, data?: unknown, locked?: boolean) => Opera
 
 const eligible = new Map<string, boolean>()
 
+// Whether the catalog keeps an operator on the host, always, sometimes, or until a later step
+// converts it
+function catalogHost(type: string): boolean {
+  const plan = OP_CATALOG[type]
+  return !!plan && (plan.becomes === 'host' || !!plan.hostWhen || !!plan.pending)
+}
+
 /** Whether a Noodles operator can run as a host operator: no accessor inputs, not replaced. */
 export function isHostOperator(type: string, instance?: Operator<IOperator>): boolean {
-  if (PLANNER_REPLACED.has(type) || ACCESSOR_ONLY.has(type)) return false
+  if (PLANNER_REPLACED.has(type) || ACCESSOR_ONLY.has(type) || !catalogHost(type)) return false
   const known = eligible.get(type)
   if (known !== undefined) return known
   const op = instance ?? sample(type)

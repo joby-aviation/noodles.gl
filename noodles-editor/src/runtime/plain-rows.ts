@@ -19,7 +19,9 @@ export function plainRow(row: Record<string, unknown>): Record<string, unknown> 
   return Object.fromEntries(Object.entries(row).map(([k, v]) => [k, plainValue(v)]))
 }
 
-export function isFeatureCollection(value: unknown): value is { type: 'FeatureCollection' } {
+export function isFeatureCollection(
+  value: unknown
+): value is { type: 'FeatureCollection'; features: unknown[] } {
   return (
     !!value &&
     typeof value === 'object' &&

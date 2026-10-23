@@ -128,6 +128,10 @@ export function sourceSql(node: SourceNode): string {
   return `SELECT * FROM ${reader}('${escapeLiteral(file.url)}'${options})`;
 }
 
+const SPATIAL: Record<NonNullable<JoinNode['spatial']>, string> = {
+  intersects: 'ST_Intersects', within: 'ST_Within', contains: 'ST_Contains',
+};
+
 export function joinSql(
   node: JoinNode,
   left: string,
@@ -138,39 +142,66 @@ export function joinSql(
   const how = node.how ?? 'inner';
   const prefix = node.prefix ?? '';
   const leftNames = new Set(leftShape.columns.map((c) => c.name));
-  const rightItems: string[] = [];
-  for (const c of rightShape.columns) {
-    const out = `${prefix}${c.name}`;
-    if (leftNames.has(out)) {
-      throw new PlanError(
-        `Join ${node.id}: both sides have a column '${out}'. Set 'prefix' to name the right side's columns apart.`,
-      );
-    }
-    rightItems.push(`"r".${quoteIdent(c.name)} AS ${quoteIdent(out)}`);
-  }
-  let clause: string;
-  if (how === 'cross') {
-    if (node.on?.length) throw new PlanError(`Join ${node.id}: a cross join takes no 'on' keys`);
-    clause = 'CROSS JOIN';
-  } else {
-    if (!node.on?.length) throw new PlanError(`Join ${node.id}: '${how}' needs at least one 'on' pair`);
-    clause = how === 'left' ? 'LEFT JOIN' : 'JOIN';
-  }
   const rightNames = new Set(rightShape.columns.map((c) => c.name));
+  if (node.spatial) {
+    if (!leftNames.has('geom') || !rightNames.has('geom')) {
+      throw new PlanError(`Join ${node.id}: a spatial join needs a 'geom' column on both sides`);
+    }
+  }
   const keys = (node.on ?? []).map(([l, r]) => {
     if (!leftNames.has(l)) throw new PlanError(`Join ${node.id}: left side has no column '${l}'`);
     if (!rightNames.has(r)) throw new PlanError(`Join ${node.id}: right side has no column '${r}'`);
     return `"l".${quoteIdent(l)} = "r".${quoteIdent(r)}`;
   });
-  const on = keys.length ? ` ON ${keys.join(' AND ')}` : '';
-  const select = ['"l".*', ...rightItems].join(', ');
-  return {
-    sql: `SELECT ${select} FROM ${left} AS "l" ${clause} ${right} AS "r"${on}`,
-    vectors: [
-      ...leftShape.vectors,
-      ...rightShape.vectors.map((v) => ({ name: `${prefix}${v.name}`, width: v.width })),
-    ],
-  };
+  const conditions = [...(node.spatial ? [`${SPATIAL[node.spatial]}("l"."geom", "r"."geom")`] : []), ...keys];
+
+  if (how === 'semi' || how === 'anti') {
+    if (!conditions.length) throw new PlanError(`Join ${node.id}: '${how}' needs 'on' pairs or a spatial predicate`);
+    return {
+      sql: `SELECT "l".* FROM ${left} AS "l" WHERE ${how === 'anti' ? 'NOT ' : ''}EXISTS (SELECT 1 FROM ${right} AS "r" WHERE ${conditions.join(' AND ')})`,
+      vectors: leftShape.vectors,
+    };
+  }
+
+  // A spatial join keeps the left geometry; the right one matched it and is dropped.
+  const rightColumns = rightShape.columns.filter((c) => !(node.spatial && c.name === 'geom'));
+  const replaced: string[] = [];
+  const rightItems: string[] = [];
+  for (const c of rightColumns) {
+    const out = `${prefix}${c.name}`;
+    if (leftNames.has(out)) {
+      if (!node.overwrite) {
+        throw new PlanError(
+          `Join ${node.id}: both sides have a column '${out}'. Set 'prefix' to name the right side's columns apart.`,
+        );
+      }
+      // Where nothing matched, a left join keeps the left value.
+      replaced.push(out);
+      rightItems.push(`CASE WHEN "r"."__hit" THEN "r".${quoteIdent(c.name)} ELSE "l".${quoteIdent(out)} END AS ${quoteIdent(out)}`);
+      continue;
+    }
+    rightItems.push(`"r".${quoteIdent(c.name)} AS ${quoteIdent(out)}`);
+  }
+  const leftItem = replaced.length ? `"l".* EXCLUDE (${replaced.map(quoteIdent).join(', ')})` : '"l".*';
+  const select = [leftItem, ...rightItems].join(', ');
+  const vectors = [
+    ...leftShape.vectors,
+    ...rightShape.vectors.map((v) => ({ name: `${prefix}${v.name}`, width: v.width })),
+  ];
+  const marked = replaced.length ? `(SELECT *, true AS "__hit" FROM ${right})` : right;
+
+  if (how === 'cross') {
+    if (conditions.length) throw new PlanError(`Join ${node.id}: a cross join takes no 'on' keys`);
+    return { sql: `SELECT ${select} FROM ${left} AS "l" CROSS JOIN ${marked} AS "r"`, vectors };
+  }
+  if (!conditions.length) throw new PlanError(`Join ${node.id}: '${how}' needs at least one 'on' pair`);
+  const clause = how === 'left' ? 'LEFT JOIN' : 'JOIN';
+  if (node.first) {
+    // The first match only, found per left row
+    const match = `SELECT * FROM ${marked} AS "r" WHERE ${conditions.join(' AND ')} LIMIT 1`;
+    return { sql: `SELECT ${select} FROM ${left} AS "l" ${clause} LATERAL (${match}) AS "r" ON true`, vectors };
+  }
+  return { sql: `SELECT ${select} FROM ${left} AS "l" ${clause} ${marked} AS "r" ON ${conditions.join(' AND ')}`, vectors };
 }
 
 export function unionSql(node: UnionNode, inputs: string[], shapes: RelShape[]): { sql: string; vectors: RelVector[] } {
