@@ -21,12 +21,16 @@ import {
   type SqlEngine,
   withDerived,
 } from '@noodles.gl/planner'
+import type { Vector } from 'apache-arrow'
+import { alongPaths, flattenPaths, flattenPoints, perMark } from './path-rows'
 
 export interface QueriedLayer {
   rows: number
   uploads: Map<string, ColumnUpload>
   strings: Map<string, string[]>
   raw: Map<string, unknown[]>
+  /** Path rows: the columns holding a path per row, as their Arrow vectors. */
+  lists: Map<string, { vector: Vector; wkb: boolean }>
   /** Parameters published by the layer's stats queries. */
   stats: Record<string, number>
   queryMs: number
@@ -80,8 +84,16 @@ export async function queryLayer(
   const uploads = new Map<string, ColumnUpload>()
   const strings = new Map<string, string[]>()
   const raw = new Map<string, unknown[]>()
+  const lists = new Map<string, { vector: Vector; wkb: boolean }>()
   for (const decl of plan.attributes) {
     if (decl.provenance !== 'arrow') continue
+    if (decl.type === 'list') {
+      const vector = table.getChild(decl.name)
+      const field = table.schema.fields.find(f => f.name === decl.name)
+      const wkb = field?.metadata.get('ARROW:extension:name') === 'geoarrow.wkb'
+      if (vector) lists.set(decl.name, { vector, wkb })
+      continue
+    }
     if (decl.type === 'str') {
       strings.set(decl.name, readStrings(table, decl.name))
       continue
@@ -99,7 +111,15 @@ export async function queryLayer(
       if (decl.type !== 'raw') throw err
     }
   }
-  return { rows: table.numRows, uploads, strings, raw, stats, queryMs: performance.now() - started }
+  return {
+    rows: table.numRows,
+    uploads,
+    strings,
+    raw,
+    lists,
+    stats,
+    queryMs: performance.now() - started,
+  }
 }
 
 function bindValue(values: Record<string, number | string>, name: string): number | string {
@@ -135,6 +155,60 @@ export function evaluateLayer(
   const raw = new Map<string, unknown[]>()
   for (const [name, r] of queried.raw) {
     raw.set(name, keep ? Array.from(keep, i => r[i]) : r)
+  }
+
+  // Path rows: each row's path flattened into vertices, and every per-row value repeated
+  // along them
+  const pathLists = plan.layer?.lists
+  if (pathLists?.length) {
+    const kind = plan.layer?.kind
+    const rowsKept = keep ?? Uint32Array.from({ length: queried.rows }, (_, i) => i)
+    if (kind !== 'path' && kind !== 'trips' && kind !== 'polygon') {
+      // A mark per point of each row's geometry
+      const position = pathLists.find(l => l.channel === 'position')
+      const column = position && queried.lists.get(position.column)
+      if (!position || !column) throw new Error('The position column is missing from the query')
+      const marks = flattenPoints(column.vector, rowsKept, column.wkb)
+      const per = new Map<string, { data: Float32Array; width: number }>()
+      for (const [name, a] of attributes) per.set(name, perMark(a, marks.rowOf))
+      per.set(position.column, marks.position)
+      const perStrings = new Map<string, string[]>()
+      for (const [name, s] of strings)
+        perStrings.set(
+          name,
+          Array.from(marks.rowOf, j => s[j])
+        )
+      return {
+        rows: marks.rowOf.length,
+        attributes: per,
+        strings: perStrings,
+        raw: new Map(),
+        evalMs: evaluated.evalMs,
+        code: evaluated.code,
+      }
+    }
+    const paths = flattenPaths(
+      pathLists.map(l => {
+        const column = queried.lists.get(l.column)
+        if (!column) throw new Error(`Column '${l.column}' not present in query result`)
+        return { ...l, ...column }
+      }),
+      rowsKept,
+      kind
+    )
+    const along = new Map<string, { data: Float32Array; width: number }>()
+    for (const [name, a] of attributes) along.set(name, alongPaths(a, paths))
+    for (const [name, a] of paths.values) along.set(name, a)
+    return {
+      rows: paths.vertices,
+      attributes: along,
+      strings: new Map(),
+      raw: new Map(),
+      starts: paths.starts,
+      rings: paths.rings,
+      evalMs: evaluated.evalMs,
+      code: evaluated.code,
+    }
   }
 
   const pathId = plan.layer?.pathId

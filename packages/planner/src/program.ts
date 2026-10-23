@@ -34,7 +34,7 @@ import {
   RELATIONAL_TYPES,
 } from './types.js';
 import { plan, type PhysicalPlan } from './planner.js';
-import { PlanError, type ColumnType } from './analyze.js';
+import { PlanError, type ColumnType, type PathColumnKind } from './analyze.js';
 import type { Policy } from './optimizer.js';
 import type { CostConstants } from './cost.js';
 import type { TargetCaps } from './target.js';
@@ -47,7 +47,7 @@ import { quoteIdent } from './backends/sql.js';
 import {
   type RelShape, type RelColumn,
   numericListOf, listVectors, listComponentsSql,
-  sourceSql, verticesSql, joinSql, unionSql, sortSql, limitSql, sqlNodeSql, generateSql, unnestSql, rowwiseSql,
+  pathColumnOf, sourceSql, verticesSql, joinSql, unionSql, sortSql, limitSql, sqlNodeSql, generateSql, unnestSql, rowwiseSql,
 } from './relational.js';
 
 export type Route = 'rematerialize' | 'requery' | 'uniform' | 'cpu' | 'prop';
@@ -415,10 +415,12 @@ export async function compileProgram(
       // too: its reader's column list reaches the scan, rather than every column being copied
       // into a table each frame.
       const perValue = node.type === 'sql' && used.length > 0 && cons.length < 2;
-      const materialize = !perValue && (
+      // A code node's rows are a table already: the relation is that table, never a copy
+      const ownTable = node.type === 'js' && jsTable ? jsTable : undefined;
+      const materialize = !!ownTable || (!perValue && (
         node.type === 'source' || node.type === 'join' || node.type === 'unnest' || node.type === 'vertices' ||
-        node.type === 'sql' || node.type === 'generate' || node.type === 'union' || cons.length >= 2);
-      const table = `__m_${hash}`;
+        node.type === 'sql' || node.type === 'generate' || node.type === 'union' || cons.length >= 2));
+      const table = ownTable ?? `__m_${hash}`;
       const rel: RelationPlan = {
         id: node.id, kind: node.type, hash, table, sql,
         ref: materialize ? quoteIdent(table) : `(${sql})`,
@@ -473,7 +475,17 @@ export async function compileProgram(
       // Re-pack vectors a relation stored as components, but only those something reads:
       // an unused one would be selected and uploaded for nothing.
       const tailText = JSON.stringify([...tail.map((id) => byId.get(id)), layer]);
-      const repack = rel.shape.vectors.filter((v) => new RegExp(`\\b${v.name}\\b`).test(tailText));
+      // A path-rows layer (its position a column holding whole paths) reads its other list
+      // channels as lists too, even one whose rows all happen to hold 2 to 4 numbers.
+      const channels = (layer as { channels?: Record<string, string> }).channels ?? {};
+      const positionColumn = rel.shape.columns.find((c) => c.name === channels.position);
+      const positionPath = positionColumn ? pathColumnOf(positionColumn.duckType) : undefined;
+      const listChannels = new Set(
+        positionPath === 'points' || positionPath === 'geometry' ? Object.values(channels) : [],
+      );
+      const repack = rel.shape.vectors.filter(
+        (v) => !listChannels.has(v.name) && new RegExp(`\\b${v.name}\\b`).test(tailText),
+      );
       const sourceId = root;
       const subNodes: GraphNode[] = [
         { id: sourceId, type: 'source', dataset: { ref: rel.table, estimatedRows: rel.rows } },
@@ -496,12 +508,15 @@ export async function compileProgram(
 
       const schema = new Map<string, number>();
       const columnTypes = new Map<string, ColumnType>();
-      const vectorNames = new Set(rel.shape.vectors.map((v) => v.name));
+      const pathColumns = new Map<string, PathColumnKind>();
+      const vectorNames = new Set(rel.shape.vectors.map((v) => v.name).filter((n) => !listChannels.has(n)));
       for (const c of rel.shape.columns) {
         // A list read as a vector is the vector here, re-packed from its components.
         if (vectorNames.has(c.name)) continue;
         columnTypes.set(c.name, c.type);
         if (c.type === 'num') schema.set(c.name, 1);
+        const path = c.duckType ? pathColumnOf(c.duckType) : undefined;
+        if (path) pathColumns.set(c.name, path);
       }
       const policy: Policy = options.policy ?? (rel.stats ? 'cost' : 'auto');
       const hash = hashOf({
@@ -516,7 +531,7 @@ export async function compileProgram(
         for (const [k, v] of Object.entries(values)) if (typeof v === 'number') numeric[k] = v;
         const physical = plan(sub, schema, {
           policy, caps: options.caps, costs: options.costs, stats: rel.stats, params: numeric,
-          relation: rel.ref, conventions: options.conventions, columnTypes,
+          relation: rel.ref, conventions: options.conventions, columnTypes, pathColumns,
         });
         lp = { id: layerId, kind: layer.kind, relation: root, hash, graph: sub, plan: physical, nodes: tail };
         options.cache?.set(hash, lp);

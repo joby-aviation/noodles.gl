@@ -37,6 +37,14 @@ export type Schema = Map<string, number>;
 export type ColumnType = 'num' | 'str' | 'other';
 export type ColumnTypes = ReadonlyMap<string, ColumnType>;
 
+/**
+ * Columns that hold a whole path per row (see `pathColumnOf`): a vertex layer whose position
+ * reads one draws a row per path, its vertices flattened by the runtime instead of unnested
+ * into rows.
+ */
+export type PathColumnKind = 'points' | 'numbers' | 'geometry';
+export type PathColumns = ReadonlyMap<string, PathColumnKind>;
+
 export interface AnalyzedNode {
   id: string;
   node: CoreNode;
@@ -104,6 +112,14 @@ export interface LayerAnalysis {
   ringId?: string;
   orderBy: string[];
   props: Record<string, LayerPropValue>;
+  /**
+   * Path rows: channels reading a column that holds a whole path per row. Present when the
+   * position does; then every row is one path (or, from a geometry, its parts), `pathId` and
+   * the order do not apply, and the runtime flattens these columns into the vertex buffers
+   * while every other channel is read per row and repeated along its path's vertices. A
+   * one-mark layer (scatter, text) whose position is a geometry draws a mark per point.
+   */
+  lists?: { channel: string; column: string; kind: PathColumnKind }[];
   /** Parameters read by props. They route as `prop`: deck applies them, the plan never sees them. */
   propParams: string[];
 }
@@ -156,6 +172,8 @@ export interface AnalyzeOptions {
    * parameters are inlined as literals instead of bound, which DuckDB folds itself.
    */
   hoist?: boolean;
+  /** Columns holding a path per row. See `PathColumns`. */
+  pathColumns?: PathColumns;
 }
 
 /**
@@ -513,7 +531,7 @@ export function analyze(
     if (strings.has(s.column)) throw new PlanError(`Stats node ${s.id}: '${s.column}' is a string column`);
   }
 
-  const layer = layerNode ? resolveLayer(layerNode, conventions, schema) : undefined;
+  const layer = layerNode ? resolveLayer(layerNode, conventions, schema, options.pathColumns) : undefined;
 
   return {
     source,
@@ -561,7 +579,9 @@ function layerAsRender(layer: LayerNode, conv: AttributeConventions): RenderNode
   };
 }
 
-function resolveLayer(layer: LayerNode, conv: AttributeConventions, widths: Schema): LayerAnalysis {
+function resolveLayer(
+  layer: LayerNode, conv: AttributeConventions, widths: Schema, pathColumns?: PathColumns,
+): LayerAnalysis {
   const spec = LAYER_SPECS[layer.kind];
   if (!spec) throw new PlanError(`Layer ${layer.id}: unknown kind '${layer.kind}'`);
   const given = layer.channels ?? {};
@@ -585,28 +605,42 @@ function resolveLayer(layer: LayerNode, conv: AttributeConventions, widths: Sche
     }
     bindings.push({ channel: c.name, attribute, type: c.type, required: !!c.required });
   }
-  if (spec.vertices && !layer.pathId) {
+  // A position holding whole paths makes every row a path: no id or order to group by.
+  const positionKind = pathColumns?.get(bindings.find((b) => b.channel === 'position')?.attribute ?? '');
+  const pathRows = !!spec.vertices && (positionKind === 'points' || positionKind === 'geometry');
+  // A one-mark layer on a geometry draws a mark per point of it (a MultiPoint's every part)
+  const pointRows = !spec.vertices && positionKind === 'geometry';
+  const lists = pathRows || pointRows
+    ? bindings.flatMap((b) => {
+      const kind = pathColumns?.get(b.attribute);
+      return kind ? [{ channel: b.channel, column: b.attribute, kind }] : [];
+    })
+    : undefined;
+  if (spec.vertices && !pathRows && !layer.pathId) {
     throw new PlanError(`Layer ${layer.id}: '${layer.kind}' draws paths, so it needs 'pathId'`);
   }
   if (layer.ringId && !spec.rings) {
     throw new PlanError(`Layer ${layer.id}: '${layer.kind}' has no rings, so 'ringId' does not apply`);
   }
-  const ringId = spec.rings ? layer.ringId : undefined;
+  const ringId = spec.rings && !pathRows ? layer.ringId : undefined;
   const props = { ...(layer.props ?? {}) };
   const readParams = [...new Set(Object.values(props).flatMap(propParams))];
   return {
     id: layer.id,
     kind: layer.kind,
     bindings,
-    pathId: layer.pathId,
+    pathId: pathRows ? undefined : layer.pathId,
     ringId,
     // Vertex order within a path is the whole point of a path, so the id always leads; a
-    // polygon's ring id comes next, so each ring's vertices are contiguous.
-    orderBy: spec.vertices
-      ? [layer.pathId!, ...(ringId ? [ringId] : []),
-        ...(layer.orderBy ?? []).filter((c) => c !== layer.pathId && c !== ringId)]
-      : [...(layer.orderBy ?? [])],
+    // polygon's ring id comes next, so each ring's vertices are contiguous. Path rows carry
+    // their vertices in order already.
+    orderBy: pathRows ? []
+      : spec.vertices
+        ? [layer.pathId!, ...(ringId ? [ringId] : []),
+          ...(layer.orderBy ?? []).filter((c) => c !== layer.pathId && c !== ringId)]
+        : [...(layer.orderBy ?? [])],
     props,
+    ...(lists ? { lists } : {}),
     propParams: readParams,
   };
 }

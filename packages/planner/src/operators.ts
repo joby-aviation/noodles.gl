@@ -328,6 +328,37 @@ const channel = (name: string, label: string, def: string, help?: string): Param
 // The catalog
 // ---------------------------------------------------------------------------
 
+/**
+ * Time Series over path rows: each row's list of timestamps searched for the time, and its
+ * list of positions interpolated there, in one query and no segment table. `values` names
+ * the components it writes (lng, lat, alt); the lists themselves are left out.
+ */
+function lowerPathSamples(ctx: LowerCtx): LowerResult {
+  const q = (c: string) => `"${c.replace(/"/g, '""')}"`;
+  const path = q(ctx.str('path') || 'path');
+  const ts = q(ctx.str('timestamps') || 'timestamps');
+  const values = ctx.str('values').split(',').map((v) => v.trim()).filter(Boolean);
+  if (values.length === 0) ctx.error('Time Series needs a name for each interpolated component');
+  const time = ctx.bind('time');
+  // __i: how many timestamps are at or before the time. Before the first the path holds its
+  // first vertex, after the last its last.
+  const lerped = values.map((v, i) => {
+    const c = i + 1;
+    return `${path}[__k0][${c}] + (${path}[__k1][${c}] - ${path}[__k0][${c}]) * __u AS ${q(v)}`;
+  });
+  const query = [
+    `SELECT * EXCLUDE (${path}, ${ts}, __n, __i, __k0, __k1, __u), ${lerped.join(', ')} FROM (`,
+    `  SELECT *, CASE WHEN __i < 1 OR __i >= __n OR ${ts}[__k1] <= ${ts}[__k0] THEN 0.0`,
+    `    ELSE greatest(0.0, least(1.0, (${time} - ${ts}[__k0]) / (${ts}[__k1] - ${ts}[__k0]))) END AS __u`,
+    '  FROM (',
+    '    SELECT *, greatest(1, least(__i, __n)) AS __k0, least(greatest(1, least(__i, __n)) + 1, __n) AS __k1',
+    `    FROM (SELECT *, len(${ts}) AS __n, len(list_filter(${ts}, x -> x <= ${time})) AS __i FROM {{input0}})`,
+    `  ) WHERE __n > 0`,
+    ')',
+  ].join('\n');
+  return { nodes: [{ id: ctx.id, type: 'sql', inputs: [ctx.input('in')], query }], outputs: { out: ctx.id } };
+}
+
 // Formats only GDAL reads; any other URL is GeoJSON, which the engine parses in JS and loads
 // as WKB, many times faster than GDAL's GeoJSON driver.
 const GDAL_ONLY = /\.(shp|zip|gpkg|fgb|kml|kmz|gml|gpx|dxf|tab|mif|xlsx|ods|osm|pbf|sqlite)([?#]|$)/i;
@@ -542,9 +573,12 @@ export const OPERATORS: OpDef[] = [
   },
   {
     type: 'time-series', label: 'Time Series', category: 'table',
-    description: "Each path's place at one time: vertex rows interpolated between the two vertices around it, holding the first and last vertex outside the path's span. The time is a query parameter: moving it re-runs only the sampling query, never the segment table.",
+    description: "Each path's place at one time, interpolated between the two vertices around it, holding the first and last vertex outside the path's span. Rows are either vertices (grouped by a path id) or whole paths (a list of positions and a list of timestamps per row). The time is a query parameter: moving it re-runs only the sampling query.",
     inputs: [table()], outputs: [out()],
     params: [
+      { name: 'rows', label: 'Rows are', kind: 'menu', default: 'vertices', options: [{ value: 'vertices', label: 'Vertices' }, { value: 'paths', label: 'Paths' }], folder: 'Channels', help: 'Paths: each row holds a list of positions and a list of timestamps.' },
+      { name: 'path', label: 'Positions', kind: 'column', default: 'path', of: 'in', folder: 'Channels', help: 'Paths only: a list of positions per row.' },
+      { name: 'timestamps', label: 'Timestamps', kind: 'column', default: 'timestamps', of: 'in', folder: 'Channels', help: 'Paths only: a list of times per row, ascending.' },
       { name: 'pathId', label: 'Path id', kind: 'column', default: 'row', of: 'in', folder: 'Channels' },
       { name: 'order', label: 'Vertex order', kind: 'column', default: 'index', of: 'in', folder: 'Channels' },
       { name: 'timestamp', label: 'Timestamp', kind: 'column', default: 't', of: 'in', columnType: 'num', folder: 'Channels' },
@@ -552,6 +586,7 @@ export const OPERATORS: OpDef[] = [
       { name: 'time', label: 'Time', kind: 'float', default: 0, min: 0, max: 86400, step: 1, port: true },
     ],
     lower(ctx) {
+      if (ctx.str('rows') === 'paths') return lowerPathSamples(ctx);
       const q = (c: string) => `"${c.replace(/"/g, '""')}"`;
       const path = q(ctx.str('pathId') || 'row');
       const t = q(ctx.str('timestamp') || 't');

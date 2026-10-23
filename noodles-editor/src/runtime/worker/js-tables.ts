@@ -16,6 +16,11 @@ export class JsTables {
 
   constructor(private readonly sql: BlockingSql) {}
 
+  /** The catalog dropped a table: make it again when a relation next needs it. */
+  forget(table: string): void {
+    this.made.delete(table)
+  }
+
   async make(rel: RelationPlan): Promise<void> {
     const js = rel.js
     if (!js || this.made.has(js.table)) return

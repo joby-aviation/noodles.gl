@@ -326,9 +326,9 @@ describe('toEditorDoc with GeoJSON', () => {
     expect(fill.data?.attributes.has('population_color')).toBe(true)
     // The file has no lines or points; those layers draw nothing.
     expect(layers['/geojson-layer-lines'].data?.rows ?? 0).toBe(0)
-    expect(doc.nodes.find(n => n.id === '/geojson-layer-polygon-rows')?.params.expression).toBe(
-      "kind == 'polygon'"
-    )
+    // Each sublayer draws its kind of each feature's geometry: a row per feature, no vertex rows
+    expect(doc.nodes.find(n => n.id === '/geojson-layer')?.params.position).toBe('geom')
+    expect(doc.nodes.some(n => n.op === 'filter' || n.op === 'unnest')).toBe(false)
   })
 
   it('converts us-county-unemployment, with the color domain from an Extent in SQL', async () => {
@@ -434,7 +434,7 @@ describe('toEditorDoc with time', () => {
 
     const heads = async () => {
       const rel = runtime.program()?.relations.find(r => r.id === '/time-series')
-      const rows = await duck.rows(`SELECT trip, lng, alt FROM ${rel?.ref} ORDER BY trip`)
+      const rows = await duck.rows(`SELECT lng, alt FROM ${rel?.ref} ORDER BY lng`)
       return rows.map(r => [r.lng, r.alt])
     }
     // Halfway along the first flight's first leg; the second flight at its first vertex.
@@ -442,6 +442,8 @@ describe('toEditorDoc with time', () => {
       [0.5, 150],
       [10, 0],
     ])
+    // A row per flight throughout: the paths are never unnested
+    expect(doc.nodes.some(n => n.op === 'unnest')).toBe(false)
     const layers = Object.fromEntries(runtime.layers().map(l => [l.id, l]))
     expect(layers['/trips-layer'].data?.rows).toBe(5)
     expect(layers['/trips-layer'].data?.starts?.length).toBe(2)

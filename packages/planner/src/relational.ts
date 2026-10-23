@@ -22,7 +22,7 @@ import type {
   SourceNode, JoinNode, UnionNode, SortNode, LimitNode, SqlNode, GenerateNode, UnnestNode, VerticesNode,
   Graph, GraphNode,
 } from './types.js';
-import { analyze, PlanError, type ColumnType, type AnalyzedNode } from './analyze.js';
+import { analyze, PlanError, type ColumnType, type AnalyzedNode, type PathColumnKind } from './analyze.js';
 import { GEO_PRELUDE } from './geo.js';
 
 /** One column of a relation, as DuckDB describes it. */
@@ -57,6 +57,23 @@ export function columnTypeOf(duckType: string): ColumnType {
   if (NUMERIC.test(duckType)) return 'num';
   if (STRING.test(duckType)) return 'str';
   return 'other';
+}
+
+/**
+ * A column that holds a whole path per row, for vertex layers: a list of positions
+ * (`DOUBLE[3][]`, `DOUBLE[][]`), a list of numbers (`DOUBLE[]`, a path's timestamps), or a
+ * geometry. Anything else is undefined.
+ */
+export function pathColumnOf(duckType: string): PathColumnKind | undefined {
+  const t = duckType.trim();
+  if (/^GEOMETRY\b/i.test(t)) return 'geometry';
+  const m = /^(.*?)((?:\[\d*\])+)$/.exec(t);
+  if (!m || !NUMERIC.test(m[1])) return undefined;
+  const dims = m[2].match(/\[\d*\]/g) ?? [];
+  // The outer dimension is the list of vertices; a point is a fixed array or a list inside it
+  if (dims.length === 2 && dims[1] === '[]') return 'points';
+  if (dims.length === 1 && dims[0] === '[]') return 'numbers';
+  return undefined;
 }
 
 /**

@@ -21,7 +21,7 @@ import {
 } from './types.js';
 import {
   analyze, PlanError, externalAttributes, type Analysis, type AnalyzedNode, type Schema, type Stage,
-  type RenderChannels, type LayerAnalysis, type ColumnTypes,
+  type RenderChannels, type LayerAnalysis, type ColumnTypes, type PathColumns,
 } from './analyze.js';
 import type { AttributeConventions } from './conventions.js';
 import {
@@ -51,9 +51,10 @@ export interface AttributeDecl {
   /**
    * Absent for ordinary f32 attributes. `str` is a string column, selected uncast and read
    * as JS strings. `raw` is a column selected in its native type — a path id, which must not
-   * be narrowed to f32, where ids above 2^24 would merge.
+   * be narrowed to f32, where ids above 2^24 would merge. `list` is a column holding a whole
+   * path per row (`LayerAnalysis.lists`), read as its Arrow vector.
    */
-  type?: 'str' | 'raw';
+  type?: 'str' | 'raw' | 'list';
   /**
    * GPU storage format, when it is not f32 per component. `rgba8` is one packed u32 per row
    * (see `packing.ts`); `width` stays the logical component count.
@@ -202,6 +203,8 @@ export interface PlanOptions {
   conventions?: Partial<AttributeConventions>;
   /** Column types of the relation, so string columns can be read. See `ColumnTypes`. */
   columnTypes?: ColumnTypes;
+  /** Columns holding a path per row. See `PathColumns`. */
+  pathColumns?: PathColumns;
 }
 
 const WORKGROUP = 256;
@@ -228,7 +231,7 @@ export function plan(
   // and the optimizer says so in its notes.
   const policy: Policy = opts.policy ?? (opts.stats ? 'cost' : 'auto');
 
-  const analysis = analyze(graph, sourceSchema, opts.conventions, opts.columnTypes);
+  const analysis = analyze(graph, sourceSchema, opts.conventions, opts.columnTypes, { pathColumns: opts.pathColumns });
   // Derived values too: a hoisted threshold (`lat > {{a}} * 2`) is a bound value to the
   // selectivity estimator, where the expression it replaced was not.
   const result = optimize(analysis, {
@@ -576,8 +579,10 @@ function emit(
   const pathId = analysis.layer?.pathId;
   const ringId = analysis.layer?.ringId;
   /** Name plus its non-f32 type, if it has one. */
-  const typed = (name: string): { name: string; type?: 'str' | 'raw' } =>
-    analysis.strings.has(name) ? { name, type: 'str' }
+  const lists = new Map((analysis.layer?.lists ?? []).map((l) => [l.column, l.kind]));
+  const typed = (name: string): { name: string; type?: 'str' | 'raw' | 'list' } =>
+    lists.has(name) ? { name, type: 'list' }
+    : analysis.strings.has(name) ? { name, type: 'str' }
     : name === pathId || name === ringId ? { name, type: 'raw' }
     : name === analysis.rowIdColumn ? { name, type: 'raw' }
     : { name };
@@ -667,6 +672,8 @@ function emit(
       // Cast in SQL: everything reaching a GPU buffer is f32, so narrowing here uses DuckDB's
       // vectorised executor instead of a JS loop, and sidesteps DECIMAL entirely.
       ...passthrough.map((c) => (typed(c).type
+        // A geometry is selected as it is: the runtime reads its bytes, and ST_AsWKB would
+        // copy every vertex for nothing
         ? `${quoteIdent(c)} AS ${quoteIdent(c)}`
         : `${castToFloat(quoteIdent(c))} AS ${quoteIdent(c)}`)),
       ...preAggSelect.flatMap((item) => selectItems(item, rowBind, isSqlPosition(item))),
@@ -793,6 +800,8 @@ function emit(
   // --- render bindings ----------------------------------------------------
   if (analysis.layer) {
     for (const b of analysis.layer.bindings) {
+      // A path column is checked when the runtime flattens it
+      if (lists.has(b.attribute)) continue;
       const decl = attributes.find((a) => a.name === b.attribute);
       if (!decl) {
         throw new PlanError(

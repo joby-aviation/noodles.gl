@@ -86,7 +86,10 @@ export class MaterializingCatalog implements Catalog {
     }
 
     let target: string
-    if (rel.materialize) {
+    if (rel.materialize && rel.js?.table === rel.table) {
+      // A code node's own table: made above, nothing to copy
+      target = quoteIdent(rel.table)
+    } else if (rel.materialize) {
       const started = performance.now()
       await this.sql.exec(`CREATE OR REPLACE TEMP TABLE ${quoteIdent(rel.table)} AS ${rel.sql}`)
       this.counters.materializeMs += performance.now() - started
