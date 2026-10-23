@@ -538,19 +538,24 @@ export function verticesSql(node: VerticesNode, input: string, shape: RelShape):
   const numbered = (type: string) =>
     `SELECT *, (row_number() OVER () - 1)::INTEGER AS "id" FROM (${parts}) WHERE ST_GeometryType(__part) = '${type}'`;
   // Vertices unnest in the projection, never by a LATERAL join: a join copies each row's whole
-  // geometry once per vertex, which for a large file is gigabytes.
-  const vertexColumns = '(__pt.path[1] - 1)::INTEGER AS "vertex", ST_X(__pt.geom) AS "lng", ST_Y(__pt.geom) AS "lat"';
+  // geometry once per vertex, which for a large file is gigabytes. Coordinates come from the
+  // geometry cast to spatial's native LINESTRING_2D / POLYGON_2D lists: ST_Points and ST_Dump
+  // make a geometry per vertex, some 3 times slower (world-flights' 1.5M vertices). len() on
+  // those types is the length of their text, so counts come from the geometry; a polygon's
+  // rings unnest as plain lists.
+  const vertexColumns = '__v::INTEGER AS "vertex", __pt.x AS "lng", __pt.y AS "lat"';
   const rings =
-    `SELECT * EXCLUDE (__part, __ln), coalesce(__ln.path[1] - 1, 0)::INTEGER AS "ring", __ln.geom AS __ring ` +
-    `FROM (SELECT *, unnest(ST_Dump(ST_Boundary(__part))) AS __ln FROM (${numbered('POLYGON')}))`;
+    'SELECT * EXCLUDE (__poly, __nr), unnest(__poly) AS __ring, unnest(range(__nr))::INTEGER AS "ring" ' +
+    `FROM (SELECT * EXCLUDE (__part), ST_Force2D(__part)::POLYGON_2D AS __poly, ST_NInteriorRings(__part) + 1 AS __nr FROM (${numbered('POLYGON')}))`;
   // A ring's points without the closing one, which repeats the first.
   const polygons =
-    `SELECT * EXCLUDE (__ring, __pt, __n), ${vertexColumns} FROM (` +
-    `SELECT *, ST_NPoints(__ring) AS __n, unnest(ST_Dump(ST_Points(__ring))) AS __pt FROM (${rings})` +
-    ') WHERE __pt.path[1] < __n';
+    `SELECT * EXCLUDE (__pt, __v, __n), ${vertexColumns} FROM (` +
+    `SELECT * EXCLUDE (__ring), len(__ring) AS __n, unnest(__ring) AS __pt, unnest(range(len(__ring))) AS __v FROM (${rings})` +
+    ') WHERE __v < __n - 1';
   const lines =
-    `SELECT * EXCLUDE (__part, __pt), ${vertexColumns} FROM (` +
-    `SELECT *, unnest(ST_Dump(ST_Points(__part))) AS __pt FROM (${numbered('LINESTRING')}))`;
+    `SELECT * EXCLUDE (__pt, __v), ${vertexColumns} FROM (` +
+    'SELECT * EXCLUDE (__line, __n), unnest(__line) AS __pt, unnest(range(__n)) AS __v FROM (' +
+    `SELECT * EXCLUDE (__part), ST_Force2D(__part)::LINESTRING_2D AS __line, ST_NPoints(__part) AS __n FROM (${numbered('LINESTRING')})))`;
   const points =
     `SELECT * EXCLUDE (__part), ST_X(__part) AS "lng", ST_Y(__part) AS "lat" FROM (${numbered('POINT')})`;
   switch (node.kind) {
