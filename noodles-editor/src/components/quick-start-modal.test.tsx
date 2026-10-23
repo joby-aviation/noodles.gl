@@ -47,26 +47,62 @@ describe('QuickStartModal file drop', () => {
     expect(onOpenChange).toHaveBeenCalledWith(false)
   })
 
-  it('keeps the AI path as a secondary action', async () => {
+  it('keeps the AI path as a secondary action that still imports the file', async () => {
     render(<QuickStartModal open onOpenChange={() => {}} />)
-    dropFile('cities.csv', cities)
+    const file = dropFile('cities.csv', cities)
 
-    await vi.waitFor(() => screen.getByRole('button', { name: 'Ask AI instead' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Ask AI instead' }))
+    await vi.waitFor(() => screen.getByRole('button', { name: 'Open with the AI assistant' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Open with the AI assistant' }))
 
-    expect(getPendingQuickStartAction()?.mode).toBe('chat')
-    expect(navigate).toHaveBeenCalledWith('/examples/nyc-taxis')
+    expect(getPendingQuickStartAction()).toEqual({ type: 'file', file, mode: 'chat' })
+    expect(navigate).toHaveBeenCalledWith('/projects/new')
   })
 
-  it('says why a CSV without coordinates goes to the AI assistant', async () => {
+  it('imports a CSV without coordinates instead of leaving it behind', async () => {
     render(<QuickStartModal open onOpenChange={() => {}} />)
-    dropFile('sales.csv', sales)
+    const file = dropFile('sales.csv', sales)
 
     await vi.waitFor(() => screen.getByText(/No latitude\/longitude or geometry column found/))
     expect(screen.queryByRole('button', { name: 'Show on map' })).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Open in editor' }))
+
+    expect(getPendingQuickStartAction()).toEqual({ type: 'file', file, mode: 'map' })
+    expect(navigate).toHaveBeenCalledWith('/projects/new')
+  })
+
+  it('offers the AI assistant for a CSV without coordinates', async () => {
+    render(<QuickStartModal open onOpenChange={() => {}} />)
+    dropFile('sales.csv', sales)
+
+    await vi.waitFor(() => screen.getByRole('button', { name: 'Ask AI to map it' }))
     fireEvent.click(screen.getByRole('button', { name: 'Ask AI to map it' }))
 
     expect(getPendingQuickStartAction()?.mode).toBe('chat')
-    expect(navigate).toHaveBeenCalledWith('/examples/nyc-taxis')
+    expect(navigate).toHaveBeenCalledWith('/projects/new')
+  })
+
+  it('accepts the binary formats the canvas accepts', async () => {
+    render(<QuickStartModal open onOpenChange={() => {}} />)
+    const file = dropFile('trips.parquet', 'PAR1')
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Show on map' }))
+
+    expect(screen.queryByText(/Please upload/)).toBeNull()
+    expect(getPendingQuickStartAction()).toEqual({ type: 'file', file, mode: 'map' })
+  })
+
+  it('rejects a format nothing can import', () => {
+    render(<QuickStartModal open onOpenChange={() => {}} />)
+    dropFile('notes.txt', 'hello')
+
+    expect(screen.getByText(/Please upload a CSV/)).toBeTruthy()
+    expect(getPendingQuickStartAction()).toBeNull()
+  })
+
+  it('opens the smallest featured example when closed without a choice', () => {
+    render(<QuickStartModal open onOpenChange={() => {}} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }))
+
+    expect(navigate).toHaveBeenCalledWith('/examples/california-earthquakes')
   })
 })

@@ -1240,19 +1240,17 @@ export function getNoodles(): Visualization {
       setShowChatPanel(true)
       analytics.track('quick_start_llm_action_handled')
     } else if (pendingAction.type === 'file' && pendingAction.file) {
-      if (pendingAction.mode === 'map') {
-        // Coordinates were found: CanvasDropImport builds the map, no LLM needed
-        setPendingImportFile(pendingAction.file)
-        analytics.track('quick_start_file_action_handled', { mode: 'map' })
-        return
+      // CanvasDropImport always imports the file, so it is on the canvas even if the
+      // assistant isn't set up yet
+      setPendingImportFile(pendingAction.file)
+      const mode = pendingAction.mode ?? 'map'
+      if (mode === 'chat') {
+        setChatInitialMessage(
+          `I imported "${pendingAction.file.name}" into this project. Help me make a map from it.`
+        )
+        setShowChatPanel(true)
       }
-      // Otherwise open the chat panel and ask the AI to help visualize the file
-      const fileName = pendingAction.file.name
-      setChatInitialMessage(
-        `I just uploaded a file called "${fileName}". Please help me create a visualization from this data. First, I'll need to import it using the Data Importer (click the upload icon in the toolbar). Can you guide me through the process?`
-      )
-      setShowChatPanel(true)
-      analytics.track('quick_start_file_action_handled', { mode: 'chat' })
+      analytics.track('quick_start_file_action_handled', { mode })
     }
   }, [nodes.length])
 

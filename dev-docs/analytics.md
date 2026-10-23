@@ -125,7 +125,7 @@ When a CSV or JSON table is imported, the editor looks for coordinate columns so
 - `method`: `lat_lng`, `geometry` (a WKT or GeoJSON column) or `none`; `reason` is set only for `none`: `no_rows`, `no_columns` or `out_of_range` (columns named like coordinates whose values aren't longitude and latitude)
 - `sizedByColumn`: whether points were sized by a numeric column
 - `rowCountBucket`: `0`, `1-99`, `100-999`, `1k-10k`, `10k-100k` or `100k+`, never the exact count
-- `mode`: `map` (built from detected coordinates) or `chat` (handed to the AI assistant)
+- `mode`: `map` or `chat`. Both import the file into a new project; `chat` also opens the AI assistant. Before October 2026, `chat` opened an example without importing the file.
 - Column names, values and file names are never sent
 
 ### User Interface
