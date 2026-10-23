@@ -33,12 +33,16 @@ frontmatter follows the eval harness from PR #509 (`id`, `taskVersion`, `family`
 | --- | --- |
 | `tier` | T1 knowledge, T2 single edit, T3 multi-step build, T4 debug |
 | `start` | an example under `src/examples/`, or `blank` |
-| `setup.modifications` | applied before the first turn, e.g. to break a project for T4 |
+| `setup.modifications` | document edits (`apply_modifications`' shape) applied before the first turn, e.g. to break a project for T4 |
 | `turns` | scripted follow-up messages after the prompt |
 
-Checks are listed in `grade.ts`. Scoring is #509's 0–4 scale: the fraction of
+Checks are listed in `grade.ts`. They read the editor document the run ended with: nodes by
+path (`/pickup-layer`) or operator (`heatmap`), ports (`in`, `layers`, `par:mapStyle`) and
+parameters with defaults filled in. `src/ai-chat/bench/bench-tasks.node.test.ts` runs each task
+against the example it starts from, with a reference fix, so a task that drifts from its example
+fails there rather than in a model run. Scoring is #509's 0–4 scale: the fraction of
 checks passed, capped at 40% when a mechanical check (`edgesValid`,
-`applySucceeded`, `noNewOperatorErrors`, `noConsoleErrors`) fails. A run passes
+`applySucceeded`, `noNewErrors`, `noConsoleErrors`) fails. A run passes
 when every check does.
 
 ## Judge
@@ -47,7 +51,7 @@ The deterministic score says whether the graph ended up right; it cannot say
 that a reply claimed an edit that never landed, or that the model sent the same
 broken call six times. `judge-run.ts` asks Claude on Bedrock to score each run
 against `rubrics/in-app.yaml`, ported from PR #509: anchors and checklist
-dimensions, a quoted `L<n>` or `ops.json:<n>` citation for every score (checked
+dimensions, a quoted `L<n>` or `params.json:<n>` citation for every score (checked
 to resolve), a median over 3 samples, and a total that blends half deterministic
 and half judge while keeping the 40% mechanical cap.
 

@@ -68,6 +68,9 @@ const subscribe = (listener: () => void) => {
 
 export const useEngineState = (): EngineState => useSyncExternalStore(subscribe, () => state)
 
+/** The engine's state outside React: the agent bench reads it. */
+export const engineState = (): EngineState => state
+
 /** One asset resolver per host node, so each node's generations stand alone. */
 const resolvers = new Map<string, DeckProjectAssetResolver>()
 
@@ -163,6 +166,23 @@ export function errorsOf(e: Engine): NodeError[] {
     ...program,
     ...(failed ? [{ nodeId: '', message: failed }] : []),
   ]
+}
+
+/**
+ * Every node's errors, by document node id: lowering and host errors, a relation that failed,
+ * a layer that drew nothing. What the parameter pane shows a user, for tools to read.
+ */
+export function nodeErrors(e: Engine): { id: string; error: string }[] {
+  const program = e.runtime.program()
+  const errors = errorsOf(e).map(x => ({ id: x.nodeId, error: x.message }))
+  for (const [id, irs] of Object.entries(e.lowering()?.irNodes ?? {})) {
+    for (const ir of irs) {
+      const error = program?.nodes[ir]?.error
+      if (error) errors.push({ id, error })
+    }
+  }
+  for (const l of e.runtime.layers()) if (l.error) errors.push({ id: l.id, error: l.error })
+  return errors.filter((x, i) => errors.findIndex(y => y.id === x.id && y.error === x.error) === i)
 }
 
 /**

@@ -1,24 +1,24 @@
 ---
 id: t4-wrong-columns
-taskVersion: 1
+taskVersion: 2
 family: debug
 tier: T4
-tags: [accessors, data-inspection]
+tags: [attributes, data-inspection]
 start: california-earthquakes
 setup:
   modifications:
-    - type: update_node
-      data: { id: /position-accessor, data: { inputs: { expression: '[d.lng, d.lat]' } } }
+    - { type: update_node, id: /position-accessor, params: { expression: '[lng, lat]' } }
 budget:
   maxTurns: 10
   maxWallClockSeconds: 360
 grader:
   checks:
     # The CSV's columns are Longitude and Latitude
-    - { type: inputMatches, node: /position-accessor, input: expression, pattern: 'Longitude[\s\S]*Latitude' }
+    - { type: paramMatches, node: /position-accessor, param: expression, pattern: 'Longitude[\s\S]*Latitude' }
+    - type: errorsFixed
     - type: applySucceeded
     - type: edgesValid
-    - type: noNewOperatorErrors
+    - type: noNewErrors
 ---
 
 None of the earthquakes are where they should be on the map. Look at the data and fix whatever is wrong.

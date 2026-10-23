@@ -22,7 +22,7 @@ function turn(overrides: Partial<BenchTurn> = {}): BenchTurn {
   }
 }
 
-// Two nodes wired layer -> renderer, the smallest graph edgesValid can reason about
+// Two nodes wired layer -> deck, the smallest document edgesValid can reason about
 function result(overrides: Partial<BenchResult> = {}): BenchResult {
   return {
     taskId: 'test',
@@ -30,30 +30,29 @@ function result(overrides: Partial<BenchResult> = {}): BenchResult {
     knobs: {},
     setupApply: null,
     turns: [turn()],
-    finalProject: {
+    initialDoc: null,
+    finalDoc: {
+      version: 1,
+      name: 'test',
       nodes: [
-        { id: '/layer', type: 'ScatterplotLayerOp', position: { x: 0, y: 0 }, data: {} },
-        { id: '/deck', type: 'DeckRendererOp', position: { x: 0, y: 0 }, data: {} },
+        { id: 'n1', op: 'scatter', name: 'layer', x: 0, y: 0, params: {} },
+        { id: 'n2', op: 'deck', name: 'deck', x: 0, y: 0, params: {} },
       ],
-      edges: [
-        {
-          id: '/layer.out.layer->/deck.par.layers',
-          source: '/layer',
-          target: '/deck',
-          sourceHandle: 'out.layer',
-          targetHandle: 'par.layers',
-        },
-      ],
-    } as unknown as BenchResult['finalProject'],
-    finalOps: {
-      '/layer': { inputs: { getFillColor: '#ff0000ff', getRadius: 10 }, outputs: ['layer'] },
-      '/deck': { inputs: { layers: [] }, outputs: ['vis'] },
+      edges: [{ id: 'e1', source: 'n1', sourcePort: 'out', target: 'n2', targetPort: 'layers' }],
     },
-    initialOperatorErrors: [],
-    operatorErrors: [],
+    finalParams: {
+      n1: { fillColor: '#ff0000ff', radiusScale: 10 },
+      n2: { mapStyle: '' },
+    },
+    initialErrors: [],
+    errors: [],
     registry: {
-      ScatterplotLayerOp: { inputs: ['data', 'getFillColor', 'getRadius'], outputs: ['layer'] },
-      DeckRendererOp: { inputs: ['layers', 'basemap'], outputs: ['vis'] },
+      scatter: {
+        inputs: ['in', 'par:opacity'],
+        outputs: ['out'],
+        params: ['fillColor', 'radiusScale', 'opacity'],
+      },
+      deck: { inputs: ['layers', 'par:mapStyle'], outputs: ['vis'], params: ['mapStyle'] },
     },
     loadMs: 1,
     timedOut: false,
@@ -68,8 +67,8 @@ describe('grade', () => {
   it('scores the fraction of checks passed on a 0-4 scale', () => {
     const graded = grade(
       [
-        { type: 'nodeTypesPresent', types: ['ScatterplotLayerOp'] },
-        { type: 'nodeTypesPresent', types: ['HeatmapLayerOp'] },
+        { type: 'opsPresent', ops: ['scatter'] },
+        { type: 'opsPresent', ops: ['heatmap'] },
       ],
       { result: result() }
     )
@@ -79,13 +78,13 @@ describe('grade', () => {
   })
 
   it('caps the score at 40% when a mechanical check fails', () => {
-    const broken = result({ operatorErrors: [{ id: '/layer', error: 'boom' }] })
+    const broken = result({ errors: [{ id: 'n1', error: 'boom' }] })
     const graded = grade(
       [
-        { type: 'nodeTypesPresent', types: ['ScatterplotLayerOp'] },
-        { type: 'nodeTypesPresent', types: ['DeckRendererOp'] },
+        { type: 'opsPresent', ops: ['scatter'] },
+        { type: 'opsPresent', ops: ['deck'] },
         { type: 'nodeCount', min: 2 },
-        { type: 'noNewOperatorErrors' },
+        { type: 'noNewErrors' },
       ],
       { result: broken }
     )
@@ -119,12 +118,12 @@ describe('grade', () => {
   })
 
   describe('answerMatches', () => {
-    const answered = result({ turns: [turn({ reply: 'Use {{/threshold.par.value}} in SQL' })] })
+    const answered = result({ turns: [turn({ reply: "Use ch('threshold/value') in SQL" })] })
 
     it('needs every pattern by default', () => {
-      expect(check({ type: 'answerMatches', patterns: ['threshold', 'par'] }, answered).pass).toBe(
-        true
-      )
+      expect(
+        check({ type: 'answerMatches', patterns: ['threshold', 'value'] }, answered).pass
+      ).toBe(true)
       expect(check({ type: 'answerMatches', patterns: ['threshold', 'nope'] }, answered).pass).toBe(
         false
       )
@@ -137,141 +136,156 @@ describe('grade', () => {
   })
 
   describe('edgesValid', () => {
-    it('passes a graph whose handles all exist', () => {
+    const withEdge = (edge: Record<string, string>) => {
+      const r = result()
+      r.finalDoc?.edges.push({ id: 'e2', ...edge } as never)
+      return check({ type: 'edgesValid' }, r)
+    }
+
+    it('passes a document whose ports all exist', () => {
       expect(check({ type: 'edgesValid' }).pass).toBe(true)
     })
 
-    it('fails an edge into a handle the operator does not have', () => {
-      const r = result()
-      r.finalProject?.edges?.push({
-        id: 'bad',
-        source: '/layer',
-        target: '/deck',
-        sourceHandle: 'out.layer',
-        targetHandle: 'par.color',
-      } as never)
-      const outcome = check({ type: 'edgesValid' }, r)
-      expect(outcome.pass).toBe(false)
-      expect(outcome.detail).toContain('DeckRendererOp has no input color')
+    it("accepts a wire into a parameter's port", () => {
+      const edge = { source: 'n1', sourcePort: 'out', target: 'n2', targetPort: 'par:mapStyle' }
+      expect(withEdge(edge).pass).toBe(true)
     })
 
-    it('fails a nested handle, which the graph looks up whole and never connects', () => {
-      const r = result()
-      r.finalProject?.edges?.push({
-        id: 'nested',
-        source: '/layer',
-        target: '/deck',
-        sourceHandle: 'out.layer',
-        targetHandle: 'par.basemap.zoom',
-      } as never)
-      const outcome = check({ type: 'edgesValid' }, r)
+    it('fails an edge into a port the operator does not have', () => {
+      const outcome = withEdge({
+        source: 'n1',
+        sourcePort: 'out',
+        target: 'n2',
+        targetPort: 'color',
+      })
       expect(outcome.pass).toBe(false)
-      expect(outcome.detail).toContain('DeckRendererOp has no input basemap.zoom')
+      expect(outcome.detail).toContain('deck has no input color')
+    })
+
+    it('fails an edge from a port the operator does not have', () => {
+      const outcome = withEdge({
+        source: 'n1',
+        sourcePort: 'layer',
+        target: 'n2',
+        targetPort: 'layers',
+      })
+      expect(outcome.detail).toContain('scatter has no output layer')
     })
 
     it('fails an edge to a node that does not exist', () => {
-      const r = result()
-      r.finalProject?.edges?.push({
-        id: 'dangling',
-        source: '/gone',
-        target: '/deck',
-        sourceHandle: 'out.layer',
-        targetHandle: 'par.layers',
-      } as never)
-      expect(check({ type: 'edgesValid' }, r).detail).toContain('no node /gone')
+      const edge = { source: 'gone', sourcePort: 'out', target: 'n2', targetPort: 'layers' }
+      expect(withEdge(edge).detail).toContain('no node gone')
     })
 
-    it('accepts handles only the live operator has', () => {
+    it("leaves a subnet's ports to its input and output nodes", () => {
       const r = result()
-      r.finalOps['/deck'].inputs.custom = 1
-      r.finalProject?.edges?.push({
-        id: 'dynamic',
-        source: '/layer',
-        target: '/deck',
-        sourceHandle: 'out.layer',
-        targetHandle: 'par.custom',
-      } as never)
+      r.finalDoc?.nodes.push({ id: 's', op: 'subnet', x: 0, y: 0, params: {} })
+      r.finalDoc?.edges.push({
+        id: 'e2',
+        source: 'n1',
+        sourcePort: 'out',
+        target: 's',
+        targetPort: 'rows',
+      })
       expect(check({ type: 'edgesValid' }, r).pass).toBe(true)
     })
   })
 
-  it('finds edges by node type', () => {
-    const c: Check = {
-      type: 'edgeExists',
-      sourceType: 'ScatterplotLayerOp',
-      target: '/deck',
-      targetHandle: 'par.layers',
-    }
-    expect(check(c).pass).toBe(true)
-    expect(check({ ...c, targetHandle: 'par.basemap' }).pass).toBe(false)
+  describe('edgeExists', () => {
+    it('finds edges by operator and by path', () => {
+      const c: Check = {
+        type: 'edgeExists',
+        sourceOp: 'scatter',
+        target: '/deck',
+        targetPort: 'layers',
+      }
+      expect(check(c).pass).toBe(true)
+      expect(check({ ...c, targetPort: 'par:mapStyle' }).pass).toBe(false)
+      expect(check({ ...c, target: '/elsewhere' }).pass).toBe(false)
+    })
+
+    it('matches any port when none is named', () => {
+      expect(check({ type: 'edgeExists', source: 'n1', targetOp: 'deck' }).pass).toBe(true)
+    })
   })
 
-  describe('inputEquals', () => {
+  describe('paramEquals', () => {
     it('compares colors across notations within tolerance', () => {
-      const c: Check = {
-        type: 'inputEquals',
-        node: '/layer',
-        input: 'getFillColor',
-        value: '#f00',
-      }
+      const c: Check = { type: 'paramEquals', node: '/layer', param: 'fillColor', value: '#f00' }
       expect(check(c).pass).toBe(true)
       expect(check({ ...c, value: [230, 20, 10], tolerance: 30 }).pass).toBe(true)
       expect(check({ ...c, value: '#00ff00', tolerance: 30 }).pass).toBe(false)
     })
 
-    it('matches any node of a type', () => {
-      const c: Check = {
-        type: 'inputEquals',
-        nodeType: 'ScatterplotLayerOp',
-        input: 'getRadius',
-        value: 10,
-      }
+    it('finds a node by id, by path, or any node of an operator', () => {
+      const c: Check = { type: 'paramEquals', node: 'n1', param: 'radiusScale', value: 10 }
       expect(check(c).pass).toBe(true)
+      expect(check({ ...c, node: '/layer' }).pass).toBe(true)
+      const byOp: Check = { type: 'paramEquals', op: 'scatter', param: 'radiusScale', value: 10 }
+      expect(check(byOp).pass).toBe(true)
     })
 
     it('fails when the node is gone', () => {
-      const c: Check = { type: 'inputEquals', node: '/missing', input: 'x', value: 1 }
+      const c: Check = { type: 'paramEquals', node: '/missing', param: 'x', value: 1 }
       expect(check(c).detail).toBe('no matching node')
     })
   })
 
-  it('matches string inputs by pattern', () => {
+  it('matches string parameters by pattern', () => {
     const r = result()
-    r.finalOps['/layer'].inputs.expression = '[d.Longitude, d.Latitude]'
+    r.finalParams.n1.expression = '[Longitude, Latitude]'
     const c: Check = {
-      type: 'inputMatches',
+      type: 'paramMatches',
       node: '/layer',
-      input: 'expression',
+      param: 'expression',
       pattern: 'Longitude[\\s\\S]*Latitude',
     }
     expect(check(c, r).pass).toBe(true)
   })
 
-  describe('operator errors', () => {
+  describe('node errors', () => {
     it('ignores errors that were already there', () => {
       const r = result({
-        initialOperatorErrors: [{ id: '/layer', error: 'offline' }],
-        operatorErrors: [{ id: '/layer', error: 'offline' }],
+        initialErrors: [{ id: 'n1', error: 'offline' }],
+        errors: [{ id: 'n1', error: 'offline' }],
       })
-      expect(check({ type: 'noNewOperatorErrors' }, r).pass).toBe(true)
-      expect(check({ type: 'operatorErrorsFixed' }, r).pass).toBe(false)
+      expect(check({ type: 'noNewErrors' }, r).pass).toBe(true)
+      expect(check({ type: 'errorsFixed' }, r).pass).toBe(false)
     })
   })
 
-  it('requires something to have been applied', () => {
-    expect(check({ type: 'applySucceeded' }).pass).toBe(false)
-    const applied = result({ turns: [turn({ apply: { success: true } })] })
-    expect(check({ type: 'applySucceeded' }, applied).pass).toBe(true)
-    const failed = result({ turns: [turn({ apply: { success: false, error: 'bad edge' } })] })
-    expect(check({ type: 'applySucceeded' }, failed).detail).toBe('bad edge')
+  describe('applySucceeded', () => {
+    const edit = (success: boolean) => ({
+      name: 'apply_modifications',
+      params: {},
+      success,
+      preview: '',
+    })
+
+    it('requires something to have been applied', () => {
+      expect(check({ type: 'applySucceeded' }).pass).toBe(false)
+      const viaTool = result({ turns: [turn({ toolCalls: [edit(true)] })] })
+      expect(check({ type: 'applySucceeded' }, viaTool).pass).toBe(true)
+      const viaJson = result({ turns: [turn({ apply: { success: true } })] })
+      expect(check({ type: 'applySucceeded' }, viaJson).pass).toBe(true)
+    })
+
+    it('forgives an edit the model fixed, not JSON the editor rejected after the run', () => {
+      const retried = result({ turns: [turn({ toolCalls: [edit(false), edit(true)] })] })
+      expect(check({ type: 'applySucceeded' }, retried).pass).toBe(true)
+      const rejected = result({
+        turns: [turn({ toolCalls: [edit(true)], apply: { success: false, error: 'bad edge' } })],
+      })
+      expect(check({ type: 'applySucceeded' }, rejected).detail).toBe('bad edge')
+    })
   })
 
   it('passes anyOf when one branch passes', () => {
     const c: Check = {
       type: 'anyOf',
       checks: [
-        { type: 'nodeTypesPresent', types: ['HeatmapLayerOp'] },
-        { type: 'nodeTypesPresent', types: ['ScatterplotLayerOp'] },
+        { type: 'opsPresent', ops: ['heatmap'] },
+        { type: 'opsPresent', ops: ['scatter'] },
       ],
     }
     expect(check(c).pass).toBe(true)

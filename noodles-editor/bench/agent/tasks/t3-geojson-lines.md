@@ -1,6 +1,6 @@
 ---
 id: t3-geojson-lines
-taskVersion: 1
+taskVersion: 2
 family: build
 tier: T3
 tags: [data-loading, geojson]
@@ -10,13 +10,18 @@ budget:
   maxWallClockSeconds: 420
 grader:
   checks:
-    - type: nodeTypesPresent
-      types: [FileOp, GeoJsonLayerOp]
-    - { type: edgeExists, sourceType: FileOp, targetType: GeoJsonLayerOp, targetHandle: par.data }
-    - { type: edgeExists, sourceType: GeoJsonLayerOp, target: /deck, targetHandle: par.layers }
+    - type: opsPresent
+      ops: [geojson]
+    # The vertex rows drawn by some layer, and that layer drawn in the deck
+    - type: anyOf
+      checks:
+        - { type: edgeExists, sourceOp: geojson, targetOp: path, targetPort: in }
+        - { type: edgeExists, sourceOp: geojson, targetOp: polygon, targetPort: in }
+        - { type: edgeExists, sourceOp: geojson, targetOp: scatter, targetPort: in }
+    - { type: edgeExists, targetOp: deck, targetPort: layers }
     - type: edgesValid
     - type: applySucceeded
-    - type: noNewOperatorErrors
+    - type: noNewErrors
 ---
 
 Draw the GeoJSON at https://raw.githubusercontent.com/visgl/deck.gl-data/master/website/bart.geo.json on the map.
