@@ -14,15 +14,7 @@ import { AutoComplete } from 'primereact/autocomplete'
 import { Button } from 'primereact/button'
 import { InputSwitch } from 'primereact/inputswitch'
 import { InputText } from 'primereact/inputtext'
-import {
-  type PointerEvent as ReactPointerEvent,
-  useCallback,
-  useEffect,
-  useLayoutEffect,
-  useMemo,
-  useRef,
-  useState,
-} from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { analytics } from '../../utils/analytics'
 import type { TableEditorOp } from '../operators'
 import {
@@ -58,6 +50,17 @@ import { GeocodingDialog } from './geocoding-dialog'
 import { type SchemaChangeMetadata, SchemaEditorDialog } from './schema-editor-dialog'
 import { TableCellKeyframe } from './table-cell-keyframe'
 import {
+  type ActiveEdit,
+  coordinateInRect,
+  coordinatesEqual,
+  type EditAdvance,
+  getSelectionRect,
+  type TableCellCoordinate,
+  type TableSelectionRect,
+  useActiveEdit,
+  useTableGridNavigation,
+} from './use-table-grid-navigation'
+import {
   ClipboardPasteDialog,
   type SchemaOverlayDecisions,
   SchemaOverlayDialog,
@@ -86,8 +89,6 @@ declare module '@tanstack/react-table' {
 }
 
 // Cell editor components for each column type
-
-type EditAdvance = 'next-row' | 'next-column' | 'previous-column'
 
 interface CellEditorProps {
   value: unknown
@@ -831,55 +832,6 @@ function getCellRenderer(type: ColumnType) {
   }
 }
 
-// Tracks the cell currently in edit mode so row mutations can commit it first.
-// Without this, clicking "Add Row" or a delete button while a cell is mid-edit
-// can drop the pending value.
-interface ActiveEdit {
-  set: (commit: () => void) => void
-  clear: () => void
-  flush: () => void
-}
-
-export interface TableCellCoordinate {
-  row: number
-  column: number
-}
-
-interface TableCellSelection {
-  anchor: TableCellCoordinate
-  focus: TableCellCoordinate
-}
-
-interface TableSelectionRect {
-  firstRow: number
-  lastRow: number
-  firstColumn: number
-  lastColumn: number
-}
-
-function getSelectionRect(selection: TableCellSelection | null): TableSelectionRect | null {
-  if (!selection) return null
-  return {
-    firstRow: Math.min(selection.anchor.row, selection.focus.row),
-    lastRow: Math.max(selection.anchor.row, selection.focus.row),
-    firstColumn: Math.min(selection.anchor.column, selection.focus.column),
-    lastColumn: Math.max(selection.anchor.column, selection.focus.column),
-  }
-}
-
-function coordinateInRect(
-  coordinate: TableCellCoordinate,
-  rect: TableSelectionRect | null
-): boolean {
-  return Boolean(
-    rect &&
-      coordinate.row >= rect.firstRow &&
-      coordinate.row <= rect.lastRow &&
-      coordinate.column >= rect.firstColumn &&
-      coordinate.column <= rect.lastColumn
-  )
-}
-
 function cloneCellValue(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(cloneCellValue)
   if (value instanceof Date) return new Date(value.getTime())
@@ -892,34 +844,6 @@ function cloneCellValue(value: unknown): unknown {
     )
   }
   return value
-}
-
-function coordinatesEqual(
-  left: TableCellCoordinate | null | undefined,
-  right: TableCellCoordinate | null | undefined
-): boolean {
-  return left?.row === right?.row && left?.column === right?.column
-}
-
-function useActiveEdit(): ActiveEdit {
-  const commitRef = useRef<(() => void) | null>(null)
-
-  return useMemo(
-    () => ({
-      set: commit => {
-        commitRef.current = commit
-      },
-      clear: () => {
-        commitRef.current = null
-      },
-      flush: () => {
-        const commit = commitRef.current
-        commitRef.current = null
-        commit?.()
-      },
-    }),
-    []
-  )
 }
 
 // Editable cell component
@@ -1398,17 +1322,6 @@ export function TableEditor({
   const [dataImportOpen, setDataImportOpen] = useState(false)
   const [dataImportRequest, setDataImportRequest] = useState<TableImportRequest>()
   const [dataImportError, setDataImportError] = useState<string>()
-  const [activeCell, setActiveCell] = useState<TableCellCoordinate | null>(() =>
-    data.length > 0 && schema.columns.length > 0 ? { row: 0, column: 0 } : null
-  )
-  const [selection, setSelection] = useState<TableCellSelection | null>(() =>
-    data.length > 0 && schema.columns.length > 0
-      ? { anchor: { row: 0, column: 0 }, focus: { row: 0, column: 0 } }
-      : null
-  )
-  const [editingCell, setEditingCell] = useState<TableCellCoordinate | null>(null)
-  const [editingSeed, setEditingSeed] = useState<string>()
-  const [initialNumberDrag, setInitialNumberDrag] = useState<InitialNumberDrag>()
   const overlaySourceRef = useRef<SchemaActionSource>('table_menu')
   const dataPasteAnalyticsRef = useRef<
     | {
@@ -1420,13 +1333,6 @@ export function TableEditor({
     | undefined
   >(undefined)
   const tableWrapperRef = useRef<HTMLDivElement>(null)
-  const pointerSelectingRef = useRef(false)
-  // Only a grid navigation action may move DOM focus into the table. Mounting a
-  // populated table, or a cell commit caused by clicking another control, must not
-  // pull focus away from wherever the user is typing.
-  const focusActiveCellRef = useRef(false)
-  const pendingNumberDragCleanupRef = useRef<(() => void) | null>(null)
-  const numberDragTokenRef = useRef(0)
   const activeEdit = useActiveEdit()
   const previousDataRef = useRef(data)
   const previousSchemaRef = useRef(schema)
@@ -1439,6 +1345,28 @@ export function TableEditor({
   // it can both run in one tick without the second reading stale state
   const tableDataRef = useRef(tableData)
   tableDataRef.current = tableData
+  const {
+    activeCell,
+    selection,
+    editingCell,
+    editingSeed,
+    initialNumberDrag,
+    selectCell,
+    selectRange,
+    beginEditing,
+    startNumberDrag,
+    finishEditing,
+    cancelEditing,
+    moveActiveCell,
+    beginPointerSelection,
+    extendPointerSelection,
+  } = useTableGridNavigation({
+    rowCount: tableData.length,
+    columnCount: schema.columns.length,
+    tableDataRef,
+    tableWrapperRef,
+    activeEdit,
+  })
   const overlayTargetRef = useRef<TablePreviewTarget>()
   const dataImportTargetRef = useRef<TablePreviewTarget>()
 
@@ -1497,44 +1425,6 @@ export function TableEditor({
     previousDataRef.current = data
     previousSchemaRef.current = schema
   }, [activeEdit, data, schema])
-
-  useEffect(() => {
-    const lastRow = tableData.length - 1
-    const lastColumn = schema.columns.length - 1
-    if (lastRow < 0 || lastColumn < 0) {
-      setActiveCell(null)
-      setSelection(null)
-      setEditingCell(null)
-      setEditingSeed(undefined)
-      setInitialNumberDrag(undefined)
-      return
-    }
-
-    const clampCoordinate = (coordinate: TableCellCoordinate): TableCellCoordinate => ({
-      row: Math.max(0, Math.min(lastRow, coordinate.row)),
-      column: Math.max(0, Math.min(lastColumn, coordinate.column)),
-    })
-    setActiveCell(current => (current ? clampCoordinate(current) : { row: 0, column: 0 }))
-    setSelection(current =>
-      current
-        ? { anchor: clampCoordinate(current.anchor), focus: clampCoordinate(current.focus) }
-        : { anchor: { row: 0, column: 0 }, focus: { row: 0, column: 0 } }
-    )
-    setEditingCell(current => (current ? clampCoordinate(current) : null))
-  }, [schema.columns.length, tableData.length])
-
-  useEffect(() => {
-    const endPointerSelection = () => {
-      pointerSelectingRef.current = false
-    }
-    document.addEventListener('pointerup', endPointerSelection)
-    document.addEventListener('pointercancel', endPointerSelection)
-    return () => {
-      document.removeEventListener('pointerup', endPointerSelection)
-      document.removeEventListener('pointercancel', endPointerSelection)
-      pendingNumberDragCleanupRef.current?.()
-    }
-  }, [])
 
   // A connection can replace the overlay target while the dialog is open. Rebuild the
   // preview against the current rows so applying it cannot publish the stale snapshot.
@@ -1764,121 +1654,6 @@ export function TableEditor({
     activeEdit.flush()
     setSchemaEditorOpen(true)
   }, [activeEdit])
-
-  const selectCell = useCallback(
-    (coordinate: TableCellCoordinate, extend = false) => {
-      if (!coordinatesEqual(editingCell, coordinate)) activeEdit.flush()
-      setActiveCell(coordinate)
-      setSelection(current => ({
-        anchor: extend && current ? current.anchor : coordinate,
-        focus: coordinate,
-      }))
-    },
-    [activeEdit, editingCell]
-  )
-
-  const selectRange = useCallback(
-    (anchor: TableCellCoordinate, focus: TableCellCoordinate) => {
-      activeEdit.flush()
-      focusActiveCellRef.current = true
-      setEditingCell(null)
-      setEditingSeed(undefined)
-      setInitialNumberDrag(undefined)
-      setActiveCell(focus)
-      setSelection({ anchor, focus })
-    },
-    [activeEdit]
-  )
-
-  const beginEditing = useCallback(
-    (coordinate: TableCellCoordinate, seed?: string, numberDrag?: InitialNumberDrag) => {
-      activeEdit.flush()
-      setActiveCell(coordinate)
-      setSelection({ anchor: coordinate, focus: coordinate })
-      setEditingSeed(seed)
-      setInitialNumberDrag(numberDrag)
-      setEditingCell(coordinate)
-    },
-    [activeEdit]
-  )
-
-  const startNumberDrag = useCallback(
-    (event: ReactPointerEvent<HTMLElement>, coordinate: TableCellCoordinate) => {
-      if (event.button !== 0 || event.shiftKey) return false
-
-      pendingNumberDragCleanupRef.current?.()
-      pointerSelectingRef.current = false
-      selectCell(coordinate)
-
-      const { clientX: startX, clientY: startY, pointerId } = event
-      let cleanup: () => void
-      const finishPendingDrag = () => cleanup()
-      const handlePointerMove = (moveEvent: PointerEvent) => {
-        if (moveEvent.pointerId !== pointerId) return
-        const distance = Math.abs(moveEvent.clientX - startX) + Math.abs(moveEvent.clientY - startY)
-        if (distance <= 5) return
-
-        cleanup()
-        numberDragTokenRef.current += 1
-        beginEditing(coordinate, undefined, {
-          token: numberDragTokenRef.current,
-          startX,
-          startY,
-          currentX: moveEvent.clientX,
-          currentY: moveEvent.clientY,
-        })
-      }
-
-      cleanup = () => {
-        document.removeEventListener('pointermove', handlePointerMove)
-        document.removeEventListener('pointerup', finishPendingDrag)
-        document.removeEventListener('pointercancel', finishPendingDrag)
-        if (pendingNumberDragCleanupRef.current === cleanup) {
-          pendingNumberDragCleanupRef.current = null
-        }
-      }
-      document.addEventListener('pointermove', handlePointerMove)
-      document.addEventListener('pointerup', finishPendingDrag)
-      document.addEventListener('pointercancel', finishPendingDrag)
-      pendingNumberDragCleanupRef.current = cleanup
-      return true
-    },
-    [beginEditing, selectCell]
-  )
-
-  const finishEditing = useCallback(
-    (coordinate: TableCellCoordinate, advance?: EditAdvance) => {
-      setEditingCell(null)
-      setEditingSeed(undefined)
-      setInitialNumberDrag(undefined)
-      if (!advance) return
-
-      focusActiveCellRef.current = true
-      const rowCount = tableDataRef.current.length
-      const columnCount = schema.columns.length
-      let next = coordinate
-      if (advance === 'next-row') {
-        next = { row: Math.min(rowCount - 1, coordinate.row + 1), column: coordinate.column }
-      } else {
-        const linearIndex = coordinate.row * columnCount + coordinate.column
-        const offset = advance === 'next-column' ? 1 : -1
-        const nextIndex = Math.max(0, Math.min(rowCount * columnCount - 1, linearIndex + offset))
-        next = { row: Math.floor(nextIndex / columnCount), column: nextIndex % columnCount }
-      }
-      setActiveCell(next)
-      setSelection({ anchor: next, focus: next })
-    },
-    [schema.columns.length]
-  )
-
-  const cancelEditing = useCallback((coordinate: TableCellCoordinate) => {
-    focusActiveCellRef.current = true
-    setEditingCell(null)
-    setEditingSeed(undefined)
-    setInitialNumberDrag(undefined)
-    setActiveCell(coordinate)
-    setSelection({ anchor: coordinate, focus: coordinate })
-  }, [])
 
   const clearRange = useCallback(
     (rect: TableSelectionRect) => {
@@ -2492,40 +2267,6 @@ export function TableEditor({
 
   const tableRows = table.getRowModel().rows
 
-  const moveActiveCell = useCallback(
-    (rowOffset: number, columnOffset: number, extend: boolean) => {
-      if (tableDataRef.current.length === 0 || schema.columns.length === 0) return
-      activeEdit.flush()
-      focusActiveCellRef.current = true
-      setEditingCell(null)
-      setEditingSeed(undefined)
-      const current = activeCell ?? { row: 0, column: 0 }
-      const next = {
-        row: Math.max(0, Math.min(tableDataRef.current.length - 1, current.row + rowOffset)),
-        column: Math.max(0, Math.min(schema.columns.length - 1, current.column + columnOffset)),
-      }
-      setActiveCell(next)
-      setSelection(previous => ({
-        anchor: extend && previous ? previous.anchor : next,
-        focus: next,
-      }))
-    },
-    [activeCell, activeEdit, schema.columns.length]
-  )
-
-  useEffect(() => {
-    if (!activeCell || editingCell || !focusActiveCellRef.current) return
-    focusActiveCellRef.current = false
-    const focusCell = () => {
-      tableWrapperRef.current
-        ?.querySelector<HTMLElement>(
-          `[data-grid-row="${activeCell.row}"][data-grid-column="${activeCell.column}"]`
-        )
-        ?.focus({ preventScroll: true })
-    }
-    focusCell()
-  }, [activeCell, editingCell])
-
   const handleCellKeyDown = useCallback(
     (event: React.KeyboardEvent<HTMLTableCellElement>, coordinate: TableCellCoordinate) => {
       if (coordinatesEqual(editingCell, coordinate)) return
@@ -2834,17 +2575,9 @@ export function TableEditor({
                                 ) {
                                   return
                                 }
-                                pointerSelectingRef.current = true
-                                selectCell(coordinate, event.shiftKey)
+                                beginPointerSelection(coordinate, event.shiftKey)
                               }}
-                              onPointerEnter={() => {
-                                if (!pointerSelectingRef.current) return
-                                setActiveCell(coordinate)
-                                setSelection(current => ({
-                                  anchor: current?.anchor ?? coordinate,
-                                  focus: coordinate,
-                                }))
-                              }}
+                              onPointerEnter={() => extendPointerSelection(coordinate)}
                               onClick={event => selectCell(coordinate, event.shiftKey)}
                               onDoubleClick={() => beginEditing(coordinate)}
                               onKeyDown={event => handleCellKeyDown(event, coordinate)}
