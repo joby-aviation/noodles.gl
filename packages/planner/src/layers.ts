@@ -26,11 +26,15 @@ export type LayerKind =
   /** Aggregation layers: deck bins positions on the GPU or CPU, weighted per row. */
   | 'heatmap' | 'hexagon' | 'grid'
   /** A 3D model per row: deck's SimpleMeshLayer (`mesh`) and ScenegraphLayer (`scenegraph`). */
-  | 'mesh' | 'scenegraph';
+  | 'mesh' | 'scenegraph'
+  /** A segment, a point of a cloud, or an icon per row. */
+  | 'line' | 'point-cloud' | 'icon'
+  /** Aggregation in screen space (`screen-grid`) and into iso-lines and bands (`contour`). */
+  | 'screen-grid' | 'contour';
 
 export const LAYER_KINDS: readonly LayerKind[] = [
   'scatter', 'arc', 'path', 'trips', 'column', 'text', 'polygon', 'heatmap', 'hexagon', 'grid',
-  'mesh', 'scenegraph',
+  'mesh', 'scenegraph', 'line', 'point-cloud', 'icon', 'screen-grid', 'contour',
 ];
 
 /**
@@ -65,6 +69,42 @@ const MODEL_CHANNELS: ChannelSpec[] = [
 ];
 
 export const LAYER_SPECS: Record<LayerKind, LayerKindSpec> = {
+  line: {
+    channels: [
+      { name: 'sourcePosition', type: 'vec', required: true },
+      { name: 'targetPosition', type: 'vec', required: true },
+      { name: 'color', type: 'color', fallback: 'color' },
+      { name: 'width', type: 'num' },
+    ],
+  },
+  'point-cloud': {
+    channels: [
+      { name: 'position', type: 'vec', required: true, fallback: 'position' },
+      { name: 'normal', type: 'vec' },
+      { name: 'color', type: 'color', fallback: 'color' },
+    ],
+  },
+  icon: {
+    channels: [
+      { name: 'position', type: 'vec', required: true, fallback: 'position' },
+      { name: 'icon', type: 'str', required: true },
+      { name: 'color', type: 'color', fallback: 'color' },
+      { name: 'size', type: 'num', fallback: 'size' },
+      { name: 'angle', type: 'num' },
+    ],
+  },
+  'screen-grid': {
+    channels: [
+      { name: 'position', type: 'vec', required: true, fallback: 'position' },
+      { name: 'weight', type: 'num' },
+    ],
+  },
+  contour: {
+    channels: [
+      { name: 'position', type: 'vec', required: true, fallback: 'position' },
+      { name: 'weight', type: 'num' },
+    ],
+  },
   scatter: {
     channels: [
       { name: 'position', type: 'vec', required: true, fallback: 'position' },

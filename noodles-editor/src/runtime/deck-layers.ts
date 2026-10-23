@@ -24,13 +24,19 @@ import { type LayerKind, RAMP_STOPS, type ResolvedProp, toUint8Color } from '@no
 import {
   ArcLayer,
   ColumnLayer,
+  ContourLayer,
+  GridCellLayer,
   GridLayer,
   HeatmapLayer,
   HexagonLayer,
+  IconLayer,
   type Layer,
+  LineLayer,
   PathLayer,
+  PointCloudLayer,
   ScatterplotLayer,
   ScenegraphLayer,
+  ScreenGridLayer,
   SimpleMeshLayer,
   SolidPolygonLayer,
   TextLayer,
@@ -59,11 +65,20 @@ export interface ProgramPaneMetrics {
   triangulateMs: number
 }
 
+interface TextRow {
+  position: number[]
+  text: string
+  color?: number[]
+  size?: number
+  angle?: number
+}
+
 type Binary = {
   length: number
   startIndices?: Uint32Array
   attributes: Record<string, unknown>
-  texts?: { position: number[]; text: string }[]
+  // Text and icon layers: an object per row, as deck lays out glyphs and icons on the CPU
+  texts?: TextRow[]
   /** Polygon layers: ring outlines as closed paths over the same vertex array. */
   outline?: { length: number; startIndices: Uint32Array; attributes: Record<string, unknown> }
   triangles?: number
@@ -253,23 +268,49 @@ function toBinary(input: ProgramLayerInput): Binary {
       }
       return { length: n, attributes: at }
     }
-    case 'text': {
-      // Text has no binary path worth taking at label counts: deck lays out glyphs per string
-      // on the CPU regardless. Capped, because thousands of labels are unreadable anyway.
+    case 'line':
+      put('getSourcePosition', pos('sourcePosition'), 3)
+      put('getTargetPosition', pos('targetPosition'), 3)
+      put('getColor', colors(attr(input, 'color'), n), 4, true)
+      put('getWidth', scalar('width'), 1)
+      return { length: n, attributes: at }
+    case 'point-cloud':
+      put('getPosition', pos('position'), 3)
+      put('getNormal', pos('normal'), 3)
+      put('getColor', colors(attr(input, 'color'), n), 4, true)
+      return { length: n, attributes: at }
+    case 'screen-grid':
+    case 'contour':
+      put('getPosition', pos('position'), 3)
+      put('getWeight', scalar('weight'), 1)
+      return { length: n, attributes: at }
+    case 'text':
+    case 'icon': {
+      // Text and icons have no binary path worth taking at label counts: deck lays out glyphs
+      // and icons per row on the CPU regardless. Capped, because thousands are unreadable.
       const p = attr(input, 'position')
-      const textName = input.bindings.find(b => b.channel === 'text')?.attribute
-      const strings = textName ? (d.strings.get(textName) ?? []) : []
+      const stringName = input.bindings.find(b => b.channel === input.kind)?.attribute
+      const strings = stringName ? (d.strings.get(stringName) ?? []) : []
       const count = Math.min(n, 5000)
-      const texts = Array.from({ length: count }, (_, i) => ({
-        position: p
-          ? [
-              p.data[i * p.width],
-              p.data[i * p.width + 1],
-              p.width > 2 ? p.data[i * p.width + 2] : 0,
-            ]
-          : [0, 0, 0],
-        text: strings[i] ?? '',
-      }))
+      const color = colors(attr(input, 'color'), n)
+      const size = scalar('size')
+      const angle = scalar('angle')
+      const texts = Array.from(
+        { length: count },
+        (_, i): TextRow => ({
+          position: p
+            ? [
+                p.data[i * p.width],
+                p.data[i * p.width + 1],
+                p.width > 2 ? p.data[i * p.width + 2] : 0,
+              ]
+            : [0, 0, 0],
+          text: strings[i] ?? '',
+          ...(color ? { color: Array.from(color.subarray(i * 4, i * 4 + 4)) } : {}),
+          ...(size ? { size: size[i] } : {}),
+          ...(angle ? { angle: angle[i] } : {}),
+        })
+      )
       return { length: count, attributes: {}, texts }
     }
   }
@@ -446,6 +487,19 @@ function buildLayer(input: ProgramLayerInput, binary: Binary): Layer | undefined
         ...constant('getTargetColor', rgb(p.targetColor, [255, 60, 120])),
       } as never)
     case 'column':
+      // A cell size makes square cells of that size: deck's GridCellLayer
+      if (p.cellSize !== undefined) {
+        return new GridCellLayer({
+          ...common,
+          data: binary as never,
+          cellSize: num(p.cellSize, 1000),
+          coverage: num(p.coverage, 1),
+          elevationScale: num(p.elevationScale, 1),
+          extruded: p.extruded !== false,
+          getElevation: has('getElevation') ? undefined : 1,
+          ...constant('getFillColor', rgb(p.fillColor, [255, 170, 60])),
+        } as never)
+      }
       return new ColumnLayer({
         ...common,
         data: binary as never,
@@ -560,24 +614,109 @@ function buildLayer(input: ProgramLayerInput, binary: Binary): Layer | undefined
         loaders: [/\.ply(\?|$)/i.test(model) ? PLYLoader : OBJLoader],
       } as never)
     }
-    case 'text':
+    case 'text': {
+      const size = num(p.size, 12)
+      const color = rgb(p.color, [230, 230, 230])
+      const outline = num(p.outlineWidth, 2)
       return new TextLayer({
         ...common,
         data: binary.texts ?? [],
-        getPosition: (d: { position: number[] }) => d.position,
-        getText: (d: { text: string }) => d.text,
-        getSize: num(p.size, 12),
-        getColor: rgb(p.color, [230, 230, 230]),
-        getPixelOffset: [0, num(p.offsetY, 0)],
+        getPosition: (d: TextRow) => d.position,
+        getText: (d: TextRow) => d.text,
+        // A per-row size multiplies Size, as a per-row radius multiplies a radius scale
+        getSize: (d: TextRow) => (d.size ?? 1) * size,
+        getColor: (d: TextRow) => d.color ?? color,
+        getAngle: (d: TextRow) => d.angle ?? num(p.angle, 0),
+        getPixelOffset: [num(p.offsetX, 0), num(p.offsetY, 0)],
+        getTextAnchor: String(p.anchor ?? 'middle'),
+        getAlignmentBaseline: String(p.baseline ?? 'center'),
+        sizeUnits: widthUnits(p.sizeUnits),
+        billboard: p.billboard !== false,
         updateTriggers: {
           getColor: String(p.color),
           getSize: String(p.size),
-          getPixelOffset: String(p.offsetY),
+          getAngle: String(p.angle),
+          getPixelOffset: `${p.offsetX},${p.offsetY}`,
         },
-        fontFamily: 'ui-monospace, SF Mono, Menlo, monospace',
-        outlineWidth: 2,
-        outlineColor: [8, 9, 13, 220],
-        fontSettings: { sdf: true },
+        fontFamily: String(p.fontFamily ?? 'ui-monospace, SF Mono, Menlo, monospace'),
+        fontWeight: num(p.fontWeight, 400),
+        outlineWidth: outline,
+        outlineColor: [...rgb(p.outlineColor, [8, 9, 13]).slice(0, 3), 220],
+        background: p.background === true,
+        getBackgroundColor: rgb(p.backgroundColor, [255, 255, 255]),
+        fontSettings: { sdf: outline > 0 },
       } as never)
+    }
+    case 'icon': {
+      const mapping = String(p.iconMapping ?? '{}').trim()
+      const color = rgb(p.color, [0, 0, 0])
+      return new IconLayer({
+        ...common,
+        data: binary.texts ?? [],
+        iconAtlas: String(p.iconAtlas ?? ''),
+        // Inline JSON, or a URL deck fetches
+        iconMapping: mapping.startsWith('{') ? JSON.parse(mapping) : mapping,
+        getPosition: (d: TextRow) => d.position,
+        getIcon: (d: TextRow) => d.text,
+        getSize: (d: TextRow) => d.size ?? 1,
+        getColor: (d: TextRow) => d.color ?? color,
+        getAngle: (d: TextRow) => d.angle ?? 0,
+        getPixelOffset: [num(p.offsetX, 0), num(p.offsetY, 0)],
+        sizeScale: num(p.sizeScale, 1),
+        sizeUnits: widthUnits(p.sizeUnits),
+        sizeMinPixels: num(p.sizeMinPixels, 0),
+        billboard: p.billboard !== false,
+        updateTriggers: { getColor: String(p.color) },
+      } as never)
+    }
+    case 'line':
+      return new LineLayer({
+        ...common,
+        data: binary as never,
+        widthScale: num(p.widthScale, 1),
+        widthUnits: widthUnits(p.widthUnits),
+        widthMinPixels: num(p.widthMinPixels, 0),
+        getWidth: has('getWidth') ? undefined : 1,
+        ...constant('getColor', rgb(p.color, [255, 255, 255])),
+      } as never)
+    case 'point-cloud':
+      return new PointCloudLayer({
+        ...common,
+        data: binary as never,
+        pointSize: num(p.pointSize, 10),
+        sizeUnits: widthUnits(p.sizeUnits),
+        getNormal: has('getNormal') ? undefined : [0, 0, 1],
+        ...constant('getColor', rgb(p.color, [0, 0, 0])),
+      } as never)
+    case 'screen-grid':
+      return new ScreenGridLayer({
+        ...common,
+        data: binary as never,
+        cellSizePixels: num(p.cellSizePixels, 100),
+        cellMarginPixels: num(p.cellMarginPixels, 2),
+        aggregation: String(p.aggregation ?? 'SUM'),
+        // As for the grid and hexagon layers, the CPU aggregator reads binary attributes
+        gpuAggregation: false,
+        getWeight: has('getWeight') ? undefined : 1,
+        ...colorRange(p.colorRange),
+      } as never)
+    case 'contour': {
+      let contours: unknown = []
+      try {
+        contours = JSON.parse(String(p.contours ?? '[]'))
+      } catch {
+        // Contours that do not parse draw nothing
+      }
+      return new ContourLayer({
+        ...common,
+        data: binary as never,
+        cellSize: num(p.cellSize, 1000),
+        aggregation: String(p.aggregation ?? 'SUM'),
+        contours,
+        zOffset: num(p.zOffset, 0.005),
+        gpuAggregation: false,
+        getWeight: has('getWeight') ? undefined : 1,
+      } as never)
+    }
   }
 }

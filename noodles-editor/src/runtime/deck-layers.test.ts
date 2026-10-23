@@ -223,3 +223,112 @@ describe('DeckLayerBuilder mesh layers', () => {
     expect(data.attributes.getOrientation).toBeUndefined()
   })
 })
+
+describe('DeckLayerBuilder other row layers', () => {
+  const data = (
+    rows: number,
+    attributes: [string, Float32Array, number][],
+    strings: [string, string[]][] = []
+  ) => ({
+    rows,
+    attributes: new Map(attributes.map(([name, values, width]) => [name, { data: values, width }])),
+    strings: new Map(strings),
+    evalMs: 0,
+    code: '',
+  })
+  const P = new Float32Array([-40, -40, 40, 40])
+
+  it('draws lines, point clouds, square cells, text, screen grids and contours without errors', async () => {
+    const builder = new DeckLayerBuilder()
+    const built = builder.build([
+      {
+        id: 'lines',
+        kind: 'line',
+        data: data(1, [
+          ['S', new Float32Array([-40, 0]), 2],
+          ['T', new Float32Array([40, 0]), 2],
+        ]),
+        bindings: [
+          { channel: 'sourcePosition', attribute: 'S' },
+          { channel: 'targetPosition', attribute: 'T' },
+        ],
+        props: { widthScale: 4, color: [255, 0, 0] },
+      },
+      {
+        id: 'cloud',
+        kind: 'point-cloud',
+        data: data(2, [['P', P, 2]]),
+        bindings: [{ channel: 'position', attribute: 'P' }],
+        props: { pointSize: 6, color: [0, 255, 0] },
+      },
+      {
+        id: 'cells',
+        kind: 'column',
+        data: data(2, [['P', P, 2]]),
+        bindings: [{ channel: 'position', attribute: 'P' }],
+        props: { cellSize: 10, extruded: false },
+      },
+      {
+        id: 'labels',
+        kind: 'text',
+        data: data(
+          2,
+          [
+            ['P', P, 2],
+            ['C', new Float32Array([1, 0, 0, 0, 0, 1]), 3],
+            ['Z', new Float32Array([1, 2]), 1],
+          ],
+          [['N', ['a', 'b']]]
+        ),
+        bindings: [
+          { channel: 'position', attribute: 'P' },
+          { channel: 'text', attribute: 'N' },
+          { channel: 'color', attribute: 'C' },
+          { channel: 'size', attribute: 'Z' },
+        ],
+        props: { size: 10 },
+      },
+      {
+        id: 'screen',
+        kind: 'screen-grid',
+        data: data(2, [['P', P, 2]]),
+        bindings: [{ channel: 'position', attribute: 'P' }],
+        props: { cellSizePixels: 20 },
+      },
+      {
+        id: 'iso',
+        kind: 'contour',
+        data: data(2, [['P', P, 2]]),
+        bindings: [{ channel: 'position', attribute: 'P' }],
+        props: { cellSize: 10, contours: '[{"threshold":1,"color":[255,255,255]}]' },
+      },
+    ])
+    expect([...built.keys()]).toEqual(['lines', 'cloud', 'cells', 'labels', 'screen', 'iso'])
+    // deck's own names: its bundle renames some classes
+    const kinds = [...built.values()]
+      .flat()
+      .map(l => (l.constructor as unknown as { layerName: string }).layerName)
+    expect(kinds).toEqual([
+      'LineLayer',
+      'PointCloudLayer',
+      'GridCellLayer',
+      'TextLayer',
+      'ScreenGridLayer',
+      'ContourLayer',
+    ])
+    const texts = (
+      (built.get('labels') ?? [])[0].props as unknown as {
+        data: { color?: number[]; size?: number }[]
+      }
+    ).data
+    // Per-row colors arrive as 0–255, per-row sizes as multipliers
+    expect(texts.map(t => [t.color?.slice(0, 3), t.size])).toEqual([
+      [[255, 0, 0], 1],
+      [[0, 0, 255], 2],
+    ])
+    // Every kind renders with no errors (draw throws on one), and the red line shows
+    const pixel = await draw([...built.values()].flat())
+    const all = Array.from({ length: 100 * 100 }, (_, k) => pixel(k % 100, Math.floor(k / 100)))
+    expect(all.some(p => p[0] === 255 && p[1] === 0 && p[2] === 0 && p[3] === 255)).toBe(true)
+  })
+})
