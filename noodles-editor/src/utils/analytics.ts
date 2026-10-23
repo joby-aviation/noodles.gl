@@ -51,7 +51,14 @@ export const filterExceptionEvent: BeforeSendFn = event => {
   if (event?.event !== '$exception') return event
   const props = event.properties ?? {}
 
-  // Rule 1: benign browser noise, matched on any exception message in the event
+  // Rule 1: error capture opt-out. Honors the Settings toggle for autocaptured exceptions the
+  // same way captureException() does. Read on every event, so toggling applies without a reload.
+  if (!AnalyticsManager.getInstance().getErrorCaptureEnabled()) {
+    debugAnalytics('Dropped exception: error capture is turned off')
+    return null
+  }
+
+  // Rule 2: benign browser noise, matched on any exception message in the event
   const exceptionList: Array<{ value?: unknown }> = Array.isArray(props.$exception_list)
     ? props.$exception_list
     : []
@@ -61,7 +68,7 @@ export const filterExceptionEvent: BeforeSendFn = event => {
     return null
   }
 
-  // Rule 2: local development sessions (dev server or local preview build)
+  // Rule 3: local development sessions (dev server or local preview build)
   if (isDevSessionUrl(props.$current_url)) {
     debugAnalytics('Filtered exception from local dev session')
     return null
@@ -102,7 +109,7 @@ export class AnalyticsManager {
         capture_pageview: true, // Captures initial page load; route changes tracked manually
         capture_pageleave: true,
         capture_exceptions: true, // Capture unhandled exceptions
-        before_send: filterExceptionEvent, // Drops benign and local-dev exceptions
+        before_send: filterExceptionEvent, // Drops opted-out, benign, and local-dev exceptions
         loaded: posthog => {
           if (import.meta.env.DEV) {
             posthog.debug(false) // Set to true for verbose logging in dev

@@ -205,8 +205,11 @@ describe('Analytics error filtering', () => {
 describe('PostHog before_send exception filtering', () => {
   let beforeSend: BeforeSendFn | BeforeSendFn[] | undefined
 
+  let analytics: Awaited<typeof import('./analytics')>['analytics']
+
   beforeEach(async () => {
-    const { analytics } = await import('./analytics')
+    localStorage.clear()
+    analytics = (await import('./analytics')).analytics
     analytics.initialize()
     beforeSend = posthogInit.config?.before_send
   })
@@ -275,6 +278,41 @@ describe('PostHog before_send exception filtering', () => {
         properties: { $current_url: 'https://noodles.gl/app/examples/nyc-taxis' },
       }
       expect(runBeforeSend(event)).toEqual(event)
+    })
+  })
+
+  describe('error capture opt-out rule', () => {
+    it('drops exceptions when error capture is turned off', () => {
+      analytics.setErrorCaptureConsent(false)
+      expect(runBeforeSend(autocapturedException('Real error'))).toBeNull()
+    })
+
+    it('leaves non-exception events alone when error capture is turned off', () => {
+      analytics.setErrorCaptureConsent(false)
+      const event: CaptureResult = {
+        uuid: 'test-uuid',
+        event: '$pageview',
+        properties: { $current_url: 'https://noodles.gl/app/examples/nyc-taxis' },
+      }
+      expect(runBeforeSend(event)).toEqual(event)
+    })
+
+    it('sends exceptions when error capture is turned on', () => {
+      analytics.setErrorCaptureConsent(true)
+      const event = autocapturedException('Real error')
+      expect(runBeforeSend(event)).toEqual(event)
+    })
+
+    it('applies a runtime toggle without re-initializing PostHog', () => {
+      const event = autocapturedException('Real error')
+      expect(runBeforeSend(event)).toEqual(event)
+
+      analytics.setErrorCaptureConsent(false)
+      expect(runBeforeSend(event)).toBeNull()
+
+      analytics.setErrorCaptureConsent(true)
+      expect(runBeforeSend(event)).toEqual(event)
+      expect(posthogInit.config?.before_send).toBe(beforeSend)
     })
   })
 
