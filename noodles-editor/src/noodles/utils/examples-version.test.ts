@@ -3,18 +3,10 @@ import { NOODLES_VERSION } from './migrate-schema'
 import type { NoodlesProjectJSON } from './serialization'
 
 // Import all example project files
-const exampleProjects = import.meta.glob('../../examples/**/noodles.json', {
+const allProjects = import.meta.glob('../../examples/**/noodles.json', {
   eager: true,
   import: 'default',
 }) as Record<string, NoodlesProjectJSON>
-
-// Import public demo projects
-const publicProjects = import.meta.glob('../../../public/noodles/*.json', {
-  eager: true,
-  import: 'default',
-}) as Record<string, NoodlesProjectJSON>
-
-const allProjects = { ...exampleProjects, ...publicProjects }
 
 describe('Example projects version', () => {
   it('should have at least one example project', () => {

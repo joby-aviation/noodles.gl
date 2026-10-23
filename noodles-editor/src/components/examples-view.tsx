@@ -3,6 +3,7 @@ import * as Dialog from '@radix-ui/react-dialog'
 import { ChevronLeftIcon } from '@radix-ui/react-icons'
 import { useCallback, useMemo } from 'react'
 import { useLocation } from 'wouter'
+import hiddenExamples from '../examples/hidden.json'
 import type { NoodlesProjectJSON } from '../noodles/utils/serialization'
 import { analytics } from '../utils/analytics'
 import s from './quick-start-modal.module.css'
@@ -50,6 +51,7 @@ export function useAllExamples(): ExampleProject[] {
     const list: ExampleProject[] = []
     for (const [path, projectJson] of Object.entries(exampleProjects)) {
       const projectId = basename(dirname(path))
+      if (hiddenExamples.includes(projectId)) continue
       const readmePath = path.replace('noodles.json', 'README.md')
       const readme = exampleReadmes[readmePath] as string | undefined
 

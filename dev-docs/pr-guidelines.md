@@ -145,7 +145,7 @@ Adapted from the [deck.gl PR description guidelines](https://github.com/visgl/de
 ## Manual Testing in UI
 
 ### Setup
-Save this file as `public/noodles/test-feature.noodles.json` and open with `?project=test-feature`
+Save this file as `noodles-editor/src/examples/test-feature/noodles.json` and open `/examples/test-feature`
 
 [Include noodles.json content here]
 

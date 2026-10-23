@@ -293,7 +293,7 @@ npm test table-schema.test.ts
 ```
 
 **Manual Testing:**
-1. Load example: `http://localhost:5173/noodles/table-editor-demo`
+1. Load example: `http://localhost:5173/examples/table-editor-demo`
 2. Test inline editing for all column types
 3. Test schema editor (add/edit/delete columns)
 4. Test row operations (add/delete)
