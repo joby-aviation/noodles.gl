@@ -133,6 +133,7 @@ export function DocNodeComponent({ id, selected }: NodeProps) {
   const edges = useEditor(st => st.doc.edges)
   const nodeOps = useEditor(st => st.doc.nodes)
   const engine = useEngineState()
+  const debug = useEditor(st => st.debug)
   const connection = useConnection()
   const wired = useMemo(
     () => new Set(edges.filter(e => e.target === id).map(e => e.targetPort)),
@@ -150,7 +151,10 @@ export function DocNodeComponent({ id, selected }: NodeProps) {
       </div>
     )
   }
-  const { badges, error } = nodeStatus(id, engine)
+  const status = nodeStatus(id, engine)
+  const error = status.error
+  // Rows drawn are the user's; how the planner stored and ran a node is for debug mode
+  const badges = debug ? status.badges : status.badges.filter(b => b.kind === 'rows')
 
   // While a wire is dragged from an output, the inputs it fits stay lit and the rest dim; the
   // parameter ports it could drive appear

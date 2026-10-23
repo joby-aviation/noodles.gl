@@ -1,7 +1,7 @@
 // The parameter pane: the selected node's parameters and nothing else, laid out from its
-// operator's schema as d-d-d's pane is: folders as tabs, a Noodles widget per parameter, what
-// a change costs on each row. Below them, what the planner made of the node: its relation and
-// SQL, its layer's numbers, which of its parameters animate.
+// operator's schema as d-d-d's pane is: folders as tabs, a Noodles widget per parameter. In
+// debug mode, what each change costs, and below the parameters what the planner made of the
+// node: its relation and SQL, its layer's numbers, which of its parameters animate.
 
 import {
   type DocNode,
@@ -64,6 +64,8 @@ function NodeParams({ node, doc, multi }: { node: DocNode; doc: EditorDoc; multi
   const op = OPERATOR_INDEX.get(node.op)
   const engine = useEngineState()
   const fields = useNodeFields(node)
+  // The relation, the layer's query and its timings: for debugging the planner, not for users
+  const debug = useEditor(st => st.debug)
   const [folder, setFolder] = useState<string>()
   const [name, setName] = useState(nameOf(node))
   useEffect(() => setName(nameOf(node)), [node])
@@ -174,7 +176,7 @@ function NodeParams({ node, doc, multi }: { node: DocNode; doc: EditorDoc; multi
             })}
         {node.op === 'subnet' && <Promoted subnet={node} doc={doc} />}
       </div>
-      <NodeInfo node={node} op={op} engine={engine} />
+      {debug && <NodeInfo node={node} op={op} engine={engine} />}
     </div>
   )
 }

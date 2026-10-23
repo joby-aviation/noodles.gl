@@ -124,7 +124,9 @@ export function ParamRow({
   const value = engine.slots.get(key)
   const canKey = keyable(def, field) && !wired && mode === 'literal'
   const wire = doc.edges.find(e => e.target === node.id && e.targetPort === `par:${def.name}`)
-  const routes = routesOf(def, key, engine)
+  const debug = useEditor(st => st.debug)
+  // What a change costs is the planner's business; debug mode shows it
+  const routes = debug ? routesOf(def, key, engine) : []
   const numeric = KEYABLE.has(def.kind)
 
   const set = (v: ParamValue | undefined) =>
