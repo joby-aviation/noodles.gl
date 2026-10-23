@@ -1,4 +1,10 @@
-import { inferSchema, isTableSchema, repairTableSchema, type TableSchema } from '../table-schema'
+import {
+  inferSchema,
+  isTableSchema,
+  repairTableSchema,
+  validateValue,
+  type TableSchema,
+} from '../table-schema'
 import { parseHandleId } from '../utils/path-utils'
 import type { NoodlesProjectJSON, ProjectMigrationDiagnostic } from '../utils/serialization'
 
@@ -11,6 +17,26 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 function inputsFor(node: ProjectNode): Record<string, unknown> {
   if (!isRecord(node.data) || !isRecord(node.data.inputs)) return {}
   return node.data.inputs
+}
+
+function inferredSchemaPreservesData(data: unknown[], schema: TableSchema): boolean {
+  const columnNames = new Set(schema.columns.map(column => column.name))
+
+  return data.every(row => {
+    // Legacy TableEditors passed non-record rows through unchanged, and still do when a
+    // schema is present. Only record rows can lose keys or have values reset.
+    if (!isRecord(row)) return true
+
+    const rowKeys = Object.keys(row)
+    if (rowKeys.length !== columnNames.size || rowKeys.some(key => !columnNames.has(key))) {
+      return false
+    }
+
+    return schema.columns.every(column => {
+      const value = row[column.name]
+      return value !== undefined && validateValue(value, column)
+    })
+  })
 }
 
 function isSchemaInputHandle(handle: string | null | undefined) {
@@ -123,7 +149,13 @@ export async function up(project: NoodlesProjectJSON): Promise<NoodlesProjectJSO
       // would validate every incoming row down to `{}`, so leave the schema unresolved.
       const data = inputs.data
       const inferred = Array.isArray(data) ? inferSchema(data) : undefined
-      if (inferred && inferred.columns.length > 0) schema = inferred
+      if (
+        inferred &&
+        inferred.columns.length > 0 &&
+        inferredSchemaPreservesData(data as unknown[], inferred)
+      ) {
+        schema = inferred
+      }
     }
 
     resolving.delete(nodeId)

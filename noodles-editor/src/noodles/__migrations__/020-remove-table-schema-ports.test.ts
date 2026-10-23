@@ -54,6 +54,23 @@ describe('020-remove-table-schema-ports', () => {
     expect(nodeInputs(migrated.nodes[1]).schema).toBeUndefined()
   })
 
+  it('does not infer a schema that would change legacy pass-through rows', async () => {
+    const heterogeneousRows = [{ a: 1 }, { a: 2, b: 3 }]
+    const objectRows = [{ metadata: { source: 'legacy' } }]
+    const project: NoodlesProjectJSON = {
+      ...baseProject,
+      nodes: [
+        tableNode('/heterogeneous', { data: heterogeneousRows }),
+        tableNode('/objects', { data: objectRows }),
+      ],
+    }
+
+    const migrated = await up(project)
+
+    expect(nodeInputs(migrated.nodes[0])).toEqual({ data: heterogeneousRows })
+    expect(nodeInputs(migrated.nodes[1])).toEqual({ data: objectRows })
+  })
+
   it('leaves the schema unset when a connected table has no saved rows', async () => {
     const project: NoodlesProjectJSON = {
       ...baseProject,
