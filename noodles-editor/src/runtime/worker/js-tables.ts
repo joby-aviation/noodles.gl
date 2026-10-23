@@ -7,6 +7,7 @@ import { tableFromJSON, tableToIPC } from 'apache-arrow'
 import { flatRow, isFeatureCollection, readPlainRows } from '../plain-rows'
 import { tableFromRows } from './arrow-rows'
 import type { BlockingSql } from './blocking-sql'
+import { featuresTable } from './geojson-wkb'
 import { compileWithScope } from './js-scope'
 
 export class JsTables {
@@ -21,11 +22,19 @@ export class JsTables {
     if (js.input) {
       d = await this.readInput(js.input)
     } else if (js.url) {
-      // A JSON file read whole, as CodeOp's input from a JSON FileOp was the parsed file
-      const [file] = await this.sql.rows(
-        `SELECT content FROM read_text('${js.url.replace(/'/g, "''")}')`
-      )
-      d = JSON.parse(String(file?.content ?? 'null'))
+      // A JSON file read whole, as CodeOp's input from a JSON FileOp was the parsed file.
+      // A registered file is read as registered: read_text cannot read one named by a URL
+      const registered = this.sql.readFile(js.url)
+      let text: string
+      if (registered === undefined) {
+        const [file] = await this.sql.rows(
+          `SELECT content FROM read_text('${js.url.replace(/'/g, "''")}')`
+        )
+        text = String(file?.content ?? 'null')
+      } else {
+        text = typeof registered === 'string' ? registered : new TextDecoder().decode(registered)
+      }
+      d = JSON.parse(text)
     }
     let result: unknown
     try {
@@ -40,12 +49,7 @@ export class JsTables {
         `CREATE OR REPLACE TEMP TABLE ${table} AS SELECT NULL::GEOMETRY AS geom WHERE false`
       )
     } else if (isFeatureCollection(result)) {
-      // GeoJSON: one row per feature with its geometry, as a geojson node reads them
-      const file = `${js.table}.geojson`
-      this.sql.registerText(file, JSON.stringify(result))
-      await this.sql.exec(
-        `CREATE OR REPLACE TEMP TABLE ${table} AS SELECT * FROM ST_Read('${file}')`
-      )
+      await this.loadFeatures(js.table, result.features)
     } else if (Array.isArray(result)) {
       if (result.length === 0) {
         await this.sql.exec(
@@ -78,6 +82,34 @@ export class JsTables {
         properties,
       })),
     }
+  }
+
+  /**
+   * GeoJSON features into a table, one row per feature with its properties and a `geom`, as
+   * ST_Read reads a file: as Arrow with the geometries as WKB (featuresTable), else through
+   * ST_Read when a property or geometry is one Arrow or WKB cannot hold.
+   */
+  private async loadFeatures(name: string, features: unknown[]): Promise<void> {
+    const staged = `${name}__wkb`
+    try {
+      const table = featuresTable(features as never)
+      if (table) {
+        this.sql.insertArrow(staged, tableToIPC(table, 'stream'))
+        await this.sql.exec(
+          `CREATE OR REPLACE TEMP TABLE "${name}" AS ` +
+            `SELECT * EXCLUDE (__wkb), ST_GeomFromWKB(__wkb) AS geom FROM "${staged}"`
+        )
+        await this.sql.exec(`DROP TABLE IF EXISTS "${staged}"`)
+        return
+      }
+    } catch {
+      await this.sql.exec(`DROP TABLE IF EXISTS "${staged}"`)
+    }
+    const file = `${name}.geojson`
+    this.sql.registerText(file, JSON.stringify({ type: 'FeatureCollection', features }))
+    await this.sql.exec(
+      `CREATE OR REPLACE TEMP TABLE "${name}" AS SELECT * FROM ST_Read('${file}')`
+    )
   }
 
   /**

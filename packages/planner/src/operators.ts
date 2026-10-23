@@ -328,6 +328,18 @@ const channel = (name: string, label: string, def: string, help?: string): Param
 // The catalog
 // ---------------------------------------------------------------------------
 
+// Formats only GDAL reads; any other URL is GeoJSON, which the engine parses in JS and loads
+// as WKB, many times faster than GDAL's GeoJSON driver.
+const GDAL_ONLY = /\.(shp|zip|gpkg|fgb|kml|kmz|gml|gpx|dxf|tab|mif|xlsx|ods|osm|pbf|sqlite)([?#]|$)/i;
+const AS_FEATURES =
+  "return d?.type === 'FeatureCollection' ? d : d?.type === 'Feature' ? { type: 'FeatureCollection', features: [d] } " +
+  ": { type: 'FeatureCollection', features: d ? [{ type: 'Feature', geometry: d, properties: {} }] : [] }";
+
+function geojsonSource(id: string, url: string): GraphNode {
+  if (GDAL_ONLY.test(url)) return { id, type: 'source', dataset: { ref: url }, file: { format: 'spatial', url } };
+  return { id, type: 'js', url, code: AS_FEATURES };
+}
+
 export const OPERATORS: OpDef[] = [
   // --- data -----------------------------------------------------------------
   {
@@ -378,7 +390,7 @@ export const OPERATORS: OpDef[] = [
       const kinds = ['all', 'polygons', 'lines', 'points'] as const;
       return {
         nodes: [
-          ...(wired ? [] : [{ id: features, type: 'source' as const, dataset: { ref: url }, file: { format: 'spatial' as const, url } }]),
+          ...(wired ? [] : [geojsonSource(features, url)]),
           ...kinds.map((kind) => ({ id: `${ctx.id}#${kind}`, type: 'vertices' as const, input: features, kind })),
         ],
         outputs: { features, ...Object.fromEntries(kinds.map((kind) => [kind, `${ctx.id}#${kind}`])) },

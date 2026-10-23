@@ -41,12 +41,17 @@ describe('rows into Arrow by column', () => {
       { a: 1, p: [[1, 2]], s: 'x' },
       { a: null, p: [[1, 2, 3]], s: null },
       { a: 3, p: null, s: 'z' },
+      // A missing key is null too, never NaN
+      { s: 'w' },
+      { a: 4 },
     ])!
     load('mixed', tableToIPC(t, 'stream'))
     expect(await rows('SELECT a, len(p)::INTEGER AS n, s FROM mixed')).toEqual([
       { a: 1, n: 1, s: 'x' },
       { a: null, n: 1, s: null },
       { a: 3, n: null, s: 'z' },
+      { a: null, n: null, s: 'w' },
+      { a: 4, n: null, s: null },
     ])
     expect(tableFromRows([{ o: { nested: 1 } }])).toBeUndefined()
     expect(tableFromRows([{ m: 1 }, { m: 'two' }])).toBeUndefined()

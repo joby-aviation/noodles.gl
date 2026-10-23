@@ -20,6 +20,8 @@ export interface BlockingSql extends SqlEngine {
   /** Make bytes readable by DuckDB under a file name. */
   registerFile(name: string, bytes: Uint8Array): void
   registerText(name: string, text: string): void
+  /** A file registered under `name`, as registered: what JS reads instead of read_text. */
+  readFile(name: string): Uint8Array | string | undefined
   /** Rows of a query as plain objects. */
   rows(sql: string, binds?: (number | string)[]): Promise<Record<string, unknown>[]>
   /** A JS function DuckDB calls per row, returning a number. */
@@ -32,6 +34,7 @@ export interface BlockingSql extends SqlEngine {
 export function blockingSql(db: BlockingDb, conn: BlockingConnection): BlockingSql {
   const prepared = new Map<string, ReturnType<BlockingConnection['prepare']>>()
   const counters = { executions: 0, prepares: 0, execs: 0 }
+  const files = new Map<string, Uint8Array | string>()
 
   const run = async (
     sql: string,
@@ -78,10 +81,15 @@ export function blockingSql(db: BlockingDb, conn: BlockingConnection): BlockingS
       prepared.delete(sql)
     },
     registerFile(name, bytes) {
+      files.set(name, bytes)
       db.registerFileBuffer(name, bytes)
     },
     registerText(name, text) {
+      files.set(name, text)
       db.registerFileText(name, text)
+    },
+    readFile(name) {
+      return files.get(name)
     },
     createNumberFunction(name, fn) {
       conn.createScalarFunction(name, new Float64(), fn)
