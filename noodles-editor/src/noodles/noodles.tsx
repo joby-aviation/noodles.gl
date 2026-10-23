@@ -125,6 +125,7 @@ import {
 } from './utils/filesystem'
 import { reconcileForLoopGroups } from './utils/for-loop-group-utils'
 import { shouldAutosave, supportsVersioning, useGitSettings } from './utils/git-settings'
+import { trackAddedEdges, trackAddedNodes } from './utils/graph-analytics'
 import { edgeId, nodeId } from './utils/id-utils'
 import { shouldBlockKeyboardShortcut } from './utils/input-detection'
 import { generateDraftId, memoryProjectStore } from './utils/memory-project-store'
@@ -318,7 +319,7 @@ export function getNoodles(): Visualization {
   // Auto-layout settings (declared early as they're used in multiple places)
   const [autoLayout, setAutoLayout] = useState<AutoLayoutSettings>(DEFAULT_AUTO_LAYOUT)
 
-  // Wrap onNodesChange to track node selection and mark unsaved changes
+  // Wrap onNodesChange to track node selection and additions and mark unsaved changes
   const onNodesChange = useCallback(
     (changes: Parameters<typeof onNodesChangeBase>[0]) => {
       // Track selection changes
@@ -327,6 +328,7 @@ export function getNoodles(): Visualization {
         getUIStore().setInspectedReferenceEdge(null)
         analytics.track('node_selected', { count: selectedChanges.length })
       }
+      trackAddedNodes(changes)
 
       // Mark as unsaved if there are user-initiated changes
       // (exclude 'select' and 'dimensions' - dimensions are fired when React Flow measures nodes)
@@ -342,7 +344,7 @@ export function getNoodles(): Visualization {
     [onNodesChangeBase]
   )
 
-  // Wrap onEdgesChange to mark unsaved changes
+  // Wrap onEdgesChange to track edge additions and mark unsaved changes
   const onEdgesChange = useCallback(
     (changes: Parameters<typeof onEdgesChangeBase>[0]) => {
       // Mark as unsaved if there are non-selection changes
@@ -350,6 +352,7 @@ export function getNoodles(): Visualization {
       if (hasNonSelectionChanges) {
         setHasUnsavedChanges(true)
       }
+      trackAddedEdges(changes)
 
       onEdgesChangeBase(changes)
     },

@@ -3,11 +3,16 @@
 
 import { act, renderHook } from '@testing-library/react'
 import type { Edge as ReactFlowEdge, Node as ReactFlowNode } from '@xyflow/react'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { analytics } from '../../../utils/analytics'
 import { ConcatOp, ContainerOp, DeckRendererOp, NumberOp } from '../../operators'
 import { clearOps, getOp, hasOp, setOp, setPendingInsertionIndex } from '../../store'
 import { MULTI_INPUT_EDGE_TYPE } from '../../utils/multi-input-utils'
 import { type ProjectModification, useProjectModifications } from '../use-project-modifications'
+
+vi.mock('../../../utils/analytics', () => ({
+  analytics: { track: vi.fn() },
+}))
 
 describe('useProjectModifications', () => {
   // State management for React Flow
@@ -27,6 +32,7 @@ describe('useProjectModifications', () => {
     nodes = []
     edges = []
     clearOps()
+    vi.mocked(analytics.track).mockClear()
   })
 
   afterEach(() => {
@@ -923,6 +929,45 @@ describe('useProjectModifications', () => {
       expect(edges).toHaveLength(1)
       expect(edges[0].source).toBe('/source')
       expect(edges[0].target).toBe('/target')
+    })
+
+    it('onConnect tracks edge_added for a new connection but not a reconnect', () => {
+      setOp('/a', new NumberOp('/a', { val: 1 }))
+      setOp('/b', new NumberOp('/b', { val: 2 }))
+      setOp('/target', new NumberOp('/target', { val: 0 }))
+      nodes = ['/a', '/b', '/target'].map((id, i) => ({
+        id,
+        type: 'NumberOp',
+        position: { x: i * 100, y: 0 },
+        data: {},
+      }))
+
+      const { result } = renderHook(() =>
+        useProjectModifications({ getNodes, getEdges, setNodes, setEdges })
+      )
+      const track = vi.mocked(analytics.track)
+
+      act(() => {
+        result.current.onConnect({
+          source: '/a',
+          target: '/target',
+          sourceHandle: 'out.val',
+          targetHandle: 'par.val',
+        })
+      })
+      expect(track).toHaveBeenCalledTimes(1)
+      expect(track).toHaveBeenCalledWith('edge_added', { count: 1 })
+
+      act(() => {
+        result.current.onReconnect(edges[0], {
+          source: '/b',
+          target: '/target',
+          sourceHandle: 'out.val',
+          targetHandle: 'par.val',
+        })
+      })
+      expect(edges[0].source).toBe('/b')
+      expect(track).toHaveBeenCalledTimes(1)
     })
   })
 
