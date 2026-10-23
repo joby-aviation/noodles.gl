@@ -52,8 +52,8 @@ input stops at 0, below what orbit would need.
 Every test renders with SwiftShader (software WebGL), the only WebGL on CI runners. It
 draws the same on macOS and Linux to within 0.2% of pixels, under the 1% tolerance in
 `playwright.config.ts`, so one set of baselines serves both. The exception is deck text
-layers, which draw with a system font: `geojson-example` and `us-state-population` allow 5%
-for their labels.
+layers, which draw with a system font: `us-state-population` allows 5% for its labels and
+`geojson-example`, whose station names cover more of the image, allows 15%.
 
 Update the baselines with:
 

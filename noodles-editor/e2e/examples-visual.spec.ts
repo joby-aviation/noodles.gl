@@ -23,10 +23,11 @@ const MOUNT_ONLY: Record<string, string> = {
 // openExample), and OrbitView's zoom input stops at 0, below what orbit would need.
 const AUTHORED_LOD = new Set(['orbit'])
 
-// Deck text layers draw labels with a system font, which differs between macOS and Linux
-// (about 3.6% of pixels for geojson-example's station names)
+// Deck text layers draw labels with a system font, which differs between macOS and Linux.
+// At the test LOD the labels are about 4x larger relative to the map, so geojson-example's
+// station names cover about 11% of the image and differ that much between the two.
 const MAX_DIFF_PIXEL_RATIO: Record<string, number> = {
-  'geojson-example': 0.05,
+  'geojson-example': 0.15,
   'us-state-population': 0.05,
 }
 
