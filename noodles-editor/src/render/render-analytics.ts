@@ -37,6 +37,7 @@ export function trackRender({
   source,
   format,
   codec,
+  captureMode = 'final',
   width,
   height,
   frameCount,
@@ -44,6 +45,7 @@ export function trackRender({
   source: RenderSource
   format: 'mp4' | 'webm' | 'png_sequence' | 'exr_sequence'
   codec?: string
+  captureMode?: 'final' | 'preview'
   width: number
   height: number
   frameCount: number
@@ -52,6 +54,7 @@ export function trackRender({
     source,
     format,
     ...(codec ? { codec } : {}),
+    captureMode,
     resolution: resolutionBucket(width, height),
     frameCount,
   }

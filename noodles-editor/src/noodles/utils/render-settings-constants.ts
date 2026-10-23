@@ -14,6 +14,7 @@ export type RenderSettings = {
   scaleControl: number
   framerate: number
   captureDelay: number
+  captureMode: 'final' | 'preview'
   rendersDirectory: string
   sequenceFormat: 'png' | 'exr'
 }
@@ -31,6 +32,7 @@ export const DEFAULT_RENDER_SETTINGS: RenderSettings = {
   scaleControl: 0.3,
   framerate: 30,
   captureDelay: 50,
+  captureMode: 'final',
   rendersDirectory: 'renders',
   sequenceFormat: 'png',
 }

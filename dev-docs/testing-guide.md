@@ -133,14 +133,15 @@ Enable debug logging in browser console to see detailed timing:
 localStorage.debug = 'noodles:render*'
 
 // Then reload and trigger export
-// Check console for timing logs:
-// - "onRender ready Xms after redraw (pass 2)" - render event timing
-// - "onIdle fallback Xms after redraw" - fallback timing
+// Check console for timing logs. Every export logs the per-frame breakdown
+// (wait, capture, encode). Preview exports (Capture: Preview on the Out node) also log:
+// - "onRender ready Xms after redraw" - captured on the map's render event
+// - "onIdle fallback Xms after redraw" - the render event missed, idle captured instead
 ```
 
-**Common timing patterns:**
-- **Good**: "onRender ready 36ms after redraw (pass 2)" → using render event, fast
-- **Bad**: "onIdle fallback 350ms after redraw" → falling back to slow onIdle path
+**Common timing patterns in preview exports:**
+- **Good**: "onRender ready 36ms after redraw" → using the render event, fast
+- **Bad**: "onIdle fallback 350ms after redraw" → falling back to the slow idle path
 
 ### What to Look For in Test Failures
 
