@@ -230,6 +230,23 @@ function hasExplicitSingleColumnCsvSyntax(text: string): boolean {
   return /(?:^|\r\n|\n|\r)"(?:[^"]|"")*"(?:\r\n|\n|\r|$)/.test(text)
 }
 
+function hasDelimiterOutsideQuotes(text: string, delimiter: string): boolean {
+  let quoted = false
+  for (let index = 0; index < text.length; index += 1) {
+    const character = text[index]
+    if (character === '"') {
+      if (quoted && text[index + 1] === '"') {
+        index += 1
+      } else {
+        quoted = !quoted
+      }
+    } else if (!quoted && character === delimiter) {
+      return true
+    }
+  }
+  return false
+}
+
 const HTML_BLOCK_ELEMENTS = new Set([
   'ADDRESS',
   'ARTICLE',
@@ -308,16 +325,18 @@ const MAX_HTML_TABLE_CELLS = 100_000
 function parseCellSpan(cell: Element, attribute: 'colspan' | 'rowspan'): number {
   const parsed = Number.parseInt(cell.getAttribute(attribute) ?? '', 10)
   if (!Number.isFinite(parsed) || parsed <= 1) return 1
-  return Math.min(parsed, attribute === 'colspan' ? MAX_HTML_TABLE_COLUMNS : MAX_HTML_TABLE_ROWS)
+  return parsed
 }
 
 /** Expand merged cells so every value keeps the column position it occupies. */
-function expandHtmlTableRows(tableRows: Element[]): string[][] {
+function expandHtmlTableRows(tableRows: Element[]): string[][] | undefined {
+  if (tableRows.length > MAX_HTML_TABLE_ROWS) return undefined
+
   const carriedRows: Array<number | undefined> = []
   const rows: string[][] = []
   let expandedCellCount = 0
 
-  for (const row of tableRows.slice(0, MAX_HTML_TABLE_ROWS)) {
+  for (const row of tableRows) {
     const output: Array<string | undefined> = []
     for (const [index, remaining] of carriedRows.slice(0, MAX_HTML_TABLE_COLUMNS).entries()) {
       if (remaining === undefined) continue
@@ -328,9 +347,12 @@ function expandHtmlTableRows(tableRows: Element[]): string[][] {
     let column = 0
     for (const cell of row.querySelectorAll(':scope > th, :scope > td')) {
       while (column < MAX_HTML_TABLE_COLUMNS && output[column] !== undefined) column += 1
-      if (column >= MAX_HTML_TABLE_COLUMNS) break
-      const colspan = Math.min(parseCellSpan(cell, 'colspan'), MAX_HTML_TABLE_COLUMNS - column)
+      if (column >= MAX_HTML_TABLE_COLUMNS) return undefined
+      const colspan = parseCellSpan(cell, 'colspan')
       const rowspan = parseCellSpan(cell, 'rowspan')
+      if (colspan > MAX_HTML_TABLE_COLUMNS - column || rowspan > MAX_HTML_TABLE_ROWS) {
+        return undefined
+      }
       const text = htmlElementText(cell)
       for (let offset = 0; offset < colspan; offset += 1) {
         output[column + offset] = offset === 0 ? text : ''
@@ -339,7 +361,7 @@ function expandHtmlTableRows(tableRows: Element[]): string[][] {
       column += colspan
     }
     const expanded = Array.from(output.slice(0, MAX_HTML_TABLE_COLUMNS), value => value ?? '')
-    if (expandedCellCount + expanded.length > MAX_HTML_TABLE_CELLS) break
+    if (expandedCellCount + expanded.length > MAX_HTML_TABLE_CELLS) return undefined
     expandedCellCount += expanded.length
     rows.push(expanded)
   }
@@ -362,6 +384,7 @@ function parseHtmlTable(html: string): ParsedTableDataClipboard | undefined {
     if (tableRows.length === 0) return undefined
 
     const rows = expandHtmlTableRows(tableRows)
+    if (!rows) return undefined
     if (rows.every(row => row.length === 0)) return undefined
     const firstCells = Array.from(tableRows[0].querySelectorAll(':scope > th, :scope > td'))
     const semanticHeader = firstCells.length > 0 && firstCells.every(cell => cell.tagName === 'TH')
@@ -417,8 +440,8 @@ function parseJsonTable(value: unknown): ParsedTableDataClipboard | undefined {
  * before universal tabular formats so the correct owner can handle them.
  *
  * `allowSingleColumnRows` reads unquoted multiline text as a one-column range, which is
- * what an explicit table paste means. Canvas paste keeps the stricter rule so arbitrary
- * multiline text never creates a table.
+ * what an explicit table paste means. `allowSingleRowCsv` similarly lets a table surface
+ * claim a comma-delimited row while canvas paste keeps the stricter rule.
  */
 export function parseTableClipboard(
   {
@@ -429,7 +452,12 @@ export function parseTableClipboard(
   {
     allowScalar = false,
     allowSingleColumnRows = false,
-  }: { allowScalar?: boolean; allowSingleColumnRows?: boolean } = {}
+    allowSingleRowCsv = false,
+  }: {
+    allowScalar?: boolean
+    allowSingleColumnRows?: boolean
+    allowSingleRowCsv?: boolean
+  } = {}
 ): ParsedTableClipboard {
   const rich = parseRichRange(richText)
   if (rich) return rich
@@ -462,7 +490,7 @@ export function parseTableClipboard(
     if (jsonTable) return jsonTable
   }
 
-  if (text.includes('\t')) {
+  if (hasDelimiterOutsideQuotes(text, '\t')) {
     return {
       kind: 'table',
       format: 'tsv',
@@ -470,13 +498,13 @@ export function parseTableClipboard(
     }
   }
 
-  if (/\r|\n/.test(text)) {
+  if (/\r|\n/.test(text) || (allowSingleRowCsv && hasDelimiterOutsideQuotes(text, ','))) {
     try {
       const rows = removeSyntheticTrailingRow(text, csvParseRows(text))
       const width = rows[0]?.length ?? 0
       const hasExplicitSingleColumnSyntax = hasExplicitSingleColumnCsvSyntax(text)
       if (
-        (rows.length >= 2 || hasExplicitSingleColumnSyntax) &&
+        (rows.length >= 2 || hasExplicitSingleColumnSyntax || (allowSingleRowCsv && width > 1)) &&
         (width > 1 || allowSingleColumnRows || hasExplicitSingleColumnSyntax) &&
         rows.every(row => row.length === width)
       ) {
@@ -623,11 +651,9 @@ export function inferTableData(
   const rows = sourceRows.map(row => [...row])
   const explicitMetadata = (columns?.length ?? 0) > 0 || (columnNames?.length ?? 0) > 0
   const values = firstRowContainsHeaders && !explicitMetadata ? rows.slice(1) : rows
-  const width = Math.max(
-    columns?.length ?? 0,
-    columnNames?.length ?? 0,
-    ...rows.map(row => row.length),
-    0
+  const width = rows.reduce(
+    (maximum, row) => Math.max(maximum, row.length),
+    Math.max(columns?.length ?? 0, columnNames?.length ?? 0)
   )
   const rawNames =
     columns?.map(column => column.name) ??
