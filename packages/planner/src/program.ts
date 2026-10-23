@@ -144,6 +144,11 @@ export interface CompileOptions {
   values?: Record<string, number | string>;
   /** Layer plans from a previous compile, reused when their hash matches. */
   cache?: Map<string, LayerPlan>;
+  /**
+   * Nodes to compile though no layer reads them: a node someone is looking at. Their relations
+   * are planned and memoized like any other.
+   */
+  keep?: string[];
 }
 
 /** Inputs of any node, uniformly. */
@@ -258,6 +263,7 @@ export async function compileProgram(
     live.add(id);
   };
   for (const id of layerIds) visit(id, new Set());
+  for (const id of options.keep ?? []) if (byId.has(id)) visit(id, new Set());
   if (deck) live.add(deck.id);
   // Stats branch off the main path and are read by name, not by an edge.
   for (const n of graph.nodes) {
