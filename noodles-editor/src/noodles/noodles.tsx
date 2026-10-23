@@ -1341,6 +1341,7 @@ export function getNoodles(): Visualization {
         setActiveStorageType('fileSystemAccess')
         navigate(`/projects/${directoryName}`, { replace: true })
         memoryProjectStore.deleteProject(oldProjectName)
+        getKeysStore().markProjectKeysSaved()
         setHasUnsavedChanges(false)
         analytics.track('project_saved', { storageType: 'memory', promoted: true })
       } catch (error) {
@@ -1358,6 +1359,7 @@ export function getNoodles(): Visualization {
     const result = await save(storageType, projectName, noodlesProjectJson, cacheFiles)
     if (result.success) {
       setCurrentDirectory(result.data.directoryHandle, projectName)
+      getKeysStore().markProjectKeysSaved()
       setHasUnsavedChanges(false)
       analytics.track('project_saved', { storageType })
     } else {
@@ -1475,6 +1477,7 @@ export function getNoodles(): Visualization {
       navigate(`/projects/${directoryName}`, { replace: true })
 
       // Mark as saved
+      getKeysStore().markProjectKeysSaved()
       setHasUnsavedChanges(false)
 
       analytics.track('project_saved_as', {
@@ -1554,6 +1557,7 @@ export function getNoodles(): Visualization {
         navigate(`/projects/${newName}`, { replace: true })
 
         // Mark as saved
+        getKeysStore().markProjectKeysSaved()
         setHasUnsavedChanges(false)
 
         analytics.track('project_renamed', {

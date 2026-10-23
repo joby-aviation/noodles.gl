@@ -382,6 +382,16 @@ describe('Keys Store', () => {
       expect(Object.keys(getKeysStore().keyOverrides)).toEqual(['project-a', 'project-renamed'])
     })
 
+    it('should replace choices left at the new name by an earlier project', () => {
+      getKeysStore().setProjectKeys({ cesium: 'project-cesium' }, 'project-b')
+      getKeysStore().setKeyOverride('cesium', 'browser')
+      getKeysStore().setProjectKeys({ cesium: 'project-cesium' }, 'project-c')
+      getKeysStore().copyKeyOverridesTo('project-b')
+      getKeysStore().setProjectKeys({ cesium: 'project-cesium' }, 'project-b')
+
+      expect(getKeysStore().getKey('cesium')).toBe('project-cesium')
+    })
+
     it('should keep choices for an example apart from a saved project of the same name', () => {
       getKeysStore().setProjectKeys(
         { cesium: 'project-cesium' },
@@ -405,6 +415,16 @@ describe('Keys Store', () => {
   })
 
   describe('setProjectKey', () => {
+    it('should remember the loaded keys until the project is saved', () => {
+      const { setProjectKeys, setProjectKey, markProjectKeysSaved } = getKeysStore()
+      setProjectKeys({ mapbox: 'project-mapbox' })
+      setProjectKey('mapbox', 'edited-mapbox')
+      expect(getKeysStore().savedProjectKeys).toEqual({ mapbox: 'project-mapbox' })
+
+      markProjectKeysSaved()
+      expect(getKeysStore().savedProjectKeys).toEqual({ mapbox: 'edited-mapbox' })
+    })
+
     it('should edit one project key and count the edit', () => {
       const { setProjectKeys, setProjectKey } = getKeysStore()
       setProjectKeys({ mapbox: 'project-mapbox' })

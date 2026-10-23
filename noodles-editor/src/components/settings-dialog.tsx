@@ -187,6 +187,7 @@ export function SettingsDialog({ open, setOpen, projectName = null }: SettingsDi
   // Subscribed so the Active badges follow override changes
   useKeysStore(state => state.keyOverrides)
   const projectKeys = useKeysStore(state => state.projectKeys || {})
+  const savedProjectKeys = useKeysStore(state => state.savedProjectKeys)
   const ignoredProjectKeys = useKeysStore(state => state.ignoredProjectKeys)
   const providerPreference = useKeysStore(state => state.getProviderPreference())
   const customEndpoint = useKeysStore(state => state.getCustomEndpoint())
@@ -337,6 +338,13 @@ export function SettingsDialog({ open, setOpen, projectName = null }: SettingsDi
   const googleMapsReloadNotice = () => {
     const loadedKey = getLoadedGoogleMapsKey()
     if (!loadedKey || loadedKey === getKey('googleMaps')) return undefined
+    // Project keys aren't kept in the browser, so reloading before saving would bring back the old one
+    if (
+      getActiveSource('googleMaps') === 'project' &&
+      projectKeys.googleMaps !== savedProjectKeys?.googleMaps
+    ) {
+      return 'Place search and directions still use the previous key. Save the project, then reload the page to apply it.'
+    }
     return (
       <>
         Place search and directions still use the previous key.{' '}

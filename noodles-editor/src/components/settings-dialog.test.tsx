@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { getKeysStore, useKeysStore } from '../noodles/keys-store'
 import { getGitSettings } from '../noodles/utils/git-settings'
@@ -92,6 +92,24 @@ describe('SettingsDialog API keys', () => {
     const group = keyGroup('Google Maps API Key')
     expect(within(group).queryByRole('button', { name: 'Reload to apply' })).toBeNull()
     fireEvent.click(within(group).getByRole('button', { name: 'Use' }))
+    expect(within(group).getByRole('button', { name: 'Reload to apply' })).toBeTruthy()
+    vi.mocked(getLoadedGoogleMapsKey).mockReturnValue(null)
+  })
+
+  it('should ask for a save before a reload when the new key is an unsaved project edit', () => {
+    vi.stubEnv('VITE_GOOGLE_MAPS_API_KEY', '')
+    vi.mocked(getLoadedGoogleMapsKey).mockReturnValue('project-google')
+    getKeysStore().setProjectKeys({ googleMaps: 'project-google' }, '/projects/a')
+    openApiKeysTab()
+
+    const group = keyGroup('Google Maps API Key')
+    fireEvent.change(within(group).getByLabelText('Google Maps API Key (project)'), {
+      target: { value: 'edited-google' },
+    })
+    expect(within(group).queryByRole('button', { name: 'Reload to apply' })).toBeNull()
+    expect(within(group).getByText(/Save the project, then reload/)).toBeTruthy()
+
+    act(() => getKeysStore().markProjectKeysSaved())
     expect(within(group).getByRole('button', { name: 'Reload to apply' })).toBeTruthy()
     vi.mocked(getLoadedGoogleMapsKey).mockReturnValue(null)
   })

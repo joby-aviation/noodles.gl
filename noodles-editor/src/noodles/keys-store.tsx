@@ -94,6 +94,8 @@ interface KeysState {
 
   // NOT persisted (comes from loaded project)
   projectKeys: KeysConfig | undefined
+  // The project keys as last loaded or saved, so a reload can tell it would lose an edit
+  savedProjectKeys: KeysConfig | undefined
   // Which project the overrides apply to
   projectId: string | undefined
   // Counts edits to the project keys, so the editor can mark the project unsaved
@@ -112,6 +114,7 @@ interface KeysActions {
   setProjectKeys: (keys: KeysConfig | undefined, projectId?: string) => void
   setKeyOverride: (key: KeyType, source: 'browser' | 'env' | null) => void
   copyKeyOverridesTo: (projectId: string) => void
+  markProjectKeysSaved: () => void
   setProviderPreference: (preference: ProviderPreference) => void
   setCustomEndpoint: (config: CustomEndpointConfig | undefined) => void
 
@@ -135,6 +138,7 @@ export const useKeysStore = create<KeysStore>()(
       providerPreference: 'automatic',
       customEndpoint: undefined,
       projectKeys: undefined,
+      savedProjectKeys: undefined,
       projectId: undefined,
       projectKeyEdits: 0,
       ignoredProjectKeys: [],
@@ -186,8 +190,10 @@ export const useKeysStore = create<KeysStore>()(
       },
 
       setProjectKeys: (keys, projectId) => {
+        const projectKeys = withoutAIKeys(keys)
         set({
-          projectKeys: withoutAIKeys(keys),
+          projectKeys,
+          savedProjectKeys: projectKeys,
           projectId,
           ignoredProjectKeys: AI_KEY_TYPES.filter(key => keys?.[key]),
         })
@@ -220,14 +226,20 @@ export const useKeysStore = create<KeysStore>()(
         set({ customEndpoint: config })
       },
 
-      // Saving a project to a new place keeps the choices made for it there
+      // Saving a project to a new place keeps the choices made for it there, replacing any
+      // left from a project that was there before
       copyKeyOverridesTo: projectId => {
         const { projectId: current, keyOverrides } = get()
         const forProject = current === undefined ? undefined : keyOverrides[current]
+        const { [projectId]: _replaced, ...others } = keyOverrides
         set({
           projectId,
-          ...(forProject ? { keyOverrides: { ...keyOverrides, [projectId]: forProject } } : {}),
+          keyOverrides: forProject ? { ...others, [projectId]: forProject } : others,
         })
+      },
+
+      markProjectKeysSaved: () => {
+        set({ savedProjectKeys: get().projectKeys })
       },
 
       // Computed getters (priority: project > browser > env, unless the user overrode the
