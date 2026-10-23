@@ -892,6 +892,17 @@ function EditableCell({ getValue, row, column, table }: EditableCellProps) {
     },
     [columnIndex, coordinate, meta, row.index]
   )
+  const handleCompleteRef = useRef(handleComplete)
+  handleCompleteRef.current = handleComplete
+
+  useLayoutEffect(
+    () => () => {
+      // Resize and virtualizer measurement changes can remove an edited row without
+      // producing a scroll event. Commit while the cell still owns its buffered value.
+      if (isEditingRef.current) handleCompleteRef.current()
+    },
+    []
+  )
 
   const handleCancel = () => {
     if (!isEditingRef.current) return
