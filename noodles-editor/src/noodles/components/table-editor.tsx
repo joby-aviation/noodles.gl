@@ -9,6 +9,7 @@ import {
   type RowData,
   useReactTable,
 } from '@tanstack/react-table'
+import { useVirtualizer } from '@tanstack/react-virtual'
 import cx from 'classnames'
 import { AutoComplete } from 'primereact/autocomplete'
 import { Button } from 'primereact/button'
@@ -71,6 +72,9 @@ import {
   TableImportDialog,
   type TableImportRequest,
 } from './table-import-dialog'
+
+const TABLE_ROW_HEIGHT = 36
+const TABLE_HEADER_HEIGHT = 36
 
 declare module '@tanstack/react-table' {
   interface TableMeta<TData extends RowData> {
@@ -888,6 +892,17 @@ function EditableCell({ getValue, row, column, table }: EditableCellProps) {
     },
     [columnIndex, coordinate, meta, row.index]
   )
+  const handleCompleteRef = useRef(handleComplete)
+  handleCompleteRef.current = handleComplete
+
+  useLayoutEffect(
+    () => () => {
+      // Resize and virtualizer measurement changes can remove an edited row without
+      // producing a scroll event. Commit while the cell still owns its buffered value.
+      if (isEditingRef.current) handleCompleteRef.current()
+    },
+    []
+  )
 
   const handleCancel = () => {
     if (!isEditingRef.current) return
@@ -1173,6 +1188,10 @@ function getAuxiliaryGridCellAccessibilityProps(columnIndex: number) {
   }
 }
 
+function getVirtualSpacerAccessibilityProps() {
+  return { role: 'presentation' as const }
+}
+
 function getDataColumnId(index: number): string {
   return `${DATA_COLUMN_ID_PREFIX}${index}`
 }
@@ -1336,6 +1355,7 @@ export function TableEditor({
     | undefined
   >(undefined)
   const tableWrapperRef = useRef<HTMLDivElement>(null)
+  const scrollToGridRowRef = useRef<((rowIndex: number) => void) | null>(null)
   const activeEdit = useActiveEdit()
   const previousDataRef = useRef(data)
   const previousSchemaRef = useRef(schema)
@@ -1361,6 +1381,7 @@ export function TableEditor({
     finishEditing,
     cancelEditing,
     moveActiveCell,
+    focusActiveCell,
     beginPointerSelection,
     extendPointerSelection,
   } = useTableGridNavigation({
@@ -1368,6 +1389,7 @@ export function TableEditor({
     columnCount: schema.columns.length,
     tableDataRef,
     tableWrapperRef,
+    scrollToRowRef: scrollToGridRowRef,
     activeEdit,
   })
   const overlayTargetRef = useRef<TablePreviewTarget>()
@@ -2292,6 +2314,37 @@ export function TableEditor({
   })
 
   const tableRows = table.getRowModel().rows
+  const virtualizeRows = tableRows.length > 200
+  const rowVirtualizer = useVirtualizer({
+    count: virtualizeRows ? tableRows.length : 0,
+    getScrollElement: () => tableWrapperRef.current,
+    estimateSize: () => TABLE_ROW_HEIGHT,
+    scrollMargin: TABLE_HEADER_HEIGHT,
+    overscan: 10,
+  })
+  const virtualRows = rowVirtualizer.getVirtualItems()
+  const renderedRowIndexes = virtualizeRows
+    ? virtualRows.map(virtualRow => virtualRow.index)
+    : tableRows.map((_, rowIndex) => rowIndex)
+  const renderedRowRange = `${renderedRowIndexes[0] ?? ''}:${renderedRowIndexes.at(-1) ?? ''}`
+  useLayoutEffect(() => {
+    if (renderedRowRange !== ':') focusActiveCell()
+  }, [focusActiveCell, renderedRowRange])
+  const virtualPaddingTop =
+    virtualizeRows && virtualRows.length > 0
+      ? Math.max(0, (virtualRows[0]?.start ?? 0) - TABLE_HEADER_HEIGHT)
+      : 0
+  const virtualPaddingBottom =
+    virtualizeRows && virtualRows.length > 0
+      ? Math.max(
+          0,
+          rowVirtualizer.getTotalSize() -
+            ((virtualRows[virtualRows.length - 1]?.end ?? 0) - TABLE_HEADER_HEIGHT)
+        )
+      : 0
+  scrollToGridRowRef.current = virtualizeRows
+    ? rowIndex => rowVirtualizer.scrollToIndex(rowIndex, { align: 'auto' })
+    : null
 
   const handleCellKeyDown = useCallback(
     (event: React.KeyboardEvent<HTMLTableCellElement>, coordinate: TableCellCoordinate) => {
@@ -2548,7 +2601,18 @@ export function TableEditor({
                 ))}
               </thead>
               <tbody>
-                {tableRows.map(row => {
+                {virtualPaddingTop > 0 && (
+                  <tr {...getVirtualSpacerAccessibilityProps()}>
+                    <td
+                      {...getVirtualSpacerAccessibilityProps()}
+                      colSpan={columns.length}
+                      style={{ height: virtualPaddingTop, padding: 0 }}
+                    />
+                  </tr>
+                )}
+                {renderedRowIndexes.map(rowIndex => {
+                  const row = tableRows[rowIndex]
+                  if (!row) return null
                   return (
                     <tr key={row.id} className={s.row} aria-rowindex={row.index + 2}>
                       {row.getVisibleCells().map(cell => {
@@ -2636,6 +2700,15 @@ export function TableEditor({
                     </tr>
                   )
                 })}
+                {virtualPaddingBottom > 0 && (
+                  <tr {...getVirtualSpacerAccessibilityProps()}>
+                    <td
+                      {...getVirtualSpacerAccessibilityProps()}
+                      colSpan={columns.length}
+                      style={{ height: virtualPaddingBottom, padding: 0 }}
+                    />
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>
