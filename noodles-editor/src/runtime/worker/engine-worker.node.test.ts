@@ -140,3 +140,61 @@ describe('the engine worker protocol', () => {
     ])
   })
 })
+
+describe('dragging a value the CPU pass reads', () => {
+  // A column drawn as it is shares its buffer with the query result the CPU pass reads again.
+  // Transferring that buffer would empty the worker's copy and fail the next post.
+  const ramped = (inMax: number): EditorDoc => ({
+    version: 1,
+    name: 'ramped',
+    nodes: [
+      {
+        id: 'src',
+        op: 'sql',
+        x: 0,
+        y: 0,
+        params: { query: 'SELECT i * 1.0 AS x, i * 2.0 AS y, i * 1.0 AS v FROM range(100) t(i)' },
+      },
+      {
+        id: 'range',
+        op: 'map-range',
+        x: 0,
+        y: 0,
+        params: { input: 'v', name: 't', inMin: 0, inMax, outMin: 0, outMax: 1 },
+      },
+      {
+        id: 'ramp',
+        op: 'color-ramp',
+        x: 0,
+        y: 0,
+        params: { input: 't', ramp: 'viridis', name: 'c' },
+      },
+      { id: 'dots', op: 'scatter', x: 0, y: 0, params: { position: '[x, y]', color: 'c' } },
+      { id: 'map', op: 'deck', x: 0, y: 0, params: { basemap: 'none' } },
+    ],
+    edges: [
+      { id: 'e1', source: 'src', sourcePort: 'out', target: 'range', targetPort: 'in' },
+      { id: 'e2', source: 'range', sourcePort: 'out', target: 'ramp', targetPort: 'in' },
+      { id: 'e3', source: 'ramp', sourcePort: 'out', target: 'dots', targetPort: 'in' },
+      { id: 'e4', source: 'dots', sourcePort: 'out', target: 'map', targetPort: 'layers' },
+    ],
+  })
+
+  it('keeps drawing the positions after every step', async () => {
+    const engine = new Engine(proxy)
+    await engine.setDoc(ramped(100))
+    await engine.settle()
+    for (const inMax of [80, 60, 40, 60, 100]) {
+      await engine.setDoc(ramped(inMax))
+      await engine.settle()
+      expect(engine.runtime.error()).toBeUndefined()
+      const layer = engine.runtime.layers()[0]
+      expect(layer.error).toBeUndefined()
+      expect(layer.data?.rows).toBe(100)
+      const binding = layer.plan.plan.layer?.bindings.find(b => b.channel === 'position')
+      const position = layer.data?.attributes.get(binding?.attribute ?? '')?.data
+      // Row 3 is (3, 6)
+      expect([position?.[6], position?.[7]]).toEqual([3, 6])
+    }
+  })
+})
