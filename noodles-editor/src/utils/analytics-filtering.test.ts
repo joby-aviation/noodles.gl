@@ -1,13 +1,19 @@
 import type posthog from 'posthog-js'
+import type { BeforeSendFn, CaptureResult, PostHogConfig } from 'posthog-js'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 // Mock environment variables
 vi.stubEnv('VITE_POSTHOG_API_KEY', 'test-api-key')
 
+// Keeps the options passed to posthog.init (the analytics singleton only calls init once)
+const posthogInit = vi.hoisted(() => ({ config: undefined as PostHogConfig | undefined }))
+
 // Mock posthog before importing analytics
 vi.mock('posthog-js', () => ({
   default: {
-    init: vi.fn(),
+    init: vi.fn((_token: string, config: PostHogConfig) => {
+      posthogInit.config = config
+    }),
     capture: vi.fn(),
     captureException: vi.fn(),
     opt_in_capturing: vi.fn(),
@@ -189,6 +195,115 @@ describe('Analytics error filtering', () => {
 
       // All should be captured
       expect(mockPosthog.captureException).toHaveBeenCalledTimes(4)
+    })
+  })
+})
+
+// posthog-js exception autocapture (capture_exceptions) installs its own window.onerror handler,
+// so autocaptured errors never go through analytics.captureException(). They do go through the
+// before_send hook passed to posthog.init, which is what these tests exercise.
+describe('PostHog before_send exception filtering', () => {
+  let beforeSend: BeforeSendFn | BeforeSendFn[] | undefined
+
+  beforeEach(async () => {
+    const { analytics } = await import('./analytics')
+    analytics.initialize()
+    beforeSend = posthogInit.config?.before_send
+  })
+
+  // Runs the hook(s) the way posthog-js does; with no hook, the event is sent unchanged
+  function runBeforeSend(event: CaptureResult): CaptureResult | null {
+    const hooks = beforeSend === undefined ? [] : [beforeSend].flat()
+    let result: CaptureResult | null = event
+    for (const hook of hooks) {
+      result = hook(result)
+      if (result === null) return null
+    }
+    return result
+  }
+
+  // Shape of the events that leaked to PostHog from window.onerror autocapture
+  function autocapturedException(
+    value: string,
+    url = 'https://noodles.gl/app/examples/nyc-taxis'
+  ): CaptureResult {
+    return {
+      uuid: 'test-uuid',
+      event: '$exception',
+      properties: {
+        $current_url: url,
+        $exception_list: [
+          {
+            type: 'Error',
+            value,
+            mechanism: { handled: false, synthetic: true, type: 'generic' },
+          },
+        ],
+      },
+    }
+  }
+
+  describe('benign error rule', () => {
+    it('drops an autocaptured ResizeObserver loop exception', () => {
+      const event = autocapturedException(
+        'ResizeObserver loop completed with undelivered notifications.'
+      )
+      expect(runBeforeSend(event)).toBeNull()
+    })
+
+    it('drops a ResizeObserver exception reported via $exception_message', () => {
+      const event: CaptureResult = {
+        uuid: 'test-uuid',
+        event: '$exception',
+        properties: {
+          $current_url: 'https://noodles.gl/app/projects/demo',
+          $exception_message: 'ResizeObserver loop limit exceeded',
+        },
+      }
+      expect(runBeforeSend(event)).toBeNull()
+    })
+
+    it('keeps real exceptions', () => {
+      const event = autocapturedException("Cannot read properties of undefined (reading 'x')")
+      expect(runBeforeSend(event)).toEqual(event)
+    })
+
+    it('leaves non-exception events alone', () => {
+      const event: CaptureResult = {
+        uuid: 'test-uuid',
+        event: '$pageview',
+        properties: { $current_url: 'https://noodles.gl/app/examples/nyc-taxis' },
+      }
+      expect(runBeforeSend(event)).toEqual(event)
+    })
+  })
+
+  describe('local dev session rule', () => {
+    it.each([
+      'http://localhost:5173/app/projects/demo',
+      'http://127.0.0.1:4173/app/examples/nyc-taxis',
+      'http://[::1]:5173/app/',
+    ])('drops exceptions from %s', url => {
+      expect(runBeforeSend(autocapturedException('Real error', url))).toBeNull()
+    })
+
+    it('keeps exceptions from production hosts', () => {
+      const event = autocapturedException('Real error', 'https://noodles.gl/app/projects/demo')
+      expect(runBeforeSend(event)).toEqual(event)
+    })
+
+    it('keeps exceptions from hosts that only contain "localhost"', () => {
+      const event = autocapturedException('Real error', 'https://localhost.example.com/app/')
+      expect(runBeforeSend(event)).toEqual(event)
+    })
+
+    it('keeps non-exception events from dev sessions', () => {
+      const event: CaptureResult = {
+        uuid: 'test-uuid',
+        event: '$pageview',
+        properties: { $current_url: 'http://localhost:5173/app/' },
+      }
+      expect(runBeforeSend(event)).toEqual(event)
     })
   })
 })

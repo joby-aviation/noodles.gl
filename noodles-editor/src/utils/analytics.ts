@@ -1,4 +1,4 @@
-import posthog from 'posthog-js'
+import posthog, { type BeforeSendFn } from 'posthog-js'
 import { debugAnalytics } from './debug'
 
 const ANALYTICS_CONSENT_KEY = 'noodles-analytics-consent'
@@ -24,6 +24,50 @@ export interface AnalyticsConsent {
 interface ErrorCaptureConsent {
   enabled: boolean
   timestamp: string
+}
+
+// Benign browser noise that should never reach error tracking. "ResizeObserver loop ..."
+// fires when a ResizeObserver callback changes layout; it is a harmless browser warning.
+export function isIgnoredErrorMessage(message: string | null | undefined): boolean {
+  return typeof message === 'string' && message.includes('ResizeObserver loop')
+}
+
+const DEV_HOSTNAMES = new Set(['localhost', '127.0.0.1', '[::1]'])
+
+function isDevSessionUrl(url: unknown): boolean {
+  if (typeof url !== 'string') return false
+  try {
+    return DEV_HOSTNAMES.has(new URL(url).hostname)
+  } catch {
+    return false
+  }
+}
+
+// posthog.init before_send hook. Exception autocapture (capture_exceptions) installs its own
+// window.onerror / unhandledrejection handlers, so those events never pass through
+// AnalyticsManager.captureException(). Every $exception event, autocaptured or manual, passes
+// through this hook before it is sent.
+export const filterExceptionEvent: BeforeSendFn = event => {
+  if (event?.event !== '$exception') return event
+  const props = event.properties ?? {}
+
+  // Rule 1: benign browser noise, matched on any exception message in the event
+  const exceptionList: Array<{ value?: unknown }> = Array.isArray(props.$exception_list)
+    ? props.$exception_list
+    : []
+  const messages = [props.$exception_message, ...exceptionList.map(e => e?.value)]
+  if (messages.some(m => typeof m === 'string' && isIgnoredErrorMessage(m))) {
+    debugAnalytics('Filtered benign exception from PostHog')
+    return null
+  }
+
+  // Rule 2: local development sessions (dev server or local preview build)
+  if (isDevSessionUrl(props.$current_url)) {
+    debugAnalytics('Filtered exception from local dev session')
+    return null
+  }
+
+  return event
 }
 
 export class AnalyticsManager {
@@ -58,6 +102,7 @@ export class AnalyticsManager {
         capture_pageview: true, // Captures initial page load; route changes tracked manually
         capture_pageleave: true,
         capture_exceptions: true, // Capture unhandled exceptions
+        before_send: filterExceptionEvent, // Drops benign and local-dev exceptions
         loaded: posthog => {
           if (import.meta.env.DEV) {
             posthog.debug(false) // Set to true for verbose logging in dev
@@ -305,8 +350,7 @@ export class AnalyticsManager {
     // These are harmless browser optimization warnings that occur when ResizeObserver
     // callbacks trigger layout changes. They don't indicate actual problems and
     // would create noise in error tracking.
-    const message = error.message || ''
-    if (message.includes('ResizeObserver loop')) {
+    if (isIgnoredErrorMessage(error.message)) {
       debugAnalytics('Filtered benign ResizeObserver error from analytics')
       return
     }
