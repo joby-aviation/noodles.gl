@@ -13,7 +13,7 @@
 export type Becomes = 'planner' | 'rows' | 'deck' | 'code' | 'subnet' | 'dropped' | 'host'
 
 // The R3 step converting an operator, while it is still to do
-export type Pending = 'R3c' | 'R3d' | 'R3e' | 'R4'
+export type Pending = 'R3d' | 'R3e' | 'R4'
 
 export interface OpPlan {
   becomes: Becomes
@@ -63,7 +63,7 @@ export const OP_CATALOG: Record<string, OpPlan> = {
       'its code reads op(), the timeline or `this`, or returns layers or DOM objects rather than rows',
   },
   DuckDbOp: planner(['sql']),
-  JSONOp: code(['code'], 'R3c'),
+  JSONOp: code(['code']),
   ExpressionOp: planner(['expression', 'generate']),
 
   // --- grouping --------------------------------------------------------------------------
@@ -83,12 +83,12 @@ export const OP_CATALOG: Record<string, OpPlan> = {
   SplitRGBAOp: planner(['expression'], 'R3d'),
 
   // --- data ------------------------------------------------------------------------------
-  ArcOp: code(['code'], 'R3c'),
+  ArcOp: code(['code']),
   BoundingBoxOp: planner(['extent', 'expression'], 'R3d'),
   BoundsOp: planner(['expression'], 'R3d'),
   ChartOp: host('draws an Observable Plot chart into the page'),
-  ConcatOp: planner(['union'], 'R3c'),
-  CrossOp: planner(['join'], 'R3c'),
+  ConcatOp: planner(['union']),
+  CrossOp: planner(['sql']),
   DateTimeOp: planner(['number'], 'R3d'),
   DeckRendererOp: deck(),
   DirectionsOp: host('calls the Google Directions API with the user’s key'),
@@ -96,21 +96,21 @@ export const OP_CATALOG: Record<string, OpPlan> = {
     ...planner(['file', 'geojson', 'code']),
     hostWhen: 'a host operator reads it as the object FileOp parsed',
   },
-  FilterOp: planner(['filter'], 'R3c'),
+  FilterOp: planner(['filter', 'sql']),
   GeocoderOp: host('calls a geocoding API with the user’s key'),
-  GeoParquetOp: planner(['file', 'geojson'], 'R3c'),
+  GeoParquetOp: planner(['sql']),
   MergeOp: host('merges JavaScript objects (layer props, view states), which are not rows'),
-  NetworkOp: planner(['join', 'sql'], 'R3c'),
+  NetworkOp: planner(['sql']),
   OutOp: deck(),
-  OverpassOp: code(['code'], 'R3c'),
-  RandomizeAttributeOp: rows(['attribute'], 'R3c'),
-  ScatterOp: planner(['generate', 'attribute'], 'R3c'),
-  SelectOp: planner(['limit'], 'R3c'),
-  ShapefileOp: planner(['geojson'], 'R3c'),
-  SliceOp: planner(['limit'], 'R3c'),
-  SortOp: planner(['sort'], 'R3c'),
+  OverpassOp: planner(['overpass']),
+  RandomizeAttributeOp: planner(['sql']),
+  ScatterOp: planner(['sql']),
+  SelectOp: planner(['sql']),
+  ShapefileOp: planner(['geojson']),
+  SliceOp: planner(['limit', 'sql']),
+  SortOp: planner(['sort']),
   SwitchOp: planner(['switch']),
-  TableEditorOp: planner(['sql'], 'R3c'),
+  TableEditorOp: code(['code']),
   TimeSeriesOp: planner(['time-series', 'unnest']),
   ViewerOp: dropped('shows a value in the old editor; the spreadsheet shows any node’s rows'),
 

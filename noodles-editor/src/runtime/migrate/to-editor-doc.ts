@@ -65,7 +65,7 @@ export class MigrationError extends Error {}
 // Noodles defaults (schema 18), for the inputs this conversion reads
 // ---------------------------------------------------------------------------
 
-const DEFAULTS: Record<string, Record<string, unknown>> = {
+export const DEFAULTS: Record<string, Record<string, unknown>> = {
   ScatterplotLayerOp: {
     visible: true,
     opacity: 1,
@@ -142,6 +142,47 @@ const DEFAULTS: Record<string, Record<string, unknown>> = {
     elevationScale: 1,
   },
   SwitchOp: { index: 0, blend: false },
+  FilterOp: { columnName: '', condition: 'equals', value: '' },
+  SortOp: { key: '', order: 'asc' },
+  SliceOp: { start: 0, end: 10 },
+  SelectOp: { index: 0, wrap: false },
+  ConcatOp: { depth: 1 },
+  NetworkOp: { hub: false },
+  RandomizeAttributeOp: { key: '', min: 0, max: 1 },
+  ScatterOp: {
+    bounds: [
+      [-180, -90],
+      [180, 90],
+    ],
+    count: 100,
+    seed: 1,
+  },
+  TableEditorOp: { schema: null },
+  JSONOp: { text: ['{}'] },
+  ArcOp: {
+    source: { lng: 0, lat: 0, alt: 0 },
+    target: { lng: 0, lat: 0, alt: 0 },
+    altitudeMultiplier: 2,
+    apexAlt: 10000,
+    smoothHeight: true,
+    smoothPosition: true,
+    segmentCount: 250,
+    tilt: 0,
+  },
+  GeoParquetOp: { url: '', geometryColumn: 'geometry', limit: 0 },
+  ShapefileOp: { url: '', encoding: 'utf-8' },
+  OverpassOp: {
+    query: [
+      '[out:json][timeout:25];',
+      '(',
+      '  way["leisure"="park"]({{bbox}});',
+      '  relation["leisure"="park"]({{bbox}});',
+      ');',
+      'out geom;',
+    ],
+    bbox: { southwest: { lng: -74.05, lat: 40.68 }, northeast: { lng: -73.9, lat: 40.82 } },
+    pulse: 0,
+  },
   TripsLayerOp: {
     visible: true,
     opacity: 1,
@@ -187,10 +228,10 @@ const DEFAULTS: Record<string, Record<string, unknown>> = {
   ColorRampOp: { colorScheme: 'viridis', value: 0 },
   MathOp: { operator: 'add', a: 0, b: 0 },
   BlendingOp: { mode: 'normal' },
-  ColorOp: { color: '#fff' },
+  ColorOp: { color: '#0000ffff' },
   FileOp: { format: 'json' },
   MaplibreBasemapOp: {
-    mapStyle: 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json',
+    mapStyle: 'https://basemaps.cartocdn.com/gl/dark-matter-nolabels-gl-style/style.json',
     projection: 'mercator',
     viewState: { latitude: 40.7128, longitude: -74.006, zoom: 12, pitch: 0, bearing: 0 },
   },
@@ -311,6 +352,31 @@ function parseHex(value: unknown): { rgb: [number, number, number]; alpha: numbe
   const n = (i: number) => Number.parseInt(hex.slice(i, i + 2), 16)
   return { rgb: [n(0), n(2), n(4)], alpha: hex.length === 8 ? n(6) : 255 }
 }
+
+/** Noodles operators on rows that convert to planner nodes on the data path. */
+const TABLE_OPS = new Set([
+  'FilterOp',
+  'SortOp',
+  'SliceOp',
+  'SelectOp',
+  'ConcatOp',
+  'CrossOp',
+  'NetworkOp',
+  'RandomizeAttributeOp',
+  'ScatterOp',
+  'TableEditorOp',
+  'JSONOp',
+  'ArcOp',
+  'GeoParquetOp',
+])
+
+interface BboxValue {
+  southwest: { lng: number; lat: number }
+  northeast: { lng: number; lat: number }
+}
+
+const sqlString = (v: string) => `'${v.replace(/'/g, "''")}'`
+const sqlIdent = (v: string) => `"${v.replace(/"/g, '""')}"`
 
 const num = (v: unknown, fallback: number) => {
   const x = Number(v)
@@ -802,6 +868,8 @@ export function toEditorDoc(original: NoodlesProject): Migrated {
       indexNames.set(id, VERTEX_COMPONENTS)
     } else if (n.type === 'CodeOp' && codeNode(n)) {
       // Rows JavaScript makes, run by the engine and planned over like any table
+    } else if (TABLE_OPS.has(n.type)) {
+      tableNode(n)
     } else if (!ACCESSOR_OPS.has(n.type) && !PLANNER_SOURCES.has(n.type)) {
       // Rows a host operator makes (a CodeOp's): the engine hands them to DuckDB.
       hostNode(id)
@@ -814,6 +882,245 @@ export function toEditorDoc(original: NoodlesProject): Migrated {
     used.add(id)
     sources.set(id, id)
     return id
+  }
+
+  /** How an accessor reads the rows a pairing operator makes: `d.origin.lng` is `origin_lng`. */
+  const accessorRewrites = new Map<string, (js: string) => string>()
+
+  /** A Noodles operator on rows as planner nodes under its id, wired from the rows it reads. */
+  const tableNode = (n: NoodlesNode): void => {
+    const id = n.id
+    const i = inputs(n)
+    const put = (op: string, params: Record<string, ParamValue>) =>
+      nodes.push({ id, op, name: segment(id), ...position(n), params })
+    const sql = (query: string) => put('sql', { query })
+    // The rows a field reads, wired into a port; what accessors know of them carries over
+    const from = (field: string, port = 'in', index?: number, edgeOf = incomingOne(id, field)) => {
+      if (!edgeOf) throw new MigrationError(`${id} has no ${field}`)
+      const up = source(edgeOf.source, false, handleField(edgeOf.sourceHandle))
+      edge(up, sourcePort.get(up) ?? 'out', id, port, index)
+      const names = indexNames.get(up)
+      if (names) indexNames.set(id, names)
+      const rewrite = accessorRewrites.get(up)
+      if (rewrite) accessorRewrites.set(id, rewrite)
+    }
+    const literalOnly = (...fields: string[]) => {
+      for (const f of fields) {
+        if (incomingOne(id, f)) throw new MigrationError(`${id}: a wired ${f} is not converted`)
+      }
+    }
+    switch (n.type) {
+      case 'FilterOp': {
+        const column = String(i.columnName ?? '')
+        const condition = String(i.condition)
+        const value = String(i.value ?? '')
+        if (!column) throw new MigrationError(`${id}: a Filter needs a column`)
+        const number =
+          value.trim() !== '' && Number.isFinite(Number(value)) ? Number(value) : undefined
+        const compare: Record<string, string> = {
+          equals: '==',
+          'not equals': '!=',
+          'greater than': '>',
+          'less than': '<',
+          'greater than or equal to': '>=',
+          'less than or equal to': '<=',
+        }
+        const bare = /^[A-Za-z_]\w*$/.test(column)
+        if (bare && compare[condition] && number !== undefined) {
+          // A number compares as a number, where FilterOp compared `===` with the text
+          put('filter', { mode: 'compare', column, op: compare[condition], value: number })
+          from('data')
+        } else if (bare && (condition === 'equals' || condition === 'not equals')) {
+          put('filter', { mode: 'match', column, text: value, negate: condition === 'not equals' })
+          from('data')
+        } else {
+          // Text order, substrings and lists are SQL; the expression language has no words for them
+          const c = `CAST(${sqlIdent(column)} AS VARCHAR)`
+          const list = value.split(',').map(sqlString).join(', ')
+          const where: Record<string, string> = {
+            equals: `${c} = ${sqlString(value)}`,
+            'not equals': `${c} != ${sqlString(value)}`,
+            'greater than': `${c} > ${sqlString(value)}`,
+            'less than': `${c} < ${sqlString(value)}`,
+            'greater than or equal to': `${c} >= ${sqlString(value)}`,
+            'less than or equal to': `${c} <= ${sqlString(value)}`,
+            contains: `contains(${c}, ${sqlString(value)})`,
+            'not contains': `NOT contains(${c}, ${sqlString(value)})`,
+            in: `${c} IN (${list})`,
+            'not in': `${c} NOT IN (${list})`,
+          }
+          if (!where[condition])
+            throw new MigrationError(`${id}: condition '${condition}' is not converted`)
+          sql(`SELECT * FROM {{input0}} WHERE ${where[condition]}`)
+          from('data', 'in0')
+        }
+        return
+      }
+      case 'SortOp': {
+        if (!String(i.key ?? '')) throw new MigrationError(`${id}: a Sort needs a key`)
+        put('sort', { by: String(i.key), descending: i.order === 'desc', limit: 0 })
+        from('data')
+        return
+      }
+      case 'SliceOp': {
+        literalOnly('start', 'end')
+        const start = Math.floor(num(i.start, 0))
+        const end = i.end === null || i.end === undefined ? undefined : Math.floor(num(i.end, 10))
+        if (start < 0 || (end !== undefined && end < 0)) {
+          throw new MigrationError(`${id}: a Slice from the end is not converted`)
+        }
+        if (end === undefined) sql(`SELECT * FROM {{input0}} OFFSET ${start}`)
+        else put('limit', { count: Math.max(0, end - start), offset: start })
+        from('data', end === undefined ? 'in0' : 'in')
+        return
+      }
+      case 'SelectOp': {
+        // One row, by a position that is clamped to the rows or wraps around them
+        const wired = incomingOne(id, 'index')
+        const src = wired ? byId.get(wired.source) : undefined
+        if (wired && src?.type !== 'NumberOp') {
+          throw new MigrationError(`${id}: an index from ${src?.type} is not converted`)
+        }
+        if (src) numberNode(src)
+        const index = src ? `ch('${segment(src.id)}/value')` : String(Math.floor(num(i.index, 0)))
+        const at = `CAST(floor(${index}) AS BIGINT)`
+        const pick =
+          i.wrap === true ? `((${at} % __n) + __n) % __n` : `least(greatest(${at}, 0), __n - 1)`
+        sql(
+          `SELECT * EXCLUDE (__i, __n) FROM (SELECT *, row_number() OVER () - 1 AS __i, count(*) OVER () AS __n FROM {{input0}}) WHERE __i = ${pick}`
+        )
+        from('data', 'in0')
+        return
+      }
+      case 'ConcatOp': {
+        if (num(i.depth, 1) !== 1)
+          throw new MigrationError(`${id}: a Concat of depth ${i.depth} is not converted`)
+        put('union', {})
+        for (const [k, e] of incoming(id, 'values').entries()) from('values', 'in', k, e)
+        return
+      }
+      case 'CrossOp':
+      case 'NetworkOp': {
+        // Every pair of rows, i < j (or the first row with every other): one row each with
+        // both sides' columns, which accessors read by prefix
+        const [a, b] = n.type === 'CrossOp' ? ['a', 'b'] : ['origin', 'destination']
+        const numbered = 'SELECT *, row_number() OVER () AS __i FROM {{input0}}'
+        const on =
+          n.type === 'NetworkOp' && i.hub === true ? 'l.__i = 1 AND r.__i > 1' : 'l.__i < r.__i'
+        sql(
+          `SELECT COLUMNS(l.* EXCLUDE (__i)) AS '${a}_\\0', COLUMNS(r.* EXCLUDE (__i)) AS '${b}_\\0' FROM (${numbered}) AS l JOIN (${numbered}) AS r ON ${on}`
+        )
+        from(n.type === 'CrossOp' ? 'data' : 'skyports', 'in0')
+        accessorRewrites.set(
+          id,
+          n.type === 'CrossOp'
+            ? js => js.replace(/\bd\[0\]\.(\w+)/g, 'd.a_$1').replace(/\bd\[1\]\.(\w+)/g, 'd.b_$1')
+            : js =>
+                js
+                  .replace(/\bd\.(origin|destination)\.(\w+)/g, 'd.$1_$2')
+                  .replace(/\bd\.(origin|destination)\b(?![\w.])/g, '[d.$1_lng, d.$1_lat]')
+        )
+        return
+      }
+      case 'RandomizeAttributeOp': {
+        // Drawn once into a table, as RandomizeAttribute drew them once per run: DuckDB cannot
+        // reuse a random() alias within one query, and a requery should not draw again
+        literalOnly('min', 'max')
+        const key = String(i.key ?? '')
+        if (!key) throw new MigrationError(`${id}: Randomize Attribute needs a key`)
+        const min = num(i.min, 0)
+        const max = num(i.max, 1)
+        sql(
+          `SELECT COLUMNS(c -> c != ${sqlString(key)}), random() * ${lit(max - min)} + ${lit(min)} AS ${sqlIdent(key)} FROM {{input0}}`
+        )
+        from('data', 'in0')
+        return
+      }
+      case 'ScatterOp': {
+        // Points spread over bounds, the same for a seed: hashes of the row number stand in for
+        // ScatterOp's seeded generator, so the points differ from Noodles' but not between runs
+        literalOnly('bounds', 'count', 'seed')
+        const b = i.bounds as unknown
+        const [p, q] = Array.isArray(b)
+          ? (b as number[][])
+          : [
+              [(b as BboxValue).southwest.lng, (b as BboxValue).southwest.lat],
+              [(b as BboxValue).northeast.lng, (b as BboxValue).northeast.lat],
+            ]
+        const [west, east] = [Math.min(p[0], q[0]), Math.max(p[0], q[0])]
+        const [south, north] = [Math.min(p[1], q[1]), Math.max(p[1], q[1])]
+        const seed = Math.floor(num(i.seed, 1))
+        const u = (k: number) => `(hash(i, ${seed}, ${k}) % 1000003) / 1000003.0`
+        sql(
+          `SELECT ${lit(west)} + ${u(0)} * ${lit(east - west)} AS lng, ${lit(south)} + ${u(1)} * ${lit(north - south)} AS lat FROM range(${Math.max(0, Math.floor(num(i.count, 100)))}) AS t(i)`
+        )
+        return
+      }
+      case 'TableEditorOp': {
+        if (incomingOne(id, 'data'))
+          throw new MigrationError(`${id}: a Table Editor over wired rows is not converted`)
+        const rows = Array.isArray(n.data?.inputs?.data) ? n.data?.inputs?.data : []
+        put('code', { code: `return ${JSON.stringify(rows, null, 2)}`, url: '' })
+        return
+      }
+      case 'JSONOp': {
+        const text = Array.isArray(i.text) ? i.text.join('\n') : String(i.text ?? '')
+        if (/\{\{[^}]+\}\}/.test(text)) {
+          throw new MigrationError(`${id}: JSON with {{…}} references is not converted`)
+        }
+        put('code', { code: `return (${text})`, url: '' })
+        return
+      }
+      case 'ArcOp': {
+        // Its path's points as rows: lng, lat and alt, which d[0]…d[2] read
+        literalOnly('source', 'target', 'altitudeMultiplier', 'apexAlt', 'segmentCount', 'tilt')
+        const arc = {
+          source: { alt: 0, ...(i.source as object) },
+          target: { alt: 0, ...(i.target as object) },
+          arcHeight: num(i.apexAlt, 10000) * num(i.altitudeMultiplier, 2),
+          smoothHeight: i.smoothHeight !== false,
+          smoothPosition: i.smoothPosition !== false,
+          segmentCount: num(i.segmentCount, 250),
+          tilt: num(i.tilt, 0),
+        }
+        put('code', {
+          code: `return utils.getArc(${JSON.stringify(arc)}).map(([lng, lat, alt]) => ({ lng, lat, alt }))`,
+          url: '',
+        })
+        indexNames.set(id, ['lng', 'lat', 'alt'])
+        return
+      }
+      case 'GeoParquetOp': {
+        // A table of features: DuckDB reads GeoParquet's geometry, and casts plain WKB to it
+        literalOnly('url', 'geometryColumn', 'limit')
+        const column = sqlIdent(String(i.geometryColumn || 'geometry'))
+        const limit = Math.floor(num(i.limit, 0))
+        sql(
+          `SELECT * EXCLUDE (${column}), ${column}::GEOMETRY AS geom FROM read_parquet(${sqlString(String(i.url))})${limit > 0 ? ` LIMIT ${limit}` : ''}`
+        )
+        return
+      }
+    }
+  }
+
+  /**
+   * A Bbox input's value: its own, or a Bounds operator's corners when one with literal corners
+   * is wired to it, folded into the node that reads them.
+   */
+  const boundsOf = (owner: string, field: string, own: BboxValue): BboxValue => {
+    const e = incomingOne(owner, field)
+    if (!e) return own
+    const b = byId.get(e.source)
+    if (b?.type !== 'BoundsOp' || project.edges.some(x => x.target === b.id)) {
+      throw new MigrationError(`${owner}: ${field} from ${b?.type} is not converted`)
+    }
+    used.add(b.id)
+    const corner = (v: unknown) =>
+      Array.isArray(v)
+        ? { lng: num(v[0], 0), lat: num(v[1], 0) }
+        : (v as { lng: number; lat: number })
+    const bi = b.data?.inputs ?? {}
+    return { southwest: corner(bi.southwest), northeast: corner(bi.northeast) }
   }
 
   const isGeoJsonFile = (n: NoodlesNode) =>
@@ -865,6 +1172,39 @@ export function toEditorDoc(original: NoodlesProject): Migrated {
       if (file) used.add(file.id)
       nodes.push({ id, op: 'geojson', name: segment(id), ...position(n), params: { url } })
       made = { node: id, port: 'features' }
+    } else if (n.type === 'GeoParquetOp') {
+      made = { node: source(id), port: 'out' }
+    } else if (n.type === 'ShapefileOp') {
+      // DuckDB spatial reads a shapefile, with its .dbf and .shx beside it for properties
+      used.add(id)
+      const url = String(inputs(n).url ?? '')
+      if (!url) throw new MigrationError(`${id}: a Shapefile needs a URL`)
+      nodes.push({ id, op: 'geojson', name: segment(id), ...position(n), params: { url } })
+      if (String(inputs(n).encoding ?? 'utf-8').toLowerCase() !== 'utf-8')
+        warnings.push(`${id}: encoding '${inputs(n).encoding}' is read as UTF-8`)
+      made = { node: id, port: 'features' }
+    } else if (n.type === 'OverpassOp') {
+      // The query runs in the engine, against the public endpoint unless the node says otherwise
+      if (incomingOne(id, 'query'))
+        throw new MigrationError(`${id}: a wired query is not converted`)
+      used.add(id)
+      const i = inputs(n)
+      const b = boundsOf(id, 'bbox', i.bbox as BboxValue)
+      nodes.push({
+        id,
+        op: 'overpass',
+        name: segment(id),
+        ...position(n),
+        params: {
+          query: Array.isArray(i.query) ? i.query.join('\n') : String(i.query),
+          endpoint: 'https://overpass.openstreetmap.fr/api/interpreter',
+          west: b.southwest.lng,
+          south: b.southwest.lat,
+          east: b.northeast.lng,
+          north: b.northeast.lat,
+        },
+      })
+      made = { node: id, port: 'out' }
     } else if (GIS_CONVERSIONS[n.type]) {
       made = gisNode(n, port)
     } else {
@@ -992,13 +1332,14 @@ export function toEditorDoc(original: NoodlesProject): Migrated {
 
     switch (n.type) {
       case 'AccessorOp': {
-        const expr = translateAccessor(String(i.expression ?? ''), indexNames.get(src))
+        const source = (accessorRewrites.get(src) ?? (x => x))(String(i.expression ?? ''))
+        const expr = translateAccessor(source, indexNames.get(src))
         if (expr) return add('attribute', { name: attribute, expression: expr }, [])
-        const text = translateStringAccessor(String(i.expression ?? ''))
+        const text = translateStringAccessor(source)
         if (!text) {
           // JS the expression language has no words for runs as a JS function DuckDB calls
           // per row, with the columns it reads as arguments
-          const js = jsAccessor(String(i.expression ?? ''))
+          const js = jsAccessor(source)
           if (!js) {
             throw new MigrationError(`${id}: '${i.expression}' needs JS the planner can't express`)
           }

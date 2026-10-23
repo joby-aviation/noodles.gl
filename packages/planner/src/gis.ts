@@ -553,4 +553,29 @@ export const GIS_OPERATORS: OpDef[] = [
       return turfTable(ctx, `return utils.interpolateGeoJsonLines(d, ${JSON.stringify(options)})`);
     },
   },
+  {
+    type: 'overpass', label: 'Overpass', category: 'data',
+    description: 'OpenStreetMap features an Overpass QL query finds, as a table of features: tagged nodes as points, ways as lines or polygons, multipolygon relations. `{{bbox}}` in the query is the bounds as south,west,north,east. The engine fetches once per query; edit it to fetch again.',
+    inputs: [], outputs: [out()],
+    params: [
+      { name: 'query', label: 'Query', kind: 'code', default: '[out:json][timeout:25];\n(\n  way["leisure"="park"]({{bbox}});\n  relation["leisure"="park"]({{bbox}});\n);\nout geom;' },
+      { name: 'endpoint', label: 'Endpoint', kind: 'string', default: 'https://overpass.openstreetmap.fr/api/interpreter' },
+      { name: 'west', label: 'West', kind: 'float', default: -74.05, min: -180, max: 180, step: 0.01, folder: 'Bounds' },
+      { name: 'south', label: 'South', kind: 'float', default: 40.68, min: -90, max: 90, step: 0.01, folder: 'Bounds' },
+      { name: 'east', label: 'East', kind: 'float', default: -73.9, min: -180, max: 180, step: 0.01, folder: 'Bounds' },
+      { name: 'north', label: 'North', kind: 'float', default: 40.82, min: -90, max: 90, step: 0.01, folder: 'Bounds' },
+    ],
+    lower(ctx) {
+      const bbox = [ctx.num('south'), ctx.num('west'), ctx.num('north'), ctx.num('east')].join(',');
+      const query = ctx.str('query').replace(/\{\{bbox\}\}/g, bbox);
+      const code = [
+        `const res = await fetch(${JSON.stringify(ctx.str('endpoint'))}, { method: 'POST', body: ${JSON.stringify(query)}, headers: { 'Content-Type': 'application/x-www-form-urlencoded' } })`,
+        'if (!res.ok) throw new Error(`Overpass API error: ${res.status} ${res.statusText}`)',
+        'const osm = await res.json()',
+        "if (osm.remark?.includes('timeout')) throw new Error('Overpass query timeout: try a smaller area or a simpler query')",
+        'return utils.osmToGeoJson(osm)',
+      ].join('\n');
+      return { nodes: [{ id: ctx.id, type: 'js', code }], outputs: { out: ctx.id } };
+    },
+  },
 ];

@@ -12,6 +12,7 @@ import * as lineInterpolation from '../../utils/geojson-line-interpolation'
 import * as interpolate from '../../utils/interpolate'
 import * as kml from '../../utils/kml-to-geojson'
 import * as mapStyles from '../../utils/map-styles'
+import * as osm from '../../utils/osm-to-geojson'
 import * as random from '../../utils/random'
 import * as wkt from '../../utils/wkt'
 
@@ -26,16 +27,29 @@ const utils = {
   ...interpolate,
   ...kml,
   ...mapStyles,
+  ...osm,
   ...random,
   ...wkt,
 }
 
 export const JS_SCOPE: Record<string, unknown> = { utils, d3, turf }
 
-/** A function from a body, with the scope's names bound after the parameters. */
-export function compileWithScope(params: string[], body: string): (...args: unknown[]) => unknown {
+// An async function's constructor, for code that awaits (a fetch); `new Function` makes only
+// plain ones
+const AsyncFunction = Object.getPrototypeOf(async () => {}).constructor as FunctionConstructor
+
+/**
+ * A function from a body, with the scope's names bound after the parameters. An async one may
+ * `await`; a JS function DuckDB calls per row must not be.
+ */
+export function compileWithScope(
+  params: string[],
+  body: string,
+  { async = false } = {}
+): (...args: unknown[]) => unknown {
   const names = Object.keys(JS_SCOPE)
   const values = Object.values(JS_SCOPE)
-  const fn = new Function(...params, ...names, body) as (...args: unknown[]) => unknown
+  const Make = async ? AsyncFunction : Function
+  const fn = new Make(...params, ...names, body) as (...args: unknown[]) => unknown
   return (...args) => fn(...args, ...values)
 }

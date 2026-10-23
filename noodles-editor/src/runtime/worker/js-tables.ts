@@ -29,7 +29,7 @@ export class JsTables {
     let result: unknown
     try {
       // `data` is every input, as CodeOp passed them; a code node has one
-      result = await compileWithScope(['d', 'data'], js.code)(d, [d])
+      result = await compileWithScope(['d', 'data'], js.code, { async: true })(d, [d])
     } catch (error) {
       throw new Error(`Code: ${error instanceof Error ? error.message : String(error)}`)
     }
