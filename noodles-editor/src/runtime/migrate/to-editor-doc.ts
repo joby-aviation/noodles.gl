@@ -950,6 +950,26 @@ function intoSubnets(doc: EditorDoc, containers: Container[], warnings: string[]
   }
 }
 
+// Row nodes lifted from accessors read one after another, so they go in a row from their source
+// toward the layers they feed, left to right, rather than where each accessor sat. Layers move
+// right when the row needs the room.
+const CHAIN_STEP = 220
+
+function layOutChain(nodes: DocNode[], src: string, chain: DocNode[], layers: string[]): void {
+  const source = nodes.find(n => n.id === src)
+  if (!source || chain.length === 0) return
+  const fed = nodes.filter(n => layers.includes(n.id))
+  const needed = source.x + CHAIN_STEP * (chain.length + 1)
+  const left = fed.length ? Math.min(...fed.map(n => n.x)) : needed
+  const step = Math.max(CHAIN_STEP, (left - source.x) / (chain.length + 1))
+  chain.forEach((n, i) => {
+    n.x = Math.round(source.x + step * (i + 1))
+    n.y = source.y
+  })
+  const shift = needed - left
+  if (shift > 0) for (const n of fed) n.x = Math.round(n.x + shift)
+}
+
 export function toEditorDoc(original: NoodlesProject): Migrated {
   if (original.version !== 18) {
     throw new MigrationError(
@@ -3333,6 +3353,12 @@ export function toEditorDoc(original: NoodlesProject): Migrated {
       head = r.node.id
       port = 'out'
     }
+    layOutChain(
+      nodes,
+      src,
+      ordered.map(r => r.node),
+      [...layerSource].filter(([, from]) => from === src).map(([layer]) => layer)
+    )
     for (const [layer, from] of layerSource) if (from === src) edge(head, port, layer, 'in')
   }
   for (const [layer, src] of layerSource) {

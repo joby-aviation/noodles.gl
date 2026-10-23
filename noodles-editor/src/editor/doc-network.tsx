@@ -1,9 +1,11 @@
 // The network editor: React Flow drawing the document. Nothing here holds graph state: nodes
-// and edges are derived from the document on every change, and every gesture is a document
-// edit (one undo step), except positions in flight during a drag.
+// and edges follow the document, and every gesture is a document edit (one undo step), except
+// positions in flight during a drag. React Flow's node objects are kept between renders (with
+// the sizes it measured), so a drag moves one node instead of re-measuring them all.
 
 import { nameOf, OPERATOR_INDEX, type OpDef } from '@noodles.gl/planner'
 import {
+  applyNodeChanges,
   Background,
   type Connection,
   Controls,
@@ -13,7 +15,7 @@ import {
   ReactFlow,
   useReactFlow,
 } from '@xyflow/react'
-import { type ReactNode, useCallback, useMemo, useRef, useState } from 'react'
+import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useEngineState } from './doc-engine'
 import ns from './doc-network.module.css'
 import { DocNodeComponent } from './doc-node'
@@ -85,32 +87,44 @@ export const canPaste = () => !!clipboard?.nodes.length
 const tablePassThrough = (o: OpDef) =>
   o.inputs.some(p => p.type === 'table') && o.outputs.some(p => p.type === 'table')
 
+// One data object for every node: a node reads what it draws from the store, by id
+const NO_DATA = {}
+
 export function DocNetwork({ children }: { children?: ReactNode }) {
   const doc = useEditor(s => s.doc)
   const network = useEditor(s => s.network)
   const selection = useEditor(s => s.selection)
   const flow = useReactFlow()
   const [menu, setMenu] = useState<Menu>()
-  const [dragPos, setDragPos] = useState<Record<string, { x: number; y: number }>>({})
+  const [nodes, setNodes] = useState<Node[]>([])
   const mouse = useRef({ x: 200, y: 200 })
 
-  const nodes: Node[] = useMemo(
-    () =>
-      doc.nodes
+  // The document's nodes in this network, reusing the object React Flow already has for any
+  // node whose position and selection did not change; a node being dragged keeps its position
+  useEffect(() => {
+    setNodes(prev => {
+      const byId = new Map(prev.map(n => [n.id, n]))
+      return doc.nodes
         .filter(n => n.parent === network)
-        .map(n => ({
-          id: n.id,
-          type: 'doc',
-          position: dragPos[n.id] ?? { x: n.x, y: n.y },
-          selected: selection.includes(n.id),
-          data: {},
-        })),
-    [doc.nodes, network, selection, dragPos]
-  )
+        .map(n => {
+          const old = byId.get(n.id)
+          const position = old?.dragging ? old.position : { x: n.x, y: n.y }
+          const selected = selection.includes(n.id)
+          if (
+            old &&
+            old.position.x === position.x &&
+            old.position.y === position.y &&
+            old.selected === selected
+          )
+            return old
+          return { ...(old ?? { id: n.id, type: 'doc', data: NO_DATA }), position, selected }
+        })
+    })
+  }, [doc.nodes, network, selection])
 
   const lowered = useEngineState().lowered
   const edges: Edge[] = useMemo(() => {
-    const here = new Set(nodes.map(n => n.id))
+    const here = new Set(doc.nodes.filter(n => n.parent === network).map(n => n.id))
     const wires: Edge[] = doc.edges
       .filter(e => here.has(e.source) && here.has(e.target))
       .map(e => {
@@ -152,12 +166,12 @@ export function DocNetwork({ children }: { children?: ReactNode }) {
       })
     }
     return wires
-  }, [doc, nodes, lowered])
+  }, [doc, network, lowered])
 
-  // Positions live here while a drag is in flight and reach the document once, on release: a
-  // document edit per pointer move would lower the whole graph on every frame of a drag.
-  const dragRef = useRef<Record<string, { x: number; y: number }>>({})
+  // Positions live in React Flow's nodes while a drag is in flight and reach the document once,
+  // on release: a document edit per pointer move would lower the whole graph on every frame.
   const onNodesChange = useCallback((changes: NodeChange[]) => {
+    setNodes(ns => applyNodeChanges(changes, ns))
     const store = docStore()
     const selects = changes.filter(
       (c): c is Extract<NodeChange, { type: 'select' }> => c.type === 'select'
@@ -170,31 +184,21 @@ export function DocNetwork({ children }: { children?: ReactNode }) {
       }
       store.set({ selection: [...next] })
     }
-    const finished: string[] = []
-    let moved = false
-    for (const c of changes) {
-      if (c.type !== 'position') continue
-      if (c.position) {
-        dragRef.current[c.id] = c.position
-        moved = true
-      }
-      if (c.dragging === false) finished.push(c.id)
-    }
+    const finished = changes.filter(
+      (c): c is Extract<NodeChange, { type: 'position' }> =>
+        c.type === 'position' && c.dragging === false && !!c.position
+    )
     if (finished.length) {
-      const commit = { ...dragRef.current }
       store.edit(d => {
-        for (const id of finished) {
-          const p = commit[id]
-          const n = d.nodes.find(x => x.id === id)
-          if (n && p) {
-            n.x = Math.round(p.x)
-            n.y = Math.round(p.y)
+        for (const c of finished) {
+          const n = d.nodes.find(x => x.id === c.id)
+          if (n && c.position) {
+            n.x = Math.round(c.position.x)
+            n.y = Math.round(c.position.y)
           }
         }
       }, 'move')
-      for (const id of finished) delete dragRef.current[id]
     }
-    if (moved || finished.length) setDragPos({ ...dragRef.current })
   }, [])
 
   const isValidConnection = useCallback(
@@ -394,7 +398,6 @@ export function DocNetwork({ children }: { children?: ReactNode }) {
         <Controls position="bottom-right" showInteractive={false} />
         {children}
       </ReactFlow>
-      <NetworkBar />
       {menu?.kind === 'add' && (
         <AddNodeMenu
           x={menu.x}
@@ -439,41 +442,6 @@ export function DocNetwork({ children }: { children?: ReactNode }) {
           ]}
         />
       )}
-    </div>
-  )
-}
-
-/** The network's path, each level a link up to it, and the keys the canvas takes. */
-function NetworkBar() {
-  const network = useEditor(st => st.network)
-  const doc = useEditor(st => st.doc)
-  const chain: { id?: string; name: string }[] = []
-  let at = network
-  while (at) {
-    const n = doc.nodes.find(x => x.id === at)
-    if (!n) break
-    chain.unshift({ id: n.id, name: nameOf(n) })
-    at = n.parent
-  }
-  return (
-    <div className={ns.bar}>
-      <div className={ns.crumbs}>
-        <button type="button" onClick={() => docStore().set({ network: undefined, selection: [] })}>
-          /
-        </button>
-        {chain.map((c, i) => (
-          <span key={c.id}>
-            {i > 0 && <span className={ns.crumbSep}>/</span>}
-            <button type="button" onClick={() => docStore().set({ network: c.id, selection: [] })}>
-              {c.name}
-            </button>
-          </span>
-        ))}
-      </div>
-      <div className={ns.hint}>
-        <kbd>Tab</kbd> add · <kbd>B</kbd> bypass · <kbd>D</kbd> display · <kbd>⇧C</kbd> collapse ·
-        dbl-click a subnet to enter · <kbd>U</kbd> up · <kbd>F</kbd> frame
-      </div>
     </div>
   )
 }
