@@ -27,6 +27,7 @@ function extractFieldSchema(name: string, field: Field<any, any>) {
     type,
     required: false, // All fields are optional at runtime
     defaultValue: field.defaultValue,
+    ...(field.internal && { internal: true }),
   }
 }
 
@@ -58,11 +59,13 @@ export function buildOperatorRegistry(): OperatorRegistry {
 
     // Extract output schemas
     const outputs = Object.fromEntries(
-      Object.entries(instance.outputs).map(([name, field]) => [
-        name,
-        // biome-ignore lint/suspicious/noExplicitAny: Runtime reflection on field metadata
-        extractFieldSchema(name, field as Field<any, any>),
-      ])
+      Object.entries(instance.outputs)
+        .filter(([, field]) => !field.internal)
+        .map(([name, field]) => [
+          name,
+          // biome-ignore lint/suspicious/noExplicitAny: Runtime reflection on field metadata
+          extractFieldSchema(name, field as Field<any, any>),
+        ])
     )
 
     operators[typeName] = {

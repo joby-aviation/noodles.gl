@@ -152,6 +152,26 @@ describe('NodeProperties field visibility editing', () => {
       expect(toggle).toHaveAttribute('aria-expanded', 'true')
       expect(getRowLabel('effects')).toBeInTheDocument()
     })
+
+    it('omits internal fields even when legacy visibility state includes them', () => {
+      const schema = {
+        columns: [{ name: 'name', type: 'string', defaultValue: '' }],
+      }
+      const node = setupOperator(
+        'TableEditorOp',
+        '/table',
+        { data: [{ name: 'Noodles' }], schema },
+        ['data', 'schema']
+      )
+      const { container } = renderNodeProperties(node)
+
+      const fieldLabels = Array.from(container.querySelectorAll('.propertyLabelText')).map(
+        element => element.textContent
+      )
+      expect(fieldLabels).toContain('data')
+      expect(fieldLabels).not.toContain('schema')
+      expect(screen.queryByRole('button', { name: 'Reset' })).not.toBeInTheDocument()
+    })
   })
 
   describe('Showing hidden fields', () => {

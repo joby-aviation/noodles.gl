@@ -80,6 +80,7 @@ export interface FieldSchema {
   description?: string
   required: boolean
   defaultValue?: unknown
+  internal?: boolean
 }
 
 export interface DocsIndex {

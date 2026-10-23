@@ -6373,23 +6373,20 @@
       "name": "TableEditor",
       "type": "TableEditorOp",
       "category": "data",
-      "description": "Edit a table with typed columns",
+      "description": "Edit a local table with typed columns and an internal schema",
       "inputs": {
         "data": {
           "type": "DataField",
           "default": []
         },
         "schema": {
-          "type": "UnknownField",
+          "type": "TableSchemaField",
           "default": null
         }
       },
       "outputs": {
         "data": {
           "type": "DataField"
-        },
-        "schema": {
-          "type": "UnknownField"
         }
       }
     },
