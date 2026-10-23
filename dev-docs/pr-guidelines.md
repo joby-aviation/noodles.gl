@@ -252,10 +252,10 @@ For changes affecting video export or rendering performance:
 ### Adding a New Operator
 
 **Checklist:**
-- [ ] Operator class implemented
-- [ ] Registered in operators.ts
-- [ ] Added to category in categories.ts
-- [ ] Unit tests added
+- [ ] `OpDef` added to `packages/planner/src/operators.ts` (or a deck operator in `runtime/deck-ops.ts`)
+- [ ] Values bound with `ctx.bind`, so changing them is routed rather than recompiled
+- [ ] Conversion from the Noodles operator it replaces, if any, with a test
+- [ ] Unit tests added (planner, and a `*.node.test.ts` that runs the SQL)
 - [ ] Example project provided for manual testing
 - [ ] Documentation added (if complex)
 

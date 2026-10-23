@@ -1,289 +1,123 @@
 # Project Architecture
 
-Noodles.gl is a sophisticated node-based editor designed for creating geospatial visualizations and animations using Deck.gl. It emphasizes a balance between flexibility and rapid iteration, leveraging reactive data flow principles. It is a software that encourages toolbuilding and in-app extension to fit your needs.
+Noodles.gl is a node editor for geospatial visualizations and animations. A project is a
+document: nodes, the edges between them, and a timeline. Noodles compiles the document and runs
+it in DuckDB, so a node is a step in a query plan, not a function called on JavaScript arrays.
+The compiler is `@noodles.gl/planner` (`packages/planner`), shared with d-d-d.
 
-The core concepts are based on Operators and Fields. At a high level, Operators comprise multiple Fields and an `execute` function. Fields are strongly typed and will react to incoming data changes. Fields and Operators can have custom React components that render in the node editor. In the future we might allow these to be created within the tool itself.
-
-Noodles is powered by a reactive dataflow engine using rxjs and a native keyframe-based timeline system with bezier interpolation. It has a type system using Zod to make it easier to parse and accept arguments in multiple formats while allowing the operators to be flexible and composable.
-
-Changes from the node editor propagate automatically through the dataflow graph, and any parameters can be keyframed on the timeline to create smooth animations. This makes it easy to create complex, data-driven animations with minimal effort.
-
-## Directory Structure
+## The pipeline
 
 ```
-noodles-editor/
-├── src/                    # Source code
-├── public/                 # Static assets and 3D models
-├── dist/                   # Build output
-├── vite.config.js          # Vite build configuration
-├── tsconfig.json           # TypeScript configuration
-├── biome.json              # Biome linter/formatter config
-└── package.json            # Dependencies and scripts
+EditorDoc ──lowerDocument──► Graph (planner IR) + ScalarProgram
+                                  │                    │
+                       compileProgram (memoized)       evaluate(T, F) every frame
+                                  │                    │
+                       ProgramRuntime in the engine worker (DuckDB-Wasm, spatial)
+                                  │  layer data as binary attribute buffers
+                                  ▼
+                       Engine (main thread): deck layers, host operators, basemap
+                                  │
+                       Visualization → timeline-editor.tsx → deck.gl + MapLibre
 ```
 
-## Source Code Organization (`src/`)
+- **Lowering** (`packages/planner/src/lower.ts`) turns each document node into IR nodes through
+  its operator's `lower()`: SQL relations, filters, joins, aggregates, attribute expressions,
+  layers. Pure and fast; it runs on every edit.
+- **Compiling** (`compileProgram`) plans the IR: which relations are memoized as temp tables,
+  which inline into their readers, what SQL each layer runs, and how each parameter is
+  **routed**: `prop` (a deck prop), `uniform`, `cpu` (a CPU pass over columns), `requery`
+  (rerun a query with new binds) or `rematerialize` (rebuild a table). A slider that only moves
+  a uniform never touches DuckDB.
+- **The runtime** (`src/runtime/program-runtime.ts`) keeps the compiled program live. A
+  structural edit calls `setGraph`, which recompiles only what changed; a value edit or a
+  playhead move calls `setValues`, which does what each route says.
+- **The engine worker** (`src/runtime/worker/engine.worker.ts`) owns DuckDB-Wasm's synchronous
+  build, the runtime, JS scalar UDFs and JS tables. The main thread talks to it through
+  `RuntimeProxy`; layer buffers come back by transfer.
+- **The engine** (`src/runtime/engine.ts`) sits on the main thread: it lowers the document,
+  decides between `setGraph` and `setValues`, builds deck layer instances from the buffers
+  (`deck-layers.ts`), runs host operators, and merges everything into the visualization.
 
-### Core Application Files
+## Operators
 
-- `index.tsx` - Application entry point
-- `App.tsx` - Root component (minimal wrapper)
-- `TimelineEditor.tsx` - Timeline editor interface for orchestrating React with the rendering pipeline and native timeline system
-- `noodles.tsx` - Main visualization component that loads projects and manages state, and orchestrates nodes with React Flow
-- `Operators.ts` - Registry of all available operators. Define new operators here.
-- `Fields.ts` - Registry of all available fields. Define new fields here.
-- `op-components.tsx` - React components for rendering operator nodes in the editor. Most operators use a default renderer but some have custom components defined here.
-- `field-components.tsx` - React components for rendering field inputs in the node editor. Most fields use a default renderer but some have custom components defined here.
+Every operator is an `OpDef` registered with the planner. There are three kinds:
 
-### Feature Modules (`src/features/`)
+| Kind | Where | Runs |
+| --- | --- | --- |
+| Planner operators | `packages/planner/src/operators.ts`, `gis.ts` | lowered to IR, compiled to SQL / CPU / GPU |
+| Deck operators | `src/runtime/deck-ops.ts`, `value-ops.ts` | on the main thread, into deck descriptions (views, widgets, extensions, tile sources, map style, curves) |
+| Host operators | `src/runtime/host/` | a Noodles operator class's `execute()` on JS values |
 
-- `effects.ts` - Visual effects and animations
+Host operators are what cannot compile: CodeOp when its code reads `op()`, the timeline or
+`this`; Geocoder and Directions (they call APIs with the user's key); Chart (draws into the
+page); BoundingBox (needs the canvas size); Merge and LayerProps (JS objects, not rows); Mouse;
+TileLayer and custom MapLibre layers. Their classes are the only ones left in
+`src/noodles/operators.ts`, with the extension operators and the classes whose fields a
+parameter widget uses. `HostRunner` runs them in dependency order and memoizes them by input.
 
-### Visualizations (`src/visualizations/noodles`)
+Per-row values never come from accessor functions: they are columns, made by attribute nodes
+and expressions, and layers bind columns to channels.
 
-- `nodes/` - Node editor components and logic
+## The document (`EditorDoc`)
 
-### Utilities (`src/utils/`)
+Defined in `packages/planner/src/doc.ts`:
 
-- `color.ts` - Color manipulation utilities
-- `distance.ts` - Geospatial distance calculations
-- `arc-geometry.ts` - Arc geometry calculations
-- `interpolate.ts` - Animation interpolation functions
-- `map-styles.ts` - Map styling configurations
-- `sheet-context.ts` - React context for timeline (legacy compatibility shim)
+- `nodes`: `{ id, op, name, parent, x, y, params, flags, promoted }`. `parent` is the subnet a
+  node is inside; `flags` are bypass and display.
+- `edges`: `{ id, source, sourcePort, target, targetPort, index }`. A `targetPort` of
+  `par:<name>` drives a parameter from a number or value output; `index` orders edges into a
+  multi-input port such as a deck's `layers`.
+- `params`: literal values, `{ expr }` (a parameter expression with `T`, `F` and `ch('path')`),
+  or `{ ref }` (another node's parameter).
+- `timeline`: tracks keyed `nodeId.param`, with keyframes.
 
-### Rendering (`src/render/`)
+Projects in the older operator-graph format (`noodles.json` schema 1–19) are migrated through
+`src/noodles/__migrations__/` and converted on load by `src/runtime/migrate/to-editor-doc.ts`.
+`op-catalog.ts` says what each Noodles operator type becomes; anything the
+conversion cannot express is a `MigrationError` that names the node and why.
 
-- `renderer.ts` - Main rendering engine for saving to video or images
-- `draw-loop.ts` - Animation frame management
-- `transform-scale.tsx` - Coordinate transformation utilities
+## Editor (`src/editor/`)
 
-## Architecture Patterns
+- `doc-store.ts`: the document, selection, current network, playhead and debug flag. Undo is by
+  document snapshot; edits with the same tag inside 500 ms coalesce into one step.
+- `doc-engine.ts`: binds the store to the engine and publishes what it drew (`useEngineState`).
+- `doc-network.tsx`, `doc-node.tsx`: the network editor (React Flow), in d-d-d's layout:
+  compact nodes, Houdini keys (Tab, B, D, Shift+C, Enter, U, F), subnets.
+- `doc-properties.tsx`, `param-row.tsx`: the parameter pane, by folder. `field-adapter.ts`
+  builds a Noodles field per parameter so the widgets in
+  `src/noodles/components/field-components.tsx` edit document parameters.
+  `pane-editors.tsx` adds editors drawn above some nodes' parameters (map style, ramp, table,
+  features).
+- `doc-builder.ts`, `tool-docs.ts`: what the map tools, the GIS wizard and Import Data add.
+- `project-files.tsx`, `load-doc.ts`: open, save, Save As, rename.
+- Debug mode ("Show editor debug info" in the top menu) shows the SQL, relations, routes and
+  engine badges. Users see only values, rows drawn and errors.
 
-### Visualization System
+## Timeline and export
 
-- Visualizations return a `Visualization` object with:
-  - `deckProps` - Deck.gl layer configuration
-  - `mapProps` - MapLibre map settings
-  - `widgets` - UI panel components
+The timeline panel keeps its own store (`src/timeline/timeline-store.ts`); `doc-timeline.ts`
+keeps it and `doc.timeline` in step. The playhead feeds the engine's `setTime`, which
+re-evaluates the scalar program and routes the changed values.
 
-### Timeline System
+Export (`src/render/renderer.ts`) calls `settleEngine(t)` before each frame: it sets the time,
+waits for the runtime, the worker and host operators to finish, and resolves once the view has
+committed that frame.
 
-- Projects are loaded dynamically based on URL parameters
-- Each visualization has an associated timeline with tracks and keyframes
-- Animation state is managed through the native timeline store
+## The in-app assistant
 
-### Component Organization
+The chat (`src/ai-chat/`) edits the document through `doc-tools.ts`: `list_nodes`,
+`get_node_info`, `get_node_output` (rows from the runtime), `apply_modifications` (one undo step
+per call). See [agent-harness.md](agent-harness.md).
 
-- Feature-based folder structure
-- Shared utilities in dedicated utils folder
-- Type definitions co-located with components
-- CSS modules for component-specific styles
+## State outside the document
 
-### Data Flow
+- `src/editor/ui-store.ts`: panels, dialogs, map placement, spreadsheet pin.
+- `src/noodles/filesystem-store.tsx`: the project's directory handle, storage type and errors.
+- `src/noodles/keys-store.tsx`: API keys and the assistant's provider preference.
 
-- URL parameters determine visualization project
-- Projects can have associated state files and data
-- Real-time updates through native timeline with bezier interpolation
-- Node-based operators for modular data transformations
-- Type system using zod for validation, parsing, and transformation
+## Debugging
 
-## Pull-Based Execution Model
-
-The application uses a **pull-based execution model** where operators only execute when their outputs are requested and their inputs have changed. This is similar to how Blender Geometry Nodes and Houdini work.
-
-### Key Concepts
-
-**Dirty Flag System**: Each operator maintains a dirty flag that indicates whether it needs re-execution:
-- When an input field value changes, the operator is marked dirty
-- Dirty flags propagate downstream automatically
-- Clean operators return cached results instantly
-
-**Pull Execution**: When an operator's output is needed:
-1. Check if operator is clean (cached result available)
-2. If dirty, pull upstream dependencies first
-3. Execute the operator with current input values
-4. Cache the result and mark as clean
-5. Return the result
-
-### GraphExecutor
-
-The `GraphExecutor` class (`graph-executor.ts`) manages operator execution:
-
-```typescript
-import { GraphExecutor } from './graph-executor'
-
-const executor = new GraphExecutor({
-  targetFPS: 60,        // Target frame rate
-  parallel: true,       // Execute independent nodes in parallel
-  batchDelay: 16,       // Batch dirty marks (ms)
-  enableProfiling: true // Enable performance monitoring
-})
-
-// Add operators to the graph
-executor.addNode(operator)
-
-// Add edges (connections between operators)
-executor.addEdge(sourceId, targetId)
-
-// Start the execution loop
-executor.start()
+```javascript
+localStorage.debug = 'noodles:*'   // all namespaces; see src/utils/debug.ts
+window.plannerEngine               // the engine: vis(), errors(), lowering(), runtime.program()
 ```
-
-### Topological Sorting
-
-The executor maintains a topologically sorted execution order:
-- Cycle detection prevents infinite loops
-- Parallel execution levels allow independent operators to run concurrently
-- Changes only re-execute affected downstream operators
-
-### Reference Dependencies
-
-The graph model in `reference-dependencies.ts` owns dependencies declared with `op()` or mustache
-syntax. For literal code fields it reads the field value; for expression-driven fields it reads and
-watches `field.expression`, while `field.value` remains the evaluated result. The model derives
-ephemeral reference edges, maintains field subscriptions and operator dependencies, and updates the
-executor when source text changes. This works independently of whether an editor component is mounted,
-including for children of collapsed containers.
-
-React Flow state contains only persisted value edges. Reference edges are exposed to the editor as a
-read-only visual projection and must not be created or synchronized by field components. The field
-source text is the source of truth.
-
-### Operator Dirty Tracking
-
-Operators track their execution status:
-
-```typescript
-// Mark an operator as needing re-execution
-operator.markDirty()
-
-// Pull results from an operator (executes if dirty)
-const result = await operator.pull()
-
-// Check if operator has cached results
-if (operator.pullExecutionStatus === PullExecutionStatus.CLEAN) {
-  // Use cached result
-}
-```
-
-### Performance Benefits
-
-- **Selective execution**: Only execute operators needed for current frame
-- **Cache efficiency**: Clean operators return instantly without computation
-- **Parallel execution**: Independent operators execute concurrently
-- **Reduced overhead**: No subscription management overhead
-
-## State Management with Zustand
-
-The application uses Zustand for global state management, storing operators and timeline state.
-
-### Store Architecture
-
-The store contains:
-
-- `operators`: Map of operator IDs to operator instances
-- `tracks`: Map of field paths to timeline tracks with keyframes
-- `hoveredOutputHandle`: Currently hovered output handle for UI feedback
-- Batching support for atomic updates
-
-### Accessing the Store
-
-**Direct Store Access (non-reactive):**
-
-```typescript
-import { getOpStore } from './store'
-
-// Get the store instance
-const store = getOpStore()
-
-// Access operators
-const op = store.getOp('/data-loader')
-const allOps = store.getAllOps()
-const entries = store.getOpEntries()
-```
-
-**Convenience Helpers (recommended):**
-
-```typescript
-import { getOp, getAllOps, getOpEntries, setOp, deleteOp, hasOp } from './store'
-
-// Get a single operator by absolute or relative path
-const op = getOp('/data-loader')  // Absolute path
-const relative = getOp('./sibling', contextOpId)  // Relative path
-
-// Check existence
-if (hasOp('/data-loader')) { /* ... */ }
-
-// Get all operators
-const allOps = getAllOps()
-
-// Iterate over operators
-for (const [id, op] of getOpEntries()) {
-  // ...
-}
-
-// Add/update operators
-setOp('/new-op', operatorInstance)
-
-// Remove operators
-deleteOp('/old-op')
-```
-
-**Batching for Performance:**
-
-```typescript
-import { getOpStore } from './store'
-
-// Batch multiple store operations to trigger single update
-getOpStore().batch(() => {
-  setOp('/op1', op1)
-  setOp('/op2', op2)
-  deleteOp('/op3')
-  // Only one state update after batch completes
-})
-```
-
-### Timeline Track Management
-
-```typescript
-import { getTrack, setTrack, deleteTrack, hasTrack } from './timeline/timeline-store'
-
-// Manage timeline tracks
-const track = getTrack('/data-loader.par.value')
-setTrack('/data-loader.par.value', track)
-deleteTrack('/data-loader.par.value')
-if (hasTrack('/data-loader.par.value')) { /* ... */ }
-```
-
-### Important Notes
-
-- **Non-reactive by design**: Store access via `getOpStore()` does NOT trigger React re-renders
-- **Use in tests**: Test files should use the convenience helpers (`getOp`, `getAllOps`, etc.)
-- **Path resolution**: `getOp()` supports both absolute (`/foo/bar`) and relative (`./sibling`, `../parent`) paths
-- **Batching**: Always use `store.batch()` when making multiple related changes
-- **No `opMap` access**: The old `opMap` global is deprecated - use store helpers instead
-
-## Error Handling
-
-### Validation
-
-- Zod schemas validate all field values
-- Type mismatches caught at runtime
-- Clear error messages displayed in UI
-
-### Error Propagation
-
-```typescript
-try {
-  const result = operator.execute(inputs)
-  field.next(result)
-} catch (error) {
-  field.error(error)  // Propagate downstream
-}
-```
-
-### Debugging
-
-- Execution tracing tracks data flow
-- Performance profiling measures execution times
-- State inspection examines intermediate values

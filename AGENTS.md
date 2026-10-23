@@ -6,7 +6,7 @@ This document provides essential context for Large Language Models (LLMs) workin
 
 ## Project Overview
 
-**Noodles.gl** is a React-based node-based editor for creating geospatial visualizations and animations. It combines visual programming with reactive data flow to build interactive presentations, high-quality renders, and data-driven animations.
+**Noodles.gl** is a React-based node-based editor for creating geospatial visualizations and animations. A project is a document of nodes and edges that Noodles compiles and runs in DuckDB, so dragging a slider or playing the timeline re-runs only what that change needs. It builds interactive presentations, high-quality renders, and data-driven animations.
 
 ### Core Purpose
 - Create animated timeline presentations and data visualizations
@@ -23,230 +23,95 @@ This document provides essential context for Large Language Models (LLMs) workin
 - **[Analytics](dev-docs/analytics.md)** - Privacy-preserving analytics guidelines
 - **[Agent Harness](dev-docs/agent-harness.md)** - The in-app AI chat: providers, tool routing, context budgets
 - **[Tech Stack](dev-docs/tech-stack.md)** - Complete technology listing
-- **[Adding Operators](dev-docs/adding-operators.md)** - Operator class template, registration checklist, custom field types
-- **[Claude Code Workflow](dev-docs/claude-code-workflow.md)** - Editing noodles.json directly, WebMCP connection, graph design guidelines
+- **[Adding Operators](dev-docs/adding-operators.md)** - Planner, deck and host operators; conversions from older projects; tests
+- **[Claude Code Workflow](dev-docs/claude-code-workflow.md)** - Editing project files directly, WebMCP connection, graph design guidelines
 
 ## Architecture
 
-### Fundamental Concepts
+Full detail: [dev-docs/architecture.md](dev-docs/architecture.md).
 
-**Operators**: Processing nodes that transform data
-- Pure functions: deterministic (same inputs = same outputs)
-- Reactive: automatically re-execute when upstream data changes
-- Typed: use Zod schemas for input/output validation
-- Memoized: results cached to avoid unnecessary recomputation
-
-**Fields**: Typed inputs/outputs with validation and UI hints
-- Strongly typed RxJS observables
-- Support both value and reference connections
-- Can be keyframed in timeline for animations
-- Custom React components for specialized UI controls
-
-**Pull-Based Execution**: Demand-driven operator execution
-- Operators only execute when outputs are requested and inputs have changed
-- Dirty flag system tracks which operators need re-execution
-- Topological sorting determines execution order
-- Parallel execution for independent branches
-- GraphExecutor manages the execution loop with RAF-based timing
-
-## Key Files and Their Purposes
-
-### Core Application Files
-
-- **`noodles-editor/src/noodles/operators.ts`** - Registry of all available operators. Add new operators here.
-- **`noodles-editor/src/noodles/fields.ts`** - Field system implementation. All field types defined here.
-- **`noodles-editor/src/noodles/graph-executor.ts`** - Pull-based execution engine with topological sorting, dirty tracking, and RAF loop.
-- **`noodles-editor/src/noodles/components/op-components.tsx`** - React components for rendering operator nodes. Most use default renderer, some have custom components.
-- **`noodles-editor/src/noodles/components/field-components.tsx`** - React components for rendering field inputs.
-- **`noodles-editor/src/noodles/noodles.tsx`** - Main visualization component that loads projects and manages state, orchestrates nodes with React Flow.
-- **`noodles-editor/src/timeline-editor.tsx`** - Timeline editor interface with native timeline components.
-
-### Utilities
-
-- **`noodles-editor/src/noodles/utils/path-utils.ts`** - Unix-style path resolution for operator references
-- **`noodles-editor/src/noodles/utils/serialization.ts`** - Project save/load functionality
-- **`noodles-editor/src/noodles/utils/memoize.ts`** - Caching for operator results
-- **`noodles-editor/src/noodles/storage.ts`** - File system access and project management
-
-## Data Flow and Connections
-
-### Edge Structure in Project Files (noodles.json)
-
-```typescript
-// Edge format connecting operators
-{
-  "id": "/add-1.out.result->/viewer.par.data",  // Unique edge ID
-  "source": "/add-1",                            // Source node ID
-  "target": "/viewer",                           // Target node ID
-  "sourceHandle": "out.result",                  // Output field name
-  "targetHandle": "par.data"                     // Input field name
-}
+```
+EditorDoc ─lowerDocument─► planner IR + scalar program ─compileProgram─► ProgramRuntime
+                                                         (engine worker: DuckDB-Wasm)
+                                                                     │ binary layer buffers
+                                       Engine (main thread): deck layers, host operators
 ```
 
-### Operator Path System
+- **Operators** are `OpDef`s registered with `@noodles.gl/planner` (`packages/planner`). Each
+  declares ports, parameters and a `lower()` that emits IR: SQL relations, filters, joins,
+  attribute expressions, layers.
+- **The planner** decides which relations are memoized and how each parameter is routed: a
+  deck prop, a uniform, a CPU pass, a requery or a rematerialize. A value edit never
+  recompiles; a structural edit recompiles only what changed.
+- **Per-row values are columns**, made by `attribute` nodes and channel expressions. There are
+  no accessor functions.
+- **Host operators** are the few Noodles classes that cannot compile (CodeOp reading `op()` or
+  the timeline, Geocoder, Directions, Chart, BoundingBox, Merge, LayerProps, Mouse, TileLayer,
+  custom MapLibre layers). They run their `execute()` on the main thread.
 
-Operators use Unix-style fully qualified paths:
+## Key Files
 
-```typescript
-// Absolute paths (from root)
-op('/data-loader')              // Root level operator
-op('/analysis/filter')          // Nested in container
+- **`packages/planner/src/operators.ts`, `gis.ts`** - planner operators. Add new operators here.
+- **`packages/planner/src/doc.ts`, `lower.ts`** - the document format and its lowering.
+- **`noodles-editor/src/runtime/engine.ts`** - lowers the document, routes changes, builds layers.
+- **`noodles-editor/src/runtime/worker/`** - the engine worker: DuckDB, the runtime, JS tables and UDFs.
+- **`noodles-editor/src/runtime/deck-ops.ts`, `value-ops.ts`** - deck operators (views, widgets, extensions, tiles, map style) and curve operators.
+- **`noodles-editor/src/runtime/host/`** - the host runner and host operator registration.
+- **`noodles-editor/src/runtime/migrate/`** - converting older operator-graph projects to documents.
+- **`noodles-editor/src/editor/`** - the editor: store, network, parameter pane, tools, project files.
+- **`noodles-editor/src/noodles/operators.ts`, `fields.ts`** - the remaining Noodles classes (host operators) and the field types the parameter widgets edit.
+- **`noodles-editor/src/noodles/components/field-components.tsx`** - parameter widgets.
+- **`noodles-editor/src/timeline-editor.tsx`** - the map, the deck and the timeline around the editor.
 
-// Relative paths (from current operator)
-op('./sibling')                 // Same container
-op('../parent-sibling')         // Parent container
-op('local-name')                // Same container (shorthand)
-```
+## Project Files
 
-### Reactive References
-
-**In CodeField expressions:**
-```javascript
-// Reference other operators programmatically
-const upstream = op('/data-loader').out.data
-const filtered = op('./filter').par.data
-```
-
-**In DuckDbOp SQL (mustache syntax):**
-```sql
-SELECT * FROM 'data.csv'
-WHERE age > {{/threshold.par.value}}
-  AND status = {{./config.par.status}}
-```
-
-### Connection Rules
-
-- **Type Safety**: Zod schemas ensure type compatibility
-- **Single Input**: Each input accepts one connection
-- **Multiple Outputs**: Outputs can connect to many inputs
-- **Cycle Detection**: Prevents circular dependencies
-
-## Project Files (noodles.json)
-
-Projects are stored as JSON files with this structure:
+A project is an `EditorDoc`:
 
 ```json
 {
-  "version": 18,
+  "version": 1,
+  "name": "earthquakes",
   "nodes": [
-    {
-      "id": "/data-loader",
-      "type": "FileOp",
-      "position": {"x": 100, "y": 100},
-      "data": {
-        "inputs": {
-          "url": "@/data.csv",
-          "format": "csv"
-        }
-      }
-    }
+    { "id": "n1", "op": "file", "name": "quakes", "x": 0, "y": 0,
+      "params": { "url": "@/data.csv", "format": "csv" } },
+    { "id": "n2", "op": "attribute", "name": "position", "x": 300, "y": 0,
+      "params": { "name": "position", "expression": "[Longitude, Latitude]" } },
+    { "id": "n3", "op": "scatter", "name": "points", "x": 600, "y": 0,
+      "params": { "position": "position", "radiusScale": { "expr": "4 + 2 * sin(T)" } } },
+    { "id": "n4", "op": "deck", "name": "deck", "x": 900, "y": 0, "params": {} }
   ],
   "edges": [
-    {
-      "id": "/data-loader.out.data->/filter.par.data",
-      "source": "/data-loader",
-      "target": "/filter",
-      "sourceHandle": "out.data",
-      "targetHandle": "par.data"
-    }
-  ]
+    { "id": "e1", "source": "n1", "sourcePort": "out", "target": "n2", "targetPort": "in" },
+    { "id": "e2", "source": "n2", "sourcePort": "out", "target": "n3", "targetPort": "in" },
+    { "id": "e3", "source": "n3", "sourcePort": "out", "target": "n4", "targetPort": "layers", "index": 0 }
+  ],
+  "timeline": { "tracks": [] }
 }
 ```
 
-**Validate every project file you write or edit** with `npm run validate:projects -- path/to/noodles.json` from the repo root (or the `noodles` MCP server's `validate_project`; never a bare `npx validate-projects`, which can fetch from npm). It checks operator types, input names, edge handles and the schema version against the operator registry, and names the fix for each error. The file is done when it prints `OK`.
+- Node ids are opaque. `name` is unique within a network; a node's path is its name under its
+  subnets' names (`/points`, `/subnet/filter`), and tools accept ids, names or paths.
+- `parent` puts a node inside a `subnet`; `subnet-input` / `subnet-output` nodes are its ports.
+- Edges join ports. `par:<name>` as a `targetPort` drives a parameter from a number or value
+  output; `index` orders a multi-input port such as the deck's `layers`.
+- `params` are literals, `{ "expr": "..." }` (parameter expressions: `T` seconds, `F` frame,
+  `ch('node/param')`, math) or `{ "ref": "node/param" }`. Leave out parameters at their default.
+- `@/name.csv` is a file in the project's data directory.
+- The `deck` node holds the basemap style, the camera and the render settings.
+- Older operator-graph files (`noodles.json` schema 1–19, which the examples in
+  `noodles-editor/src/examples/` still are) are migrated and converted when they load.
 
-**Schema migrations** (`noodles-editor/src/noodles/__migrations__/NNN-name.ts`) take the next unused number, and the PR must update the one-line `__migrations__/LATEST` file to the new basename. See [adding-operators.md](dev-docs/adding-operators.md#adding-a-migration).
+## Expressions and Code
 
-**Path Prefixes in File References:**
-
-- `@/` - Relative to project data directory
-- Absolute paths work as-is
-- URLs can reference remote resources
-
-## Code Operators and Available Globals
-
-### CodeOp
-Multi-line JavaScript with full library access:
-
-```javascript
-// Example: Calculate distances
-const distances = data.map(d => {
-  const from = [d.start_lng, d.start_lat]
-  const to = [d.end_lng, d.end_lat]
-  return turf.distance(from, to, { units: 'kilometers' })
-})
-return distances
-```
-
-**Available globals:**
-- `d3` - D3.js library for data manipulation and visualization
-- `turf` - Turf.js geospatial analysis functions
-- `deck` - Deck.gl utilities and components
-- `Plot` - Observable Plot for creating charts
-- `Temporal` - TC39 Temporal API for dates and times
-- `utils` - Collection of utility functions (arc geometry, color conversion, geospatial operations, interpolation, etc.)
-- All Operator classes for instantiation
-
-### AccessorOp
-Per-item accessor functions for Deck.gl layers:
-
-```javascript
-// Example: Get position
-[d.longitude, d.latitude]
-
-// Example: Conditional color
-d.value > 100 ? [255, 0, 0] : [0, 255, 0]
-```
-
-**Context:**
-- `d` - Current data item
-- `data` - Full dataset array
-
-### ExpressionOp
-Single-line calculations:
-
-```javascript
-Math.PI * Math.pow(d.radius, 2)
-```
-
-## Available Utility Functions (`utils` object)
-
-The `utils` object is available globally in CodeOp, AccessorOp, and ExpressionOp. It provides commonly-used functions:
-
-**Example usage:**
-```javascript
-// Create a 3D arc between two cities
-const arc = utils.getArc({
-  source: { lat: 40.7128, lng: -74.0060, alt: 0 },
-  target: { lat: 51.5074, lng: -0.1278, alt: 0 },
-  arcHeight: 500000,  // 500km peak height
-  segmentCount: 100
-})
-
-// Convert hex color to Deck.gl format
-const deckColor = utils.hexToColor('#ff5733')
-
-// Create interpolation function
-const altToIntensity = utils.interpolate([0, 10000], [0, 255])
-```
-
-**For complete API documentation with all parameters and examples**, see:
-
-- [Utils API Reference](docs/developers/utils-api-reference.md) - Comprehensive function documentation
-- Source code: [noodles-editor/src/utils/](noodles-editor/src/utils/) - Implementation with inline comments
-
-## Available Operator Classes (`opTypes`)
-
-All operator classes are available as globals in CodeOp for programmatic instantiation:
-
-```javascript
-// Example: Instantiate operators programmatically
-const numberOps = data.map((value, i) => {
-  const op = new NumberOp(`/dynamic-${i}`)
-  op.inputs.value.setValue(value)
-  return op
-})
-```
+- **Row expressions** (attribute nodes, layer channels, `filter` in expression mode) use
+  column names, arithmetic and functions: `[lng, lat]`, `sqrt(pop) * 2`, `hex_color(color)`.
+  They compile to SQL, a CPU loop or WGSL from one AST.
+- **`sql`** nodes take any SELECT: `{{input0}}` is the table on `in0`, `ch('threshold/value')`
+  a parameter.
+- **`code`** returns rows from JavaScript in the engine worker: `d` is the input's rows, and
+  `d3`, `turf` and `utils` are in scope. Its rows become a DuckDB table.
+- **`js-function`** defines a function expressions can call per row (much slower than SQL).
+- The `utils` functions are documented in [docs/developers/utils-api-reference.md](docs/developers/utils-api-reference.md).
 
 ## Development Workflow
 
@@ -265,7 +130,9 @@ npm workspaces (root `package.json`): run `npm install` at the root, then run ap
 - Unit tests co-located with source files (`*.test.ts`)
 - Vitest for unit testing
 - Playwright for browser integration tests
-- Run specific tests: `npm test src/noodles/operators.test.ts`
+- Run specific tests: `npm test src/editor/doc-ops.node.test.ts`
+- `*.node.test.ts` run in Node with DuckDB-Wasm (`--project node`); the rest run in Chromium
+- Planner: `npm test -w @noodles.gl/planner`
 
 ### Debug Logging
 
@@ -289,65 +156,33 @@ debugHistory('Message with %s formatting', value)
 
 ## Creating New Operators
 
-See [dev-docs/adding-operators.md](dev-docs/adding-operators.md) for the class template, registration checklist, and custom field types.
-
-**Critical:** a new operator must be registered in the `opTypes` object in `operators.ts` AND added to a category in `components/categories.ts` (display name without the "Op" suffix), or it never appears in the Add Node menu. Operators are pure, typed with Zod-backed fields, memoized by the framework, and require unit tests.
+See [dev-docs/adding-operators.md](dev-docs/adding-operators.md). A planner operator is one
+`OpDef` in `packages/planner/src/operators.ts`; its `category` puts it in the Add Node menu, and
+there is no second registry. Read structural parameters with `ctx.str`/`ctx.num` and bind values
+with `ctx.bind`, so a slider is routed, not recompiled. Never Biome-format `packages/planner`.
+Every operator needs tests; anything that replaces an older Noodles operator needs a conversion
+in `src/runtime/migrate/` with a test.
 
 ## State Management
 
-The application uses Zustand for global state. See [architecture.md](dev-docs/architecture.md#state-management-with-zustand) for complete details.
+- **`src/editor/doc-store.ts`** - the document, selection, current network, playhead, debug
+  flag. `docStore().edit(fn, tag)` changes the document; edits with the same tag inside 500 ms
+  are one undo step. `useEditor(selector)` subscribes a component.
+- **`src/editor/doc-engine.ts`** - `useEngineState()`: what the engine drew, its errors, layers.
+- **`src/editor/ui-store.ts`** - panels, dialogs, map placement.
 
-**Quick reference:**
 ```typescript
-import { getOp, setOp, deleteOp, hasOp } from './store'
+import { docStore } from './editor/doc-store'
+import { setParam } from './editor/doc-ops'
 
-// Get operator by path (absolute or relative)
-const op = getOp('/data-loader')
-const relative = getOp('./sibling', contextOpId)
-
-// Batch updates for performance
-getOpStore().batch(() => {
-  setOp('/op1', op1)
-  setOp('/op2', op2)
-})
+docStore().edit(d => setParam(d, nodeId, 'radiusScale', 8), `drag:${nodeId}`)
 ```
 
 ## Performance Tips
 
-- Keep operators pure and stateless
-- Avoid heavy computations in AccessorOps (runs per data item)
-- Batch related changes together using `batch()`
-- Use DuckDB for large dataset queries
-- Profile bottlenecks with execution tracing
-
-See [developing.md](dev-docs/developing.md#best-practices) for complete best practices (2 spaces, no semicolons, single quotes).
-
-## Common Patterns
-
-### Accessing Operator Outputs
-
-```javascript
-// In CodeField or AccessorOp
-const data = op('/data-loader').out.data
-const threshold = op('./threshold').par.value
-```
-
-### Creating Layers
-
-```javascript
-// Operators that create Deck.gl layers should return LayerProps
-return {
-  type: ScatterplotLayer,
-  data: processedData,
-  getPosition: d => [d.lng, d.lat],
-  getRadius: 100,
-  getFillColor: [255, 0, 0]
-}
-```
-
-### Timeline Animation
-
-Any field can be keyframed via the native timeline system. Changes in timeline propagate through the reactive system with smooth bezier interpolation between keyframes.
+- Bind values (`ctx.bind`) instead of reading them structurally in `lower()`.
+- Prefer expressions and `sql` over `code` and `js-function`.
+- Debug mode ("Show editor debug info") shows each node's SQL, memoization and routes.
 
 ## Testing and Pull Requests
 
@@ -366,13 +201,13 @@ Any field can be keyframed via the native timeline system. Changes in timeline p
 
 ## Important Notes for LLMs
 
-1. **Operators are pure functions** - They should not have side effects or maintain state
-2. **Paths use Unix-style syntax** - Use `/` prefix for absolute, `./` for relative
-3. **Fields are observables** - Use `field.setValue()` to update, `field.value` to read
-4. **Memoization is automatic** - Don't worry about caching, the framework handles it
-5. **Type safety is critical** - Always use Zod schemas for validation
-6. **Timeline integration** - Any parameter can be animated via the native timeline
-7. **Project files are JSON** - Easy to parse and modify programmatically
+1. **The document is the source of truth** - edit it through `doc-ops.ts` or `apply_modifications`, never engine state
+2. **Per-row values are columns** - attribute nodes and expressions, not accessor functions
+3. **Routes decide cost** - a value change should never recompile; keep parameters bindable
+4. **Host operators are the exception** - add one only when the work cannot run in the engine
+5. **Users never see planner internals** - SQL, routes and engine badges only in debug mode
+6. **Timeline integration** - any number parameter can be keyframed (`nodeId.param` tracks)
+7. **Older projects convert on load** - a conversion that cannot express something is a `MigrationError`, never a silent fallback
 8. **Testing is expected** - Add tests for new features and changes to critical components
 9. **Document edge cases** - Users may not expect implementation-specific behavior
 10. **Keep PRs focused** - Split large changes into reviewable chunks when possible
@@ -383,11 +218,11 @@ The chat panel (`noodles-editor/src/ai-chat/`) has its own agent loop, tool surf
 
 ## Using Claude Code with Noodles.gl
 
-See [dev-docs/claude-code-workflow.md](dev-docs/claude-code-workflow.md) for editing `noodles.json` directly, validating changes, graph design guidelines, and connecting to a running browser via WebMCP.
+See [dev-docs/claude-code-workflow.md](dev-docs/claude-code-workflow.md) for editing project files directly, validating changes, graph design guidelines, and connecting to a running browser via WebMCP.
 
 The `noodles` MCP server (`.mcp.json`, [noodles-mcp](noodles-mcp/README.md)) looks up operator schemas, docs and example projects without a browser, and validates project files. The [`noodles-live`](.claude/skills/noodles-live/SKILL.md) skill covers changing a project open in the editor.
 
 ---
 
-**Last Updated**: 2026-10-21
-**Version**: Based on project version 18 schema
+**Last Updated**: 2026-10-23
+**Version**: `EditorDoc` version 1; older projects up to operator-graph schema 19
