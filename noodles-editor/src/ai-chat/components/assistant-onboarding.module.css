@@ -187,3 +187,9 @@
   background: rgba(255, 255, 255, 0.05);
   color: #e0e0e0;
 }
+
+.otherAgentButton {
+  display: block;
+  margin: 10px auto 0;
+  font-size: 12px;
+}

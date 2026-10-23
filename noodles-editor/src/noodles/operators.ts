@@ -5453,7 +5453,12 @@ export class OrbitViewOp extends Operator<OrbitViewOp> {
         target: new Vec3Field([0, 0, 0], { returnType: 'tuple', optional: true }),
         rotationOrbit: new NumberField(0, { optional: true }),
         rotationX: new NumberField(0, { optional: true }),
-        zoom: new NumberField(1, { min: 0, max: 1, step: 0.01, optional: true }),
+        zoom: new NumberField(1, {
+          softMin: -10,
+          softMax: 10,
+          step: 0.01,
+          optional: true,
+        }),
       }),
     }
   }
@@ -5519,6 +5524,9 @@ export class OutOp extends Operator<OutOp> {
       scaleControl: new NumberField(0.3, { min: 0.1, max: 1, step: 0.05 }),
       framerate: new NumberField(30, { min: 1, max: 120, step: 1 }),
       captureDelay: new NumberField(50, { min: 0, max: 10000, step: 10 }),
+      // final waits for each frame to settle; preview captures on the first render and
+      // can drop or repeat frames
+      captureMode: new StringLiteralField('final', ['final', 'preview']),
       rendersDirectory: new StringField('renders'),
       sequenceFormat: new StringLiteralField('png', ['png', 'exr']),
     }

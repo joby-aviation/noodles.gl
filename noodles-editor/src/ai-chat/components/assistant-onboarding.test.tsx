@@ -1,5 +1,6 @@
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import agentPrompt from '../../../../website/static/agent-prompt.txt?raw'
 import claudeCodePrompt from '../../../../website/static/claude-code-prompt.txt?raw'
 import { analytics } from '../../utils/analytics'
 import { AssistantOnboarding } from './assistant-onboarding'
@@ -59,7 +60,7 @@ describe('AssistantOnboarding with a blocked popup', () => {
   })
 })
 
-describe('AssistantOnboarding Claude Code card', () => {
+describe('AssistantOnboarding coding agent card', () => {
   it('copies the shared quick start prompt and tracks the copy', async () => {
     const writeText = stubClipboard(() => Promise.resolve())
     renderOnboarding()
@@ -71,7 +72,26 @@ describe('AssistantOnboarding Claude Code card', () => {
     expect(writeText).toHaveBeenCalledWith(claudeCodePrompt)
     expect(claudeCodePrompt).toContain('noodles-live')
     expect(screen.getByRole('button', { name: 'Copied. Paste it into Claude Code' })).toBeTruthy()
-    expect(analytics.track).toHaveBeenCalledWith('claude_code_prompt_copied', {
+    expect(analytics.track).toHaveBeenCalledWith('agent_prompt_copied', {
+      agent: 'claude_code',
+      source: 'assistant_onboarding',
+    })
+  })
+
+  it('copies the prompt for other agents', async () => {
+    const writeText = stubClipboard(() => Promise.resolve())
+    renderOnboarding()
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Copy the prompt for other agents' }))
+    })
+
+    expect(writeText).toHaveBeenCalledWith(agentPrompt)
+    expect(agentPrompt).toContain('codex mcp add webmcp')
+    expect(screen.getByRole('button', { name: 'Copied. Paste it into your agent' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Copy Claude Code prompt' })).toBeTruthy()
+    expect(analytics.track).toHaveBeenCalledWith('agent_prompt_copied', {
+      agent: 'other',
       source: 'assistant_onboarding',
     })
   })

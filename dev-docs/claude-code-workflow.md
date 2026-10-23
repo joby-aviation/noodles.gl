@@ -92,7 +92,7 @@ Notes:
 
 #### Quick start prompt
 
-[`website/static/claude-code-prompt.txt`](../website/static/claude-code-prompt.txt) is the one-paste setup that the landing page and the assistant's onboarding panel copy. It clones and installs the repo, starts the dev server, registers the relay, and makes one change. Claude Code only loads an MCP server at startup, so the session that registers the relay runs a second `claude -p` session for the change and the screenshot, and pulls the image out of that session's `stream-json` output.
+[`website/static/claude-code-prompt.txt`](../website/static/claude-code-prompt.txt) is the one-paste setup that the landing page's Claude Code tab and the assistant's onboarding panel copy. [`website/static/agent-prompt.txt`](../website/static/agent-prompt.txt) is the version for every other agent: it lists the relay registration for Codex, Gemini CLI, Claude Code, Cursor and VS Code, and since those can't start a second session the way `claude -p` does, it stops after registering and asks the user to restart the agent and paste the same prompt again. Every step skips itself when it's already done, so the second paste picks up at the dev server. Keep the two prompts' steps in sync. The user-facing version of this page is [docs/users/ai-agents.md](../docs/users/ai-agents.md). It clones and installs the repo, starts the dev server, registers the relay, and makes one change. Claude Code only loads an MCP server at startup, so the session that registers the relay runs a second `claude -p` session for the change and the screenshot, and pulls the image out of that session's `stream-json` output.
 
 Two things the prompt works around, found while testing it:
 

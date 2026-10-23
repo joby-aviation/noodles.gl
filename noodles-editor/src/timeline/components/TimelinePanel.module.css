@@ -13,6 +13,7 @@
   --tl-accent-soft: rgb(72 198 207 / 0.2);
   --tl-warning: #d5a43a;
   --tl-shadow: rgb(0 0 0 / 0.38);
+  --tl-ruler-height: 36px;
   display: flex;
   flex-direction: column;
   background:
@@ -160,7 +161,7 @@
 }
 
 .timelineTrackLabelsHeader {
-  height: 36px;
+  height: var(--tl-ruler-height);
   background: linear-gradient(180deg, rgb(35 44 58 / 0.82) 0%, rgb(29 36 49 / 0.82) 100%);
   border-bottom: 1px solid var(--tl-border);
   display: flex;
@@ -192,7 +193,8 @@
 
 .timelineKeyframeArea {
   position: relative;
-  min-height: 100%;
+  /* Fill the scroll area below the sticky ruler without overflowing it */
+  min-height: calc(100% - var(--tl-ruler-height));
   background:
     linear-gradient(90deg, rgb(49 65 84 / 0.35) 1px, transparent 1px),
     linear-gradient(180deg, rgb(30 39 51 / 0.92) 0%, rgb(20 27 37 / 0.92) 100%);
@@ -351,6 +353,8 @@
 .timelinePlayhead {
   position: absolute;
   top: 0;
+  /* Its height comes from the panel; never let it overflow a shorter keyframe area */
+  max-height: 100%;
   width: 1.5px;
   background: var(--tl-accent-strong);
   box-shadow: 0 0 10px rgb(72 198 207 / 0.38);
@@ -372,7 +376,7 @@
 }
 
 .timelineRuler {
-  height: 36px;
+  height: var(--tl-ruler-height);
   background: linear-gradient(180deg, rgb(31 39 52 / 0.94) 0%, rgb(22 30 42 / 0.94) 100%);
   border-bottom: 1px solid var(--tl-border);
   position: sticky;

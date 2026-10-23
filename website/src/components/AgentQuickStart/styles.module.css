@@ -70,3 +70,8 @@
   font-size: 0.9rem;
   color: var(--text-secondary);
 }
+
+.tabs {
+  max-width: 760px;
+  margin: 0 auto;
+}

@@ -1,0 +1,20 @@
+Set up Noodles.gl (https://github.com/joby-aviation/noodles.gl) on this machine, connect it to you, open an example map, make one small change to it, and show me a screenshot. Follow these steps in order. Don't research beyond them. Steps that are already done are skipped, so this prompt is safe to paste again.
+
+1. Repo: if the current directory has a `noodles-editor/` folder, use it. Otherwise run `git clone --depth 1 https://github.com/joby-aviation/noodles.gl.git` (reuse `./noodles.gl` if it exists) and work in it. Needs git, Node 22 or later, and Chrome or Edge.
+2. Install: run `npm install` in the repo root, unless `node_modules/` is already there.
+3. Relay: register the WebMCP relay as a stdio MCP server named `webmcp` that runs `npx -y @mcp-b/webmcp-local-relay@4`. Skip this if you already have a `webmcp_list_sources` tool (your client may prefix the name). Use the line for the agent you are:
+   - Codex: `codex mcp add webmcp -- npx -y @mcp-b/webmcp-local-relay@4`
+   - Gemini CLI: `gemini mcp add webmcp npx -y @mcp-b/webmcp-local-relay@4`, run in the repo root
+   - Claude Code: `claude mcp add webmcp -- npx -y @mcp-b/webmcp-local-relay@4`, run in the repo root
+   - Cursor: add `"webmcp": {"command": "npx", "args": ["-y", "@mcp-b/webmcp-local-relay@4"]}` under `mcpServers` in `.cursor/mcp.json` in the repo root
+   - VS Code: add `"webmcp": {"type": "stdio", "command": "npx", "args": ["-y", "@mcp-b/webmcp-local-relay@4"]}` under `servers` in `.vscode/mcp.json` in the repo root
+   - Anything else: your client's MCP config, with that command and those args
+4. Restart: most agents load MCP servers only when they start. If you have no `webmcp_list_sources` tool now, stop here and tell me, in one short message, to quit you, start you again in the repo folder, and paste this same prompt. Don't start the dev server or open a browser first.
+5. Dev server: if http://localhost:5173/ already serves Noodles.gl, use it. Otherwise run `npm start` in `noodles-editor/` as a background process and wait for the `Local:` URL it prints. Use that URL as <URL> below.
+6. Open: tell me a browser tab will open and to leave it visible until you show the screenshot. Then run <open> '<URL>examples/nyc-taxis?externalControl=true'. For <open>, use `open -a 'Google Chrome'` on macOS (`open -a 'Microsoft Edge'` if Chrome isn't installed), `xdg-open` on Linux, or `start chrome` on Windows (`start msedge` without Chrome).
+7. Connect: call `webmcp_list_sources`. If no tab URL starts with <URL>examples/nyc-taxis yet, wait 5 seconds and check again, up to 6 times. Use that tab; with several tabs, its tool names end in a tab id. If it never shows up, close the Noodles tabs you opened and do step 6 once more.
+8. Change: read `.claude/skills/noodles-live/SKILL.md` in the repo and follow it (it may already be loaded as a skill). Call `get_current_project`. Make one small visible change to a layer, such as its color. Call `capture_visualization`. If it reports that the tab is hidden, ask me to bring the browser to the front, then call it once more.
+
+You are done when you have shown me the screenshot (or, if you can't show images, described it) and said in one sentence what changed. Then stop. If a step fails twice, stop and tell me the step and its exact error.
+
+End your last message with: to keep going, ask me for a change, for example "make the arcs red and export a 5 second video". The relay is registered for next time. Start me first, then the editor (`npm start` in `noodles-editor/`), then open the map with `?externalControl=true`, so the tab finds the relay.

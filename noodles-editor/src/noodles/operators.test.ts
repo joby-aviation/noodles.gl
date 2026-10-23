@@ -1748,6 +1748,19 @@ describe('MapViewOp', () => {
   })
 })
 
+describe('OrbitViewOp', () => {
+  it('accepts zoom outside 0..1', () => {
+    const operator = new OrbitViewOp('/orbit-0')
+    const { viewState } = operator.inputs
+
+    for (const zoom of [-1, 0, 0.5, 3]) {
+      viewState.setValue({ zoom })
+      expect(viewState.value.zoom).toBe(zoom)
+      expect(viewState.schema.safeParse({ zoom }).success).toBe(true)
+    }
+  })
+})
+
 describe('SwitchOp', () => {
   it('returns the value at the index', () => {
     const operator = new SwitchOp('/switch-0')

@@ -96,7 +96,7 @@ Tracked in the renderer, not the buttons, so the Export button, the render setti
 
 | Event | Properties | Location |
 |-------|-----------|----------|
-| `render_started` | `source, format, codec, resolution, frameCount` | render-analytics.ts |
+| `render_started` | `source, format, codec, captureMode, resolution, frameCount` | render-analytics.ts |
 | `render_completed` | started properties + `durationMs` | render-analytics.ts |
 | `render_failed` | started properties + `durationMs, errorCategory, errorName, framesDone` | render-analytics.ts |
 | `render_cancelled` | started properties + `durationMs` | render-analytics.ts |
@@ -104,6 +104,7 @@ Tracked in the renderer, not the buttons, so the Export button, the render setti
 
 - `source`: `menu` (the logo menu and the Out node's panel), `toolbar` (the top bar's Export button) or `agent` (the `export_video` tool)
 - `format`: `mp4`, `webm` (a transparent video), `png_sequence`, or `exr_sequence`; `codec` (`avc`, `hevc`, `vp9`, `av1`) is sent for `mp4` and `webm` only
+- `captureMode`: `final` (waits for each frame to settle) or `preview` (captures on the first render, may drop frames)
 - `resolution`: a bucket by the short side (`under_720p`, `720p`, `1080p`, `1440p`, `4k`, `8k`), not exact dimensions
 - `durationMs`: wall time from the end of the save dialog to the end of the render
 - `errorCategory`: `unsupported_codec`, `frame`, `encoder`, `canvas_replaced` (the recorded canvas was rebuilt mid-export, e.g. by adding or removing the basemap), `timeout` (a frame took too long to draw or read) or `exception`. `errorName` is the error class or DOMException name (`NotAllowedError`). The error message is never sent, since it can contain file paths.
@@ -134,9 +135,9 @@ When a CSV or JSON table is imported, the editor looks for coordinate columns so
 | `analytics_consent_granted` | - | analytics.ts (setConsent) |
 | `analytics_consent_denied` | - | analytics.ts (setConsent) |
 | `analytics_enabled_in_settings` | - | settings-dialog.tsx |
-| `claude_code_prompt_copied` | `source` (`assistant_onboarding`) | assistant-onboarding.tsx |
+| `agent_prompt_copied` | `agent` (`claude_code`, `other`), `source` (`assistant_onboarding`) | assistant-onboarding.tsx |
 
-The website's "Use with Claude Code" section sends `claude_code_prompt_copied` too, with `location: 'landing'`, through the site's own PostHog and GA tags (`website/src/components/ClaudeCodeQuickStart`). The prompt text itself is never sent.
+The website's "Use with your AI agent" section sends `agent_prompt_copied` too, with `agent` and `location: 'landing'`, through the site's own PostHog and GA tags (`website/src/components/AgentQuickStart`). Before October 2026 both sent `claude_code_prompt_copied`. The prompt text itself is never sent.
 
 ### AI Assistant
 

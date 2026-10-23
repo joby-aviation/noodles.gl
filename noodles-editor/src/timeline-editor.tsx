@@ -25,7 +25,7 @@ import {
 } from './noodles/utils/map-camera-control'
 import { captureOperatorInputs, firePropertyMutation } from './noodles/utils/property-history'
 import type { RenderSettings } from './noodles/utils/serialization'
-import { useDeckDrawLoop } from './render/draw-loop'
+import { PREVIEW_FRAME_DELAY, useDeckDrawLoop } from './render/draw-loop'
 import { FrameCounter } from './render/frame-stats'
 import type { RenderSource } from './render/render-analytics'
 import { resetRenderProgress, setRenderProgress } from './render/render-progress-store'
@@ -74,6 +74,10 @@ const DeckGLOverlay = forwardRef<
       // TODO: Cleanup onAfterRender from draw loop as a post-render step instead
       onAfterRender: props.onAfterRender ? props.onAfterRender : () => {},
     })
+  } else if (renderer.captureMode === 'preview') {
+    // Preview keeps the layers in sync during export. The map's render event drives
+    // capture, so onAfterRender is a no-op.
+    deck.setProps({ ...props, onAfterRender: () => {} })
   }
 
   // @ts-expect-error private property
@@ -131,7 +135,11 @@ export default function TimelineEditor() {
   // Trigger a redraw of React, mapbox and deck when the renderer state changes,
   // to ensure that the VideoStreamReader in renderer.ts runs
   const [_, setRand] = useState(0)
+  const lastRedrawTime = useRef(0)
+  const frameCapturedRef = useRef(false)
   const redraw = useCallback(() => {
+    lastRedrawTime.current = performance.now()
+    frameCapturedRef.current = false
     mapRef.current?.redraw()
     deckRef.current?.redraw()
     // Only trigger React re-renders outside of the render loop — during export this
@@ -174,9 +182,11 @@ export default function TimelineEditor() {
     lod,
     waitForData,
     captureDelay,
+    captureMode,
     rendersDirectory,
     sequenceFormat,
   } = renderSettings
+  const preview = captureMode === 'preview'
   // Both canvases already have an alpha channel: MapLibre always asks for one, and
   // deck.gl's context keeps the browser default. So transparency needs no new context.
   const exportAlpha = exportsTransparentVideo(renderSettings)
@@ -274,6 +284,8 @@ export default function TimelineEditor() {
   } = visualization.mapProps ?? {}
   const mapProps: MapProps = {
     ...mapRenderingDefaults,
+    // Preview exports capture on the first render, so tiles must appear without fading in
+    fadeDuration: isRendering && preview ? 0 : undefined,
     onLoad: ({ target: map }) => {
       // Redraw react to ensure hooks check for map ref changes
       mapRef.current = map
@@ -464,7 +476,44 @@ export default function TimelineEditor() {
     mapIdleRef.current = false
   }
 
-  // onIdle resolves when all data is loaded and drawing has settled.
+  // Preview exports capture on MapLibre's 'render' event instead of waiting for 'idle'.
+  // A render event can fire before the frame has settled, so preview can drop or repeat
+  // frames. Final exports keep waiting for idle below.
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !isRendering || !preview) return
+
+    const handleRender = () => {
+      if (frameCapturedRef.current) return
+      if (!isMapReady(map)) return
+
+      if (waitForData) {
+        const deck = deckRef.current
+        if (
+          deck &&
+          !deck.props.layers.every(layer => !layer || (!Array.isArray(layer) && layer.isLoaded))
+        ) {
+          map.triggerRepaint()
+          return
+        }
+      }
+
+      frameCapturedRef.current = true
+      debugRender(
+        'onRender ready %dms after redraw',
+        (performance.now() - lastRedrawTime.current).toFixed(1)
+      )
+      workerSetTimeout(() => captureFrame(), PREVIEW_FRAME_DELAY)
+    }
+
+    map.on('render', handleRender)
+    return () => {
+      map.off('render', handleRender)
+    }
+  }, [isRendering, preview, waitForData, captureFrame])
+
+  // onIdle resolves when all data is loaded and drawing has settled. In preview exports
+  // it is a fallback in case the render event above misses a frame.
   mapProps.onIdle = ({ target: map }) => {
     mapRef.current = map
     mapIdleRef.current = true
@@ -485,6 +534,16 @@ export default function TimelineEditor() {
         return
       }
     }
+    if (isRenderingRef.current && preview) {
+      if (frameCapturedRef.current) return
+      frameCapturedRef.current = true
+      debugRender(
+        'onIdle fallback %dms after redraw',
+        (performance.now() - lastRedrawTime.current).toFixed(1)
+      )
+      workerSetTimeout(() => captureFrame(), PREVIEW_FRAME_DELAY)
+      return
+    }
     // This should alert the renderer that the scene is ready to be captured
     // Because onIdle can be synchronous, we need to defer the promise resolution to the next tick.
     // TODO: Perhaps set up the promises refs before the render loop, and then later await the Promise.all?
@@ -501,6 +560,7 @@ export default function TimelineEditor() {
     rendererConfig: {
       waitForData,
       captureDelay,
+      captureMode,
     },
     props: deckProps,
   })
@@ -534,6 +594,7 @@ export default function TimelineEditor() {
         getCanvas: getDeckCanvas,
         codec,
         exportAlpha,
+        captureMode,
         // This always scales the video to the specified value, regardless of `canvas` size
         ...resolution,
         startFrame: Math.floor((inPoint ?? 0) * framerate),
@@ -550,6 +611,7 @@ export default function TimelineEditor() {
       getDeckCanvas,
       codec,
       exportAlpha,
+      captureMode,
       resolution,
       framerate,
       inPoint,
@@ -595,6 +657,8 @@ export default function TimelineEditor() {
           canvas,
           getCanvas: getDeckCanvas,
           codec: settings.codec,
+          // Must match the capture signal above, which follows the Out node's setting
+          captureMode,
           width: settings.width,
           height: settings.height,
           fps: settings.fps,
@@ -609,7 +673,7 @@ export default function TimelineEditor() {
         }),
       }
     },
-    [startCapture, getDeckCanvas, codec, resolution, framerate]
+    [startCapture, getDeckCanvas, codec, captureMode, resolution, framerate]
   )
 
   useEffect(() => {
@@ -696,6 +760,7 @@ export default function TimelineEditor() {
         directoryHandle: rendersDir,
         format: sequenceFormat,
         captureDelay,
+        captureMode,
         waitForData,
         startFrame: Math.floor((inPoint ?? 0) * framerate),
         endFrame: Math.floor((outPoint ?? sequenceLength) * framerate),
@@ -717,6 +782,7 @@ export default function TimelineEditor() {
     outPoint,
     framerate,
     captureDelay,
+    captureMode,
     waitForData,
     rendersDirectory,
     sequenceFormat,
