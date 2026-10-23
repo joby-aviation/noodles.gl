@@ -1010,7 +1010,8 @@ export function getNoodles(): Visualization {
       targetRoutePrefix?: string,
       outputCache?: OutputCache
     ) => {
-      const { nodes, edges, viewport, timeline, editorSettings, apiKeys } = project
+      const { nodes, edges, viewport, timeline, editorSettings, apiKeys, migrationDiagnostics } =
+        project
 
       // Prevent the storage-loading useEffect from reloading when the URL changes below
       isProgrammaticLoadRef.current = true
@@ -1060,6 +1061,7 @@ export function getNoodles(): Visualization {
       setOperators(result.operators)
       // Show error dialog if there are graph or timeline errors
       const allErrors = [
+        ...(migrationDiagnostics ?? []),
         ...timelineErrors,
         ...result.errors.map(e => ({
           type: e.type,
