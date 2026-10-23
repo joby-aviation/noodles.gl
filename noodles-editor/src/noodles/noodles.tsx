@@ -291,6 +291,17 @@ export function getNoodles(): Visualization {
 
   useEffect(() => () => referenceDependencyModel.reset(), [])
 
+  // The graph store outlives this component. Start each editor session empty, as React
+  // state did, so the previous project's graph never shows (or saves) under the next one.
+  const isMountedRef = useRef(true)
+  useEffect(() => {
+    isMountedRef.current = true
+    return () => {
+      isMountedRef.current = false
+      useGraphStore.setState({ nodes: [], edges: [] })
+    }
+  }, [])
+
   useEffect(() => {
     const inspectedEdge = getUIStore().inspectedReferenceEdge
     if (inspectedEdge && !referenceEdges.some(edge => edge.id === inspectedEdge.id)) {
@@ -1027,6 +1038,8 @@ export function getNoodles(): Visualization {
       targetRoutePrefix?: string,
       outputCache?: OutputCache
     ) => {
+      // A load that resolves after the editor unmounted must not refill the shared store
+      if (!isMountedRef.current) return
       const { nodes, edges, viewport, timeline, editorSettings, apiKeys } = project
 
       // Prevent the storage-loading useEffect from reloading when the URL changes below
