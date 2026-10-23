@@ -209,11 +209,12 @@ export function SchemaOverlayDialog({
                           <select
                             value={decision}
                             onChange={event => {
+                              const nextDecision = event.currentTarget
+                                .value as SchemaOverlayDecision
                               explicitDecisionIndexes.current.add(column.incomingIndex)
                               setDecisions(current => ({
                                 ...current,
-                                [column.incomingIndex]: event.currentTarget
-                                  .value as SchemaOverlayDecision,
+                                [column.incomingIndex]: nextDecision,
                               }))
                             }}
                             className={s.decision}
