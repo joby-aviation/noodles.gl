@@ -1,6 +1,6 @@
 import * as Dialog from '@radix-ui/react-dialog'
 import { Button } from 'primereact/button'
-import { useEffect, useMemo, useState } from 'react'
+import { useDeferredValue, useEffect, useMemo, useState } from 'react'
 import { inferTableData, type ParsedTableDataClipboard } from '../table-data-clipboard'
 import {
   type ColumnSchema,
@@ -361,12 +361,15 @@ export function TableImportDialog({
     if (preview) setSchema(cloneSchema(preview.schema))
   }, [preview])
 
+  // Keep column controls responsive for large imports. React may skip intermediate
+  // schema drafts while the complete-payload conversion catches up.
+  const deferredSchema = useDeferredValue(schema)
   const result = useMemo(
     () =>
       preview
-        ? applyTableImportSchema(preview, schema, request?.editableColumnStart ?? 0)
+        ? applyTableImportSchema(preview, deferredSchema, request?.editableColumnStart ?? 0)
         : undefined,
-    [preview, request?.editableColumnStart, schema]
+    [deferredSchema, preview, request?.editableColumnStart]
   )
   const validationError = getTableSchemaValidationError(schema)
   const isAnchoredPreview = preview?.sourceOrigin !== undefined
@@ -559,7 +562,14 @@ export function TableImportDialog({
               }
               icon="pi pi-check"
               disabled={!result || validationError !== undefined || error !== undefined}
-              onClick={() => result && !validationError && onConfirm(result)}
+              onClick={() => {
+                if (!preview || validationError) return
+                const confirmedResult =
+                  deferredSchema === schema && result
+                    ? result
+                    : applyTableImportSchema(preview, schema, request?.editableColumnStart ?? 0)
+                onConfirm(confirmedResult)
+              }}
             />
           </div>
         </Dialog.Content>
