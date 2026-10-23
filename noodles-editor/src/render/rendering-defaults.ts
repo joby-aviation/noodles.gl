@@ -1,4 +1,5 @@
 import type { DeckProps } from '@deck.gl/core'
+import maplibreWorkerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url'
 import type { MapProps } from 'react-map-gl/maplibre'
 
 export const deckRenderingDefaults: DeckProps = {
@@ -13,6 +14,7 @@ export const deckRenderingDefaults: DeckProps = {
 }
 
 export const mapRenderingDefaults: MapProps = {
+  workerUrl: maplibreWorkerUrl,
   interactive: false,
   canvasContextAttributes: {
     antialias: true,

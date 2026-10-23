@@ -1,12 +1,16 @@
 /// <reference types="./index.d.ts" />
 import 'primeicons/primeicons.css'
 import 'primereact/resources/themes/viva-dark/theme.css'
+import { setWorkerUrl } from 'maplibre-gl'
+import maplibreWorkerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url'
 import ReactDOM from 'react-dom/client'
 import App from './app'
 import './index.css'
 import { keyboardManager } from './noodles/utils/keyboard-manager'
 import reportWebVitals from './reportWebVitals'
 import { analytics } from './utils/analytics'
+
+setWorkerUrl(maplibreWorkerUrl)
 
 // Initialize analytics
 analytics.initialize()
