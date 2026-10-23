@@ -1,10 +1,10 @@
 // Analytics for nodes and edges added to the graph.
 //
 // Everything that adds nodes or edges through useReactFlow() (Add Node menu, map tools,
-// file import, paste, the AI assistant) reaches the editor's onNodesChange/onEdgesChange as
-// 'add' changes. Project loads and undo/redo set React Flow state directly and never get
-// here, so they aren't counted. Manual connections are tracked in onConnect instead, since
-// it also sets state directly.
+// file import, paste, the AI assistant) arrives as 'add' changes. useUndoRedo's change
+// interceptors call these outside an undo or redo, since restoring a deleted item also
+// replays an 'add' change. Project loads set React Flow state directly and never get here.
+// Manual connections are tracked in onConnect instead, since it also sets state directly.
 
 import type { EdgeChange, NodeChange } from '@xyflow/react'
 import { analytics } from '../../utils/analytics'

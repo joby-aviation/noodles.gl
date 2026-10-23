@@ -16,6 +16,7 @@ import {
   debugHistoryUndo,
 } from '../../utils/debug'
 import type { GraphRef } from '../types'
+import { trackAddedEdges, trackAddedNodes } from './graph-analytics'
 import { type LockChange, redoLockChange, undoLockChange } from './lock-history'
 import { applyOperatorInputs, captureOperatorInputs, UI_STATE_KEY } from './property-history'
 
@@ -103,6 +104,8 @@ export function useUndoRedo(options?: UseUndoRedoOptions) {
         userOnNodesChange(changes)
         return
       }
+      // Tracked after the restore check so undo and redo don't count as additions
+      trackAddedNodes(changes)
 
       // Filter first to avoid calling store.getState() on every drag frame
       const significantChanges = changes.filter(
@@ -225,6 +228,8 @@ export function useUndoRedo(options?: UseUndoRedoOptions) {
         userOnEdgesChange(changes)
         return
       }
+      // Tracked after the restore check so undo and redo don't count as additions
+      trackAddedEdges(changes)
 
       if (changes.length === 0) {
         userOnEdgesChange(changes)
