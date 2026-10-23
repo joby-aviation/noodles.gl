@@ -1085,34 +1085,6 @@ export function toEditorDoc(original: NoodlesProject): Migrated {
   }
 
   /**
-   * One row per vertex of rows that each hold a path (a list of positions) and its timestamps:
-   * what a trips layer draws and a time series samples. Shared by every reader of the same lists.
-   */
-  const vertexSource = (src: string, path: string, times: string, near: NoodlesNode): string => {
-    const id = `${src}-vertices${path === 'path' ? '' : `-${path}`}`
-    if (!sources.has(id)) {
-      const at = position(near)
-      nodes.push({
-        id,
-        op: 'unnest',
-        name: segment(id),
-        x: at.x - 260,
-        y: at.y,
-        params: {
-          lists: `${path}, ${times}`,
-          split: `${path}: ${VERTEX_COMPONENTS.join(' ')}`,
-          rename: `${times}: t`,
-          rowId: 'trip',
-          index: 'k',
-        },
-      })
-      edge(src, sourcePort.get(src) ?? 'out', id, 'in')
-      sources.set(id, id)
-    }
-    return id
-  }
-
-  /**
    * A CodeOp as a code node the engine runs, when its code needs nothing but its input: no
    * `op()`, no timeline values, no per-operator `this`. Its input is a planner source's rows,
    * a JSON file read whole (as FileOp parsed it for CodeOp), or nothing. False leaves it a
@@ -1153,7 +1125,7 @@ export function toEditorDoc(original: NoodlesProject): Migrated {
     if (!n) throw new MigrationError(`Missing node ${id}`)
     const i = inputs(n)
     if (geometry && n.type !== 'FileOp') {
-      // GeoJSON an operator makes: its features as the vertex rows a layer draws
+      // GeoJSON an operator makes: its features, a row per feature with its geometry
       const made = features(id, port)
       const rowsId = `${id}-rows`
       nodes.push({
@@ -1165,7 +1137,7 @@ export function toEditorDoc(original: NoodlesProject): Migrated {
         params: { url: '' },
       })
       edge(made.node, made.port, rowsId, 'in')
-      sourcePort.set(rowsId, 'all')
+      sourcePort.set(rowsId, 'features')
       sources.set(id, rowsId)
       return rowsId
     }
@@ -1178,7 +1150,7 @@ export function toEditorDoc(original: NoodlesProject): Migrated {
         ...position(n),
         params: { url: String(i.url) },
       })
-      sourcePort.set(id, 'all')
+      sourcePort.set(id, 'features')
     } else if (
       n.type === 'ExpressionOp' &&
       literalLength(String(i.expression ?? '')) !== undefined
@@ -1229,12 +1201,13 @@ export function toEditorDoc(original: NoodlesProject): Migrated {
       )
       nodes.push({ id, op: 'sql', name: segment(id), ...position(n), params: { query } })
     } else if (n.type === 'TimeSeriesOp') {
-      // Each path's interpolated place at the current time, sampled in SQL from vertex rows.
+      // Each path's interpolated place at the current time, sampled in SQL from each row's
+      // lists of positions and timestamps.
       const data = incomingOne(id, 'data')
       if (!data) throw new MigrationError(`${id} has no data`)
       const up = source(data.source, false, handleField(data.sourceHandle))
       const values = listColumn(id, 'getValues', 'values')
-      const verts = vertexSource(up, values, listColumn(id, 'getTimestamps', 'timestamps'), n)
+      const timestamps = listColumn(id, 'getTimestamps', 'timestamps')
       const props = incomingOne(id, 'getProperties')
       const propsText = props
         ? String(inputs(byId.get(props.source) as NoodlesNode).expression)
@@ -1248,14 +1221,14 @@ export function toEditorDoc(original: NoodlesProject): Migrated {
       }
       if (props) used.add(props.source)
       const params: Record<string, ParamValue> = {
-        pathId: 'trip',
-        order: 'k',
-        timestamp: 't',
+        rows: 'paths',
+        path: values,
+        timestamps,
         values: VERTEX_COMPONENTS.join(', '),
         time: num(i.currentTime, 0),
       }
       nodes.push({ id, op: 'time-series', name: segment(id), ...position(n), params })
-      edge(verts, 'out', id, 'in')
+      edge(up, sourcePort.get(up) ?? 'out', id, 'in')
       wiredNumber(id, 'currentTime', id, 'time')
       indexNames.set(id, VERTEX_COMPONENTS)
     } else if (n.type === 'CodeOp' && codeNode(n)) {
@@ -1981,7 +1954,7 @@ export function toEditorDoc(original: NoodlesProject): Migrated {
 
   /**
    * Rows whose list column is a path ([[lng, lat], ...]) or a polygon (a ring, or a list of
-   * rings) as the vertex rows of the geometry SQL makes of it, as a GeoJSON source has them.
+   * rings) with that list as a geometry, `geom`, which a layer draws a row at a time.
    */
   const listGeometry = (
     src: string,
@@ -2009,22 +1982,11 @@ export function toEditorDoc(original: NoodlesProject): Migrated {
       },
     })
     edge(src, sourcePort.get(src) ?? 'out', id, 'in0')
-    const rowsId = `${id}-rows`
-    nodes.push({
-      id: rowsId,
-      op: 'geojson',
-      name: segment(rowsId),
-      x: at.x - 260,
-      y: at.y,
-      params: { url: '' },
-    })
-    edge(id, 'out', rowsId, 'in')
-    sourcePort.set(rowsId, kind === 'line' ? 'lines' : 'polygons')
-    sources.set(id, rowsId)
-    return rowsId
+    sources.set(id, id)
+    return id
   }
 
-  /** Rows with a cell id as the vertex rows of their cells' polygons. */
+  /** Rows with a cell id as their cells' polygons, a geometry per row. */
   const cellGeometry = (src: string, column: string, kind: string, near: NoodlesNode): string => {
     const id = `${src}-${column}-cells`
     if (sources.has(id)) return sources.get(id) as string
@@ -2038,19 +2000,8 @@ export function toEditorDoc(original: NoodlesProject): Migrated {
       params: { kind, column },
     })
     edge(src, sourcePort.get(src) ?? 'out', id, 'in')
-    const rowsId = `${id}-rows`
-    nodes.push({
-      id: rowsId,
-      op: 'geojson',
-      name: segment(rowsId),
-      x: at.x - 260,
-      y: at.y,
-      params: { url: '' },
-    })
-    edge(id, 'out', rowsId, 'in')
-    sourcePort.set(rowsId, 'polygons')
-    sources.set(id, rowsId)
-    return rowsId
+    sources.set(id, id)
+    return id
   }
 
   const dropUnmapped = (layer: NoodlesNode, mapped: string[]) => {
@@ -2365,8 +2316,9 @@ export function toEditorDoc(original: NoodlesProject): Migrated {
 
   /**
    * A GeoJsonLayer as the planner layers it draws: polygons (fill and outline), lines and
-   * points (circles, labels), each reading its kind of row from the source's `all` table through
-   * one shared chain of attribute nodes. Its sublayer order is GeoJsonLayer's.
+   * points (circles, labels), each drawing its kind of geometry from the source's features,
+   * a row per feature, through one shared chain of attribute nodes. Its sublayer order is
+   * GeoJsonLayer's.
    */
   const geojsonLayer = (
     layer: NoodlesNode,
@@ -2377,23 +2329,9 @@ export function toEditorDoc(original: NoodlesProject): Migrated {
     index: number
   ) => {
     const at = position(layer)
-    const rows = (kind: 'polygon' | 'line' | 'point', dy: number) => {
-      const id = `${layer.id}-${kind}-rows`
-      nodes.push({
-        id,
-        op: 'filter',
-        name: segment(id),
-        x: at.x - 260,
-        y: at.y + dy,
-        params: { mode: 'expression', expression: `kind == '${kind}'` },
-      })
-      layerSource.set(id, src)
-      return id
-    }
     const draw = (
       id: string,
       op: string,
-      from: string,
       dy: number,
       params: Record<string, ParamValue>,
       k: number
@@ -2406,7 +2344,8 @@ export function toEditorDoc(original: NoodlesProject): Migrated {
         y: at.y + dy,
         params: { ...common, ...params },
       })
-      edge(from, 'out', id, 'in')
+      // Fed from the end of the source's attribute chain
+      layerSource.set(id, src)
       edge(id, 'out', deckOp.id, 'layers', index + k)
     }
     const constant = (value: Value, field: string): number => {
@@ -2417,17 +2356,16 @@ export function toEditorDoc(original: NoodlesProject): Migrated {
     const fill = colorInput(colorChannel(v('getFillColor')), layer.id, 'getFillColor')
     const line = colorInput(colorChannel(v('getLineColor')), layer.id, 'getLineColor')
     const lineWidth = constant(v('getLineWidth'), 'getLineWidth') * num(i.lineWidthScale, 1)
-    const geo = { position: '[lng, lat]', pathId: 'id', order: 'vertex' }
+    // Each layer draws its own kind of each feature's geometry and skips the rest
+    const geo = { position: 'geom' }
 
     const elevation = v('getElevation')
     draw(
       layer.id,
       'polygon',
-      rows('polygon', 0),
       0,
       {
         ...geo,
-        ringId: 'ring',
         color: fill.channel ?? '',
         ...(fill.color ? { fillColor: fill.color } : {}),
         lineColorChannel: line.channel ?? '',
@@ -2448,7 +2386,6 @@ export function toEditorDoc(original: NoodlesProject): Migrated {
     draw(
       `${layer.id}-lines`,
       'path',
-      rows('line', 160),
       160,
       {
         ...geo,
@@ -2461,15 +2398,13 @@ export function toEditorDoc(original: NoodlesProject): Migrated {
       1
     )
     const pointType = String(i.pointType)
-    const points = rows('point', 320)
     if (pointType.includes('circle')) {
       draw(
         `${layer.id}-points`,
         'scatter',
-        points,
         320,
         {
-          position: '[lng, lat]',
+          ...geo,
           color: fill.channel ?? '',
           ...(fill.color ? { fillColor: fill.color } : {}),
           radius: '',
@@ -2498,10 +2433,9 @@ export function toEditorDoc(original: NoodlesProject): Migrated {
       draw(
         `${layer.id}-labels`,
         'text',
-        points,
         400,
         {
-          position: '[lng, lat]',
+          ...geo,
           text: column,
           size: constant(v('getTextSize'), 'getTextSize') * num(i.textSizeScale, 1),
           ...(textColor.color ? { textColor: textColor.color } : {}),
@@ -2564,20 +2498,11 @@ export function toEditorDoc(original: NoodlesProject): Migrated {
       layer.type === 'GeoJsonLayerOp',
       handleField(dataEdge.sourceHandle)
     )
-    // A trips layer draws vertex rows: its data's path and timestamp lists, unnested.
-    if (layer.type === 'TripsLayerOp') {
-      src = vertexSource(
-        src,
-        listColumn(layer.id, 'getPath', 'path'),
-        listColumn(layer.id, 'getTimestamps', 'timestamps'),
-        layer
-      )
-    }
-    // A path or polygon per row: its coordinate list a geometry, then vertex rows
+    // A path or polygon per row: its coordinate list as a geometry
     const list = LIST_LAYERS[layer.type]
     if (list)
       src = listGeometry(src, listColumn(layer.id, list.field, list.fallback), list.kind, layer)
-    // A cell per row: its id the cell's polygon, then vertex rows
+    // A cell per row: its id as the cell's polygon
     const cell = CELL_LAYERS[layer.type]
     if (cell)
       src = cellGeometry(src, listColumn(layer.id, cell.field, cell.fallback), cell.kind, layer)
@@ -2790,9 +2715,8 @@ export function toEditorDoc(original: NoodlesProject): Migrated {
         break
       }
       case 'PathLayerOp': {
-        params.position = '[lng, lat]'
-        params.pathId = 'id'
-        params.order = 'vertex'
+        // A row per path: its geometry drawn whole
+        params.position = 'geom'
         const color = colorInput(colorChannel(v('getColor')), layer.id, 'getColor')
         params.color = color.channel ?? ''
         if (color.color) params.lineColor = color.color
@@ -2824,10 +2748,8 @@ export function toEditorDoc(original: NoodlesProject): Migrated {
       case 'GeohashLayerOp':
       case 'QuadkeyLayerOp':
       case 'A5LayerOp': {
-        params.position = '[lng, lat]'
-        params.pathId = 'id'
-        params.ringId = 'ring'
-        params.order = 'vertex'
+        // A row per polygon: its geometry drawn whole, holes and all
+        params.position = 'geom'
         const fill = colorInput(colorChannel(v('getFillColor')), layer.id, 'getFillColor')
         params.color = fill.channel ?? ''
         if (fill.color) params.fillColor = fill.color
@@ -3009,11 +2931,10 @@ export function toEditorDoc(original: NoodlesProject): Migrated {
         break
       }
       case 'TripsLayerOp': {
-        // A path's positions may be 2D; its missing altitude is the ground.
-        params.position = `[${VERTEX_COMPONENTS[0]}, ${VERTEX_COMPONENTS[1]}, coalesce(${VERTEX_COMPONENTS[2]}, 0.0)]`
-        params.timestamp = 't'
-        params.pathId = 'trip'
-        params.order = 'k'
+        // A row per trip: its path and timestamp lists drawn whole, never unnested. A missing
+        // altitude is the ground.
+        params.position = listColumn(layer.id, 'getPath', 'path')
+        params.timestamp = listColumn(layer.id, 'getTimestamps', 'timestamps')
         const color = colorInput(colorChannel(v('getColor')), layer.id, 'getColor')
         params.color = color.channel ?? ''
         if (color.color) params.lineColor = color.color

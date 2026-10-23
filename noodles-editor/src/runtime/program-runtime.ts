@@ -126,6 +126,7 @@ export class ProgramRuntime {
       jsTables: jsTables ? rel => jsTables.make(rel) : undefined,
       // A dropped table leaves any statement prepared over it stale.
       onDrop: async table => {
+        jsTables?.forget(table)
         for (const s of this.states.values()) {
           if (s.plan.plan.sql.includes(table)) await this.sql.release?.(s.plan.plan.sql)
         }

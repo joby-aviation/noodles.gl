@@ -77,7 +77,7 @@ export {
 // --- programs: many sources, relational nodes, many layers -----------------
 export { canonicalJson, hashOf } from './hash.js';
 export {
-  columnTypeOf, sqlLiteral, inlineParamsInText, exprError,
+  columnTypeOf, pathColumnOf, sqlLiteral, inlineParamsInText, exprError,
   numericListOf, listLengthsSql, parseListLengths, listVectors, listComponentsSql, listComponentColumns,
   sourceSql, verticesSql, joinSql, unionSql, sortSql, limitSql, sqlNodeSql, generateSql, unnestSql, rowwiseSql,
   type RelColumn, type RelVector, type RelShape,
@@ -113,7 +113,7 @@ export {
 export {
   analyze, opCount, PlanError, externalAttributes,
   type Analysis, type AnalyzedNode, type AnalyzeOptions, type Schema, type Stage, type RenderChannels,
-  type LayerAnalysis, type LayerBinding, type ColumnType, type ColumnTypes,
+  type LayerAnalysis, type LayerBinding, type ColumnType, type ColumnTypes, type PathColumnKind, type PathColumns,
 } from './analyze.js';
 export {
   optimize, stageOf, sameAssignment,
