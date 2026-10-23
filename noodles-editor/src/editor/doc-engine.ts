@@ -198,6 +198,9 @@ export function bindEngine(
   let stopped = false
   const sync = async () => {
     const s = store.get()
+    // The store's first document is a placeholder until a project opens: compiling it would
+    // be a wasted compile on every load
+    if (s.loadId === 0) return
     if (s.doc === doc && s.time === time) return
     const e = await openEngine(readAsset)
     if (stopped) return
@@ -212,6 +215,8 @@ export function bindEngine(
       publish({ errors: [{ nodeId: '', message: (error as Error).message }] })
     }
   }
+  // DuckDB-Wasm takes a second or more to start: start it while the project is still loading
+  void openEngine(readAsset)
   const unsubscribe = store.subscribe(() => void sync())
   setOpResolver((path, contextId) => opView(store, currentEngine, path, contextId))
   void sync()
