@@ -24,6 +24,11 @@ export interface EditorState {
   dirty: boolean
   /** A parameter copied to paste as a reference, `nodeId.param`. */
   copiedParam?: string
+  /**
+   * Show what the planner made of the graph: SQL, relations, what each change costs, which
+   * engine ran a node. For people working on Noodles; users see none of it.
+   */
+  debug?: boolean
 }
 
 type Listener = () => void

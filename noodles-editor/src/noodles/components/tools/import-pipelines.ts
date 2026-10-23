@@ -1,5 +1,5 @@
 import type { DocEdge, DocNode, EditorDoc, ParamValue } from '@noodles.gl/planner'
-import { newId, uniqueName } from '../../../editor/doc-ops'
+import { DocBuilder } from '../../../editor/doc-builder'
 import {
   type CoordinateDetection,
   type DetectedCoordinates,
@@ -150,41 +150,10 @@ export function createImportDoc({
   detection,
   mapSize = { width: 1280, height: 800 },
 }: ImportDocOptions): ImportDoc {
-  const nodes: DocNode[] = []
-  const edges: DocEdge[] = []
-  const at = (dx: number, dy: number) => ({ x: basePosition.x + dx, y: basePosition.y + dy })
-  const add = (
-    op: string,
-    base: string,
-    dx: number,
-    dy: number,
-    params: Record<string, ParamValue>
-  ) => {
-    const node: DocNode = {
-      id: newId('n'),
-      op,
-      name: uniqueName({ ...doc, nodes: [...doc.nodes, ...nodes] }, undefined, base),
-      ...at(dx, dy),
-      params,
-    }
-    nodes.push(node)
-    return node.id
-  }
-  const wire = (
-    source: string,
-    sourcePort: string,
-    target: string,
-    targetPort: string,
-    index?: number
-  ) =>
-    edges.push({
-      id: newId('e'),
-      source,
-      sourcePort,
-      target,
-      targetPort,
-      ...(index !== undefined ? { index } : {}),
-    })
+  const b = new DocBuilder(doc, basePosition)
+  const { nodes, edges } = b
+  const add = b.add.bind(b)
+  const wire = b.wire.bind(b)
 
   const found = hasCoordinates(detection) ? detection : undefined
   const viewState = found ? viewStateForBounds(found.bounds, mapSize) : undefined
@@ -197,57 +166,15 @@ export function createImportDoc({
   }
 
   // The deck: the document's, else a new one framed on the data
-  const deckId =
-    existingDeck?.id ??
-    add(
-      'deck',
-      'deck',
-      950,
-      160,
-      viewState
-        ? { longitude: viewState.longitude, latitude: viewState.latitude, zoom: viewState.zoom }
-        : {}
-    )
-  let layerIndex =
-    Math.max(
-      -1,
-      ...doc.edges
-        .filter(e => e.target === deckId && e.targetPort === 'layers')
-        .map(e => e.index ?? 0)
-    ) + 1
-  const draw = (layer: string) => wire(layer, 'out', deckId, 'layers', layerIndex++)
-
+  const deckId = b.deck(
+    viewState
+      ? { longitude: viewState.longitude, latitude: viewState.latitude, zoom: viewState.zoom }
+      : {}
+  ).id
+  const draw = b.draw.bind(b)
   // Rows of features with a geometry, drawn by kind: fill, outline and points
-  const drawShapes = (features: { id: string; port: string }, dx: number) => {
-    const geo = add('geojson', 'shapes', dx, 0, {})
-    wire(features.id, features.port, geo, 'in')
-    const vertex = { position: '[lng, lat]', pathId: 'id', order: 'vertex' }
-    const fill = add('polygon', 'fill', dx + 300, -160, {
-      ...vertex,
-      ringId: 'ring',
-      fillColor: SHAPE_FILL,
-      lineColor: SHAPE_LINE,
-      lineWidthScale: 2,
-      lineWidthUnits: 'pixels',
-    })
-    const lines = add('path', 'lines', dx + 300, 0, {
-      ...vertex,
-      lineColor: SHAPE_LINE,
-      widthScale: 2,
-      widthUnits: 'pixels',
-    })
-    const points = add('scatter', 'points', dx + 300, 160, {
-      position: '[lng, lat]',
-      fillColor: SHAPE_FILL,
-      radiusScale: 5,
-      radiusUnits: 'pixels',
-    })
-    wire(geo, 'polygons', fill, 'in')
-    wire(geo, 'lines', lines, 'in')
-    wire(geo, 'points', points, 'in')
-    for (const layer of [fill, lines, points]) draw(layer)
-    return geo
-  }
+  const drawShapes = (features: { id: string; port: string }, dx: number) =>
+    b.drawFeatures(features, dx, { fill: SHAPE_FILL, line: SHAPE_LINE })
 
   // GeoParquet's features: DuckDB reads its geometry column, and casts plain WKB to one
   if (format === 'geoparquet') {
