@@ -1,138 +1,86 @@
-# Creating and Modifying Noodles.gl Operators
+# Adding Operators
 
-### Basic Structure
+An operator is an `OpDef`: its ports, its parameters, and how it compiles. Pick the kind first
+(see [architecture.md](architecture.md#operators)):
 
-```typescript
-export class CustomOperator extends Operator<CustomOperator> {
-  static displayName = 'Custom Processor'
-  static description = 'Processes data with custom logic'
+- **Planner operator** for anything over rows: a source, a filter or join, a GIS step, an
+  attribute, a layer. It compiles to SQL, a CPU pass or a GPU kernel. This is the default.
+- **Deck operator** for a deck.gl object built from parameters, not rows: a view, a widget, an
+  extension, a tile source.
+- **Host operator** only when the work cannot run in the engine: it calls an API with the
+  user's key, reads the page, or returns JavaScript objects rather than rows.
 
-  createInputs() {
+## A planner operator
+
+Add it to `OPERATORS` in `packages/planner/src/operators.ts` (GIS steps go in `gis.ts`):
+
+```ts
+{
+  type: 'filter', label: 'Filter', category: 'rows',
+  description: 'Keep rows matching a condition.',
+  inputs: [table()], outputs: [out()],
+  params: [
+    { name: 'column', label: 'Column', kind: 'column', default: '', of: 'in' },
+    { name: 'value', label: 'Value', kind: 'float', default: 0, step: 0.1, changeRate: 4, port: true },
+  ],
+  lower(ctx) {
+    const col = ctx.str('column');
+    if (!col) ctx.error('Filter needs a column');
     return {
-      data: new DataField(),
-      threshold: new NumberField(50, { min: 0, max: 100 }),
-    }
-  }
-
-  createOutputs() {
-    return {
-      result: new DataField(),
-    }
-  }
-
-  execute({
-    data,
-    threshold,
-  }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
-    return {
-      result: data.filter(item => item.value > threshold)
-    }
-  }
-}
+      nodes: [{ id: ctx.id, type: 'filter', input: ctx.input('in'), predicate: `${col} > ${ctx.bind('value')}` }],
+      outputs: { out: ctx.id },
+    };
+  },
+},
 ```
 
-### Registration (Critical!)
+- `lower(ctx)` returns IR nodes (`sql`, `filter`, `join`, `aggregate`, `attribute`, `js`,
+  layers…; see `types.ts`) and which IR node each output port is.
+- Read structural parameters with `ctx.str` / `ctx.num` / `ctx.bool`: changing one recompiles.
+  Bind values with `ctx.bind` (`{{key}}` in SQL or an expression), so a change is routed
+  instead: a slider on `value` above requeries or rebinds a uniform, never recompiles.
+- `changeRate` (changes per second while dragged) and `bind: 'prop'` tell the optimizer how
+  to route a parameter.
+- `port: true` gives the parameter a `par:<name>` handle that a number output can drive.
+- `when` shows a parameter only for some values of another; `folder` groups parameters into
+  pane tabs.
+- `category` places it in the Add Node menu (`src/editor/menus.tsx` lists `OPERATORS` by
+  category). There is no second registry.
+- A number computed from parameters alone is a **scalar** operator: give it `scalar(p, clock)`
+  instead of `lower`, and it joins the scalar program evaluated every frame.
 
-After creating the operator class, you must register it in two places:
+Never Biome-format `packages/planner`: it keeps its own style.
 
-**1. Add to `opTypes` object in `operators.ts`** (alphabetically):
+## A deck operator
 
-```typescript
-export const opTypes = {
-  // ... other operators ...
-  CustomOperator,  // Add your operator here
-  // ... more operators ...
-} as const
-```
+Add a `DeckOp` to `DECK_OPS` in `noodles-editor/src/runtime/deck-ops.ts`: an `OpDef` (outputs
+of type `value`) and a `build(params, id)` that returns the deck description. `registerDeckOperators()`
+registers them with the planner. A parameter whose widget is a Noodles field (an extension
+list, a map style's overrides) uses `kind: 'field'` with `{ op, input }`, and the FieldAdapter
+builds that field from the class.
 
-**2. Add to appropriate category in `components/categories.ts`**:
+## A host operator
 
-```typescript
-export const categories = {
-  data: [
-    'FileOp',
-    'DuckDbOp',
-    'CustomOperator',  // Add here if it's a data source
-    // ...
-  ],
-  // Or in another category:
-  layer: [
-    'GeoJsonLayerOp',
-    // ...
-  ],
-  code: [
-    'CodeOp',
-    // ...
-  ],
-  // ... other categories
-} as const
-```
+A Noodles operator class in `noodles-editor/src/noodles/operators.ts` with `createInputs`,
+`createOutputs` and `execute`, listed in `opTypes`, and planned `host(reason)` in
+`src/runtime/migrate/op-catalog.ts`. `HostRunner` runs `execute()` with the inputs the document
+and the scalar program give it, and hands rows back to planner nodes through DuckDB. Keep it
+small: every host operator is work the engine cannot plan.
 
-**Available categories:**
+## Converting an older Noodles operator
 
-- `code` - Code execution and expressions
-- `data` - Data sources and transformations
-- `color` - Color manipulation
-- `geojson` - GeoJSON utilities
-- `layer` - Visualization layers
-- `extension` - Deck.gl extensions
-- `number` - Numeric operations
-- `string` - String operations
-- `utility` - General utilities
-- `vector` - Vector math
-- `view` - Camera and viewport
-- `widget` - UI widgets
-- `grouping` - Container/loop operators
+If the operator replaces one from the operator-graph format, update its entry in
+`op-catalog.ts` and add the conversion in `to-editor-doc.ts` (GIS steps:
+`gis-conversions.ts`). A conversion writes every Noodles default explicitly, since `noodles.json`
+stored only what was set and planner defaults differ. Anything it cannot express throws a
+`MigrationError` naming the node and why; it never falls back to a JS accessor.
 
-### Key Principles
+## Tests
 
-1. **Pure Functions**: Operators should be deterministic
-2. **Typed Inputs/Outputs**: Use Field types with Zod schemas
-3. **Reactive**: Changes propagate automatically
-4. **Memoized**: Results cached based on input values
-5. **Register**: Add to `opTypes` object in `operators.ts` AND to a category in `components/categories.ts`
-
-### Adding a New Operator
-1. Create operator class in `operators.ts` or separate file
-2. Define inputs with `createInputs()` method
-3. Define outputs with `createOutputs()` method
-4. Implement `execute()` method with pure function logic
-5. **Register operator in `opTypes` object** in `operators.ts` (alphabetically)
-6. **Add to appropriate category** in `components/categories.ts` using display name without "Op" suffix (e.g., `'File'` not `'FileOp'`)
-7. **Write unit tests** (required for all operators)
-8. Run `npm run generate:registry` and `npm run generate:op-docs`, then write Remarks on the new page in `docs/reference/operators/` if the behavior needs explaining
-9. Test in UI with example projects
-
-**Important:** Steps 5 and 6 are critical - the operator will not appear in the Add Node menu without these registrations!
-
-### Modifying Existing Operator
-1. Locate operator in `operators.ts`
-2. Modify inputs, outputs, or execute logic
-3. Consider migration if schema changes (see [Adding a Migration](#adding-a-migration))
-4. **Update tests** to cover new behavior
-5. Add tests for bug fixes to prevent regressions
-6. Run `npm run generate:registry` and `npm run generate:op-docs`, and update the page's Remarks in `docs/reference/operators/` if behavior changes
-7. Test in UI with example projects
-
-### Adding a Migration
-Migrations live in `src/noodles/__migrations__/NNN-kebab-name.ts` with a co-located `.test.ts`; the highest number is the schema version. `npm run generate:migration` scaffolds one.
-1. Use the next number after the highest on main, with no gaps or duplicates
-2. Put the new basename (no extension) on the single line of `__migrations__/LATEST`. Two open migration PRs both change that line, so the second one gets a merge conflict and must rebase and renumber
-3. Bump the example projects to the new version (`npm run migrate-projects`)
-4. Regenerate the project JSON Schema (`npm run generate:schema`) and commit the new `website/static/schema/` files. CI runs `npm run generate:schema -- --check`, which fails until you do
-
-`utils/migration-numbering.test.ts` checks the numbering and `LATEST`, and `migrate-schema.ts` throws at load if two migrations share a number.
-
-### Debugging Data Flow
-1. Check operator paths are correct (use absolute paths from root)
-2. Verify edge connections in project JSON
-3. Inspect field values with console logging
-4. Check Zod schema validation errors
-5. Use execution tracing for performance issues
-
-### Creating Custom Field Type
-1. Extend `Field` class in `fields.ts`
-2. Implement `createSchema()` method with Zod schema
-3. Set default value and options
-4. Add custom UI component in `field-components.tsx` if needed
-5. Register in field registry
+- Planner behavior: `packages/planner/src/*.test.ts` (`npm test -w @noodles.gl/planner`).
+- Real SQL: a `*.node.test.ts` in `src/runtime/__tests__/` or beside the code, using `openNodeDuck()` from
+  `src/runtime/__tests__/duckdb-node.ts`. Assert on rows, and on what a change cost: compiles,
+  requeries, evaluations.
+- A conversion: a case in `src/runtime/migrate/*-conversions.node.test.ts` that converts a
+  Noodles node, lowers it, and checks the rows.
+- `src/runtime/migrate/examples.node.test.ts` runs every example; keep it passing.
