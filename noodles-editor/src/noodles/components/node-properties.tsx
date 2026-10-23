@@ -78,7 +78,7 @@ import { SuggestedNodesSection } from './SuggestedNodes'
 function getDefaultVisibleFields(op: Operator<IOperator>): Set<string> {
   return new Set(
     Object.entries(op.inputs)
-      .filter(([_, field]) => field.showByDefault)
+      .filter(([_, field]) => !field.internal && field.showByDefault)
       .map(([name]) => name)
   )
 }
@@ -151,6 +151,7 @@ function getVisibilityChanges(
   // Fields currently visible but not in defaults → will be hidden
   // EXCEPT connected fields, which will remain visible via heuristic
   for (const name of currentVisible) {
+    if (op.inputs[name]?.internal) continue
     if (!defaultVisible.has(name) && !connectedFields.has(name)) {
       toHide.push(name)
     }
@@ -184,6 +185,7 @@ function resetToDefaults(op: Operator<IOperator>, edges: Edge[]) {
   // Reset any fields that were visible but are now hidden by default
   // Skip connected fields since they'll remain visible via heuristic
   for (const name of currentVisible) {
+    if (op.inputs[name]?.internal) continue
     if (!defaultVisible.has(name) && !connectedFields.has(name)) {
       const field = op.inputs[name]
       if (field?.defaultValue !== undefined) {
@@ -584,29 +586,33 @@ export function NodeProperties({ nodeId }: { nodeId: string }) {
   // Early return after all hooks
   if (!op) return null
 
-  const inputs = Object.entries(op.inputs).map(([name, input]) => {
-    const { type } = input.constructor as typeof Field
-    return {
-      name,
-      type,
-      codeRef: `op('${op.id}').${IN_NS}.${name}`,
-      mustacheRef: `{{${op.id}.${IN_NS}.${name}}}`,
-      handleClass: handleClass(input),
-      field: input,
-    }
-  })
+  const inputs = Object.entries(op.inputs)
+    .filter(([_, input]) => !input.internal)
+    .map(([name, input]) => {
+      const { type } = input.constructor as typeof Field
+      return {
+        name,
+        type,
+        codeRef: `op('${op.id}').${IN_NS}.${name}`,
+        mustacheRef: `{{${op.id}.${IN_NS}.${name}}}`,
+        handleClass: handleClass(input),
+        field: input,
+      }
+    })
 
-  const outputs = Object.entries(op.outputs).map(([name, output]) => {
-    const { type } = output.constructor as typeof Field
-    return {
-      name,
-      type,
-      codeRef: `op('${op.id}').${OUT_NS}.${name}`,
-      mustacheRef: `{{${op.id}.${OUT_NS}.${name}}}`,
-      handleClass: handleClass(output),
-      field: output,
-    }
-  })
+  const outputs = Object.entries(op.outputs)
+    .filter(([_, output]) => !output.internal)
+    .map(([name, output]) => {
+      const { type } = output.constructor as typeof Field
+      return {
+        name,
+        type,
+        codeRef: `op('${op.id}').${OUT_NS}.${name}`,
+        mustacheRef: `{{${op.id}.${OUT_NS}.${name}}}`,
+        handleClass: handleClass(output),
+        field: output,
+      }
+    })
 
   const openInputContextMenu = (
     input: (typeof inputs)[number],
@@ -802,7 +808,7 @@ export function NodeProperties({ nodeId }: { nodeId: string }) {
       <div className={s.section}>
         <div className={s.sectionHeader}>
           <div className={s.sectionTitle}>Inputs</div>
-          {Object.keys(op.inputs).length > 0 &&
+          {inputs.length > 0 &&
             op.visibleFields.value !== null &&
             (() => {
               const { toHide, toShow } = getVisibilityChanges(op, edges)
