@@ -217,6 +217,28 @@ describe('table data clipboard', () => {
     })
   })
 
+  it('supports explicit one-row CSV without claiming it on the canvas', () => {
+    expect(parseTableClipboard({ plainText: 'Alice,42' })).toEqual({ kind: 'unrecognized' })
+    expect(
+      parseTableClipboard({ plainText: 'Alice,42' }, { allowSingleRowCsv: true })
+    ).toMatchObject({
+      kind: 'table',
+      format: 'csv',
+      rows: [['Alice', '42']],
+    })
+  })
+
+  it('does not treat a quoted CSV tab as a TSV delimiter', () => {
+    expect(parseTableClipboard({ plainText: 'name,note\nAlice,"left\tright"' })).toMatchObject({
+      kind: 'table',
+      format: 'csv',
+      rows: [
+        ['name', 'note'],
+        ['Alice', 'left\tright'],
+      ],
+    })
+  })
+
   it('accepts explicitly quoted one-column CSV without claiming arbitrary multiline text', () => {
     expect(parseTableClipboard({ plainText: 'offset\n"[1,2]"\n"[3,4]"' })).toMatchObject({
       kind: 'table',
@@ -323,21 +345,26 @@ describe('table data clipboard', () => {
     })
   })
 
-  it('bounds total HTML row and column expansion', () => {
+  it('rejects truncated HTML and uses the complete plain-text fallback', () => {
     const oversizedColumns = parseTableClipboard({
+      plainText: 'complete\tfallback',
       html: '<table><tr><td colspan="999999">value</td></tr></table>',
     })
-    expect(oversizedColumns.kind).toBe('table')
-    if (oversizedColumns.kind !== 'table') return
-    expect(oversizedColumns.rows).toHaveLength(1)
-    expect(oversizedColumns.rows[0]).toHaveLength(1000)
+    expect(oversizedColumns).toMatchObject({
+      kind: 'table',
+      format: 'tsv',
+      rows: [['complete', 'fallback']],
+    })
 
     const oversizedRows = parseTableClipboard({
+      plainText: 'complete\tfallback',
       html: `<table>${'<tr><td>value</td></tr>'.repeat(10_001)}</table>`,
     })
-    expect(oversizedRows.kind).toBe('table')
-    if (oversizedRows.kind !== 'table') return
-    expect(oversizedRows.rows).toHaveLength(10_000)
+    expect(oversizedRows).toMatchObject({
+      kind: 'table',
+      format: 'tsv',
+      rows: [['complete', 'fallback']],
+    })
   })
 
   it('normalizes blank and duplicate headers deterministically', () => {
@@ -392,6 +419,15 @@ describe('table data clipboard', () => {
       datetime: expect.any(String),
       timezone: 'UTC',
     })
+  })
+
+  it('infers large row sets without spreading them into function arguments', () => {
+    const rows = Array.from({ length: 70_000 }, (_, index) => [`row ${index}`, `${index}`])
+    const inferred = inferTableData(rows, { firstRowContainsHeaders: false })
+
+    expect(inferred.schema.columns).toHaveLength(2)
+    expect(inferred.data).toHaveLength(70_000)
+    expect(inferred.data.at(-1)).toEqual({ 'Column 1': 'row 69999', 'Column 2': 69999 })
   })
 
   it('uses all rows so mixed or ambiguous columns remain strings', () => {
