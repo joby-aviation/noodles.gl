@@ -5,7 +5,17 @@ import cx from 'classnames'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import s from './doc-editor.module.css'
 
-const CATEGORY_ORDER = ['data', 'table', 'rows', 'color', 'layer', 'number', 'output', 'host']
+const CATEGORY_ORDER = [
+  'data',
+  'table',
+  'geometry',
+  'rows',
+  'color',
+  'layer',
+  'number',
+  'output',
+  'host',
+]
 const HIDDEN = new Set(['subnet-input', 'subnet-output', 'deck'])
 
 /** Type to filter, arrows to move, Enter to place. */

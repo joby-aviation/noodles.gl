@@ -307,8 +307,15 @@ export interface JoinNode {
   /** Left input. */
   input: string;
   right: string;
-  how?: 'inner' | 'left' | 'cross';
+  /** `semi` keeps left rows with a match and `anti` those without, adding no columns. */
+  how?: 'inner' | 'left' | 'cross' | 'semi' | 'anti';
   on?: [string, string][];
+  /** Match on both sides' `geom`: the left geometry intersects, lies within, or contains the right. */
+  spatial?: 'intersects' | 'within' | 'contains';
+  /** At most one right row per left row: the first match. */
+  first?: boolean;
+  /** A right column named as a left one replaces it where there is a match, as merging properties does. */
+  overwrite?: boolean;
   /**
    * Prepended to every right-side column. Joining one table twice — routes to their origin
    * and their destination airport — needs two different prefixes, and a name both sides

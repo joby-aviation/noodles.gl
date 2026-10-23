@@ -25,6 +25,7 @@ import type { LayerKind, LayerPropValue } from './layers.js';
 import type { ParamValue } from './doc.js';
 import { RAMP_STOPS, type RampName } from './types.js';
 import { parseGeometry } from './geometry.js';
+import { GIS_OPERATORS } from './gis.js';
 
 /**
  * `value` is anything a host application passes between its own operators (a view, an
@@ -76,7 +77,7 @@ export interface ParamDef {
 }
 
 export type Category =
-  | 'data' | 'table' | 'rows' | 'color' | 'layer' | 'output' | 'number' | 'structure'
+  | 'data' | 'table' | 'geometry' | 'rows' | 'color' | 'layer' | 'output' | 'number' | 'structure'
   /** Host operators: run by the application, never lowered. */
   | 'host';
 
@@ -1206,6 +1207,7 @@ export const OPERATORS: OpDef[] = [
     inputs: [table()], outputs: [],
     params: [{ name: 'index', label: 'Output', kind: 'int', default: 0, min: 0, max: 0, step: 1, bind: 'structural' }],
   },
+  ...GIS_OPERATORS,
 ];
 
 const INDEX = new Map(OPERATORS.map((o) => [o.type, o]));

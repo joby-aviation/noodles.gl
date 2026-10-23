@@ -13,7 +13,7 @@
 export type Becomes = 'planner' | 'rows' | 'deck' | 'code' | 'subnet' | 'dropped' | 'host'
 
 // The R3 step converting an operator, while it is still to do
-export type Pending = 'R3b' | 'R3c' | 'R3d' | 'R3e' | 'R4'
+export type Pending = 'R3c' | 'R3d' | 'R3e' | 'R4'
 
 export interface OpPlan {
   becomes: Becomes
@@ -53,9 +53,6 @@ const host = (reason: string, pending?: Pending): OpPlan => ({
 })
 const dropped = (reason: string): OpPlan => ({ becomes: 'dropped', reason })
 const subnet = (): OpPlan => ({ becomes: 'subnet', ops: ['subnet'], pending: 'R4' })
-
-// A turf operator on GeoJSON, as DuckDB spatial SQL on a table of features with a `geom` column
-const gis = (ops: string[]) => planner(ops, 'R3b')
 
 export const OP_CATALOG: Record<string, OpPlan> = {
   // --- code ------------------------------------------------------------------------------
@@ -117,53 +114,53 @@ export const OP_CATALOG: Record<string, OpPlan> = {
   TimeSeriesOp: planner(['time-series', 'unnest']),
   ViewerOp: dropped('shows a value in the old editor; the spreadsheet shows any node’s rows'),
 
-  // --- geojson ---------------------------------------------------------------------------
-  ClipOp: gis(['clip']),
-  ExplodeOp: gis(['explode']),
-  GeoEditorOp: gis(['sql']),
-  GeoJsonOp: gis(['union']),
-  GeoJsonTransformOp: gis(['affine']),
-  KmlToGeoJsonOp: gis(['geojson']),
-  LineInterpolationOp: code(['code'], 'R3b'),
-  LineToPolygonOp: gis(['line-to-polygon']),
-  PointOp: gis(['sql']),
-  PolygonToLineOp: gis(['polygon-to-line']),
-  RectangleOp: gis(['sql']),
-  ReprojectOp: gis(['reproject']),
-  SmoothOp: code(['code'], 'R3b'),
+  // --- geojson: turf on GeoJSON becomes DuckDB spatial on tables of features (gis-conversions)
+  ClipOp: planner(['clip']),
+  ExplodeOp: planner(['explode']),
+  GeoEditorOp: planner(['features']),
+  GeoJsonOp: planner(['union']),
+  GeoJsonTransformOp: planner(['transform']),
+  KmlToGeoJsonOp: planner(['geojson']),
+  LineInterpolationOp: planner(['smooth-lines']),
+  LineToPolygonOp: planner(['line-to-polygon']),
+  PointOp: planner(['point']),
+  PolygonToLineOp: planner(['polygon-to-line']),
+  RectangleOp: planner(['rectangle']),
+  ReprojectOp: planner(['reproject']),
+  SmoothOp: planner(['smooth-lines']),
 
   // --- geometry --------------------------------------------------------------------------
-  BufferOp: gis(['buffer']),
-  CentroidOp: gis(['centroid']),
-  ConvexHullOp: gis(['convex-hull']),
-  DifferenceOp: gis(['difference']),
-  DissolveOp: gis(['dissolve']),
-  HexGridOp: gis(['hex-grid']),
-  IntersectOp: gis(['intersect']),
-  PointGridOp: gis(['point-grid']),
-  SimplifyOp: gis(['simplify']),
-  SquareGridOp: gis(['square-grid']),
-  TransformRotateOp: gis(['affine']),
-  TransformScaleOp: gis(['affine']),
-  TransformTranslateOp: gis(['affine']),
-  UnionOp: gis(['dissolve']),
-  VoronoiOp: gis(['voronoi']),
+  BufferOp: planner(['buffer']),
+  CentroidOp: planner(['centroid']),
+  ConvexHullOp: planner(['convex-hull']),
+  DifferenceOp: planner(['clip']),
+  DissolveOp: planner(['dissolve']),
+  HexGridOp: planner(['geo-grid']),
+  IntersectOp: planner(['clip']),
+  PointGridOp: planner(['geo-grid']),
+  SimplifyOp: planner(['simplify']),
+  SquareGridOp: planner(['geo-grid']),
+  TransformRotateOp: planner(['transform']),
+  TransformScaleOp: planner(['transform']),
+  TransformTranslateOp: planner(['transform']),
+  UnionOp: planner(['dissolve']),
+  VoronoiOp: planner(['voronoi']),
 
   // --- analysis --------------------------------------------------------------------------
-  AggregateOp: gis(['spatial-join', 'aggregate']),
-  AlongOp: gis(['along']),
-  AreaOp: gis(['measure']),
-  // DuckDB spatial has no clustering, interpolation or triangulation: turf runs in the worker
-  DBScanClusterOp: code(['code'], 'R3b'),
-  InterpolateOp: code(['code'], 'R3b'),
-  IsolineOp: code(['code'], 'R3b'),
-  KMeansClusterOp: code(['code'], 'R3b'),
-  LengthOp: gis(['measure']),
-  LineSliceOp: gis(['line-slice']),
-  NearestPointOp: gis(['nearest']),
-  PointInPolygonOp: gis(['spatial-join']),
-  SpatialJoinOp: gis(['spatial-join']),
-  TinOp: code(['code'], 'R3b'),
+  AggregateOp: planner(['aggregate-within']),
+  AlongOp: planner(['along']),
+  AreaOp: planner(['area']),
+  // DuckDB spatial has no clustering, interpolation or triangulation: these run turf in the worker
+  DBScanClusterOp: planner(['cluster']),
+  InterpolateOp: planner(['interpolate']),
+  IsolineOp: planner(['isolines']),
+  KMeansClusterOp: planner(['cluster']),
+  LengthOp: planner(['length']),
+  LineSliceOp: planner(['line-slice']),
+  NearestPointOp: planner(['nearest']),
+  PointInPolygonOp: planner(['inside']),
+  SpatialJoinOp: planner(['spatial-join']),
+  TinOp: planner(['tin']),
 
   // --- layers with rows ------------------------------------------------------------------
   ArcLayerOp: planner(['arc']),
