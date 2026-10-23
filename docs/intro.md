@@ -29,7 +29,7 @@ Each one opens with its data loaded. Change a value and the map updates.
 
 ### Bring your own data
 
-Drop a CSV, GeoJSON, GeoParquet, Shapefile or PMTiles file on the start screen, or on the canvas of an open project. Noodles.gl finds the coordinate columns and puts your data on a map.
+Drop a CSV, GeoJSON, GeoParquet or Shapefile file on the start screen, or on the canvas of an open project. Noodles.gl finds the coordinate columns and puts your data on a map. A PMTiles file is added as a source node, but no layer draws it yet.
 
 Once you are in the editor, [Editor Basics](./users/getting-started.md) explains the parts of the screen.
 
