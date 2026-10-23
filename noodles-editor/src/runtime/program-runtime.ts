@@ -470,7 +470,10 @@ export class ProgramRuntime {
   ): Promise<Preview> {
     const { table } = await this.sql.run(sql, binds)
     const { table: n } = await this.sql.run(count, binds)
-    const rows = (table.toArray() as { toJSON(): Record<string, unknown> }[]).map(r => r.toJSON())
+    // Plain values: lists and structs as arrays and objects, so the rows can leave the worker
+    const rows = (table.toArray() as { toJSON(): Record<string, unknown> }[]).map(r =>
+      plainRow(r.toJSON())
+    )
     const columns: RelColumn[] = table.schema.fields.map(f => ({
       name: f.name,
       duckType: String(f.type),
