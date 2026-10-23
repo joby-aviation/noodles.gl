@@ -1,10 +1,23 @@
 // Plain-object layers and widgets, as operators describe them, to deck.gl instances.
 
 import type { Layer, LayerExtension, Widget } from '@deck.gl/core'
+import {
+  BrushingExtension,
+  ClipExtension,
+  CollisionFilterExtension,
+  DataFilterExtension,
+  FillStyleExtension,
+  MaskExtension,
+  PathStyleExtension,
+  _TerrainExtension as TerrainExtension,
+} from '@deck.gl/extensions'
 import * as deckWidgets from '@deck.gl/widgets'
+import { brightnessContrast, hueSaturation, vibrance } from '@luma.gl/effects'
 import * as deck from 'deck.gl'
 import { debugApp, debugVis } from '../../utils/debug'
-import { extensionMap } from '../operators'
+import { FilterColorExtension } from '../extensions/filter-color-extension'
+import { Mask3DExtension } from '../extensions/mask-3d-extension'
+import type { ExtensionConstructorArgs } from '../types'
 import {
   BitmapOverlayWidget,
   type BitmapOverlayWidgetProps,
@@ -12,6 +25,32 @@ import {
 import { LegendWidget, type LegendWidgetProps } from '../widgets/legend-widget'
 
 type Described = { type: string; [key: string]: unknown }
+
+// Map of extension type names to extension classes or wrapped classes with constructor args
+const extensionMap: Record<
+  string,
+  | (new (
+      ...args: ExtensionConstructorArgs
+    ) => LayerExtension)
+  | {
+      ExtensionClass: new (...args: ExtensionConstructorArgs) => LayerExtension
+      args: ExtensionConstructorArgs
+    }
+> = {
+  BrushingExtension,
+  ClipExtension,
+  CollisionFilterExtension,
+  DataFilterExtension,
+  FillStyleExtension,
+  Mask3DExtension,
+  MaskExtension,
+  PathStyleExtension,
+  TerrainExtension,
+  // Filter color extensions - these wrap FilterColorExtension with specific effects
+  BrightnessContrastExtension: { ExtensionClass: FilterColorExtension, args: brightnessContrast },
+  HueSaturationExtension: { ExtensionClass: FilterColorExtension, args: hueSaturation },
+  VibranceExtension: { ExtensionClass: FilterColorExtension, args: vibrance },
+}
 
 export function instantiateExtensions(extensions: unknown): LayerExtension[] | undefined {
   if (!extensions || !Array.isArray(extensions)) return undefined

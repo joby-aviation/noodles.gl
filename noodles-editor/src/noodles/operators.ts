@@ -85,6 +85,9 @@ import * as utils from '../utils'
 import { analytics } from '../utils/analytics'
 import { getArc } from '../utils/arc-geometry'
 import { colorToHex, hexToColor } from '../utils/color'
+// Side-effect import: registers the field expression evaluator so { $expr } payloads
+// applied in the Operator constructor evaluate immediately
+import { interpolateRamp, type RampInterpType } from '../utils/curves'
 import { debugDirty, debugDirtyTrace, debugExecute, debugParams, debugPull } from '../utils/debug'
 import { getDirections } from '../utils/directions'
 import { geocodeWithMapbox } from '../utils/geocoding'
@@ -94,6 +97,7 @@ import {
   type StyleConfiguratorData,
 } from '../utils/map-style-utils'
 import { CARTO_DARK } from '../utils/map-styles'
+import { osmToGeoJson } from '../utils/osm-to-geojson'
 import { mulberry32 } from '../utils/random'
 import { sqlIdentifier, sqlLiteral } from '../utils/sql'
 import {
@@ -170,10 +174,6 @@ import { isDirectChild } from './utils/path-utils'
 import { pick } from './utils/pick'
 import { getTimelineContext } from './utils/timeline-context'
 import { subscribeOpToTimeline, unsubscribeOpFromTimeline } from './utils/timeline-dependencies'
-// Side-effect import: registers the field expression evaluator so { $expr } payloads
-// applied in the Operator constructor evaluate immediately
-import { interpolateRamp, type RampInterpType } from '../utils/curves'
-import { osmToGeoJson } from '../utils/osm-to-geojson'
 import { validateViewState } from './utils/viewstate-helpers'
 
 // https://stackoverflow.com/questions/66044717/typescript-infer-type-of-abstract-methods-implementation
@@ -1611,52 +1611,6 @@ type ExtensionDescriptor = { type: string; [key: string]: unknown }
 type LayerExtensionFieldReturnValue = null | {
   extension: ExtensionDescriptor | LayerExtension
   props: Record<string, LayerPropsValue>
-}
-
-// Map of extension type names to extension classes or wrapped classes with constructor args
-export const extensionMap: Record<
-  string,
-  | (new (
-      ...args: ExtensionConstructorArgs
-    ) => LayerExtension)
-  | {
-      ExtensionClass: new (...args: ExtensionConstructorArgs) => LayerExtension
-      args: ExtensionConstructorArgs
-    }
-> = {
-  BrushingExtension,
-  ClipExtension,
-  CollisionFilterExtension,
-  DataFilterExtension,
-  FillStyleExtension,
-  Mask3DExtension,
-  MaskExtension,
-  PathStyleExtension,
-  TerrainExtension,
-  // Filter color extensions - these wrap FilterColorExtension with specific effects
-  BrightnessContrastExtension: { ExtensionClass: FilterColorExtension, args: brightnessContrast },
-  HueSaturationExtension: { ExtensionClass: FilterColorExtension, args: hueSaturation },
-  VibranceExtension: { ExtensionClass: FilterColorExtension, args: vibrance },
-}
-
-// Turns an extension descriptor into a LayerExtension. Instances built by the user
-// (e.g. in a CodeOp) pass through unchanged. Returns null for unknown types.
-export function instantiateExtension(
-  ext: ExtensionDescriptor | LayerExtension
-): LayerExtension | null {
-  if (ext instanceof LayerExtension) return ext
-
-  const { type, ...constructorArgs } = ext
-  const extensionDef = extensionMap[type]
-  if (!extensionDef) return null
-
-  // Wrapped extensions carry their own constructor args
-  if ('ExtensionClass' in extensionDef) {
-    return new extensionDef.ExtensionClass(extensionDef.args)
-  }
-  return Object.keys(constructorArgs).length > 0
-    ? new extensionDef(constructorArgs)
-    : new extensionDef()
 }
 
 // Deck layers can have extensions that are passed in as props, but the props to the extensions are not
