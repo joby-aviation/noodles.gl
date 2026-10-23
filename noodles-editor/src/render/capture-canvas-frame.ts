@@ -34,13 +34,20 @@ export class CanvasFrameReader {
     if (!fence) return
     gl.flush()
     try {
-      while (!gl.isContextLost() && gl.getSyncParameter(fence, gl.SYNC_STATUS) !== gl.SIGNALED) {
+      while (
+        !this.done &&
+        !gl.isContextLost() &&
+        gl.getSyncParameter(fence, gl.SYNC_STATUS) !== gl.SIGNALED
+      ) {
         await new Promise<void>(resolve => workerSetTimeout(resolve, GPU_POLL_MS))
       }
     } finally {
       gl.deleteSync(fence)
     }
   }
+
+  // Set by cancel() and stop(), so a failed export also ends a wait in drawn()
+  private done = false
 
   // Reads the scene as it is drawn now. Throws when the canvas has cross-origin content.
   read(): Promise<ReadableStreamReadResult<VideoFrame>> {
@@ -59,10 +66,12 @@ export class CanvasFrameReader {
 
   // Drops a read still waiting for a frame, so a failed export lets go of the canvas
   async cancel() {
+    this.done = true
     await this.capture?.reader.cancel().catch(() => {})
   }
 
   stop() {
+    this.done = true
     this.capture?.reader.releaseLock()
     this.capture?.track.stop()
   }

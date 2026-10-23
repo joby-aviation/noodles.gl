@@ -61,6 +61,7 @@ function holdGpu() {
     release: () => {
       held = false
     },
+    polls: () => spy.mock.calls.length,
     restore: () => spy.mockRestore(),
   }
 }
@@ -110,5 +111,30 @@ it('stops waiting when the WebGL context is lost', async () => {
     await waiting
   } finally {
     gpu.restore()
+  }
+})
+
+// A failed export cancels the reader; the wait must not keep polling and holding the canvas
+it('stops waiting and deletes the fence once the reader is cancelled', async () => {
+  const canvas = document.createElement('canvas')
+  canvas.getContext('webgl2')
+  const deleteSync = vi.spyOn(WebGL2RenderingContext.prototype, 'deleteSync')
+  const gpu = holdGpu()
+  try {
+    const frames = new CanvasFrameReader(canvas, () => {})
+    const waiting = frames.drawn()
+    await new Promise(resolve => setTimeout(resolve, 50))
+    expect(gpu.polls()).toBeGreaterThan(0)
+    expect(deleteSync).not.toHaveBeenCalled()
+
+    await frames.cancel()
+    await waiting
+    expect(deleteSync).toHaveBeenCalledOnce()
+    const polls = gpu.polls()
+    await new Promise(resolve => setTimeout(resolve, 100))
+    expect(gpu.polls()).toBe(polls)
+  } finally {
+    gpu.restore()
+    deleteSync.mockRestore()
   }
 })
