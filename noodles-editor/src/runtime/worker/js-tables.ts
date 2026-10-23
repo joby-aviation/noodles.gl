@@ -12,6 +12,7 @@ import { compileWithScope } from './js-scope'
 
 export class JsTables {
   private readonly made = new Set<string>()
+  private readonly parsed = new Map<string, { file: unknown; value: unknown }>()
 
   constructor(private readonly sql: BlockingSql) {}
 
@@ -22,19 +23,8 @@ export class JsTables {
     if (js.input) {
       d = await this.readInput(js.input)
     } else if (js.url) {
-      // A JSON file read whole, as CodeOp's input from a JSON FileOp was the parsed file.
-      // A registered file is read as registered: read_text cannot read one named by a URL
-      const registered = this.sql.readFile(js.url)
-      let text: string
-      if (registered === undefined) {
-        const [file] = await this.sql.rows(
-          `SELECT content FROM read_text('${js.url.replace(/'/g, "''")}')`
-        )
-        text = String(file?.content ?? 'null')
-      } else {
-        text = typeof registered === 'string' ? registered : new TextDecoder().decode(registered)
-      }
-      d = JSON.parse(text)
+      // A JSON file read whole, as CodeOp's input from a JSON FileOp was the parsed file
+      d = await this.readJson(js.url)
     }
     let result: unknown
     try {
@@ -62,6 +52,27 @@ export class JsTables {
       throw new Error('Code must return an array of rows or a GeoJSON FeatureCollection')
     }
     this.made.add(js.table)
+  }
+
+  /**
+   * A JSON file, parsed once per registration: world-flights' code and geojson nodes read the
+   * same 65 MB file. Every reader gets the same object, as every consumer of a FileOp did.
+   */
+  private async readJson(url: string): Promise<unknown> {
+    // A registered file is read as registered: read_text cannot read one named by a URL
+    const registered = this.sql.readFile(url)
+    if (registered === undefined) {
+      const [file] = await this.sql.rows(
+        `SELECT content FROM read_text('${url.replace(/'/g, "''")}')`
+      )
+      return JSON.parse(String(file?.content ?? 'null'))
+    }
+    const cached = this.parsed.get(url)
+    if (cached?.file === registered) return cached.value
+    const text = typeof registered === 'string' ? registered : new TextDecoder().decode(registered)
+    const value = JSON.parse(text)
+    this.parsed.set(url, { file: registered, value })
+    return value
   }
 
   // An input with a geometry column is features, so `d` is a FeatureCollection turf can take;
