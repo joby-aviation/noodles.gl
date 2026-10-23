@@ -33,6 +33,7 @@ import {
 import { createPortal } from 'react-dom'
 import { Temporal } from 'temporal-polyfill'
 
+import { RENDER_SURFACE_SELECTOR } from '../../render/render-surface-size'
 import { analytics } from '../../utils/analytics'
 import { useProjectModificationActions } from '../contexts/project-modification-actions-context'
 import { ArrayField, type Field, type IField, ListField } from '../fields'
@@ -1864,18 +1865,14 @@ function MouseOpComponent({
   id,
   type,
 }: ReactFlowNodeProps<NodeDataJSON<MouseOp>> & { type: 'MouseOp' }) {
-  const op = getOp(id as string)
+  const op = getOp(id as string) as MouseOp | undefined
 
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 })
   const isDimmed = useNodeDimmed(id)
 
-  // Inject the container element into the operator
+  // Point the operator at the render surface, in either display mode
   useEffect(() => {
-    if (!op) return
-    const container = document.querySelector('.transform-scale')
-    if (container) {
-      op.setContainer(container)
-    }
+    op?.setSurface(() => document.querySelector<HTMLElement>(RENDER_SURFACE_SELECTOR))
   }, [op])
 
   // Subscribe to output for display

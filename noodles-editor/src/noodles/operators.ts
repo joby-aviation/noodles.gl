@@ -78,8 +78,11 @@ import z from 'zod/v4'
 
 import './utils/bigint-fix' // BigInt JSON polyfill for DuckDB
 import * as duckdb from '@duckdb/duckdb-wasm'
-import { getRenderSurfaceSize, subscribeToRenderSurfaceSize } from '../render/render-surface-size'
-import { getTransformScaleFactor } from '../render/transform-scale'
+import {
+  getRenderSurfaceSize,
+  subscribeToRenderSurfaceSize,
+  toRenderSurfacePoint,
+} from '../render/render-surface-size'
 import { subscribeToPosition } from '../timeline/timeline-store'
 import * as utils from '../utils'
 import { analytics } from '../utils/analytics'
@@ -4284,7 +4287,6 @@ export class MouseOp extends Operator<MouseOp> {
 
   private mousePosition$ = new BehaviorSubject({ x: 0, y: 0 })
   private mouseListener?: (e: MouseEvent) => void
-  private containerElement?: Element
 
   constructor(id: OpId, inputs?: unknown, locked?: boolean) {
     super(id, inputs, locked)
@@ -4310,31 +4312,26 @@ export class MouseOp extends Operator<MouseOp> {
     this.subs.push(sub)
   }
 
-  // Called by the component to inject the container element
-  setContainer(container: Element) {
-    // Clean up old listener if any
-    if (this.mouseListener && this.containerElement) {
-      window.removeEventListener('mousemove', this.mouseListener, false)
-    }
-
-    this.containerElement = container
-
+  // Called by the component with a lookup for the render surface. The surface is resolved on
+  // each move because it remounts when the display mode switches between fixed and responsive.
+  setSurface(getSurface: () => HTMLElement | null) {
+    this.removeMouseListener()
     this.mouseListener = (e: MouseEvent) => {
-      const rect = container.getBoundingClientRect()
-      const scale = getTransformScaleFactor(container)
-      this.mousePosition$.next({
-        x: (e.clientX - rect.left) / scale.x,
-        y: (e.clientY - rect.top) / scale.y,
-      })
+      const surface = getSurface()
+      if (surface) this.mousePosition$.next(toRenderSurfacePoint(surface, e.clientX, e.clientY))
     }
-
     window.addEventListener('mousemove', this.mouseListener, false)
   }
 
-  dispose() {
+  private removeMouseListener() {
     if (this.mouseListener) {
       window.removeEventListener('mousemove', this.mouseListener, false)
+      this.mouseListener = undefined
     }
+  }
+
+  dispose() {
+    this.removeMouseListener()
     this.mousePosition$.complete()
     super.dispose()
   }
