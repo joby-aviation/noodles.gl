@@ -2,9 +2,11 @@ import { readdirSync, readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { OPERATORS } from '@noodles.gl/planner'
 import { describe, expect, it } from 'vitest'
+import { registerDeckOperators } from '../deck-ops'
 import { OP_CATALOG } from './op-catalog'
 import { type NoodlesProject, toEditorDoc } from './to-editor-doc'
 
+registerDeckOperators()
 const plannerOps = new Set(OPERATORS.map(o => o.type))
 
 // That every operator class has a plan is op-catalog.test.ts: the classes load only in a browser

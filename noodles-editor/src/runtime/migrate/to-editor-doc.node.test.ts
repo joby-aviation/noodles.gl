@@ -102,10 +102,10 @@ describe('toEditorDoc', () => {
     expect(arc?.params.fromColor).toEqual({ ref: 'source-color/color' })
   })
 
-  it('keeps operators without per-row values as host nodes, wired by par: handles', () => {
+  it('makes a layer without rows a deck operator, keeping its parameters', () => {
     const { doc } = toEditorDoc(example('bitmap-layer'))
     const bitmap = doc.nodes.find(n => n.id === '/bitmap-layer')
-    expect(bitmap?.op).toBe('BitmapLayerOp')
+    expect(bitmap?.op).toBe('bitmap')
     expect(bitmap?.params.image).toBe('@/sf-districts.png')
     expect(doc.edges).toContainEqual(
       expect.objectContaining({
@@ -128,7 +128,7 @@ describe('toEditorDoc', () => {
       })
     )
     const hubble = toEditorDoc(example('cesium-hubble'))
-    expect(hubble.doc.nodes.map(n => n.op).sort()).toEqual(['CodeOp', 'Tile3DLayerOp', 'deck'])
+    expect(hubble.doc.nodes.map(n => n.op).sort()).toEqual(['CodeOp', 'deck', 'tile-3d'])
     // The basemap's camera keyframes drive the deck's camera.
     expect(hubble.doc.timeline?.tracks.map(t => t.target)).toEqual(
       ['longitude', 'latitude', 'zoom', 'pitch', 'bearing'].map(k => `/renderer.${k}`)

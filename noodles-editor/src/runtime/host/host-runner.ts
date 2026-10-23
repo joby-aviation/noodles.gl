@@ -10,6 +10,7 @@ import type { DocEdge, DocNode, EditorDoc } from '@noodles.gl/planner'
 import { applySerializedFieldValue, type Field, ListField } from '../../noodles/fields'
 import { type IOperator, type Operator, opTypes } from '../../noodles/operators'
 import { useTimelineDependencyStore } from '../../noodles/utils/timeline-dependencies'
+import { DECK_OP_INDEX, type DeckOp } from '../deck-ops'
 import { PENDING } from '../engine'
 import { isHostOperator } from './host-ops'
 
@@ -33,14 +34,17 @@ export interface HostReport {
 type OperatorClass = new (id: string, data?: unknown, locked?: boolean) => Operator<IOperator>
 
 interface Entry {
-  op: Operator<IOperator>
+  // A Noodles operator, or a deck operator built from its parameters
+  op?: Operator<IOperator>
+  deck?: DeckOp
   /** The values the last run read, compared by identity. */
   read?: unknown[]
   outputs?: Record<string, unknown>
   timed: boolean
 }
 
-export const isHostNode = (n: DocNode) => n.op in opTypes && isHostOperator(n.op)
+export const isHostNode = (n: DocNode) =>
+  DECK_OP_INDEX.has(n.op) || (n.op in opTypes && isHostOperator(n.op))
 
 export interface HostRunnerOptions {
   /**
@@ -100,7 +104,12 @@ export class HostRunner {
           : (inputs.slots.get(`${e.source}.${e.sourcePort}`) ??
             inputs.planner(e.source, e.sourcePort))
 
-      const fields = Object.entries(entry.op.inputs as Record<string, Field>)
+      if (entry.deck) {
+        await this.runDeck(node, entry, entry.deck, into, edgeValue, keyed, inputs, failed, report)
+        continue
+      }
+      const op = entry.op as Operator<IOperator>
+      const fields = Object.entries(op.inputs as Record<string, Field>)
       const upstreamFailed = fields.some(([name]) =>
         into(name).some(e => failed.has(e.source) && !report.pending.includes(e.source))
       )
@@ -143,18 +152,17 @@ export class HostRunner {
           }
         })
         const props = Object.fromEntries(fields.map(([name, field]) => [name, field.value]))
-        const result = (await entry.op.execute(props as never)) as Record<string, unknown> | null
+        const result = (await op.execute(props as never)) as Record<string, unknown> | null
         if (result === null) throw new Error(`${node.op} returned no output`)
         for (const [name, value] of Object.entries(result ?? {})) {
-          ;(entry.op.outputs as Record<string, Field>)[name]?.next(value as never)
+          ;(op.outputs as Record<string, Field>)[name]?.next(value as never)
         }
         entry.outputs = this.options.resolveOutputs
           ? await this.options.resolveOutputs(node.id, result ?? {})
           : (result ?? {})
         entry.read = read
         entry.timed =
-          useTimelineDependencyStore.getState().subscriptions.has(entry.op.id) &&
-          codeReadsTime(node)
+          useTimelineDependencyStore.getState().subscriptions.has(op.id) && codeReadsTime(node)
         report.ran.push(node.id)
       } catch (error) {
         failed.add(node.id)
@@ -165,10 +173,71 @@ export class HostRunner {
     return report
   }
 
+  // A deck operator: its parameters, resolved like a host operator's inputs, built into the
+  // description deck takes. Rebuilt only when a value it read changed.
+  private async runDeck(
+    node: DocNode,
+    entry: Entry,
+    deck: DeckOp,
+    into: (field: string) => DocEdge[],
+    edgeValue: (e: DocEdge) => unknown,
+    keyed: Set<string>,
+    inputs: HostInputs,
+    failed: Set<string>,
+    report: HostReport
+  ): Promise<void> {
+    const params = deck.def.params
+    if (params.some(p => into(p.name).some(e => failed.has(e.source)))) {
+      failed.add(node.id)
+      report.pending.push(node.id)
+      return
+    }
+    const read = params.map(p => {
+      const edges = into(p.name)
+      if (edges.length === 0) {
+        const key = `${node.id}.${p.name}`
+        return keyed.has(key) ? inputs.slots.get(key) : (node.params[p.name] ?? p.default)
+      }
+      const values = edges.map(edgeValue)
+      return deck.lists?.includes(p.name) ? values : values[0]
+    })
+    if (read.some(v => v === PENDING || (Array.isArray(v) && v.includes(PENDING)))) {
+      failed.add(node.id)
+      report.pending.push(node.id)
+      return
+    }
+    if (entry.outputs && entry.read && sameValues(entry.read, read)) {
+      report.reused.push(node.id)
+      return
+    }
+    try {
+      const values = Object.fromEntries(params.map((p, i) => [p.name, read[i]]))
+      const built = await deck.build(values, node.id)
+      const result = { [deck.def.outputs[0].name]: built }
+      entry.outputs = this.options.resolveOutputs
+        ? await this.options.resolveOutputs(node.id, result)
+        : result
+      entry.read = read
+      report.ran.push(node.id)
+    } catch (error) {
+      failed.add(node.id)
+      entry.outputs = undefined
+      report.errors.push({ nodeId: node.id, message: (error as Error).message })
+    }
+  }
+
   private entry(node: DocNode): Entry {
     const existing = this.entries.get(node.id)
+    const deck = DECK_OP_INDEX.get(node.op)
+    if (deck) {
+      if (existing?.deck === deck) return existing
+      if (existing) this.drop(node.id)
+      const entry: Entry = { deck, timed: false }
+      this.entries.set(node.id, entry)
+      return entry
+    }
     if (
-      existing &&
+      existing?.op &&
       existing.op.constructor === (opTypes as unknown as Record<string, unknown>)[node.op]
     ) {
       return existing

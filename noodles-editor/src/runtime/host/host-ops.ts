@@ -16,6 +16,7 @@ import {
   NumberField,
 } from '../../noodles/fields'
 import { type IOperator, type Operator, opTypes } from '../../noodles/operators'
+import { registerDeckOperators } from '../deck-ops'
 import { OP_CATALOG } from '../migrate/op-catalog'
 
 /** Noodles operators the conversion replaces with planner operators. */
@@ -118,6 +119,8 @@ let registered: string[] | undefined
 
 /** Register every eligible Noodles operator with the planner's catalog. Idempotent. */
 export function registerHostOperators(): string[] {
+  // Deck operators run beside host operators, built from their parameters
+  registerDeckOperators()
   if (registered) return registered
   registered = []
   for (const type of Object.keys(opTypes)) {
