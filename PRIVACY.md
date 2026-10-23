@@ -17,7 +17,8 @@ We use Posthog to collect anonymized, aggregate analytics on site usage to help 
 
 ## Hosting and Third-Party Services
 
-- **Hosting:** The app is hosted via GitHub Pages; GitHub may collect standard server logs per its own privacy policy.
+- **Hosting:** The app is hosted on Cloudflare Pages; Cloudflare may collect standard server logs per its own privacy policy.
+- **AI assistant free tier:** Until you connect your own AI provider, the assistant's first messages go through noodles.gl to Groq, which runs the model. That includes your message and the parts of your project the assistant reads to answer it. Noodles.gl does not store them; Groq handles them under its own privacy policy. Connecting your own provider, or running a model on your device, sends nothing through noodles.gl.
 - **Analytics provider:** We use Posthog for privacy-preserving analytics. You can opt out at any time in the application settings.
 
 ## Your Choices

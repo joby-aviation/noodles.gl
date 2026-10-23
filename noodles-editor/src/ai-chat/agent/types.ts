@@ -12,7 +12,9 @@ export type StopReason = 'end_turn' | 'tool_use' | 'max_tokens' | 'aborted' | 'e
 // matter how many different servers it points at over time.
 // 'webllm' runs the model in this tab via WebGPU, so it needs no account at all —
 // at the price of a multi-gigabyte download the user has to ask for.
-export type ProviderId = 'anthropic' | 'openrouter' | 'custom' | 'webllm' | 'chrome'
+// 'hosted' is the free tier through noodles.gl's own proxy, for a first answer
+// before any setup
+export type ProviderId = 'anthropic' | 'openrouter' | 'custom' | 'webllm' | 'chrome' | 'hosted'
 
 export type AgentContent =
   | { type: 'text'; text: string }

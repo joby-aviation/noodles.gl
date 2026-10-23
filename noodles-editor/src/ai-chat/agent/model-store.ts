@@ -58,6 +58,7 @@ export function getEnvModel(provider: ProviderId): string | undefined {
     case 'custom':
     case 'webllm':
     case 'chrome':
+    case 'hosted':
       return undefined
   }
 }

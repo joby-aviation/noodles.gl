@@ -533,8 +533,9 @@ export function SettingsDialog({ open, setOpen, projectName = null }: SettingsDi
                       <div className={s.providerOptionContent}>
                         <div className={s.providerOptionTitle}>Automatic (recommended)</div>
                         <div className={s.providerOptionDescription}>
-                          Uses Claude if you have a key, otherwise falls back to custom endpoint or
-                          Chrome Built-in AI
+                          Uses whatever you set up below, in this order: Claude, OpenRouter, a
+                          custom endpoint, a local model. With none, a few free messages on
+                          noodles.gl
                         </div>
                       </div>
                     </label>

@@ -24,6 +24,11 @@ interface AssistantOnboardingProps {
   // The unsent draft, usually the quick start request. The panel shows it above
   // this; here it goes into the coding agent prompts in place of the generic task.
   request?: string
+  // Why setup is showing when it is not the first visit, such as the free tier
+  // running out
+  notice?: string
+  // For when Close goes back to a chat rather than closing the panel
+  closeLabel?: string
 }
 
 export function AssistantOnboarding({
@@ -32,6 +37,8 @@ export function AssistantOnboarding({
   openProviderSettings,
   onClose,
   request: draft,
+  notice,
+  closeLabel = 'Close',
 }: AssistantOnboardingProps) {
   const request = draft?.trim() || undefined
   const setModel = useAgentModelStore(state => state.setModel)
@@ -71,6 +78,12 @@ export function AssistantOnboarding({
         <h3 className={styles.title}>Connect an AI provider</h3>
         <p className={styles.subtitle}>Pick a model for the assistant to use</p>
       </div>
+
+      {notice && (
+        <p className={styles.notice} role="status">
+          {notice}
+        </p>
+      )}
 
       <div className={styles.cardsContainer}>
         <div className={styles.card}>
@@ -178,7 +191,7 @@ export function AssistantOnboarding({
 
       <div className={styles.closeContainer}>
         <button type="button" onClick={onClose} className={styles.closeButton}>
-          Close
+          {closeLabel}
         </button>
       </div>
     </div>
