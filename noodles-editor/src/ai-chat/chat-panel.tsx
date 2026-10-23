@@ -24,9 +24,18 @@ import {
   isProviderReady,
   readyCloudProvider,
   resolveProviderId,
+  type SelectableProviderId,
 } from './agent/provider-selection'
 import { ANTHROPIC_MODELS } from './agent/providers/anthropic'
 import { CHROME_MODELS, chromeAvailability } from './agent/providers/chrome'
+import {
+  fetchHostedStatus,
+  getCachedHostedStatus,
+  type HostedStatus,
+  HostedTierError,
+  hostedMessagesLeft,
+  useHostedUsageStore,
+} from './agent/providers/hosted'
 import {
   cachedOpenRouterFreeModels,
   defaultFreeModel,
@@ -145,6 +154,21 @@ export const ChatPanel: FC<ChatPanelProps> = ({
   // chosen, which is what keeps 'automatic' from starting a multi-gigabyte download
   const storedWebLLMModel = useAgentModelStore(state => state.models.webllm)
 
+  // The free tier. Only the deployed site has it, and asking takes a request, so
+  // until the answer arrives the panel waits rather than flash the setup screen.
+  const [hostedStatus, setHostedStatus] = useState<HostedStatus | null>(getCachedHostedStatus)
+  const [hostedChecked, setHostedChecked] = useState(() => getCachedHostedStatus() !== null)
+  const hostedUsed = useHostedUsageStore(state => state.used)
+  const hostedExhausted = useHostedUsageStore(state => state.exhausted)
+  const recordHostedMessage = useHostedUsageStore(state => state.recordMessage)
+  const markHostedExhausted = useHostedUsageStore(state => state.markExhausted)
+  const hostedLeft = hostedMessagesLeft(hostedStatus, {
+    used: hostedUsed,
+    exhausted: hostedExhausted,
+  })
+  // Setup opened on purpose, over a chat that could otherwise carry on
+  const [showSetup, setShowSetup] = useState(false)
+
   const credentials: Credentials = {
     anthropicKey: apiKey,
     openRouterKey,
@@ -152,6 +176,7 @@ export const ChatPanel: FC<ChatPanelProps> = ({
     webllmModel: storedWebLLMModel,
     webgpuReady,
     chromeAvailable,
+    hostedAvailable: Boolean(hostedStatus?.available),
   }
 
   // Anthropic unless only another credential is configured, or the user picked
@@ -163,6 +188,14 @@ export const ChatPanel: FC<ChatPanelProps> = ({
   const providerReady = isProviderReady(providerId, credentials)
   const onDevice = isOnDevice(providerId)
   const cloudProvider = readyCloudProvider(credentials)
+  const onHostedTier = providerId === 'hosted'
+  // Running out mid-conversation keeps the conversation on screen, with setup one
+  // click away; opening the panel already out of messages goes straight to setup
+  const hostedSpent = onHostedTier && hostedLeft === 0
+  const shouldShowOnboarding =
+    isVisible &&
+    !contextLoading &&
+    (showSetup || (hostedChecked && !providerReady) || (hostedSpent && messages.length === 0))
   const [noticeDismissed, setNoticeDismissed] = useState(onDeviceNoticeDismissed)
   const [slowReply, setSlowReply] = useState(false)
   // Free tool-calling models, read from OpenRouter's catalogue rather than a
@@ -172,7 +205,7 @@ export const ChatPanel: FC<ChatPanelProps> = ({
 
   // undefined leaves the provider on its own default
   const model = useAgentModelStore(state => state.getModel(providerId))
-  const modelGroups = modelGroupsFor(providerId, customEndpoint, freeModels)
+  const modelGroups = modelGroupsFor(providerId, customEndpoint, freeModels, hostedStatus?.model)
   const modelChoices = modelGroups.flatMap(group => group.models)
 
   // Get the function to open settings dialog
@@ -186,7 +219,7 @@ export const ChatPanel: FC<ChatPanelProps> = ({
   }
 
   // Opens settings dialog to the specific configuration screen for a provider
-  const openProviderConfiguration = (providerId: ProviderId) => {
+  const openProviderConfiguration = (providerId: SelectableProviderId) => {
     // Save the preference first so provider switches automatically after config
     setPreference(providerId)
 
@@ -269,6 +302,23 @@ export const ChatPanel: FC<ChatPanelProps> = ({
       current = false
     }
   }, [])
+
+  useEffect(() => {
+    let current = true
+    fetchHostedStatus().then(status => {
+      if (!current) return
+      setHostedStatus(status)
+      setHostedChecked(true)
+    })
+    return () => {
+      current = false
+    }
+  }, [])
+
+  // Setting up anything else replaces the free tier, which is what setup was for
+  useEffect(() => {
+    if (providerId !== 'hosted') setShowSetup(false)
+  }, [providerId])
 
   // Load the free-model list when it could matter: either OpenRouter is in use, or
   // nothing is configured yet and the empty state is about to offer it. Cached for
@@ -424,10 +474,6 @@ export const ChatPanel: FC<ChatPanelProps> = ({
   // request there, but the user may have edited or cleared it since.
   const pendingRequest = input.trim() ? input : null
 
-  // Show onboarding when no provider is ready. Chrome counts only when it was
-  // chosen, since resolveProviderId never picks it on its own.
-  const shouldShowOnboarding = isVisible && !contextLoading && !providerReady
-
   // Read when onboarding appears rather than tracked as a dependency, so a
   // request arriving while it is open does not count it twice
   const hasPendingRequestRef = useRef(false)
@@ -439,17 +485,40 @@ export const ChatPanel: FC<ChatPanelProps> = ({
     })
   }, [shouldShowOnboarding])
 
+  // The quick start already asked: send it as soon as there is a model to answer,
+  // rather than leave it waiting in the box. The draft rather than initialMessage,
+  // since the user may have edited or cleared it. Once per request, so clearing
+  // the conversation does not ask it again.
+  const autoSentRef = useRef<string | undefined>(undefined)
+  useEffect(() => {
+    if (!initialMessage || autoSentRef.current === initialMessage) return
+    if (!session || shouldShowOnboarding || messages.length > 0 || loading) return
+    autoSentRef.current = initialMessage
+    if (pendingRequest) sendMessage(pendingRequest)
+  })
+
   // Auto-scroll to bottom
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [])
 
-  const handleSend = async () => {
-    if (!input.trim() || !session || !project || pendingProposal) return
+  const openSetup = () => {
+    setShowSetup(true)
+    analytics.track('hosted_tier_setup_opened', { messagesLeft: hostedLeft })
+  }
+
+  const handleSend = () => sendMessage(input)
+
+  const sendMessage = async (text: string) => {
+    if (!text.trim() || !session || !project || pendingProposal) return
+    if (hostedSpent) {
+      openSetup()
+      return
+    }
 
     const userMessage: Message = {
       role: 'user',
-      content: input,
+      content: text,
     }
 
     setMessages(prev => [...prev, userMessage])
@@ -469,7 +538,7 @@ export const ChatPanel: FC<ChatPanelProps> = ({
 
     try {
       const response = await session.send({
-        message: input,
+        message: text,
         screenshot: screenshot?.data,
         screenshotFormat: screenshot?.format,
         conversationHistory: messages,
@@ -481,6 +550,7 @@ export const ChatPanel: FC<ChatPanelProps> = ({
         },
       })
       if (generation !== generationRef.current) return
+      if (onHostedTier) recordHostedMessage()
 
       // An aborted run still returns whatever it had produced, which is worth
       // keeping — the user stopped it, they did not undo it
@@ -513,6 +583,23 @@ export const ChatPanel: FC<ChatPanelProps> = ({
       if (generation !== generationRef.current) return
 
       // Check error type and provide helpful messages
+      if (error instanceof HostedTierError && error.failure !== 'other') {
+        // Out of messages by the proxy's count, which wins over this browser's
+        if (error.failure === 'free_limit') markHostedExhausted()
+        analytics.track('hosted_tier_limit_reached', { reason: error.failure })
+        setMessages(prev => [
+          ...prev,
+          {
+            role: 'assistant',
+            content:
+              error.failure === 'free_limit'
+                ? 'That is the end of the free tier. Connect a provider to keep going.'
+                : 'The free tier is busy right now. Try again in a minute, or use your own model.',
+          },
+        ])
+        return
+      }
+
       const errorStr = error instanceof Error ? error.message : String(error)
       const errorName = error instanceof Error ? error.name : ''
 
@@ -698,8 +785,13 @@ export const ChatPanel: FC<ChatPanelProps> = ({
   if (!isVisible) return null
 
   if (shouldShowOnboarding) {
-    // Its Close only shows while nothing is connected
+    // Opened on purpose from the chat, Close goes back to it
+    const backToChat = showSetup
     const closeOnboarding = () => {
+      if (backToChat) {
+        setShowSetup(false)
+        return
+      }
       analytics.track('assistant_onboarding_closed', {
         hasPendingRequest: pendingRequest !== null,
       })
@@ -714,7 +806,13 @@ export const ChatPanel: FC<ChatPanelProps> = ({
             webgpuReady={webgpuReady}
             openProviderSettings={openProviderSettings}
             onClose={closeOnboarding}
+            closeLabel={backToChat ? 'Back to the chat' : undefined}
             request={pendingRequest ?? undefined}
+            notice={
+              hostedSpent && hostedStatus
+                ? `You've used the ${hostedStatus.freeMessages} free messages. Pick a provider to keep going.`
+                : undefined
+            }
           />
         </div>
       </div>
@@ -762,7 +860,7 @@ export const ChatPanel: FC<ChatPanelProps> = ({
     )
   }
 
-  if (contextLoading) {
+  if (contextLoading || (!hostedChecked && !providerReady)) {
     return (
       <div className={styles.chatPanel}>
         <div className={styles.chatPanelLoading}>
@@ -836,6 +934,8 @@ export const ChatPanel: FC<ChatPanelProps> = ({
             className={styles.modelSelect}
             title="Which API the assistant talks to"
           >
+            {/* Never picked by hand: it is what runs until something else is set up */}
+            {onHostedTier && <option value="hosted">Free tier</option>}
             <option value="anthropic">Anthropic{!apiKey && ' - configure key'}</option>
             <option value="openrouter">OpenRouter{!openRouterKey && ' - configure key'}</option>
             <option value="custom">
@@ -919,6 +1019,19 @@ export const ChatPanel: FC<ChatPanelProps> = ({
           onUseCloud={switchToCloud}
           onDismiss={dismissNotice}
         />
+      )}
+
+      {onHostedTier && hostedStatus && (
+        <div className={styles.hostedBanner}>
+          <span>
+            {hostedSpent
+              ? 'Free messages used.'
+              : `Free tier on ${hostedStatus.providerName}: ${hostedLeft} of ${hostedStatus.freeMessages} messages left.`}
+          </span>{' '}
+          <button type="button" className={styles.hostedBannerLink} onClick={openSetup}>
+            {hostedSpent ? 'Connect a provider' : 'Use your own model'}
+          </button>
+        </div>
       )}
 
       <div className={styles.chatPanelMessages}>
@@ -1029,9 +1142,13 @@ export const ChatPanel: FC<ChatPanelProps> = ({
             }
           }}
           placeholder={
-            pendingProposal ? 'Accept or reject the graph update to continue' : 'Ask for help...'
+            pendingProposal
+              ? 'Accept or reject the graph update to continue'
+              : hostedSpent
+                ? 'Connect a provider to keep going'
+                : 'Ask for help...'
           }
-          disabled={loading || pendingProposal !== null}
+          disabled={loading || pendingProposal !== null || hostedSpent}
           rows={3}
         />
         {loading ? (
@@ -1067,6 +1184,7 @@ const PROVIDER_LABELS: Record<ProviderId, string> = {
   custom: 'The custom endpoint',
   webllm: 'The local model',
   chrome: 'Chrome’s built-in model',
+  hosted: 'The free tier',
 }
 
 function cloudLabelFor(
@@ -1098,9 +1216,13 @@ interface ModelGroup {
 function modelGroupsFor(
   providerId: ProviderId,
   customEndpoint: CustomEndpointConfig | undefined,
-  freeModels: readonly OpenRouterModel[]
+  freeModels: readonly OpenRouterModel[],
+  hostedModel: string | undefined
 ): ModelGroup[] {
   switch (providerId) {
+    // The proxy picks the model
+    case 'hosted':
+      return [{ models: [{ id: hostedModel ?? '', label: hostedModel ?? 'Free tier' }] }]
     case 'anthropic':
       return [{ models: ANTHROPIC_MODELS }]
     case 'openrouter':
@@ -1186,9 +1308,7 @@ const PendingRequest: FC<{ text: string }> = ({ text }) => (
   <section className={styles.pendingRequest} aria-label="Your request">
     <div className={styles.pendingRequestLabel}>Your request</div>
     <p className={styles.pendingRequestText}>{text}</p>
-    <p className={styles.pendingRequestNote}>
-      Connect a model below and it will be waiting in the message box.
-    </p>
+    <p className={styles.pendingRequestNote}>Connect a model below and it will be sent.</p>
   </section>
 )
 

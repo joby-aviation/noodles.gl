@@ -396,7 +396,7 @@ describe('ChatPanel onboarding with a quick start request', () => {
     expect(screen.getByText('Connect an AI provider')).toBeTruthy()
     const request = screen.getByRole('region', { name: 'Your request' })
     expect(request.textContent).toContain(REQUEST)
-    expect(request.textContent).toContain('it will be waiting in the message box')
+    expect(request.textContent).toContain('it will be sent')
   })
 
   it('leaves out the request block when there is none', async () => {
@@ -407,20 +407,25 @@ describe('ChatPanel onboarding with a quick start request', () => {
     expect(screen.queryByRole('region', { name: 'Your request' })).toBeNull()
   })
 
-  it('puts the request in the input once OpenRouter connects', async () => {
+  it('sends the request once OpenRouter connects', async () => {
+    const sendSpy = vi
+      .spyOn(AgentSession.prototype, 'send')
+      .mockResolvedValue({ message: 'On it.', toolCalls: [] })
     renderOnboarding()
     await act(() => vi.advanceTimersByTimeAsync(0))
     expect(screen.getByRole('region', { name: 'Your request' })).toBeTruthy()
 
     act(() => postKeyFromPopup())
 
-    await vi.waitFor(() =>
-      expect((screen.getByRole('textbox') as HTMLTextAreaElement).value).toBe(REQUEST)
-    )
+    await vi.waitFor(() => expect(sendSpy).toHaveBeenCalledOnce())
+    expect(sendSpy.mock.calls[0][0].message).toBe(REQUEST)
     expect(screen.queryByText('Connect an AI provider')).toBeNull()
   })
 
-  it('puts the request in the input once a local model is chosen', async () => {
+  it('sends the request once a local model is chosen', async () => {
+    const sendSpy = vi
+      .spyOn(AgentSession.prototype, 'send')
+      .mockResolvedValue({ message: 'On it.', toolCalls: [] })
     renderOnboarding()
     await act(() => vi.advanceTimersByTimeAsync(0))
     expect(screen.getByRole('region', { name: 'Your request' })).toBeTruthy()
@@ -428,9 +433,8 @@ describe('ChatPanel onboarding with a quick start request', () => {
     // What picking a model in Settings does
     act(() => useAgentModelStore.getState().setModel('webllm', WEBLLM_MODELS[0].id))
 
-    await vi.waitFor(() =>
-      expect((screen.getByRole('textbox') as HTMLTextAreaElement).value).toBe(REQUEST)
-    )
+    await vi.waitFor(() => expect(sendSpy).toHaveBeenCalledOnce())
+    expect(sendSpy.mock.calls[0][0].message).toBe(REQUEST)
   })
 
   it('reports when onboarding is shown and when it is closed', async () => {
@@ -450,24 +454,23 @@ describe('ChatPanel onboarding with a quick start request', () => {
   })
 
   // Connected, the user reworks the quick start request, then disconnects
+  // A quick start request sends as soon as a provider is up, so the draft left
+  // in the box at a disconnect is one the user typed
   async function editThenDisconnect(draft: string) {
     getKeysStore().setBrowserKey('openrouter', 'sk-or-v1-test')
-    renderOnboarding()
-    await vi.waitFor(() =>
-      expect((screen.getByRole('textbox') as HTMLTextAreaElement).value).toBe(REQUEST)
-    )
+    renderOnboarding({ request: null })
+    await vi.waitFor(() => expect(screen.getByRole('textbox')).toBeTruthy())
     fireEvent.change(screen.getByRole('textbox'), { target: { value: draft } })
     act(() => getKeysStore().clearBrowserKey('openrouter'))
     await vi.waitFor(() => expect(screen.getByText('Connect an AI provider')).toBeTruthy())
   }
 
-  it('previews the edited draft after a disconnect, not the original request', async () => {
+  it('previews the draft left in the box after a disconnect', async () => {
     const track = vi.spyOn(analytics, 'track')
     await editThenDisconnect('Map only the stations in Brooklyn')
 
     const request = screen.getByRole('region', { name: 'Your request' })
     expect(request.textContent).toContain('Map only the stations in Brooklyn')
-    expect(request.textContent).not.toContain(REQUEST)
     expect(track).toHaveBeenLastCalledWith('assistant_onboarding_shown', {
       hasPendingRequest: true,
     })

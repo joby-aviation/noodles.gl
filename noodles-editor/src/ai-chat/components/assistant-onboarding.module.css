@@ -25,6 +25,14 @@
   line-height: 1.5;
 }
 
+.notice {
+  margin: 0 0 16px;
+  font-size: 13px;
+  color: #e0e0e0;
+  text-align: center;
+  line-height: 1.5;
+}
+
 .promptText {
   width: 100%;
   box-sizing: border-box;

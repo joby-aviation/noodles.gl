@@ -15,6 +15,7 @@ const NOTHING: Credentials = {
   webllmModel: undefined,
   webgpuReady: false,
   chromeAvailable: false,
+  hostedAvailable: false,
 }
 
 describe('isProviderReady', () => {
@@ -58,6 +59,22 @@ describe('isProviderReady', () => {
 })
 
 describe('resolveProviderId', () => {
+  it('falls back to the free tier only when nothing is set up', () => {
+    expect(resolveProviderId({ ...NOTHING, preference: 'automatic', hostedAvailable: true })).toBe(
+      'hosted'
+    )
+  })
+
+  it('prefers anything the user set up over the free tier', () => {
+    const base = { ...NOTHING, preference: 'automatic' as const, hostedAvailable: true }
+    expect(resolveProviderId({ ...base, openRouterKey: 'sk-or-x' })).toBe('openrouter')
+    expect(resolveProviderId({ ...base, webgpuReady: true, webllmModel: 'm' })).toBe('webllm')
+  })
+
+  it('never offers the free tier as the faster hosted option', () => {
+    expect(readyCloudProvider({ ...NOTHING, hostedAvailable: true })).toBeNull()
+  })
+
   it('prefers Anthropic when several credentials are present', () => {
     const id = resolveProviderId({
       ...NOTHING,

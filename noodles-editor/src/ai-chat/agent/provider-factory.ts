@@ -6,6 +6,7 @@ import type { CustomEndpointConfig } from '../../noodles/keys-store'
 import { AnthropicProvider, DEFAULT_ANTHROPIC_MODEL } from './providers/anthropic'
 import { CHROME_MODELS, createChromeProvider } from './providers/chrome'
 import { CustomProvider } from './providers/custom'
+import { getCachedHostedStatus, HostedProvider } from './providers/hosted'
 import { DEFAULT_OPENROUTER_MODEL, OpenRouterProvider } from './providers/openrouter'
 import { createWebLLMProvider, DEFAULT_WEBLLM_MODEL } from './providers/webllm'
 import type { AgentProvider, DownloadProgress, ProviderId } from './types'
@@ -40,6 +41,8 @@ export function resolveProviderModel(
       return model ?? DEFAULT_ANTHROPIC_MODEL
     case 'custom':
       return customEndpoint?.model
+    case 'hosted':
+      return getCachedHostedStatus()?.model
   }
 }
 
@@ -68,5 +71,11 @@ export async function createProvider(options: CreateProviderOptions): Promise<Ag
         apiKey: customEndpoint.apiKey,
         model: customEndpoint.model,
       })
+    case 'hosted': {
+      // Ready only once the status arrived, so this is the answer that made it so
+      const status = getCachedHostedStatus()
+      if (!status) throw new Error('The free tier is not available on this site')
+      return new HostedProvider(status)
+    }
   }
 }

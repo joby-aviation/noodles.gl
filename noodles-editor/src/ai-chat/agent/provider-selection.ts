@@ -1,4 +1,4 @@
-// Which of the five providers the chat should actually use.
+// Which of the six providers the chat should actually use.
 //
 // Two questions, and they are not the same one. "Is this provider usable?" is
 // about credentials and hardware; "which one runs?" adds the user's stated
@@ -9,6 +9,10 @@
 import type { CustomEndpointConfig, ProviderPreference } from '../../noodles/keys-store'
 import type { ProviderId } from './types'
 
+// The ones a user can pick or set up. The free tier is neither: it is what runs
+// until one of these is ready.
+export type SelectableProviderId = Exclude<ProviderId, 'hosted'>
+
 export interface Credentials {
   anthropicKey: string | undefined
   openRouterKey: string | undefined
@@ -18,6 +22,9 @@ export interface Credentials {
   webllmModel: string | undefined
   webgpuReady: boolean
   chromeAvailable: boolean
+  // Whether this site serves the free tier. Messages left is a separate question,
+  // asked by the panel: running out should not drop a conversation mid-way.
+  hostedAvailable: boolean
 }
 
 // A provider is usable when whatever it needs is present: a key for the two
@@ -38,6 +45,8 @@ export function isProviderReady(providerId: ProviderId, credentials: Credentials
       return credentials.webgpuReady && Boolean(credentials.webllmModel)
     case 'chrome':
       return credentials.chromeAvailable
+    case 'hosted':
+      return credentials.hostedAvailable
   }
 }
 
@@ -46,14 +55,15 @@ export function isProviderReady(providerId: ProviderId, credentials: Credentials
 // WebLLM comes last: it is the weakest that is picked at all, so only when nothing
 // else is configured, and only once a model has been chosen. Chrome is never
 // picked automatically: its tool use and instruction following are too unreliable
-// to land on by default, so it runs only when asked for.
+// to land on by default, so it runs only when asked for. The free tier is the
+// last resort: anything the user set up themselves wins over it.
 export function resolveProviderId(
   options: Credentials & { preference: ProviderPreference }
 ): ProviderId {
   const { preference } = options
   if (preference !== 'automatic' && isProviderReady(preference, options)) return preference
 
-  const order: ProviderId[] = ['anthropic', 'openrouter', 'custom', 'webllm']
+  const order: ProviderId[] = ['anthropic', 'openrouter', 'custom', 'webllm', 'hosted']
   return order.find(id => isProviderReady(id, options)) ?? 'anthropic'
 }
 
@@ -68,8 +78,8 @@ export function isOnDevice(providerId: ProviderId): boolean {
 // which is when the panel offers setup instead of a switch. A custom endpoint on
 // this machine or the LAN (LM Studio, llama.cpp) is another local model, not the
 // faster hosted one the notice offers, so it does not count.
-export function readyCloudProvider(credentials: Credentials): ProviderId | null {
-  const order: ProviderId[] = ['anthropic', 'openrouter', 'custom']
+export function readyCloudProvider(credentials: Credentials): SelectableProviderId | null {
+  const order: SelectableProviderId[] = ['anthropic', 'openrouter', 'custom']
   return (
     order.find(
       id =>

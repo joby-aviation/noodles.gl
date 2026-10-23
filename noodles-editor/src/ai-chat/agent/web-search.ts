@@ -206,7 +206,7 @@ export function webSearchConfigFor(params: {
   anthropicKey?: string
   openRouterKey?: string
 }): WebSearchConfig | null {
-  if (params.providerId === 'chrome') return null
+  if (params.providerId === 'chrome' || params.providerId === 'hosted') return null
   if (params.providerId === 'anthropic') {
     return params.anthropicKey
       ? { provider: 'anthropic', apiKey: params.anthropicKey, model: params.model }

@@ -818,3 +818,35 @@
 .onDeviceNoticeDismiss:hover {
   color: #ddd;
 }
+
+.hostedBanner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  border-bottom: 1px solid rgba(74, 158, 255, 0.25);
+  background: rgba(74, 158, 255, 0.08);
+  color: #b8cde6;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.hostedBanner > span {
+  flex: 1;
+}
+
+.hostedBannerLink {
+  flex-shrink: 0;
+  background: #3b82f6;
+  border: none;
+  border-radius: 4px;
+  color: #fff;
+  cursor: pointer;
+  font-size: 12px;
+  padding: 4px 10px;
+  white-space: nowrap;
+}
+
+.hostedBannerLink:hover {
+  background: #2563eb;
+}

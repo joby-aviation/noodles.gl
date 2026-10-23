@@ -84,7 +84,9 @@ The provider is chosen in the chat panel header (or pinned in Settings) and stor
 `providerPreference` in `noodles/keys-store.tsx`; the model is stored separately in
 `agent/model-store.ts`. The rules live in `agent/provider-selection.ts` rather than in
 the panel, so they can be tested without mounting the editor. `'automatic'` walks
-`anthropic → openrouter → custom → webllm` and takes the first one that is *ready*.
+`anthropic → openrouter → custom → webllm → hosted` and takes the first one that is
+*ready*. `hosted` is the free tier (below): never a preference, only what runs until
+the user sets something up.
 WebLLM is ready only once the user has chosen a model, so it is never a fallback for
 a missing key. Chrome is experimental and not in the walk at all: its tool use and
 instruction following are unreliable enough that it runs only when pinned. A pinned
@@ -105,6 +107,11 @@ provider that is not ready falls back to the same walk rather than showing an er
   selecting a model starts a download of gigabytes, so it must be something the user
   asked for and never a consequence of no key being configured.
 - `chrome` — the Prompt API reports the model as available.
+- `hosted` — `GET /api/llm/status` answered with `available: true`. Messages left is a
+  separate question the panel asks (`hostedMessagesLeft` in `providers/hosted.ts`),
+  so running out keeps the conversation on screen with setup a click away instead
+  of swapping the panel out mid-reply. Opening the panel already out of messages
+  goes straight to setup.
 
 Two provider flags carry all the behavioural difference: `supportsNativeTools`
 (false routes the provider through `providers/json-tools.ts`, which emulates the tool
@@ -277,6 +284,14 @@ Variables and Secrets, for Production and Preview:
 3. Optional: a KV namespace bound as `LLM_LIMITS` for the per-IP cap.
 
 Changes to variables apply to the next deployment.
+
+On the client, `HostedProvider` calls its own origin, or `noodles-gl.pages.dev` when
+the page is on noodles.gl. On the dev server the status route falls through to
+`index.html`, so there is no free tier and the panel behaves as before. The panel counts answered messages in `localStorage`
+(`noodles-hosted-tier`) across conversations, shows how many are left in a banner
+with a "Use your own model" link, and sends a quick start question as soon as a
+session is up instead of leaving it in the input. A `free_limit` refusal from the
+proxy marks the tier used up whatever the local count says; `busy` costs nothing.
 
 ### The Chrome provider's session
 
