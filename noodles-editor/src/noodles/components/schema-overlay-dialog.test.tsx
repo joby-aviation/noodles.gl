@@ -1,7 +1,7 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { createSchemaOverlayPreview } from '../table-schema-clipboard'
-import { SchemaOverlayDialog } from './schema-overlay-dialog'
+import { ClipboardPasteDialog, SchemaOverlayDialog } from './schema-overlay-dialog'
 
 afterEach(cleanup)
 
@@ -213,5 +213,35 @@ describe('SchemaOverlayDialog', () => {
     expect(screen.getByText('0 values preserved')).toBeDefined()
     expect(screen.getByText('0 values coerced')).toBeDefined()
     expect(screen.getByText('1 values would reset')).toBeDefined()
+  })
+})
+
+describe('ClipboardPasteDialog', () => {
+  it('supports data-specific fallback copy without changing schema defaults', () => {
+    const onOpenChange = vi.fn()
+    const onPasteText = vi.fn()
+    render(
+      <ClipboardPasteDialog
+        open
+        title="Paste Table Data"
+        description="Press Cmd+V or Ctrl+V to import data."
+        ariaLabel="Paste table data"
+        placeholder="Paste rows here"
+        onOpenChange={onOpenChange}
+        onPasteText={onPasteText}
+      />
+    )
+
+    expect(screen.getByRole('heading', { name: 'Paste Table Data' })).toBeDefined()
+    const target = screen.getByLabelText('Paste table data')
+    expect(target).toHaveAttribute('placeholder', 'Paste rows here')
+    const pasteEvent = new Event('paste', { bubbles: true, cancelable: true })
+    Object.defineProperty(pasteEvent, 'clipboardData', {
+      value: { getData: () => 'a\tb' },
+    })
+    fireEvent(target, pasteEvent)
+
+    expect(onOpenChange).toHaveBeenCalledWith(false)
+    expect(onPasteText).toHaveBeenCalledWith('a\tb')
   })
 })
