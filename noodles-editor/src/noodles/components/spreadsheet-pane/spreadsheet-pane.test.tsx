@@ -9,7 +9,7 @@ const mockSetPinnedNodeId = vi.fn((id: string | null) => {
   storeState.pinnedSpreadsheetNodeId = id
 })
 
-vi.mock('../../store', () => ({
+vi.mock('../../../editor/ui-store', () => ({
   useUIStore: (
     selector: (
       s: typeof storeState & { setPinnedSpreadsheetNodeId: typeof mockSetPinnedNodeId }

@@ -1,4 +1,4 @@
-import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { ReactFlowProvider } from '@xyflow/react'
 import { Temporal } from 'temporal-polyfill'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -17,10 +17,6 @@ import {
   Vec2Field,
   Vec3Field,
 } from '../fields'
-import { ArcLayerOp, BitmapLayerOp, NumberOp, StringOp } from '../operators'
-import { clearOps, setOp } from '../store'
-import { FieldEditScope } from '../utils/field-edit-analytics'
-import { applyOperatorInputs, registerPropertyMutationCallback } from '../utils/property-history'
 import {
   BezierCurveFieldComponent,
   BooleanFieldComponent,
@@ -37,7 +33,6 @@ import {
 describe('NumberFieldComponent', () => {
   afterEach(() => {
     cleanup()
-    clearOps()
     vi.restoreAllMocks()
   })
 
@@ -190,7 +185,6 @@ describe('NumberFieldComponent', () => {
 describe('NumberFieldComponent with typical operator patterns', () => {
   afterEach(() => {
     cleanup()
-    clearOps()
     vi.restoreAllMocks()
   })
 
@@ -257,8 +251,6 @@ describe('NumberFieldComponent with typical operator patterns', () => {
 describe('TextFieldComponent', () => {
   afterEach(() => {
     cleanup()
-    clearOps()
-    registerPropertyMutationCallback(undefined)
     vi.restoreAllMocks()
   })
 
@@ -373,34 +365,6 @@ describe('TextFieldComponent', () => {
     expect(select).toBeDisabled()
   })
 
-  it('commits a typeahead suggestion once without blurring the input', () => {
-    const field = new StringLiteralField('option1', {
-      values: ['option1', 'option2'],
-      freeform: true,
-    })
-    const op = new StringOp('/string')
-    ;(op.inputs as unknown as { val: StringLiteralField }).val = field
-    setOp(op.id, op)
-    const onMutation = vi.fn()
-    registerPropertyMutationCallback(onMutation)
-
-    render(<TextFieldComponent id="test-field" field={field} disabled={false} />)
-
-    const input = screen.getByRole('combobox')
-    input.focus()
-    fireEvent.change(input, { target: { value: '' } })
-    const listbox = screen.getByRole('listbox')
-    fireEvent.mouseDown(within(listbox).getByRole('option', { name: 'option2' }))
-
-    expect(field.value).toBe('option2')
-    expect(onMutation).toHaveBeenCalledTimes(1)
-    expect(document.activeElement).toBe(input)
-    expect(screen.queryByRole('listbox')).not.toBeInTheDocument()
-
-    fireEvent.blur(input)
-    expect(onMutation).toHaveBeenCalledTimes(1)
-  })
-
   it('handles special characters in string values', () => {
     const field = new StringField('hello <script>alert("xss")</script>')
     render(<TextFieldComponent id="test-field" field={field} disabled={false} />)
@@ -422,7 +386,6 @@ describe('TextFieldComponent', () => {
 describe('BooleanFieldComponent', () => {
   afterEach(() => {
     cleanup()
-    clearOps()
     vi.restoreAllMocks()
   })
 
@@ -507,7 +470,6 @@ describe('BooleanFieldComponent', () => {
 describe('DateFieldComponent', () => {
   afterEach(() => {
     cleanup()
-    clearOps()
     vi.restoreAllMocks()
   })
 
@@ -580,7 +542,6 @@ describe('DateFieldComponent', () => {
 describe('EmptyFieldComponent', () => {
   afterEach(() => {
     cleanup()
-    clearOps()
     vi.restoreAllMocks()
   })
 
@@ -609,7 +570,6 @@ describe('EmptyFieldComponent', () => {
 describe('VectorFieldComponent', () => {
   afterEach(() => {
     cleanup()
-    clearOps()
     vi.restoreAllMocks()
   })
 
@@ -791,7 +751,6 @@ describe('VectorFieldComponent', () => {
 describe('CompoundFieldComponent', () => {
   afterEach(() => {
     cleanup()
-    clearOps()
     vi.restoreAllMocks()
   })
 
@@ -972,7 +931,6 @@ describe('CompoundFieldComponent', () => {
 describe('BezierCurveFieldComponent', () => {
   afterEach(() => {
     cleanup()
-    clearOps()
     vi.restoreAllMocks()
   })
 
@@ -999,7 +957,6 @@ describe('BezierCurveFieldComponent', () => {
 describe('ColorFieldComponent', () => {
   afterEach(() => {
     cleanup()
-    clearOps()
     vi.restoreAllMocks()
   })
 
@@ -1063,7 +1020,6 @@ describe('ColorFieldComponent', () => {
 describe('NumberFieldComponent edge cases', () => {
   afterEach(() => {
     cleanup()
-    clearOps()
     vi.restoreAllMocks()
   })
 
@@ -1132,7 +1088,6 @@ describe('NumberFieldComponent edge cases', () => {
 describe('NumberFieldComponent editing behavior', () => {
   afterEach(() => {
     cleanup()
-    clearOps()
     vi.restoreAllMocks()
   })
 

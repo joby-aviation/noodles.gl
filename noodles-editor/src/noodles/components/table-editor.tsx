@@ -11,7 +11,6 @@ import { Button } from 'primereact/button'
 import { InputSwitch } from 'primereact/inputswitch'
 import { InputText } from 'primereact/inputtext'
 import { useEffect, useMemo, useRef, useState } from 'react'
-import type { TableEditorOp } from '../operators'
 import type { ColumnSchema, ColumnType, DateTimeValue, TableSchema } from '../table-schema'
 import { getDefaultValue, transitionTableData, validateTableData } from '../table-schema'
 import { getTimezoneOptions } from '../utils/timezone-utils'
@@ -834,7 +833,6 @@ function EditableCell({ getValue, row, column, table }: EditableCellProps) {
 // Main table component
 
 interface TableEditorProps {
-  op?: TableEditorOp
   data: unknown[]
   schema: TableSchema
   onDataChange: (data: unknown[], description?: string) => void

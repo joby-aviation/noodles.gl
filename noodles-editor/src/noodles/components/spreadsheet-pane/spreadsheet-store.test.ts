@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest'
-import { useUIStore } from '../../store'
+import { useUIStore } from '../../../editor/ui-store'
 
 describe('UIStore — spreadsheet state', () => {
   beforeEach(() => {

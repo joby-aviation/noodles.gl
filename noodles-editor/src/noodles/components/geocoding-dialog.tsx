@@ -10,6 +10,7 @@ import {
   type ViewStateChangeEvent,
 } from 'react-map-gl/maplibre'
 import 'maplibre-gl/dist/maplibre-gl.css'
+import { useUIStore } from '../../editor/ui-store'
 import { analytics } from '../../utils/analytics'
 import {
   type GeocodingResult,
@@ -18,7 +19,6 @@ import {
   geocodeWithPhoton,
 } from '../../utils/geocoding'
 import { useKeysStore } from '../keys-store'
-import { useUIStore } from '../store'
 import s from './geocoding-dialog.module.css'
 
 const DEFAULT_ZOOM = 4 // Country level

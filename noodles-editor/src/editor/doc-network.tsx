@@ -13,7 +13,7 @@ import {
   ReactFlow,
   useReactFlow,
 } from '@xyflow/react'
-import { useCallback, useMemo, useRef, useState } from 'react'
+import { type ReactNode, useCallback, useMemo, useRef, useState } from 'react'
 import { useEngineState } from './doc-engine'
 import ns from './doc-network.module.css'
 import { DocNodeComponent } from './doc-node'
@@ -85,7 +85,7 @@ export const canPaste = () => !!clipboard?.nodes.length
 const tablePassThrough = (o: OpDef) =>
   o.inputs.some(p => p.type === 'table') && o.outputs.some(p => p.type === 'table')
 
-export function DocNetwork() {
+export function DocNetwork({ children }: { children?: ReactNode }) {
   const doc = useEditor(s => s.doc)
   const network = useEditor(s => s.network)
   const selection = useEditor(s => s.selection)
@@ -392,6 +392,7 @@ export function DocNetwork() {
       >
         <Background />
         <Controls position="bottom-right" showInteractive={false} />
+        {children}
       </ReactFlow>
       <NetworkBar />
       {menu?.kind === 'add' && (

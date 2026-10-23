@@ -3,9 +3,9 @@
 import { type FC, useEffect, useRef, useState } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
+import { useUIStore } from '../editor/ui-store'
 import type { CustomEndpointConfig, ProviderPreference } from '../noodles/keys-store'
 import { useKeysStore } from '../noodles/keys-store'
-import { useUIStore } from '../noodles/store'
 import { useOpenRouterConnect } from '../noodles/use-openrouter-connect'
 import { recordGraphMutation } from '../noodles/utils/graph-history'
 import { analytics } from '../utils/analytics'
@@ -51,17 +51,15 @@ import {
   onDeviceNoticeDismissed,
   SLOW_REPLY_MS,
 } from './on-device-notice'
-import type { Message, NoodlesProject } from './types'
+import type { Message } from './types'
 
 interface ChatPanelProps {
-  /** The operator-graph project, for callers that still pass one; the tools read the document. */
-  project?: NoodlesProject
   onClose: () => void
   isVisible: boolean
   initialMessage?: string
 }
 
-export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, initialMessage }) => {
+export const ChatPanel: FC<ChatPanelProps> = ({ onClose, isVisible, initialMessage }) => {
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
@@ -361,32 +359,6 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
       built?.dispose()
     }
   }, [providerId, providerKey, providerReady, model, apiKey, openRouterKey, customEndpoint])
-
-  // Update MCPTools with current project whenever it changes
-  useEffect(() => {
-    if (mcpTools && project) {
-      mcpTools.setProject(project)
-    }
-  }, [mcpTools, project])
-
-  // Another project replaced the graph: stop the run planning against the old
-  // one and drop its proposal
-  useEffect(() => {
-    if (projectKeyRef.current === projectKey) return
-    projectKeyRef.current = projectKey
-    generationRef.current += 1
-    abortRef.current?.abort()
-    if (pendingProposal) {
-      setPendingProposal(null)
-      setMessages(prev => [
-        ...prev,
-        {
-          role: 'assistant',
-          content: 'Another project was opened, so the proposed graph update was not applied.',
-        },
-      ])
-    }
-  }, [projectKey, pendingProposal])
 
   // Handle initial message from quick start modal
   useEffect(() => {

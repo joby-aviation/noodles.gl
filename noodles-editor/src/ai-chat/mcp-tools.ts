@@ -28,7 +28,6 @@ import { type RunCodeParams, runCode } from './run-code'
 import type {
   ConsoleError,
   FileIndex,
-  NoodlesProject,
   SearchCodeParams,
   SearchCodeResult,
   ToolResult,
@@ -165,7 +164,6 @@ export function editorDocContext(): DocToolContext {
 
 export class MCPTools {
   private consoleErrors: ConsoleError[] = []
-  private project: NoodlesProject | null = null
   private doc: DocToolContext
 
   constructor(
@@ -176,18 +174,8 @@ export class MCPTools {
     this.setupConsoleTracking()
   }
 
-  // The graph tools read the editor's document, not a project passed in. Kept for the chat
-  // and WebMCP callers that still hand one over.
-  setProject(project: NoodlesProject) {
-    this.project = project
-  }
-
   // Edits apply as they are made, so a run has nothing queued to forget.
   clearQueuedModifications() {}
-
-  getProject(): NoodlesProject | null {
-    return this.project
-  }
 
   // Extract common example properties to avoid duplication
   private mapExampleProperties(ex: {
@@ -211,7 +199,6 @@ export class MCPTools {
     if (!this.contextLoader) return false
     return (
       this.contextLoader.getCodeIndex() !== null ||
-      this.contextLoader.getOperatorRegistry() !== null ||
       this.contextLoader.getDocsIndex() !== null ||
       this.contextLoader.getExamples() !== null
     )

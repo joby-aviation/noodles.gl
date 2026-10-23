@@ -5,10 +5,8 @@ import { useRenderProgressStore } from '../../render/render-progress-store'
 import s from './export-button.module.css'
 
 interface ExportButtonProps {
-  // The OutOp whose render settings the export uses; null when the project has none
-  activeOutOpId: string | null
-  // The render settings export a transparent WebM instead of an MP4
-  transparentVideo?: boolean
+  // The deck node whose render settings the export uses; null when the project has none
+  deckName: string | null
   isRendering: boolean
   // Both take the analytics source; the renderer tracks the export
   takeScreenshot?: (source?: RenderSource) => Promise<void>
@@ -18,8 +16,7 @@ interface ExportButtonProps {
 // The top bar's Export control, so exporting doesn't depend on knowing the logo menu
 // or the Out node's properties. Same actions as the menu's Take Screenshot and Start Render.
 export function ExportButton({
-  activeOutOpId,
-  transparentVideo = false,
+  deckName,
   isRendering,
   takeScreenshot,
   startRender,
@@ -40,8 +37,8 @@ export function ExportButton({
 
   const disabledReason = isRendering
     ? 'An export is running'
-    : !activeOutOpId
-      ? 'Add an Out node to export'
+    : !deckName
+      ? 'Add a Deck node to export'
       : !takeScreenshot && !startRender
         ? 'Export is not available here'
         : null
@@ -51,7 +48,7 @@ export function ExportButton({
       {/* The tooltip sits on a wrapper: a disabled button gets no hover events */}
       <span
         className={s.wrapper}
-        title={disabledReason ?? `Export using ${activeOutOpId}'s render settings`}
+        title={disabledReason ?? `Export using ${deckName}'s render settings`}
       >
         <DropdownMenu.Trigger asChild>
           <button
@@ -84,7 +81,7 @@ export function ExportButton({
 
       <DropdownMenu.Portal>
         <DropdownMenu.Content className={s.menu} align="end" sideOffset={5}>
-          <div className={s.menuLabel}>Uses {activeOutOpId}'s render settings</div>
+          <div className={s.menuLabel}>Uses {deckName}'s render settings</div>
           <DropdownMenu.Item
             className={s.item}
             onSelect={handleTakeScreenshot}

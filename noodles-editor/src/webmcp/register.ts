@@ -13,7 +13,6 @@ import { availableToolDefinitions, type ToolDefinition } from '../ai-chat/tool-d
 import type { ToolResult } from '../ai-chat/types'
 import { safeStringify } from '../noodles/utils/serialization'
 import { debugWebMCP } from '../utils/debug'
-import { getCurrentProject } from './bridge'
 
 interface ContentBlock {
   type: string
@@ -93,7 +92,7 @@ async function runTool(
   params: Record<string, unknown>
 ): Promise<ToolResult> {
   try {
-    return await definition.execute(tools, params, getCurrentProject)
+    return await definition.execute(tools, params)
   } catch (error) {
     return {
       success: false,

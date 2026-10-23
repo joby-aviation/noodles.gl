@@ -14,7 +14,7 @@ import {
 import { Handle, type NodeProps, Position, useConnection } from '@xyflow/react'
 import cx from 'classnames'
 import { useMemo } from 'react'
-import { headerClass } from '../noodles/components/op-components'
+import { categories } from '../noodles/components/categories'
 import ns from '../noodles/noodles.module.css'
 import { type EngineState, useEngineState } from './doc-engine'
 import s from './doc-network.module.css'
@@ -32,10 +32,36 @@ const CATEGORY_HEADERS: Record<string, string | undefined> = {
   structure: ns.headerGrouping,
 }
 
+// A host operator's header: the color of the Add Node category its Noodles operator is in
+const NOODLES_HEADERS: Record<string, string | undefined> = {
+  code: ns.headerCode,
+  color: ns.headerColor,
+  data: ns.headerData,
+  effect: ns.headerEffect,
+  extension: ns.headerExtension,
+  geojson: ns.headerGeojson,
+  grouping: ns.headerGrouping,
+  layer: ns.headerLayer,
+  number: ns.headerNumber,
+  string: ns.headerString,
+  utility: ns.headerUtility,
+  vector: ns.headerVector,
+  view: ns.headerView,
+  widget: ns.headerWidget,
+}
+
+function noodlesHeader(type: string): string | undefined {
+  const name = type.replace(/Op$/, '')
+  const found = Object.entries(categories).find(([, names]) =>
+    (names as readonly string[]).includes(name)
+  )
+  return NOODLES_HEADERS[found?.[0] ?? 'data']
+}
+
 /** A node's header color: its Noodles operator's, or its category's. */
 export function headerOf(type: string): string | undefined {
   const op = OPERATOR_INDEX.get(type)
-  return op?.category === 'host' ? headerClass(type as never) : CATEGORY_HEADERS[op?.category ?? '']
+  return op?.category === 'host' ? noodlesHeader(type) : CATEGORY_HEADERS[op?.category ?? '']
 }
 
 /** Port colors, by what flows: rows, a layer, a number, any other value, or anything. */

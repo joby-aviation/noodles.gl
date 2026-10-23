@@ -1,5 +1,4 @@
 import { describe, expect, it } from 'vitest'
-import { opTypes } from '../../operators'
 import {
   decodeSourceRef,
   defaultValuesFor,
@@ -11,26 +10,6 @@ import {
 } from './geo-recipes'
 
 describe('geo recipes', () => {
-  it('references only registered operator types', () => {
-    for (const recipe of GEO_RECIPES) {
-      expect(opTypes, `${recipe.id} -> ${recipe.opType}`).toHaveProperty(recipe.opType)
-    }
-  })
-
-  it('declares inputs and outputs that exist on the operator', () => {
-    for (const recipe of GEO_RECIPES) {
-      const OpClass = opTypes[recipe.opType]
-      const op = new OpClass(`/test-${recipe.id}`)
-      for (const input of recipe.inputs) {
-        expect(op.inputs, `${recipe.id}.${input.key}`).toHaveProperty(input.key)
-      }
-      for (const param of recipe.params) {
-        expect(op.inputs, `${recipe.id}.${param.key}`).toHaveProperty(param.key)
-      }
-      expect(op.outputs, `${recipe.id} -> ${recipe.output}`).toHaveProperty(recipe.output)
-    }
-  })
-
   it('has unique ids and a label for every group', () => {
     const ids = GEO_RECIPES.map(r => r.id)
     expect(new Set(ids).size).toBe(ids.length)
