@@ -3,6 +3,7 @@ import { decodeRgba } from 'exrjs'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { getTimelineStore } from '../timeline/timeline-store'
 import { analytics } from '../utils/analytics'
+import { CanvasFrameReader } from './capture-canvas-frame'
 import {
   type CaptureResult,
   captureScreenshot,
@@ -332,6 +333,63 @@ describe('useRenderer', () => {
       expect(recorded).toEqual([0, 1, 2, 3, 4])
     } finally {
       scene.canvas.remove()
+      vi.useFakeTimers()
+    }
+  })
+
+  // On software WebGL the GPU runs seconds behind the page. Waiting for it is part of
+  // drawing the frame, so the read's own timeout does not include that backlog.
+  it('reads each frame only once the GPU has drawn it', async ({ skip }) => {
+    vi.useRealTimers()
+    const canvas = document.createElement('canvas')
+    canvas.width = 64
+    canvas.height = 64
+    document.body.appendChild(canvas)
+    const gl = canvas.getContext('webgl2')!
+    const redraw = vi.fn(() => {
+      gl.clear(gl.COLOR_BUFFER_BIT)
+      queueMicrotask(() => result.current.captureFrame())
+    })
+    const { result } = renderHook(() =>
+      useRenderer({ fps: 10, bitrate: 1_000_000, bitrateMode: 'constant', redraw })
+    )
+    const steps: string[] = []
+    const { drawn, read } = CanvasFrameReader.prototype
+    const drawnSpy = vi
+      .spyOn(CanvasFrameReader.prototype, 'drawn')
+      .mockImplementation(async function (this: CanvasFrameReader) {
+        await drawn.call(this)
+        steps.push('drawn')
+      })
+    const readSpy = vi.spyOn(CanvasFrameReader.prototype, 'read').mockImplementation(function (
+      this: CanvasFrameReader
+    ) {
+      steps.push('read')
+      return read.call(this)
+    })
+
+    try {
+      let capture: CaptureResult | undefined
+      await act(async () => {
+        capture = await result.current.startCapture({
+          canvas,
+          width: 64,
+          height: 64,
+          codec: 'vp9',
+          startFrame: 0,
+          endFrame: 2,
+          target: 'buffer',
+        })
+      })
+      if (capture?.status === 'error' && capture.error.message.startsWith('This browser cannot')) {
+        skip('this browser has no vp9 encoder')
+      }
+      expect(capture?.status === 'error' ? capture.error.message : capture?.status).toBe('done')
+      expect(steps).toEqual(['drawn', 'read', 'drawn', 'read', 'drawn', 'read'])
+    } finally {
+      drawnSpy.mockRestore()
+      readSpy.mockRestore()
+      canvas.remove()
       vi.useFakeTimers()
     }
   })

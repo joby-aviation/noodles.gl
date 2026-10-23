@@ -1,5 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { CanvasReplacedError, FrameTimeoutError, guardFrameStep } from './frame-guard'
+import {
+  CanvasReplacedError,
+  FIRST_FRAME_READ_TIMEOUT_MS,
+  FRAME_READ_TIMEOUT_MS,
+  FrameTimeoutError,
+  frameReadTimeoutMs,
+  guardFrameStep,
+} from './frame-guard'
 
 // The guard's timers run in a Web Worker, so these use the real clock
 beforeEach(() => {
@@ -73,4 +80,11 @@ describe('guardFrameStep', () => {
     await expect(result).rejects.toBeInstanceOf(FrameTimeoutError)
     await expect(result).rejects.toThrow('Frame 3 did not finish drawing')
   })
+})
+
+// The first read also sets up the canvas capture, seconds on software WebGL
+it('gives the first frame read longer than the ones after it', () => {
+  expect(frameReadTimeoutMs(true)).toBe(FIRST_FRAME_READ_TIMEOUT_MS)
+  expect(frameReadTimeoutMs(false)).toBe(FRAME_READ_TIMEOUT_MS)
+  expect(FIRST_FRAME_READ_TIMEOUT_MS).toBeGreaterThan(FRAME_READ_TIMEOUT_MS)
 })
