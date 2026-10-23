@@ -249,10 +249,14 @@ export function SchemaOverlayDialog({
   )
 }
 
-interface ClipboardPasteDialogProps {
+export interface ClipboardPasteDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   onPasteText: (text: string) => void
+  title?: string
+  description?: string
+  ariaLabel?: string
+  placeholder?: string
 }
 
 /** Fallback for browsers that deny programmatic clipboard reads. */
@@ -260,6 +264,10 @@ export function ClipboardPasteDialog({
   open,
   onOpenChange,
   onPasteText,
+  title = 'Paste Schema',
+  description = 'Clipboard access is unavailable. Press Cmd+V or Ctrl+V in the field below.',
+  ariaLabel = 'Paste schema JSON',
+  placeholder = 'Paste schema JSON here',
 }: ClipboardPasteDialogProps) {
   const pasteTargetRef = useRef<HTMLTextAreaElement>(null)
 
@@ -273,15 +281,13 @@ export function ClipboardPasteDialog({
       <Dialog.Portal>
         <Dialog.Overlay className={s.overlay} />
         <Dialog.Content className={s.pasteContent}>
-          <Dialog.Title className={s.title}>Paste Schema</Dialog.Title>
-          <Dialog.Description className={s.description}>
-            Clipboard access is unavailable. Press Cmd+V or Ctrl+V in the field below.
-          </Dialog.Description>
+          <Dialog.Title className={s.title}>{title}</Dialog.Title>
+          <Dialog.Description className={s.description}>{description}</Dialog.Description>
           <textarea
             ref={pasteTargetRef}
             className={s.pasteTarget}
-            aria-label="Paste schema JSON"
-            placeholder="Paste schema JSON here"
+            aria-label={ariaLabel}
+            placeholder={placeholder}
             onPaste={event => {
               const text = event.clipboardData.getData('text/plain')
               if (!text) return
