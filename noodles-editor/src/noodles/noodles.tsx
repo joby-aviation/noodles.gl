@@ -37,7 +37,7 @@ import {
 import { useLocation, useParams } from 'wouter'
 import { globalContextManager } from '../ai-chat/global-context-manager'
 import type { NoodlesProject } from '../ai-chat/types'
-import { getPendingQuickStartAction } from '../components/quick-start-modal'
+import { getPendingQuickStartAction, planQuickStartAction } from '../components/quick-start-modal'
 import { analytics } from '../utils/analytics'
 import { setCurrentProject, setModificationApplier } from '../webmcp/bridge'
 import { agentBench, externalControl } from './globals'
@@ -1234,26 +1234,14 @@ export function getNoodles(): Visualization {
 
     pendingActionHandledRef.current = true
 
-    if (pendingAction.type === 'llm' && pendingAction.question) {
-      // Open AI chat panel with the question pre-filled
-      setChatInitialMessage(pendingAction.question)
+    const plan = planQuickStartAction(pendingAction)
+    if (!plan) return
+    if (plan.importFile) setPendingImportFile(plan.importFile)
+    if (plan.chatMessage) {
+      setChatInitialMessage(plan.chatMessage)
       setShowChatPanel(true)
-      analytics.track('quick_start_llm_action_handled')
-    } else if (pendingAction.type === 'file' && pendingAction.file) {
-      if (pendingAction.mode === 'map') {
-        // Coordinates were found: CanvasDropImport builds the map, no LLM needed
-        setPendingImportFile(pendingAction.file)
-        analytics.track('quick_start_file_action_handled', { mode: 'map' })
-        return
-      }
-      // Otherwise open the chat panel and ask the AI to help visualize the file
-      const fileName = pendingAction.file.name
-      setChatInitialMessage(
-        `I just uploaded a file called "${fileName}". Please help me create a visualization from this data. First, I'll need to import it using the Data Importer (click the upload icon in the toolbar). Can you guide me through the process?`
-      )
-      setShowChatPanel(true)
-      analytics.track('quick_start_file_action_handled', { mode: 'chat' })
     }
+    analytics.track(plan.event, plan.mode ? { mode: plan.mode } : undefined)
   }, [nodes.length])
 
   const displayedNodes = useMemo(() => {
