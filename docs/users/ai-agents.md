@@ -116,7 +116,7 @@ When you open the editor with `?externalControl=true`, it offers its tools over 
    cd noodles-editor && npm start
    ```
 
-5. Open a project with external control on, for example `http://localhost:5173/examples/nyc-taxis?externalControl=true`, in Chrome or Edge.
+5. Open a project with external control on, in Chrome or Edge. An example opens at `http://localhost:5173/examples/<name>?externalControl=true`, such as `examples/nyc-taxis`. Your own projects live at `http://localhost:5173/projects/<name>?externalControl=true`, where `<name>` is the project folder's name, once you have opened the folder in the editor.
 
 Do these in order. The relay starts with your agent, and the page looks for it for about 10 seconds after it loads. A tab opened before the agent started won't connect until you reload it.
 
@@ -242,7 +242,9 @@ Don't run either tool through a bare `npx noodles-mcp` or `npx validate-projects
 3. Write the file, validate it, and fix every error.
 4. Stop when it validates.
 
-To look at the result, open the project folder (the one holding `noodles.json` and its data files) with **Open** (`Cmd+O` / `Ctrl+O`) in the editor menu, in Chrome or Edge. A project written to `noodles-editor/src/examples/<name>/noodles.json` in the repo also opens at `http://localhost:5173/examples/<name>`; that URL only finds projects in that folder.
+To look at the result, open the project folder (the one holding `noodles.json` and its data files) with **Open** (`Cmd+O` / `Ctrl+O`) in the editor menu, in Chrome or Edge. This works in a local editor or at [noodles.gl/app](https://noodles.gl/app). The editor then shows the project at `/projects/<name>`, where `<name>` is the folder's name (for example `noodles.gl/app/projects/<name>`), and that URL opens it again later.
+
+`/examples/<name>` is only for the bundled examples. In a local checkout, a project written to `noodles-editor/src/examples/<name>/noodles.json` shows up there too.
 
 Small graphs work best: five to eight nodes that a person can read. One `CodeOp` with a few lines of JavaScript is easier to check than a chain of filter, map and sort nodes. The validator doesn't check the timeline, so set keyframes in the editor or through a running editor (above) rather than by hand.
 
