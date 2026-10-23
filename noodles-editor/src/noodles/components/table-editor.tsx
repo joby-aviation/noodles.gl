@@ -834,7 +834,7 @@ function EditableCell({ getValue, row, column, table }: EditableCellProps) {
 // Main table component
 
 interface TableEditorProps {
-  op: TableEditorOp
+  op?: TableEditorOp
   data: unknown[]
   schema: TableSchema
   onDataChange: (data: unknown[], description?: string) => void

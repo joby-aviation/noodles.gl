@@ -152,7 +152,11 @@ export class ScalarProgram {
       case 'scalar': {
         const id = src.node.id;
         const num = (p: string) => Number(get(slotKey(id, p)));
-        const str = (p: string) => String(get(slotKey(id, p)));
+        // An object (a curve, a list of stops) reaches a scalar operator as JSON
+        const str = (p: string) => {
+          const v = get(slotKey(id, p));
+          return v !== null && typeof v === 'object' ? JSON.stringify(v) : String(v);
+        };
         if (src.op.type === 'expression') return get(slotKey(id, '__expr'));
         return src.op.scalar ? src.op.scalar({ num, str }, clock) : NaN;
       }

@@ -7,6 +7,7 @@
 
 import { type OpDef, type ParamDef, type PortType, registerOperator } from '@noodles.gl/planner'
 import * as d3 from 'd3'
+import { applyStyleOverrides } from '../utils/map-style-utils'
 import { registerValueOperators } from './value-ops'
 
 export interface DeckOp {
@@ -222,6 +223,21 @@ function flatBounds(b: unknown): number[] {
 }
 
 const ramps = d3 as unknown as Record<string, ((t: number) => string) | undefined>
+
+// Base styles by URL, fetched once: an override edit should not refetch the style
+const styles = new Map<string, Promise<Record<string, unknown>>>()
+function fetchStyle(url: string): Promise<Record<string, unknown>> {
+  let style = styles.get(url)
+  if (!style) {
+    style = fetch(url).then(r => {
+      if (!r.ok) throw new Error(`Failed to fetch map style: ${r.statusText}`)
+      return r.json()
+    })
+    styles.set(url, style)
+    style.catch(() => styles.delete(url))
+  }
+  return style
+}
 
 export const DECK_OPS: DeckOp[] = [
   // --- views ---------------------------------------------------------------------------
@@ -760,6 +776,35 @@ export const DECK_OPS: DeckOp[] = [
       }
     }
   ),
+
+  // --- basemap style -------------------------------------------------------------------
+  {
+    noodles: 'MapStyleConfiguratorOp',
+    def: {
+      type: 'map-style',
+      label: 'Map Style',
+      category: 'output',
+      description:
+        "A basemap style with your changes: layers hidden or recolored, from the style editor. Wire it into the deck's map style.",
+      inputs: [],
+      outputs: [{ name: 'mapStyle', type: 'value' }],
+      params: [
+        url(
+          'baseStyle',
+          'https://basemaps.cartocdn.com/gl/dark-matter-nolabels-gl-style/style.json'
+        ),
+        field('MapStyleConfiguratorOp', 'overrides', { layers: [], global: {} }),
+      ],
+    },
+    build: async p => {
+      const base = p.baseStyle
+      if (!base) return ''
+      const style =
+        typeof base === 'string' ? await fetchStyle(base) : (base as Record<string, unknown>)
+      const overrides = (p.overrides ?? { layers: [], global: {} }) as never
+      return applyStyleOverrides(style as never, overrides)
+    },
+  },
 
   // --- basemap sources -----------------------------------------------------------------
   {

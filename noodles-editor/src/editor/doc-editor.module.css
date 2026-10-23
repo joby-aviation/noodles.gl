@@ -433,3 +433,28 @@
   font-size: 10.5px;
   white-space: pre-wrap;
 }
+
+/* --- custom editors above a node's parameters (pane-editors.tsx) ---------------------- */
+
+.paneEditor {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--color-border, #333);
+  overflow-x: auto;
+}
+
+.paneButton {
+  padding: 4px 10px;
+  border: 1px solid var(--color-border, #444);
+  border-radius: 4px;
+  background: var(--color-surface-raised, #2a2f3a);
+  color: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.paneButton:hover {
+  border-color: var(--color-accent, #6b8cff);
+}

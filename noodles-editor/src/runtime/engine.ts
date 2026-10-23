@@ -246,7 +246,15 @@ export class Engine {
     // the deck node's longitude and latitude mean nothing to it.
     const geographic = !!(deck && styleOf(deck)) || into('views').length === 0
     const view = { ...(geographic ? this.runtime.view() : {}), ...(hostView ?? {}) }
-    const mapStyle = deck ? styleOf(deck) : undefined
+    // A style wired into the deck (a configured one, an object) wins over its URL
+    const wiredStyle = into('par:mapStyle')[0]
+    const configured = wiredStyle
+      ? host?.runner.output(wiredStyle.source, wiredStyle.sourcePort)
+      : undefined
+    const mapStyle = (configured ?? (deck ? styleOf(deck) : undefined)) as
+      | string
+      | Record<string, unknown>
+      | undefined
     const views = hostValues('views').map(v => host?.view(v))
     const widgets = hostValues('widgets').map(w => host?.widget(w as { type: string }))
     const effects = hostValues('effects')

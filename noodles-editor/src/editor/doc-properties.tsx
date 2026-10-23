@@ -18,6 +18,7 @@ import { type EngineState, useEngineState } from './doc-engine'
 import { headerOf } from './doc-node'
 import { renameNode, unpromote } from './doc-ops'
 import { docStore, useEditor } from './doc-store'
+import { PANE_EDITORS, PaneEditorFor } from './pane-editors'
 import { ParamRow, shown, useNodeFields } from './param-row'
 
 const NAME = /^[A-Za-z_][A-Za-z0-9_-]*$/
@@ -71,7 +72,8 @@ function NodeParams({ node, doc, multi }: { node: DocNode; doc: EditorDoc; multi
   useEffect(() => setName(nameOf(node)), [node])
   if (!op) return <div className={s.empty}>Unknown operator {node.op}</div>
 
-  const visible = op.params.filter(p => shown(p, node, op))
+  const replaced = PANE_EDITORS[node.op]?.replaces ?? []
+  const visible = op.params.filter(p => shown(p, node, op) && !replaced.includes(p.name))
   const folders = [...new Set(visible.map(p => p.folder ?? 'Parameters'))]
   const current = folder && folders.includes(folder) ? folder : folders[0]
   const wired = new Set(doc.edges.filter(e => e.target === node.id).map(e => e.targetPort))
@@ -143,6 +145,7 @@ function NodeParams({ node, doc, multi }: { node: DocNode; doc: EditorDoc; multi
           {e}
         </div>
       ))}
+      <PaneEditorFor node={node} />
       {folders.length > 1 && (
         <div className={s.folders} role="tablist">
           {folders.map(f => (

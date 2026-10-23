@@ -1013,7 +1013,7 @@ export function toEditorDoc(original: NoodlesProject): Migrated {
       ...(DEFAULTS.MaplibreBasemapOp.viewState as object),
       ...(b.viewState as object),
     } as Record<string, number>
-    deckParams.mapStyle = String(b.mapStyle)
+    deckParams.mapStyle = typeof b.mapStyle === 'string' ? b.mapStyle : ''
     deckParams.projection = String(b.projection)
     for (const k of ['longitude', 'latitude', 'zoom', 'pitch', 'bearing'])
       deckParams[k] = num(view[k], 0)
@@ -1432,7 +1432,11 @@ export function toEditorDoc(original: NoodlesProject): Migrated {
         if (incomingOne(id, 'data'))
           throw new MigrationError(`${id}: a Table Editor over wired rows is not converted`)
         const rows = Array.isArray(n.data?.inputs?.data) ? n.data?.inputs?.data : []
-        put('code', { code: `return ${JSON.stringify(rows, null, 2)}`, url: '' })
+        const schema = n.data?.inputs?.schema
+        put('table', {
+          rows: JSON.stringify(rows, null, 2),
+          schema: schema ? JSON.stringify(schema) : '',
+        })
         return
       }
       case 'JSONOp': {
@@ -2180,7 +2184,7 @@ export function toEditorDoc(original: NoodlesProject): Migrated {
           }
         : {
             factor: num(own.factor, 0.5),
-            ...(own.curve ? { curve: JSON.stringify(own.curve) } : {}),
+            ...(own.curve ? { curve: own.curve as ParamValue } : {}),
           }
     nodes.push({ id: n.id, op: CURVES[n.type], name: segment(n.id), ...position(n), params })
     wiredNumber(
@@ -3292,6 +3296,13 @@ export function toEditorDoc(original: NoodlesProject): Migrated {
       hostNode(e.source)
       edge(e.source, handleField(e.sourceHandle), deckOp.id, port, index)
     })
+  }
+
+  // A configured basemap style feeds the deck's map style, as it fed the basemap's
+  const styled = basemap ? incomingOne(basemap.id, 'mapStyle') : undefined
+  if (styled) {
+    hostNode(styled.source)
+    edge(styled.source, handleField(styled.sourceHandle), deckOp.id, 'par:mapStyle')
   }
 
   // --- chains: source -> row nodes in dependency order -> layers ----------------------------

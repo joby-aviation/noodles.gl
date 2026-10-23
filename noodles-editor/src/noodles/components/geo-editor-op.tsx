@@ -54,7 +54,12 @@ function GeoEditorOpInner({ id, type, op }: ReactFlowNodeProps & { op: Operator<
           />
         </div>
       </div>
-      <GeoEditorDialog operator={op} open={dialogOpen} onOpenChange={setDialogOpen} />
+      <GeoEditorDialog
+        value={String(op.inputs.geojson?.value ?? '')}
+        onSave={geojson => op.inputs.geojson?.setValue(geojson)}
+        open={dialogOpen}
+        onOpenChange={setDialogOpen}
+      />
     </div>
   )
 }

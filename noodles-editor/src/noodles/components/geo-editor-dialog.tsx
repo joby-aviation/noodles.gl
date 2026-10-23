@@ -4,7 +4,6 @@ import { useCallback, useEffect, useState } from 'react'
 import ReactMapGL, { Layer, Source } from 'react-map-gl/maplibre'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import { CARTO_DARK } from '../../utils/map-styles'
-import type { IOperator, Operator } from '../operators'
 import s from './geo-editor-dialog.module.css'
 
 type DrawMode = 'point' | 'line' | 'polygon' | 'select'
@@ -21,7 +20,10 @@ interface Feature {
 interface GeoEditorDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
-  operator: Operator<IOperator>
+  /** The features being edited, as GeoJSON text. */
+  value: string
+  /** The edited features, as GeoJSON text, when the user saves. */
+  onSave: (geojson: string) => void
 }
 
 // A LineString needs 2 distinct positions; a Polygon ring needs 3 before closing
@@ -40,18 +42,19 @@ export function parseGeoJson(value: string): Feature[] {
   }
 }
 
-export function GeoEditorDialog({ open, onOpenChange, operator }: GeoEditorDialogProps) {
+export function GeoEditorDialog({ open, onOpenChange, value, onSave }: GeoEditorDialogProps) {
   const [drawMode, setDrawMode] = useState<DrawMode>('polygon')
   const [currentPoints, setCurrentPoints] = useState<[number, number][]>([])
   const [features, setFeatures] = useState<Feature[]>([])
 
-  // Re-read the operator every time the dialog opens. Initializing state once would
-  // let a later upstream change be overwritten by whatever was on screen last time.
+  // Re-read the value every time the dialog opens. Initializing state once would let a later
+  // change be overwritten by whatever was on screen last time.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: the value is read as the dialog opens, not while it is open
   useEffect(() => {
     if (!open) return
-    setFeatures(parseGeoJson(String(operator.inputs.geojson?.value ?? '')))
+    setFeatures(parseGeoJson(value))
     setCurrentPoints([])
-  }, [open, operator])
+  }, [open])
 
   const handleMapClick = useCallback(
     (e: { lngLat: { lng: number; lat: number } }) => {
@@ -105,9 +108,9 @@ export function GeoEditorDialog({ open, onOpenChange, operator }: GeoEditorDialo
 
   const save = useCallback(() => {
     const fc = { type: 'FeatureCollection', features }
-    operator.inputs.geojson?.setValue(JSON.stringify(fc, null, 2))
+    onSave(JSON.stringify(fc, null, 2))
     onOpenChange(false)
-  }, [features, operator, onOpenChange])
+  }, [features, onSave, onOpenChange])
 
   const geojsonData: GeoJSON.FeatureCollection = {
     type: 'FeatureCollection',
