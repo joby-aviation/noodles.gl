@@ -163,7 +163,7 @@ describe('row layers', () => {
 describe('cell layers', () => {
   it('draws each row’s cell as a polygon, for every grid', async () => {
     const { lonLatToCell, u64ToHex } = await import('a5-js')
-    const a5 = u64ToHex(lonLatToCell([-122.4, 37.8], 8))
+    const a5 = u64ToHex(lonLatToCell([-122.4, 37.8] as never, 8))
     const cases: [string, string, string][] = [
       ['H3HexagonLayerOp', 'getHexagon', "'8828308281fffff'"],
       ['S2LayerOp', 'getS2Token', "'80858004'"],

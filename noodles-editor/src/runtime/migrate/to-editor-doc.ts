@@ -23,6 +23,7 @@ import {
   type Track,
 } from '@noodles.gl/planner'
 import { hsl } from 'd3'
+import { collapseToSubnet } from '../../editor/doc-ops'
 import { migrateTimelineData } from '../../timeline/migrate-timeline'
 import type { TimelineData } from '../../timeline/types'
 import { colorToHex, hexToColor } from '../../utils/color'
@@ -845,13 +846,117 @@ function withoutReroutes(project: NoodlesProject): NoodlesProject {
   return { ...project, nodes: project.nodes.filter(n => !reroutes.has(n.id)), edges }
 }
 
+interface Container {
+  id: string
+  x: number
+  y: number
+}
+
+const depth = (id: string) => id.split('/').length
+const isChildOf = (id: string, container: string) =>
+  id.startsWith(`${container}/`) && !id.slice(container.length + 1).includes('/')
+
+/**
+ * A project with its containers taken apart: each value a container's input passed to the
+ * GraphInput inside goes straight to what read it, and what fed the GraphOutput goes straight
+ * to what read the container. The containers, deepest first, become subnets again once the
+ * flat project is converted (see `intoSubnets`).
+ */
+function withoutContainers(project: NoodlesProject): {
+  project: NoodlesProject
+  containers: Container[]
+} {
+  const containers = project.nodes
+    .filter(n => n.type === 'ContainerOp')
+    .sort((a, b) => depth(b.id) - depth(a.id))
+  if (containers.length === 0) return { project, containers: [] }
+  let { nodes, edges } = project
+  const field = (h: string | null | undefined) => (h ?? '').replace(/^(par|out)\./, '')
+  for (const c of containers) {
+    const inputs = new Set(
+      nodes.filter(n => n.type === 'GraphInputOp' && isChildOf(n.id, c.id)).map(n => n.id)
+    )
+    const outputs = new Set(
+      nodes.filter(n => n.type === 'GraphOutputOp' && isChildOf(n.id, c.id)).map(n => n.id)
+    )
+    const next: NoodlesEdge[] = []
+    for (const e of edges) {
+      // The bridges between a container and its GraphInput and GraphOutput go
+      if (
+        (e.source === c.id && inputs.has(e.target)) ||
+        (outputs.has(e.source) && e.target === c.id)
+      )
+        continue
+      if (inputs.has(e.source)) {
+        // GraphInput's `value` is the container's `in`; a custom field keeps its name
+        const name = field(e.sourceHandle) === 'value' ? 'in' : field(e.sourceHandle)
+        for (const outer of edges.filter(
+          x => x.target === c.id && field(x.targetHandle) === name
+        )) {
+          next.push({
+            ...e,
+            id: `${outer.id}~${e.id}`,
+            source: outer.source,
+            sourceHandle: outer.sourceHandle,
+          })
+        }
+        continue
+      }
+      if (e.source === c.id) {
+        for (const inner of edges.filter(x => outputs.has(x.target))) {
+          next.push({
+            ...e,
+            id: `${inner.id}~${e.id}`,
+            source: inner.source,
+            sourceHandle: inner.sourceHandle,
+          })
+        }
+        continue
+      }
+      if (outputs.has(e.target) || e.target === c.id) continue
+      next.push(e)
+    }
+    edges = next
+    nodes = nodes.filter(n => n.id !== c.id && !inputs.has(n.id) && !outputs.has(n.id))
+  }
+  return {
+    project: { ...project, nodes, edges },
+    containers: containers.map(c => ({ id: c.id, x: c.position?.x ?? 0, y: c.position?.y ?? 0 })),
+  }
+}
+
+/**
+ * A converted document with each container's nodes (by their paths: `/group/layer`, and the
+ * nodes made for them, `/group/layer-lines`) collapsed back into a subnet of the container's
+ * id, deepest first. One whose nodes read more than two things from outside stays flat.
+ */
+function intoSubnets(doc: EditorDoc, containers: Container[], warnings: string[]): void {
+  for (const c of containers) {
+    const members = doc.nodes.filter(n => n.id.startsWith(`${c.id}/`) && n.parent === undefined)
+    if (members.length === 0) continue
+    try {
+      const sub = collapseToSubnet(
+        doc,
+        members.map(n => n.id),
+        { id: c.id, name: c.id.slice(c.id.lastIndexOf('/') + 1) }
+      )
+      if (sub) {
+        sub.x = c.x
+        sub.y = c.y
+      }
+    } catch (err) {
+      warnings.push(`${c.id}: kept flat, as ${(err as Error).message.toLowerCase()}`)
+    }
+  }
+}
+
 export function toEditorDoc(original: NoodlesProject): Migrated {
   if (original.version !== 18) {
     throw new MigrationError(
       `Expected a schema 18 project; migrate it first (got ${original.version})`
     )
   }
-  const project = withoutReroutes(original)
+  const { project, containers } = withoutContainers(withoutReroutes(original))
   const warnings: string[] = []
   const byId = new Map(project.nodes.map(n => [n.id, n]))
   const inputs = (n: NoodlesNode) => ({ ...DEFAULTS[n.type], ...(n.data?.inputs ?? {}) })
@@ -860,8 +965,11 @@ export function toEditorDoc(original: NoodlesProject): Migrated {
   const incomingOne = (target: string, field: string) => incoming(target, field)[0]
   const position = (n: NoodlesNode) => ({ x: n.position?.x ?? 0, y: n.position?.y ?? 0 })
 
-  if (project.nodes.some(n => n.parentId || n.type === 'ContainerOp')) {
-    throw new MigrationError('Containers are not converted yet')
+  const loop = project.nodes.find(n => n.type.startsWith('ForLoop'))
+  if (loop) {
+    throw new MigrationError(
+      `${loop.id}: a ForLoop is not converted; per-item work is a row operation in a document`
+    )
   }
 
   const nodes: DocNode[] = []
@@ -3224,13 +3332,12 @@ export function toEditorDoc(original: NoodlesProject): Migrated {
     if (!used.has(n.id)) warnings.push(`${n.id}: dropped ${n.type}; nothing drawn reads it`)
   }
   const timeline = project.timeline ? convertTimeline(project.timeline, nodes, warnings) : undefined
+  const converted: EditorDoc = { version: 1, name: project.name ?? 'Untitled', nodes, edges }
+  intoSubnets(converted, containers, warnings)
 
   return {
     doc: {
-      version: 1,
-      name: project.name ?? 'Untitled',
-      nodes,
-      edges,
+      ...converted,
       ...(timeline ? { timeline } : {}),
       meta: {
         noodlesVersion: project.version,
