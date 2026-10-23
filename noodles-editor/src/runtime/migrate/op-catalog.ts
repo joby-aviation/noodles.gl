@@ -10,6 +10,7 @@
 //   subnet   a subnet of the document
 //   folded   computed by the conversion from literal inputs and written into what reads it
 //   dropped  nothing: the operator only showed something in the old editor
+//   refused  a migration error, for the reason given
 //   host     still a host operator, for the reason given
 
 export type Becomes =
@@ -20,10 +21,11 @@ export type Becomes =
   | 'subnet'
   | 'folded'
   | 'dropped'
+  | 'refused'
   | 'host'
 
 // The R3 step converting an operator, while it is still to do
-export type Pending = 'R4' | 'R5'
+export type Pending = 'R5'
 
 export interface OpPlan {
   becomes: Becomes
@@ -62,7 +64,8 @@ const host = (reason: string, pending?: Pending): OpPlan => ({
   ...(pending ? { pending } : {}),
 })
 const dropped = (reason: string): OpPlan => ({ becomes: 'dropped', reason })
-const subnet = (): OpPlan => ({ becomes: 'subnet', ops: ['subnet'], pending: 'R4' })
+const subnet = (ops = ['subnet']): OpPlan => ({ becomes: 'subnet', ops })
+const refused = (reason: string): OpPlan => ({ becomes: 'refused', reason })
 
 export const OP_CATALOG: Record<string, OpPlan> = {
   // --- code ------------------------------------------------------------------------------
@@ -78,11 +81,17 @@ export const OP_CATALOG: Record<string, OpPlan> = {
 
   // --- grouping --------------------------------------------------------------------------
   ContainerOp: subnet(),
-  ForLoopBeginOp: subnet(),
-  ForLoopEndOp: subnet(),
-  ForLoopMetaOp: subnet(),
-  GraphInputOp: { becomes: 'subnet', ops: ['subnet-input'], pending: 'R4' },
-  GraphOutputOp: { becomes: 'subnet', ops: ['subnet-output'], pending: 'R4' },
+  ForLoopBeginOp: refused(
+    'per-item work is a row operation in a document; a loop over operators has no plan'
+  ),
+  ForLoopEndOp: refused(
+    'per-item work is a row operation in a document; a loop over operators has no plan'
+  ),
+  ForLoopMetaOp: refused(
+    'per-item work is a row operation in a document; a loop over operators has no plan'
+  ),
+  GraphInputOp: subnet(['subnet-input']),
+  GraphOutputOp: subnet(['subnet-output']),
 
   // --- color -----------------------------------------------------------------------------
   CategoricalColorRampOp: rows(['color-ramp']),

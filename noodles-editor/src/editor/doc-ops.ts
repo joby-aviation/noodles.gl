@@ -390,3 +390,94 @@ export function pasteNodes(
   }
   return [...ids.values()]
 }
+
+/**
+ * Move nodes into a new subnet in their network, Houdini's Collapse: up to two distinct things
+ * wired in become the subnet's inputs (through subnet-input nodes inside), and the first thing
+ * wired out becomes its output. Parameter wires and references cross the boundary as they are.
+ * `id` and `name` name the subnet, as a migrated container keeps its own.
+ */
+export function collapseToSubnet(
+  doc: EditorDoc,
+  ids: string[],
+  { id, name }: { id?: string; name?: string } = {}
+): DocNode | undefined {
+  const inside = new Set(ids)
+  const members = doc.nodes.filter(n => inside.has(n.id))
+  if (members.length === 0) return undefined
+  const parent = members[0].parent
+  const cx = members.reduce((s, n) => s + n.x, 0) / members.length
+  const cy = members.reduce((s, n) => s + n.y, 0) / members.length
+  const entering = doc.edges.filter(
+    e => !inside.has(e.source) && inside.has(e.target) && !e.targetPort.startsWith('par:')
+  )
+  const leaving = doc.edges.filter(e => inside.has(e.source) && !inside.has(e.target))
+  const into = [...new Map(entering.map(e => [`${e.source}:${e.sourcePort}`, e])).values()]
+  if (into.length > 2)
+    throw new Error('A subnet takes at most two inputs; select fewer entry points')
+  const sub = addNode(doc, 'subnet', cx, cy, parent)
+  if (id) sub.id = id
+  if (name) sub.name = name
+  const minX = Math.min(...members.map(n => n.x))
+  const maxX = Math.max(...members.map(n => n.x))
+  // Endpoints are copied before any edge is rewired: `into` holds the same objects as
+  // `entering`, and rewiring first would point the outer edge at the subnet's own input node
+  const sources = into.map(e => ({ source: e.source, port: e.sourcePort }))
+  sources.forEach(({ source, port }, i) => {
+    const inNode = addNode(doc, 'subnet-input', minX - 240, cy + i * 120, sub.id)
+    inNode.params.index = i
+    for (const x of entering.filter(x => x.source === source && x.sourcePort === port)) {
+      x.source = inNode.id
+      x.sourcePort = 'out'
+    }
+    doc.edges.push({
+      id: newId('e'),
+      source,
+      sourcePort: port,
+      target: sub.id,
+      targetPort: `in${i}`,
+    })
+  })
+  const firstOut = leaving[0] && { source: leaving[0].source, port: leaving[0].sourcePort }
+  if (firstOut) {
+    const outNode = addNode(doc, 'subnet-output', maxX + 240, cy, sub.id)
+    doc.edges.push({
+      id: newId('e'),
+      source: firstOut.source,
+      sourcePort: firstOut.port,
+      target: outNode.id,
+      targetPort: 'in',
+    })
+    for (const x of leaving.filter(
+      x => x.source === firstOut.source && x.sourcePort === firstOut.port
+    )) {
+      x.source = sub.id
+      x.sourcePort = 'out0'
+    }
+  }
+  const before = structuredClone(doc)
+  for (const n of members) n.parent = sub.id
+  rebaseReferences(before, doc)
+  return sub
+}
+
+/** Expose a child's parameter on its subnet, which then drives it. */
+export function promote(doc: EditorDoc, nodeId: string, param: string, value: ParamValue): void {
+  const node = doc.nodes.find(n => n.id === nodeId)
+  const sub = node?.parent ? doc.nodes.find(n => n.id === node.parent) : undefined
+  if (!node || !sub) return
+  const def = OPERATOR_INDEX.get(node.op)?.params.find(p => p.name === param)
+  const name = `${nameOf(node)}_${param}`
+  sub.promoted = [
+    ...(sub.promoted ?? []).filter(p => p.name !== name),
+    { name, label: `${nameOf(node)} ${def?.label ?? param}`, node: nodeId, param },
+  ]
+  sub.params[name] = value
+}
+
+export function unpromote(doc: EditorDoc, subId: string, name: string): void {
+  const sub = doc.nodes.find(n => n.id === subId)
+  if (!sub) return
+  sub.promoted = (sub.promoted ?? []).filter(p => p.name !== name)
+  delete sub.params[name]
+}

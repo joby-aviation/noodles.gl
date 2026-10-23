@@ -31,7 +31,9 @@ import { GIS_OPERATORS } from './gis.js';
  * `value` is anything a host application passes between its own operators (a view, an
  * extension, a loaded mesh). The planner never reads one; it only checks where it may flow.
  */
-export type PortType = 'table' | 'layer' | 'number' | 'value';
+export type PortType = 'table' | 'layer' | 'number' | 'value'
+  /** A subnet's boundary: it carries whatever is wired through it. */
+  | 'any';
 
 export interface PortSpec {
   name: string;
@@ -1377,20 +1379,20 @@ export const OPERATORS: OpDef[] = [
   {
     type: 'subnet', label: 'Subnetwork', category: 'structure',
     description: 'A network inside a node. Double-click to enter. Promote parameters to control the inside from here.',
-    inputs: [table('in0', 'in0', { optional: true }), table('in1', 'in1', { optional: true })],
-    outputs: [out('table', 'out0')],
+    inputs: [{ name: 'in0', type: 'any', label: 'in0', optional: true }, { name: 'in1', type: 'any', label: 'in1', optional: true }],
+    outputs: [out('any', 'out0')],
     params: [],
   },
   {
     type: 'subnet-input', label: 'Subnet Input', category: 'structure',
-    description: 'Inside a subnet: the table connected to the subnet\'s input.',
-    inputs: [], outputs: [out()],
+    description: 'Inside a subnet: what is connected to the subnet\'s input.',
+    inputs: [], outputs: [out('any')],
     params: [{ name: 'index', label: 'Input', kind: 'int', default: 0, min: 0, max: 1, step: 1, bind: 'structural' }],
   },
   {
     type: 'subnet-output', label: 'Subnet Output', category: 'structure',
     description: 'Inside a subnet: what the subnet outputs.',
-    inputs: [table()], outputs: [],
+    inputs: [{ name: 'in', type: 'any' }], outputs: [],
     params: [{ name: 'index', label: 'Output', kind: 'int', default: 0, min: 0, max: 0, step: 1, bind: 'structural' }],
   },
   ...GIS_OPERATORS,
@@ -1427,6 +1429,7 @@ export function bindingOf(def: ParamDef): 'value' | 'prop' | 'structural' {
 
 /** Whether an output port may feed an input port. */
 export function canConnect(from: PortType, to: PortType | 'param'): boolean {
+  if (from === 'any' || to === 'any') return true;
   if (to === 'param') return from === 'number';
   // A host value port takes anything; a host value may be a layer (a switch between two).
   if (to === 'value') return true;

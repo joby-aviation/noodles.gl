@@ -22,7 +22,10 @@ describe('the operator catalog', () => {
 
   it('gives a reason for every host operator and every dropped one', () => {
     const unexplained = Object.entries(OP_CATALOG)
-      .filter(([, p]) => (p.becomes === 'host' || p.becomes === 'dropped') && !p.reason)
+      .filter(
+        ([, p]) =>
+          (p.becomes === 'host' || p.becomes === 'dropped' || p.becomes === 'refused') && !p.reason
+      )
       .map(([type]) => type)
     expect(unexplained).toEqual([])
   })
