@@ -9,8 +9,8 @@ import {
   MapViewStateOp,
   RerouteOp,
 } from '../operators'
-import { getAllOps, getOp } from '../store'
-import { getParentPath, isDirectChild } from './path-utils'
+import { getOp } from '../store'
+import { getParentPath } from './path-utils'
 
 export const CAMERA_INPUT_NAMES = ['longitude', 'latitude', 'zoom', 'pitch', 'bearing'] as const
 type CameraInputName = (typeof CAMERA_INPUT_NAMES)[number]
@@ -83,7 +83,7 @@ function findIncomingEdge(edges: readonly GraphEdge[], target: string, targetHan
 
 // The input an operator copies unchanged to the output this edge leaves from, or null when
 // the operator computes its output. Containers pass values across their boundary: out.out
-// is the value of the container's first GraphOutputOp (as transformGraph wires it), and a
+// is the value of the GraphOutputOp the container selected (ContainerOp.outputOp), and a
 // GraphInputOp's out.value is the container's par.in. Custom container inputs are typed
 // fields that can coerce a value, so they don't count as pass-throughs.
 function passThroughInput(edge: GraphEdge): { target: string; targetHandle: string } | null {
@@ -99,9 +99,7 @@ function passThroughInput(edge: GraphEdge): { target: string; targetHandle: stri
     return { target: op.id, targetHandle: 'par.in' }
   }
   if (op instanceof ContainerOp && handle === 'out.out') {
-    const output = getAllOps().find(
-      child => child instanceof GraphOutputOp && isDirectChild(child.id, op.id)
-    )
+    const output = op.outputOp
     return output ? { target: output.id, targetHandle: 'par.value' } : null
   }
   if (op instanceof GraphInputOp && handle === 'out.value') {

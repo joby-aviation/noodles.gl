@@ -7590,13 +7590,21 @@ export class ContainerOp extends Operator<ContainerOp> {
     this.markDirty()
   }
 
+  // The GraphOutputOp whose value this container's out port carries: the one transformGraph
+  // selected, else the first direct child in the store
+  get outputOp(): GraphOutputOp | undefined {
+    return (
+      this.graphOutputOp ??
+      getAllOps().find(
+        (op): op is GraphOutputOp => op instanceof GraphOutputOp && isDirectChild(op.id, this.id)
+      )
+    )
+  }
+
   execute(_: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     // The 'in' port of ContainerOp drives its execution.
     // The 'out' port should reflect the value from a GraphOutputOp inside it.
-    const output =
-      this.graphOutputOp ??
-      getAllOps().find(op => op instanceof GraphOutputOp && isDirectChild(op.id, this.id))
-    return { out: output?.outputs.propagatedValue.value ?? null }
+    return { out: this.outputOp?.outputs.propagatedValue.value ?? null }
   }
 
   dispose() {

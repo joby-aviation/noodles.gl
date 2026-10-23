@@ -248,6 +248,18 @@ describe('selected map camera control', () => {
       expect(findViewCameraOpId(edges)).toBeNull()
     })
 
+    it('follows the GraphOutputOp the container selected, not store order', () => {
+      setOp('/scene/camera', new MapViewStateOp('/scene/camera'))
+      setOp('/scene/other-camera', new MapViewStateOp('/scene/other-camera'))
+      const edges = [...wireView().filter(e => e.target !== '/basemap'), ...wireContainerCamera()]
+      // Store order puts /scene/output first; transformGraph picked /scene/second-output
+      const second = new GraphOutputOp('/scene/second-output')
+      setOp('/scene/second-output', second)
+      ;(getOpStore().getOp('/scene') as ContainerOp).setGraphOutputOp(second)
+      edges.push(edge('/scene/other-camera', 'out.viewState', '/scene/second-output', 'par.value'))
+      expect(findViewCameraOpId(edges)).toBe('/scene/other-camera')
+    })
+
     it('returns null for a container without a GraphOutputOp', () => {
       setOp('/scene/camera', new MapViewStateOp('/scene/camera'))
       const edges = [...wireView().filter(e => e.target !== '/basemap'), ...wireContainerCamera()]

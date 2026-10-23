@@ -58,7 +58,10 @@ vi.mock('../noodles/hooks/use-render-settings', () => ({
 // the full operator registry out of the test also avoids eagerly starting DuckDB.
 vi.mock('../noodles/operators', () => ({
   BoundingBoxOp: class BoundingBoxOp {},
+  ContainerOp: class ContainerOp {},
   DeckRendererOp: class DeckRendererOp {},
+  GraphInputOp: class GraphInputOp {},
+  GraphOutputOp: class GraphOutputOp {},
   MaplibreBasemapOp: class MaplibreBasemapOp {},
   MapViewStateOp: class MapViewStateOp {},
   RerouteOp: class RerouteOp {},
