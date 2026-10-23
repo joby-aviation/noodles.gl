@@ -419,9 +419,10 @@ export const ChatPanel: FC<ChatPanelProps> = ({
     }
   }, [initialMessage, isVisible, messages.length])
 
-  // The quick start request the panel opened with, until it is sent. The effect
-  // above has already put it in the input, which outlives the onboarding.
-  const pendingRequest = initialMessage && messages.length === 0 ? initialMessage : null
+  // The unsent draft, previewed while onboarding hides the input. Read from the
+  // input rather than initialMessage: the effect above puts the quick start
+  // request there, but the user may have edited or cleared it since.
+  const pendingRequest = input.trim() ? input : null
 
   // Show onboarding when no provider is ready. Chrome counts only when it was
   // chosen, since resolveProviderId never picks it on its own.
@@ -1178,8 +1179,8 @@ function formatTokens(count: number): string {
   return count >= 1000 ? `${(count / 1000).toFixed(1)}k` : String(count)
 }
 
-// The request a user typed in the quick start, shown while onboarding covers the
-// input it is waiting in, so it does not look lost
+// The draft in the input, usually the quick start request, shown while
+// onboarding covers the input so it does not look lost
 const PendingRequest: FC<{ text: string }> = ({ text }) => (
   <section className={styles.pendingRequest} aria-label="Your request">
     <div className={styles.pendingRequestLabel}>Your request</div>

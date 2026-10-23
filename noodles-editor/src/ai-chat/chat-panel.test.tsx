@@ -449,6 +449,40 @@ describe('ChatPanel onboarding with a quick start request', () => {
     expect(onClose).toHaveBeenCalledTimes(1)
   })
 
+  // Connected, the user reworks the quick start request, then disconnects
+  async function editThenDisconnect(draft: string) {
+    getKeysStore().setBrowserKey('openrouter', 'sk-or-v1-test')
+    renderOnboarding()
+    await vi.waitFor(() =>
+      expect((screen.getByRole('textbox') as HTMLTextAreaElement).value).toBe(REQUEST)
+    )
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: draft } })
+    act(() => getKeysStore().clearBrowserKey('openrouter'))
+    await vi.waitFor(() => expect(screen.getByText('Connect an AI provider')).toBeTruthy())
+  }
+
+  it('previews the edited draft after a disconnect, not the original request', async () => {
+    const track = vi.spyOn(analytics, 'track')
+    await editThenDisconnect('Map only the stations in Brooklyn')
+
+    const request = screen.getByRole('region', { name: 'Your request' })
+    expect(request.textContent).toContain('Map only the stations in Brooklyn')
+    expect(request.textContent).not.toContain(REQUEST)
+    expect(track).toHaveBeenLastCalledWith('assistant_onboarding_shown', {
+      hasPendingRequest: true,
+    })
+  })
+
+  it('leaves out the request block after a disconnect when the draft was cleared', async () => {
+    const track = vi.spyOn(analytics, 'track')
+    await editThenDisconnect('')
+
+    expect(screen.queryByRole('region', { name: 'Your request' })).toBeNull()
+    expect(track).toHaveBeenLastCalledWith('assistant_onboarding_shown', {
+      hasPendingRequest: false,
+    })
+  })
+
   it('reports a shown onboarding with no request', async () => {
     const track = vi.spyOn(analytics, 'track')
     renderOnboarding({ request: null })
