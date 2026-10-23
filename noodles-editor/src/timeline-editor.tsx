@@ -208,7 +208,12 @@ export default function TimelineEditor() {
       firePropertyMutation('Move map camera', before)
     )
   )
-  const deckCameraGestureActiveRef = useRef(false)
+
+  // Starting playback or an export, or changing the selection, can turn camera control off
+  // mid-drag. Close the gesture then so the next drag takes a fresh history snapshot.
+  useEffect(() => {
+    if (!cameraControl.enabled) cameraHistoryRef.current.finish()
+  }, [cameraControl.enabled])
 
   const beginCameraGesture = useCallback(() => {
     if (!cameraControl.enabled) return
@@ -250,15 +255,14 @@ export default function TimelineEditor() {
     onInteractionStateChange: interactionState => {
       visualizationDeckProps?.onInteractionStateChange?.(interactionState)
       if (basemapEnabled || !cameraControl.enabled) return
-      const active = Boolean(
-        interactionState.isDragging ||
-          interactionState.isPanning ||
-          interactionState.isRotating ||
-          interactionState.isZooming
+      cameraHistoryRef.current.setInteracting(
+        Boolean(
+          interactionState.isDragging ||
+            interactionState.isPanning ||
+            interactionState.isRotating ||
+            interactionState.isZooming
+        )
       )
-      if (active && !deckCameraGestureActiveRef.current) beginCameraGesture()
-      if (!active && deckCameraGestureActiveRef.current) finishCameraGesture()
-      deckCameraGestureActiveRef.current = active
     },
     onDeviceInitialized: device => {
       visualizationDeckProps?.onDeviceInitialized?.(device)
