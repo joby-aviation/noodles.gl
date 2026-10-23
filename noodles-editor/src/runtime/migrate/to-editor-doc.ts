@@ -200,6 +200,154 @@ export const DEFAULTS: Record<string, Record<string, unknown>> = {
     widthScale: 20,
   },
   TimeSeriesOp: { currentTime: 0 },
+  TextLayerOp: {
+    visible: true,
+    opacity: 1,
+    getPosition: [0, 0, 0],
+    getText: '',
+    billboard: true,
+    fontFamily: 'Inter',
+    fontWeight: 400,
+    sizeUnits: 'pixels',
+    sizeScale: 1,
+    getSize: 48,
+    getColor: '#f0f0f0ff',
+    background: false,
+    getBackgroundColor: '#ffffffff',
+    outlineWidth: 0,
+    outlineColor: '#000000ff',
+    getAngle: 0,
+    getTextAnchor: 'middle',
+    getPixelOffset: [0, 0],
+    getAlignmentBaseline: 'center',
+  },
+  LineLayerOp: {
+    visible: true,
+    opacity: 1,
+    widthUnits: 'pixels',
+    widthScale: 1,
+    widthMinPixels: 0,
+    getSourcePosition: [0, 0, 0],
+    getTargetPosition: [0, 0, 0],
+    getColor: '#000000ff',
+    getWidth: 1,
+  },
+  PathLayerOp: {
+    visible: true,
+    opacity: 1,
+    getColor: '#006ac6ff',
+    getWidth: 8,
+    widthUnits: 'meters',
+    widthScale: 20,
+    widthMinPixels: 2,
+  },
+  PolygonLayerOp: {
+    visible: true,
+    opacity: 1,
+    filled: true,
+    stroked: true,
+    extruded: false,
+    elevationScale: 1,
+    lineWidthUnits: 'meters',
+    lineWidthScale: 1,
+    lineWidthMinPixels: 0,
+    getFillColor: '#000000ff',
+    getLineColor: '#000000ff',
+    getLineWidth: 1,
+    getElevation: 1000,
+  },
+  SolidPolygonLayerOp: {
+    visible: true,
+    opacity: 1,
+    getFillColor: '#ffffffff',
+    getLineColor: '#ffffffff',
+    getLineWidth: 0,
+  },
+  ColumnLayerOp: {
+    visible: true,
+    opacity: 1,
+    diskResolution: 20,
+    coverage: 1,
+    elevationScale: 1,
+    extruded: true,
+    radiusUnits: 'meters',
+    getPosition: [0, 0, 0],
+    getFillColor: '#000000ff',
+    getElevation: 1000,
+  },
+  GridCellLayerOp: {
+    visible: true,
+    opacity: 1,
+    cellSize: 1000,
+    coverage: 1,
+    elevationScale: 1,
+    extruded: true,
+    getPosition: [0, 0, 0],
+    getColor: '#000000ff',
+    getElevation: 1000,
+  },
+  PointCloudLayerOp: {
+    visible: true,
+    opacity: 1,
+    sizeUnits: 'pixels',
+    pointSize: 10,
+    getPosition: [0, 0, 0],
+    getNormal: [0, 0, 1],
+    getColor: '#000000ff',
+  },
+  IconLayerOp: {
+    visible: true,
+    opacity: 1,
+    getPosition: [0, 0, 0],
+    iconAtlas: 'https://raw.githubusercontent.com/visgl/deck.gl-data/master/website/icon-atlas.png',
+    iconMapping:
+      'https://raw.githubusercontent.com/visgl/deck.gl-data/master/website/icon-atlas.json',
+    billboard: true,
+    getIcon: '',
+    getSize: 1,
+    sizeUnits: 'pixels',
+    sizeScale: 1,
+    sizeMinPixels: 0,
+    getPixelOffset: [0, 0],
+    getColor: '#ffffffff',
+    getAngle: 0,
+  },
+  GreatCircleLayerOp: {
+    visible: true,
+    opacity: 1,
+    numSegments: 20,
+    widthUnits: 'pixels',
+    widthScale: 1,
+    widthMinPixels: 0,
+    getSourcePosition: [0, 0],
+    getTargetPosition: [0, 0],
+    getSourceColor: '#000000ff',
+    getTargetColor: '#000000ff',
+    getWidth: 1,
+  },
+  ScreenGridLayerOp: {
+    visible: true,
+    opacity: 1,
+    cellSizePixels: 50,
+    cellMarginPixels: 2,
+    aggregation: 'SUM',
+    getPosition: [0, 0, 0],
+    getWeight: 1,
+  },
+  ContourLayerOp: {
+    visible: true,
+    opacity: 1,
+    cellSize: 1000,
+    aggregation: 'SUM',
+    contours: [
+      { threshold: 1, color: [255, 0, 0] },
+      { threshold: 5, color: [0, 255, 0] },
+      { threshold: 10, color: [0, 0, 255] },
+    ],
+    zOffset: 0.005,
+    getPosition: [0, 0, 0],
+    getWeight: 1,
+  },
   CategoricalColorRampOp: { colorScheme: 'accent', steps: 8, value: '' },
   NumberOp: { val: 0 },
   SimpleMeshLayerOp: {
@@ -286,7 +434,26 @@ const PLANNER_LAYERS = new Set([
   'SimpleMeshLayerOp',
   'ScenegraphLayerOp',
   'TripsLayerOp',
+  'TextLayerOp',
+  'LineLayerOp',
+  'PathLayerOp',
+  'PolygonLayerOp',
+  'SolidPolygonLayerOp',
+  'ColumnLayerOp',
+  'GridCellLayerOp',
+  'PointCloudLayerOp',
+  'IconLayerOp',
+  'GreatCircleLayerOp',
+  'ScreenGridLayerOp',
+  'ContourLayerOp',
 ])
+
+/** Layers that draw a list column of each row (a path, a polygon) as vertex rows. */
+const LIST_LAYERS: Record<string, { field: string; fallback: string; kind: 'line' | 'polygon' }> = {
+  PathLayerOp: { field: 'getPath', fallback: 'path', kind: 'line' },
+  PolygonLayerOp: { field: 'getPolygon', fallback: 'polygon', kind: 'polygon' },
+  SolidPolygonLayerOp: { field: 'getPolygon', fallback: 'polygon', kind: 'polygon' },
+}
 
 /** Fixed categorical schemes and their lengths; CategoricalColorRamp slices the first `steps`. */
 const CATEGORICAL_SCHEMES: Record<string, number> = {
@@ -1574,6 +1741,89 @@ export function toEditorDoc(original: NoodlesProject): Migrated {
     return mode
   }
 
+  /** A layer input that must not vary per row, as a number. */
+  const constantOf = (value: Value, owner: string, field: string): number => {
+    if (value.kind !== 'const')
+      throw new MigrationError(`${owner}: a per-row ${field} is not converted`)
+    return num(value.value, 0)
+  }
+  /** A layer input that must not vary per row, as it is. */
+  const literalOf = (value: Value, owner: string, field: string): unknown => {
+    if (value.kind !== 'const')
+      throw new MigrationError(`${owner}: a per-row ${field} is not converted`)
+    return value.value
+  }
+  /** A pixel offset, [x, y] or { x, y }, that does not vary per row. */
+  const offsetOf = (value: Value, owner: string): [number, number] => {
+    const o = literalOf(value, owner, 'getPixelOffset')
+    if (Array.isArray(o)) return [num(o[0], 0), num(o[1], 0)]
+    const xy = (o ?? {}) as { x?: unknown; y?: unknown }
+    return [num(xy.x, 0), num(xy.y, 0)]
+  }
+  /**
+   * A string channel: the column an accessor reads (`d.city`), with the attribute that only
+   * copied it dropped, or the string attribute SQL computes for it.
+   */
+  const stringColumn = (value: Value, owner: string, field: string): string => {
+    if (value.kind !== 'row') throw new MigrationError(`${owner}: ${field} must read a column`)
+    const copy = [...chains.values()]
+      .flatMap(c => [...c.entries()])
+      .find(([, r]) => r.attribute === value.expr)
+    const column =
+      copy && copy[1].node.op === 'attribute' ? String(copy[1].node.params.expression) : value.expr
+    if (copy && /^[A-Za-z_]\w*$/.test(column) && column !== value.expr) {
+      for (const c of chains.values()) c.delete(copy[0])
+      used.add(copy[0])
+      return column
+    }
+    return value.expr
+  }
+
+  /**
+   * Rows whose list column is a path ([[lng, lat], ...]) or a polygon (a ring, or a list of
+   * rings) as the vertex rows of the geometry SQL makes of it, as a GeoJSON source has them.
+   */
+  const listGeometry = (
+    src: string,
+    column: string,
+    kind: 'line' | 'polygon',
+    near: NoodlesNode
+  ): string => {
+    const id = `${src}-${column}-${kind}s`
+    if (sources.has(id)) return sources.get(id) as string
+    const c = `to_json(${sqlIdent(column)})`
+    const coordinates =
+      kind === 'line'
+        ? c
+        : `CASE WHEN json_type(${c}, '$[0][0]') = 'ARRAY' THEN ${c} ELSE json_array(${c}) END`
+    const type = kind === 'line' ? 'LineString' : 'Polygon'
+    const at = position(near)
+    nodes.push({
+      id,
+      op: 'sql',
+      name: segment(id),
+      x: at.x - 520,
+      y: at.y,
+      params: {
+        query: `SELECT * EXCLUDE (${sqlIdent(column)}), ST_GeomFromGeoJSON(json_object('type', '${type}', 'coordinates', ${coordinates})) AS geom FROM {{input0}}`,
+      },
+    })
+    edge(src, sourcePort.get(src) ?? 'out', id, 'in0')
+    const rowsId = `${id}-rows`
+    nodes.push({
+      id: rowsId,
+      op: 'geojson',
+      name: segment(rowsId),
+      x: at.x - 260,
+      y: at.y,
+      params: { url: '' },
+    })
+    edge(id, 'out', rowsId, 'in')
+    sourcePort.set(rowsId, kind === 'line' ? 'lines' : 'polygons')
+    sources.set(id, rowsId)
+    return rowsId
+  }
+
   const dropUnmapped = (layer: NoodlesNode, mapped: string[]) => {
     for (const k of Object.keys(layer.data?.inputs ?? {})) {
       if (!mapped.includes(k) && !LAYER_IGNORED.has(k)) warnings.push(`${layer.id}: dropped '${k}'`)
@@ -2090,6 +2340,10 @@ export function toEditorDoc(original: NoodlesProject): Migrated {
         layer
       )
     }
+    // A path or polygon per row: its coordinate list a geometry, then vertex rows
+    const list = LIST_LAYERS[layer.type]
+    if (list)
+      src = listGeometry(src, listColumn(layer.id, list.field, list.fallback), list.kind, layer)
     if (layer.type !== 'GeoJsonLayerOp') layerSource.set(layer.id, src)
     const i = inputs(layer)
     const v = (field: string) => resolve(src, layer.id, field, i[field])
@@ -2097,6 +2351,8 @@ export function toEditorDoc(original: NoodlesProject): Migrated {
       opacity: num(i.opacity, 1),
       blend: blendOf(layer),
     }
+    const push = (op: string) =>
+      nodes.push({ id: layer.id, op, name: segment(layer.id), ...position(layer), params })
     if (i.visible === false) warnings.push(`${layer.id}: hidden layer converted as visible`)
 
     switch (layer.type) {
@@ -2184,6 +2440,316 @@ export function toEditorDoc(original: NoodlesProject): Migrated {
         geojsonLayer(layer, src, i, v, params, target.index)
         used.add(layer.id)
         return
+      }
+      case 'TextLayerOp': {
+        params.position = positionOf(v('getPosition'), layer.id)
+        params.text = stringColumn(v('getText'), layer.id, 'getText')
+        const color = colorInput(colorChannel(v('getColor')), layer.id, 'getColor')
+        params.color = color.channel ?? ''
+        if (color.color) params.textColor = color.color
+        const size = v('getSize')
+        const scale = num(i.sizeScale, 1)
+        params.sizeBy = size.kind === 'row' ? size.expr : ''
+        params.size = size.kind === 'row' ? scale : constantOf(size, layer.id, 'getSize') * scale
+        params.sizeUnits = String(i.sizeUnits)
+        params.angle = constantOf(v('getAngle'), layer.id, 'getAngle')
+        ;[params.offsetX, params.offsetY] = offsetOf(v('getPixelOffset'), layer.id)
+        params.anchor = String(literalOf(v('getTextAnchor'), layer.id, 'getTextAnchor'))
+        params.baseline = String(
+          literalOf(v('getAlignmentBaseline'), layer.id, 'getAlignmentBaseline')
+        )
+        params.fontFamily = String(i.fontFamily)
+        params.fontWeight = num(i.fontWeight, 400)
+        params.billboard = i.billboard !== false
+        params.outlineWidth = num(i.outlineWidth, 0)
+        const outline = colorInput(
+          i.outlineColor
+            ? { kind: 'const', value: i.outlineColor }
+            : { kind: 'const', value: '#000000' },
+          layer.id,
+          'outlineColor'
+        )
+        if (outline.color) params.outlineColor = outline.color
+        params.background = i.background === true
+        const background = colorInput(v('getBackgroundColor'), layer.id, 'getBackgroundColor')
+        if (background.color) params.backgroundColor = background.color
+        push('text')
+        dropUnmapped(layer, [
+          'opacity',
+          'visible',
+          'getPosition',
+          'getText',
+          'getColor',
+          'getSize',
+          'sizeScale',
+          'sizeUnits',
+          'getAngle',
+          'getPixelOffset',
+          'getTextAnchor',
+          'getAlignmentBaseline',
+          'fontFamily',
+          'fontWeight',
+          'billboard',
+          'outlineWidth',
+          'outlineColor',
+          'background',
+          'getBackgroundColor',
+        ])
+        break
+      }
+      case 'LineLayerOp':
+      case 'GreatCircleLayerOp': {
+        params.source = positionOf(v('getSourcePosition'), layer.id)
+        params.target = positionOf(v('getTargetPosition'), layer.id)
+        const width = v('getWidth')
+        params.width = width.kind === 'row' ? width.expr : ''
+        params.widthScale =
+          num(i.widthScale, 1) *
+          (width.kind === 'row' ? 1 : constantOf(width, layer.id, 'getWidth'))
+        params.widthUnits = String(i.widthUnits)
+        if (layer.type === 'LineLayerOp') {
+          const color = colorInput(colorChannel(v('getColor')), layer.id, 'getColor')
+          params.color = color.channel ?? ''
+          if (color.color) params.lineColor = color.color
+          params.widthMinPixels = num(i.widthMinPixels, 0)
+          push('line')
+        } else {
+          // An arc along the great circle, flat: deck's GreatCircleLayer is that ArcLayer
+          const from = colorInput(colorChannel(v('getSourceColor')), layer.id, 'getSourceColor')
+          const to = colorInput(colorChannel(v('getTargetColor')), layer.id, 'getTargetColor')
+          params.sourceColor = from.channel ?? ''
+          params.targetColor = to.channel ?? ''
+          if (from.color) params.fromColor = from.color
+          if (to.color) params.toColor = to.color
+          params.greatCircle = true
+          params.height = 0
+          push('arc')
+        }
+        dropUnmapped(layer, [
+          'opacity',
+          'visible',
+          'getSourcePosition',
+          'getTargetPosition',
+          'getColor',
+          'getSourceColor',
+          'getTargetColor',
+          'getWidth',
+          'widthScale',
+          'widthUnits',
+          'widthMinPixels',
+          'numSegments',
+        ])
+        break
+      }
+      case 'PathLayerOp': {
+        params.position = '[lng, lat]'
+        params.pathId = 'id'
+        params.order = 'vertex'
+        const color = colorInput(colorChannel(v('getColor')), layer.id, 'getColor')
+        params.color = color.channel ?? ''
+        if (color.color) params.lineColor = color.color
+        const width = v('getWidth')
+        params.width = width.kind === 'row' ? width.expr : ''
+        params.widthScale =
+          num(i.widthScale, 1) *
+          (width.kind === 'row' ? 1 : constantOf(width, layer.id, 'getWidth'))
+        params.widthUnits = String(i.widthUnits)
+        params.widthMinPixels = num(i.widthMinPixels, 0)
+        push('path')
+        dropUnmapped(layer, [
+          'opacity',
+          'visible',
+          'getPath',
+          'getColor',
+          'getWidth',
+          'widthScale',
+          'widthUnits',
+          'widthMinPixels',
+        ])
+        break
+      }
+      case 'PolygonLayerOp':
+      case 'SolidPolygonLayerOp': {
+        params.position = '[lng, lat]'
+        params.pathId = 'id'
+        params.ringId = 'ring'
+        params.order = 'vertex'
+        const fill = colorInput(colorChannel(v('getFillColor')), layer.id, 'getFillColor')
+        params.color = fill.channel ?? ''
+        if (fill.color) params.fillColor = fill.color
+        const solid = layer.type === 'SolidPolygonLayerOp'
+        params.filled = solid || i.filled !== false
+        params.stroked = !solid && i.stroked !== false
+        if (params.stroked) {
+          const line = colorInput(colorChannel(v('getLineColor')), layer.id, 'getLineColor')
+          params.lineColorChannel = line.channel ?? ''
+          if (line.color) params.lineColor = line.color
+          params.lineWidthScale =
+            constantOf(v('getLineWidth'), layer.id, 'getLineWidth') * num(i.lineWidthScale, 1)
+          params.lineWidthUnits = String(i.lineWidthUnits)
+          params.lineWidthMinPixels = num(i.lineWidthMinPixels, 0)
+        }
+        params.extruded = i.extruded === true
+        const elevation = v('getElevation')
+        params.elevation = elevation.kind === 'row' ? elevation.expr : ''
+        params.elevationScale =
+          num(i.elevationScale, 1) *
+          (elevation.kind === 'row' ? 1 : constantOf(elevation, layer.id, 'getElevation'))
+        push('polygon')
+        dropUnmapped(layer, [
+          'opacity',
+          'visible',
+          'getPolygon',
+          'getFillColor',
+          'getLineColor',
+          'getLineWidth',
+          'filled',
+          'stroked',
+          'lineWidthScale',
+          'lineWidthUnits',
+          'lineWidthMinPixels',
+          'extruded',
+          'getElevation',
+          'elevationScale',
+        ])
+        break
+      }
+      case 'ColumnLayerOp':
+      case 'GridCellLayerOp': {
+        params.position = positionOf(v('getPosition'), layer.id)
+        const colorField = layer.type === 'ColumnLayerOp' ? 'getFillColor' : 'getColor'
+        const fill = colorInput(colorChannel(v(colorField)), layer.id, colorField)
+        params.color = fill.channel ?? ''
+        const elevation = v('getElevation')
+        params.elevation = elevation.kind === 'row' ? elevation.expr : ''
+        params.elevationScale =
+          num(i.elevationScale, 1) *
+          (elevation.kind === 'row' ? 1 : constantOf(elevation, layer.id, 'getElevation'))
+        if (layer.type === 'ColumnLayerOp') {
+          if (fill.color) params.columnColor = fill.color
+          params.radius = num(i.radius, 1000)
+          if (String(i.radiusUnits) !== 'meters')
+            warnings.push(`${layer.id}: radius in ${i.radiusUnits} is read as metres`)
+          if (i.extruded === false) warnings.push(`${layer.id}: flat columns are drawn extruded`)
+          push('column')
+        } else {
+          if (fill.color) params.cellColor = fill.color
+          params.cellSize = num(i.cellSize, 1000)
+          params.coverage = num(i.coverage, 1)
+          params.extruded = i.extruded !== false
+          push('grid-cell')
+        }
+        dropUnmapped(layer, [
+          'opacity',
+          'visible',
+          'getPosition',
+          colorField,
+          'getElevation',
+          'elevationScale',
+          'radius',
+          'radiusUnits',
+          'extruded',
+          'cellSize',
+          'coverage',
+          'diskResolution',
+        ])
+        break
+      }
+      case 'PointCloudLayerOp': {
+        params.position = positionOf(v('getPosition'), layer.id)
+        const normal = v('getNormal')
+        params.normal = normal.kind === 'row' ? normal.expr : ''
+        const color = colorInput(colorChannel(v('getColor')), layer.id, 'getColor')
+        params.color = color.channel ?? ''
+        if (color.color) params.pointColor = color.color
+        params.pointSize = num(i.pointSize, 10)
+        params.sizeUnits = String(i.sizeUnits)
+        push('point-cloud')
+        dropUnmapped(layer, [
+          'opacity',
+          'visible',
+          'getPosition',
+          'getNormal',
+          'getColor',
+          'pointSize',
+          'sizeUnits',
+        ])
+        break
+      }
+      case 'IconLayerOp': {
+        params.position = positionOf(v('getPosition'), layer.id)
+        params.icon = stringColumn(v('getIcon'), layer.id, 'getIcon')
+        const color = colorInput(colorChannel(v('getColor')), layer.id, 'getColor')
+        params.color = color.channel ?? ''
+        if (color.color) params.iconColor = color.color
+        const size = v('getSize')
+        params.size = size.kind === 'row' ? size.expr : ''
+        params.sizeScale =
+          num(i.sizeScale, 1) * (size.kind === 'row' ? 1 : constantOf(size, layer.id, 'getSize'))
+        const angle = v('getAngle')
+        params.angle = angle.kind === 'row' ? angle.expr : ''
+        if (angle.kind !== 'row' && constantOf(angle, layer.id, 'getAngle') !== 0)
+          params.angle = lit(constantOf(angle, layer.id, 'getAngle'))
+        ;[params.offsetX, params.offsetY] = offsetOf(v('getPixelOffset'), layer.id)
+        params.iconAtlas = String(i.iconAtlas)
+        params.iconMapping =
+          typeof i.iconMapping === 'string' ? i.iconMapping : JSON.stringify(i.iconMapping ?? {})
+        params.sizeUnits = String(i.sizeUnits)
+        params.sizeMinPixels = num(i.sizeMinPixels, 0)
+        params.billboard = i.billboard !== false
+        push('icon')
+        dropUnmapped(layer, [
+          'opacity',
+          'visible',
+          'getPosition',
+          'getIcon',
+          'getColor',
+          'getSize',
+          'sizeScale',
+          'getAngle',
+          'getPixelOffset',
+          'iconAtlas',
+          'iconMapping',
+          'sizeUnits',
+          'sizeMinPixels',
+          'billboard',
+        ])
+        break
+      }
+      case 'ScreenGridLayerOp':
+      case 'ContourLayerOp': {
+        params.position = positionOf(v('getPosition'), layer.id)
+        const weight = v('getWeight')
+        params.weight = weight.kind === 'row' ? weight.expr : ''
+        if (weight.kind !== 'row' && constantOf(weight, layer.id, 'getWeight') !== 1) {
+          params.weight = lit(constantOf(weight, layer.id, 'getWeight'))
+        }
+        params.aggregation = String(i.aggregation)
+        if (layer.type === 'ScreenGridLayerOp') {
+          params.cellSizePixels = num(i.cellSizePixels, 50)
+          params.cellMarginPixels = num(i.cellMarginPixels, 2)
+          push('screen-grid')
+        } else {
+          params.cellSize = num(i.cellSize, 1000)
+          params.contours = JSON.stringify(i.contours ?? [])
+          params.zOffset = num(i.zOffset, 0.005)
+          push('contour')
+        }
+        dropUnmapped(layer, [
+          'opacity',
+          'visible',
+          'getPosition',
+          'getWeight',
+          'aggregation',
+          'cellSizePixels',
+          'cellMarginPixels',
+          'cellSize',
+          'contours',
+          'zOffset',
+          'gpuAggregation',
+          'colorRange',
+        ])
+        break
       }
       case 'TripsLayerOp': {
         // A path's positions may be 2D; its missing altitude is the ground.
