@@ -29,9 +29,18 @@ describe('trackRender', () => {
       source: 'agent',
       format: 'mp4',
       codec: 'vp9',
+      captureMode: 'final',
       resolution: '1080p',
       frameCount: 300,
     })
+  })
+
+  it('tracks preview exports by captureMode', () => {
+    trackRender({ ...render, captureMode: 'preview' })
+    expect(track).toHaveBeenCalledWith(
+      'render_started',
+      expect.objectContaining({ captureMode: 'preview' })
+    )
   })
 
   it('measures durationMs from the last restartClock', () => {

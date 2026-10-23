@@ -44,6 +44,7 @@ export function RenderSettingsPanel({ op }: RenderSettingsPanelProps) {
   const [exportAlpha, setExportAlpha] = useState(op.inputs.exportAlpha.value)
   const [waitForData, setWaitForData] = useState(op.inputs.waitForData.value)
   const [captureDelay, setCaptureDelay] = useState(op.inputs.captureDelay.value)
+  const [captureMode, setCaptureMode] = useState(op.inputs.captureMode.value)
   const [rendersDirectory, setRendersDirectory] = useState(op.inputs.rendersDirectory.value)
   const [sequenceFormat, setSequenceFormat] = useState(op.inputs.sequenceFormat.value)
 
@@ -62,6 +63,7 @@ export function RenderSettingsPanel({ op }: RenderSettingsPanelProps) {
       op.inputs.exportAlpha.subscribe(v => setExportAlpha(v)),
       op.inputs.waitForData.subscribe(v => setWaitForData(v)),
       op.inputs.captureDelay.subscribe(v => setCaptureDelay(v)),
+      op.inputs.captureMode.subscribe(v => setCaptureMode(v)),
       op.inputs.rendersDirectory.subscribe(v => setRendersDirectory(v)),
       op.inputs.sequenceFormat.subscribe(v => setSequenceFormat(v)),
     ]
@@ -95,6 +97,7 @@ export function RenderSettingsPanel({ op }: RenderSettingsPanelProps) {
     op.inputs.exportAlpha.setValue(DEFAULT_RENDER_SETTINGS.exportAlpha)
     op.inputs.waitForData.setValue(DEFAULT_RENDER_SETTINGS.waitForData)
     op.inputs.captureDelay.setValue(DEFAULT_RENDER_SETTINGS.captureDelay)
+    op.inputs.captureMode.setValue(DEFAULT_RENDER_SETTINGS.captureMode)
     op.inputs.rendersDirectory.setValue(DEFAULT_RENDER_SETTINGS.rendersDirectory)
     op.inputs.sequenceFormat.setValue(DEFAULT_RENDER_SETTINGS.sequenceFormat)
   }, [op])
@@ -335,6 +338,26 @@ export function RenderSettingsPanel({ op }: RenderSettingsPanelProps) {
         </div>
 
         <div className={s.settingRow}>
+          <label htmlFor="render-capture-mode" className={s.label}>
+            Capture
+          </label>
+          <select
+            id="render-capture-mode"
+            className={s.select}
+            value={captureMode}
+            onChange={e => op.inputs.captureMode.setValue(e.target.value as 'final' | 'preview')}
+          >
+            <option value="final">Final</option>
+            <option value="preview">Preview</option>
+          </select>
+        </div>
+        {captureMode === 'preview' && (
+          <div className={`${s.hint} ${s.fieldHint}`}>
+            Faster, but may drop frames. Not for handoffs or tests.
+          </div>
+        )}
+
+        <div className={s.settingRow}>
           <label htmlFor="render-capture-delay" className={s.label}>
             Delay
           </label>
@@ -346,6 +369,7 @@ export function RenderSettingsPanel({ op }: RenderSettingsPanelProps) {
             min="0"
             max="10000"
             step="50"
+            disabled={captureMode === 'preview'}
             onChange={e => op.inputs.captureDelay.setValue(Number(e.target.value))}
           />
           <span className={s.unit}>ms</span>

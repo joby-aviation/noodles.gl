@@ -73,3 +73,24 @@ describe('RenderSettingsPanel transparency', () => {
     expect(checkbox).toBeChecked()
   })
 })
+
+describe('RenderSettingsPanel capture mode', () => {
+  it('defaults to Final, and warns and ignores the delay in Preview', () => {
+    const op = new OutOp('/out')
+    render(<RenderSettingsPanel op={op} />)
+
+    const mode = screen.getByLabelText('Capture')
+    const delay = screen.getByLabelText('Delay')
+    expect(mode).toHaveValue('final')
+    expect(delay).toBeEnabled()
+    expect(screen.queryByText(/may drop frames/)).not.toBeInTheDocument()
+
+    fireEvent.change(mode, { target: { value: 'preview' } })
+    expect(op.inputs.captureMode.value).toBe('preview')
+    expect(delay).toBeDisabled()
+    expect(screen.getByText(/may drop frames/)).toBeInTheDocument()
+
+    fireEvent.click(screen.getByText('Reset to Defaults'))
+    expect(op.inputs.captureMode.value).toBe('final')
+  })
+})

@@ -4628,6 +4628,10 @@
           "type": "NumberField",
           "default": 50
         },
+        "captureMode": {
+          "type": "StringLiteralField",
+          "default": "final"
+        },
         "rendersDirectory": {
           "type": "StringField",
           "default": "renders"

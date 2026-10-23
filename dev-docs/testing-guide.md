@@ -105,7 +105,89 @@ npm test -- --coverage
 
 # Run only the Node tests for CLI scripts
 npm test -- --project node
+
+# Run performance tests
+npm test export-performance
 ```
+
+## Testing Rendering and Video Export
+
+Tests for the rendering pipeline live in `noodles-editor/src/render/`.
+
+### Performance Tests
+
+**File:** `noodles-editor/src/render/export-performance.test.ts`
+
+Covers the `captureDelay` and `waitForData` render settings on `OutOp`.
+
+```bash
+npm test export-performance
+```
+
+### Debugging Render Performance
+
+Enable debug logging in browser console to see detailed timing:
+
+```javascript
+// In browser console
+localStorage.debug = 'noodles:render*'
+
+// Then reload and trigger export
+// Check console for timing logs. Every export logs the per-frame breakdown
+// (wait, capture, encode). Preview exports (Capture: Preview on the Out node) also log:
+// - "onRender ready Xms after redraw" - captured on the map's render event
+// - "onIdle fallback Xms after redraw" - the render event missed, idle captured instead
+```
+
+**Common timing patterns in preview exports:**
+- **Good**: "onRender ready 36ms after redraw" → using the render event, fast
+- **Bad**: "onIdle fallback 350ms after redraw" → falling back to the slow idle path
+
+### What to Look For in Test Failures
+
+**Performance test failures:**
+- `OutOp` render settings changed → update the settings tests
+
+### Adding New Rendering Tests
+
+When modifying the rendering pipeline:
+
+1. **Add unit tests** for logic changes (e.g., new timing calculations)
+2. **Add performance tests** for new optimization strategies
+3. **Document expected timing** in test comments
+
+**Example test structure:**
+```typescript
+it('should use new optimization strategy', () => {
+  // Setup: Create mock scenario
+  let optimizationApplied = false
+  
+  // Act: Simulate render flow
+  const result = simulateRenderWithOptimization()
+  
+  // Assert: Verify optimization was applied
+  expect(result.timingSaved).toBeGreaterThan(100)
+  expect(optimizationApplied).toBe(true)
+})
+```
+
+### Updating Performance Baselines
+
+When intentional performance changes occur:
+
+1. **Measure new baseline** using debug logging or Playwright
+2. **Update documentation** in test comments
+3. **Document reason** in PR description
+
+**When to update baselines:**
+- Hardware upgrades (CI infrastructure changes)
+- Major optimization improvements (new algorithm)
+- Browser engine updates (WebGL/GPU changes)
+
+**When NOT to update baselines:**
+- Test failures without investigation
+- Unexplained performance degradation
+- Minor fluctuations (<10% variance)
 
 ## Test Runbooks for PRs
 

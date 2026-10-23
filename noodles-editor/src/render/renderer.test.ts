@@ -1,5 +1,6 @@
 import { act, renderHook } from '@testing-library/react'
 import { decodeRgba } from 'exrjs'
+import maplibregl from 'maplibre-gl'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { getTimelineStore } from '../timeline/timeline-store'
 import { analytics } from '../utils/analytics'
@@ -227,6 +228,7 @@ describe('useRenderer', () => {
           source: 'agent',
           format: 'mp4',
           codec,
+          captureMode: 'final',
           resolution: 'under_720p',
           frameCount: 5,
           durationMs: expect.any(Number),
@@ -238,6 +240,63 @@ describe('useRenderer', () => {
       }
     }
   )
+
+  // Preview freezes MapLibre's clock at each frame's time; final leaves it alone.
+  it.for([
+    ['final', false],
+    ['preview', true],
+  ] as const)('%s capture freezes the map clock: %s', async ([captureMode, freezes]) => {
+    vi.useRealTimers()
+    const setNow = vi.spyOn(maplibregl, 'setNow')
+    const restoreNow = vi.spyOn(maplibregl, 'restoreNow')
+    const canvas = document.createElement('canvas')
+    canvas.width = 64
+    canvas.height = 64
+    document.body.appendChild(canvas)
+    const ctx = canvas.getContext('2d')!
+
+    try {
+      const redraw = vi.fn(() => {
+        ctx.fillRect(0, 0, 64, 64)
+        queueMicrotask(() => result.current.captureFrame())
+      })
+      const { result } = renderHook(() =>
+        useRenderer({ fps: 30, bitrate: 1_000_000, bitrateMode: 'constant', redraw })
+      )
+
+      let capture: CaptureResult | undefined
+      await act(async () => {
+        capture = await result.current.startCapture({
+          canvas,
+          width: 64,
+          height: 64,
+          codec: 'vp9',
+          captureMode,
+          fps: 10,
+          startFrame: 0,
+          endFrame: 2,
+          target: 'buffer',
+          source: 'agent',
+        })
+      })
+
+      expect(capture?.status === 'error' ? capture.error.message : capture?.status).toBe('done')
+      if (freezes) {
+        // Once at the start frame for warmup, then once per frame
+        expect(setNow.mock.calls.map(([ms]) => ms)).toEqual([0, 0, 100, 200])
+        expect(restoreNow).toHaveBeenCalledTimes(1)
+      } else {
+        expect(setNow).not.toHaveBeenCalled()
+        expect(restoreNow).not.toHaveBeenCalled()
+      }
+      expect(track).toHaveBeenCalledWith('render_started', expect.objectContaining({ captureMode }))
+    } finally {
+      canvas.remove()
+      setNow.mockRestore()
+      restoreNow.mockRestore()
+      vi.useFakeTimers()
+    }
+  })
 
   it('downloads the video when the browser has no save dialog', async ({ skip }) => {
     vi.useRealTimers()
@@ -428,6 +487,7 @@ describe('useRenderer analytics on failure', () => {
       source: 'agent',
       format: 'mp4',
       codec: 'av1',
+      captureMode: 'final',
       resolution: '4k',
       frameCount: 10,
       durationMs: expect.any(Number),

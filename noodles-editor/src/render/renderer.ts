@@ -1,10 +1,12 @@
 import { assert, type Deck } from '@deck.gl/core'
+import maplibregl from 'maplibre-gl'
 import { useCallback, useRef, useState } from 'react'
 import { checkFileSystemSupport } from '../noodles/utils/filesystem'
 import { getTimelineStore, useTimelineStore } from '../timeline/timeline-store'
 import { analytics } from '../utils/analytics'
 import { debugRender, debugRenderFrame } from '../utils/debug'
 import { CanvasFrameReader } from './capture-canvas-frame'
+import { PREVIEW_FRAME_DELAY } from './draw-loop'
 import { encodeExrFrame, loadExrEncoder } from './exr-export'
 import {
   CanvasReplacedError,
@@ -22,6 +24,8 @@ export const rafDriver = {
 
 export type VideoCodec = 'hevc' | 'avc' | 'vp9' | 'av1'
 export type SequenceFormat = 'png' | 'exr'
+// final waits for each frame to settle; preview is faster but can drop frames
+export type CaptureMode = 'final' | 'preview'
 
 const codecMap = {
   hevc: {
@@ -108,6 +112,7 @@ export const useRenderer = ({
       height,
       codec,
       exportAlpha = false,
+      captureMode = 'final',
       fps: captureFps = fps,
       startFrame = 0,
       endFrame = Math.floor(sequenceLength * captureFps),
@@ -123,6 +128,8 @@ export const useRenderer = ({
       codec: VideoCodec
       // Keep the canvas's transparency: VP9 in a WebM file instead of an MP4
       exportAlpha?: boolean
+      // preview freezes MapLibre's clock per frame and captures on the first render
+      captureMode?: CaptureMode
       fps?: number
       startFrame?: number
       endFrame?: number
@@ -139,6 +146,7 @@ export const useRenderer = ({
         source,
         format: exportAlpha ? 'webm' : 'mp4',
         codec,
+        captureMode,
         width,
         height,
         frameCount: endFrame - startFrame + 1,
@@ -384,6 +392,14 @@ export const useRenderer = ({
           return buffer
         }
 
+        // Preview freezes MapLibre's clock at each frame's time, so a frame can be
+        // captured on its first render event instead of waiting for idle.
+        if (captureMode === 'preview') {
+          const virtualTimeStart = (startFrame / fps) * 1000
+          maplibregl.setNow(virtualTimeStart)
+          debugRender('Time frozen at %dms (frame %d)', virtualTimeStart, startFrame)
+        }
+
         // Seek to start frame and wait for render to complete before capturing.
         // This prevents stale frames from being encoded if the playhead was
         // at a different position when render started.
@@ -410,6 +426,9 @@ export const useRenderer = ({
         for (; i < endFrame + 1; i++) {
           const frameIterationStart = performance.now()
           const simTime = i / fps
+
+          if (captureMode === 'preview') maplibregl.setNow(simTime * 1000)
+
           setPosition(simTime)
           redraw()
 
@@ -525,6 +544,8 @@ export const useRenderer = ({
         if (error instanceof FrameTimeoutError) return fail('timeout', error)
         return fail('exception', error instanceof Error ? error : new Error(String(error)))
       } finally {
+        // Restore real time after a preview export completes or fails
+        if (captureMode === 'preview') maplibregl.restoreNow()
         // A failed export releases what it holds: the pending frame read, the encoder,
         // and the output, which closes the chosen file. Retrying then starts clean.
         if (!finished) {
@@ -547,6 +568,7 @@ export const useRenderer = ({
       directoryHandle,
       format = 'png',
       captureDelay = 200,
+      captureMode = 'final',
       waitForData = true,
       startFrame = 0,
       endFrame = Math.floor(sequenceLength * fps),
@@ -560,6 +582,7 @@ export const useRenderer = ({
       directoryHandle: FileSystemDirectoryHandle
       format?: SequenceFormat
       captureDelay?: number
+      captureMode?: CaptureMode
       waitForData?: boolean
       startFrame?: number
       endFrame?: number
@@ -578,6 +601,7 @@ export const useRenderer = ({
       const tracker = trackRender({
         source: 'menu',
         format: `${format}_sequence`,
+        captureMode,
         width: canvas.width,
         height: canvas.height,
         frameCount: totalFrames,
@@ -600,7 +624,8 @@ export const useRenderer = ({
               debugRender('deck waiting for layers to load')
               return
             }
-            setTimeout(() => captureFrame(), captureDelay)
+            const delay = captureMode === 'preview' ? PREVIEW_FRAME_DELAY : captureDelay
+            setTimeout(() => captureFrame(), delay)
           },
         })
       }
