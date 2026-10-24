@@ -17,6 +17,10 @@ describe('humanizeFieldName', () => {
     ['geojson', 'GeoJSON'],
     ['inputGeojson', 'Input GeoJSON'],
     ['kml', 'KML'],
+    // Object.prototype keys must not be read as special-cased words
+    ['constructor', 'Constructor'],
+    ['toString', 'To string'],
+    ['__proto__', 'Proto'],
     ['get', 'Get'],
     ['val', 'Val'],
   ])('%s -> %s', (name, label) => {
@@ -60,6 +64,14 @@ describe('getFieldDocs', () => {
     const op = new CodeOp('/code')
     op.addCustomInput({ id: 'a', name: 'maxSpeed', type: 'number', order: 0, defaultValue: 5 })
     expect(getFieldDocs('maxSpeed', op.getAllInputs().maxSpeed, op).label).toBe('maxSpeed')
+  })
+
+  it('ignores inherited keys when looking up layer prop docs', () => {
+    const op = new ArcLayerOp('/arc')
+    expect(getFieldDocs('constructor', new NumberField(1), op)).toEqual({
+      label: 'Constructor',
+      description: undefined,
+    })
   })
 
   it('humanizes the key when nothing else applies', () => {

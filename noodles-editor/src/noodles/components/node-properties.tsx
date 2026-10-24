@@ -453,7 +453,7 @@ function CompoundSubFields({
         }
         const subDocs = getFieldDocs(subName, subField, field.op)
         return (
-          <div key={subName} className={s.compoundSubField}>
+          <div key={subName} className={s.compoundSubField} data-field-row>
             <FieldTooltip fieldKey={subName} description={subDocs.description} side="left">
               <span
                 className={cx(s.compoundSubFieldLabel, {
@@ -909,6 +909,7 @@ export function NodeProperties({ nodeId }: { nodeId: string }) {
                   <div
                     key={input.name}
                     role="listitem"
+                    data-field-row
                     className={cx(s.property, s.propertyWithAction)}
                     onContextMenu={e => {
                       e.preventDefault()
@@ -1074,6 +1075,7 @@ export function NodeProperties({ nodeId }: { nodeId: string }) {
             <div
               key={output.name}
               role="listitem"
+              data-field-row
               className={s.property}
               onContextMenu={e => {
                 e.preventDefault()

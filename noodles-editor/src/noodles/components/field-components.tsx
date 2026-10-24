@@ -2850,6 +2850,7 @@ export function FieldComponent({
     // biome-ignore lint/a11y/noStaticElementInteractions: right-click menu is a shortcut; the same actions are reachable via the Properties Panel context menu
     <div
       style={{ position: 'relative' }}
+      data-field-row
       onContextMenu={canDrive || isDriven ? onContextMenu : undefined}
     >
       {handle &&

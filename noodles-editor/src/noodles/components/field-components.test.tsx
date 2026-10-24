@@ -2,6 +2,7 @@ import { act, cleanup, fireEvent, render, screen, within } from '@testing-librar
 import { ReactFlowProvider } from '@xyflow/react'
 import { Temporal } from 'temporal-polyfill'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { userEvent } from 'vitest/browser'
 import {
   BezierCurveField,
   BooleanField,
@@ -902,18 +903,52 @@ describe('CompoundFieldComponent', () => {
     expect(screen.getByText('Depth test')).toHaveAttribute('data-field-key', 'depthTest')
   })
 
-  it('shows the description and field key in a tooltip', async () => {
+  it('shows the description and field key in a tooltip on hover', async () => {
     const field = new NumberField(1, { description: 'How wide each line is.' })
     render(<NumberFieldComponent id="lineWidth" field={field} disabled={false} />)
 
-    // Timers are fake in tests, so advance past the open delay
+    // Timers are fake in tests, so advance past the hover delay
     await act(async () => {
-      fireEvent.focus(screen.getByText('Line width'))
+      await userEvent.hover(screen.getByText('Line width'))
       await vi.advanceTimersByTimeAsync(500)
     })
     const tooltip = screen.getByRole('tooltip')
     expect(tooltip).toHaveTextContent('How wide each line is.')
     expect(tooltip).toHaveTextContent('lineWidth')
+  })
+
+  it('shows the description when keyboard focus reaches the field input', async () => {
+    const field = new NumberField(1, { description: 'How wide each line is.' })
+    render(
+      <ReactFlowProvider>
+        <FieldComponent id="lineWidth" field={field} disabled={false} />
+      </ReactFlowProvider>
+    )
+
+    await act(async () => {
+      await userEvent.keyboard('{Tab}')
+    })
+    const input = screen.getByRole('spinbutton')
+    expect(input).toHaveFocus()
+    expect(screen.getByRole('tooltip')).toHaveTextContent('How wide each line is.')
+    // Screen readers get the description from the focused input itself
+    const describedBy = document.getElementById(input.getAttribute('aria-describedby') ?? '')
+    expect(describedBy).toHaveTextContent('How wide each line is.')
+  })
+
+  it('does not open the tooltip when the input is clicked', async () => {
+    const field = new NumberField(1, { description: 'How wide each line is.' })
+    render(
+      <ReactFlowProvider>
+        <FieldComponent id="lineWidth" field={field} disabled={false} />
+      </ReactFlowProvider>
+    )
+
+    await act(async () => {
+      await userEvent.click(screen.getByRole('spinbutton'))
+    })
+    expect(screen.getByRole('spinbutton')).toHaveFocus()
+    expect(screen.queryByRole('tooltip')).toBeNull()
   })
 
   it('uses the shared layer label for layer parameters', () => {

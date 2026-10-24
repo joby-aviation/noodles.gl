@@ -54,7 +54,7 @@ export function humanizeFieldName(name: string): string {
     .filter(Boolean)
     .map(word => {
       const lower = word.toLowerCase()
-      if (WORD_CASE[lower]) return WORD_CASE[lower]
+      if (Object.hasOwn(WORD_CASE, lower)) return WORD_CASE[lower]
       return ACRONYMS.has(lower) ? word.toUpperCase() : lower
     })
 
@@ -189,7 +189,10 @@ function isLayerOperator(op: OperatorLike | undefined): boolean {
 type FieldLike = { label?: string; description?: string }
 
 export function getFieldDocs(name: string, field: FieldLike, op?: OperatorLike): FieldDocs {
-  const shared = isLayerOperator(op) ? LAYER_FIELD_DOCS[name] : undefined
+  const shared =
+    isLayerOperator(op) && Object.hasOwn(LAYER_FIELD_DOCS, name)
+      ? LAYER_FIELD_DOCS[name]
+      : undefined
   return {
     label: field.label ?? shared?.label ?? humanizeFieldName(name),
     description: field.description ?? shared?.description,
