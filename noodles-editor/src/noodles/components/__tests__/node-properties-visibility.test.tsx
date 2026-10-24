@@ -95,11 +95,24 @@ describe('NodeProperties field visibility editing', () => {
     )
   }
 
+  // Rows show friendly labels with the field key as the tooltip. The field component's own
+  // (hidden) <label> has the same tooltip, so pick the panel's span
+  const getRowLabel = (fieldName: string) => {
+    const label = screen.getAllByTitle(fieldName).find(el => el.tagName === 'SPAN')
+    expect(label).toBeDefined()
+    return label!
+  }
+
   const findFieldActionButton = (fieldName: string) => {
-    const fieldLabel = screen.getByText(fieldName)
+    const fieldLabel = getRowLabel(fieldName)
     const propertyItem = fieldLabel.closest('[role="listitem"]')
     expect(propertyItem).toBeInTheDocument()
     return propertyItem?.querySelector('button')
+  }
+
+  // Fields hidden by default are collapsed under "More settings"
+  const showMoreSettings = () => {
+    fireEvent.click(screen.getByRole('button', { name: /More settings/ }))
   }
 
   describe('Field visibility controls', () => {
@@ -117,6 +130,7 @@ describe('NodeProperties field visibility editing', () => {
     it('shows add buttons (eye icons) for hidden fields', () => {
       const node = setupOperator('DeckRendererOp', '/deck')
       renderNodeProperties(node)
+      showMoreSettings()
 
       // Find add buttons by aria-label
       const addButtons = screen.getAllByLabelText('Show field')
@@ -125,13 +139,18 @@ describe('NodeProperties field visibility editing', () => {
       expect(addButtons[0].querySelector('svg')).toBeInTheDocument()
     })
 
-    it('all fields are always visible in list', () => {
+    it('lists hidden fields under a collapsed "More settings" group', () => {
       const node = setupOperator('DeckRendererOp', '/deck')
       renderNodeProperties(node)
 
-      // Both visible and hidden fields should be present
-      // 'effects' is hidden by default but should still be in the list
-      expect(screen.getByText('effects')).toBeInTheDocument()
+      // 'effects' is hidden by default, so it starts collapsed
+      const toggle = screen.getByRole('button', { name: /More settings/ })
+      expect(toggle).toHaveAttribute('aria-expanded', 'false')
+      expect(screen.queryAllByTitle('effects')).toHaveLength(0)
+
+      fireEvent.click(toggle)
+      expect(toggle).toHaveAttribute('aria-expanded', 'true')
+      expect(getRowLabel('effects')).toBeInTheDocument()
     })
   })
 
@@ -145,6 +164,7 @@ describe('NodeProperties field visibility editing', () => {
       expect(op.inputs.effects.showByDefault).toBe(false)
       expect(op.isFieldVisible('effects')).toBe(false)
 
+      showMoreSettings()
       const addButton = findFieldActionButton('effects')
       expect(addButton?.querySelector('svg')).toBeInTheDocument()
       fireEvent.click(addButton!)
@@ -159,7 +179,7 @@ describe('NodeProperties field visibility editing', () => {
       const node = setupOperator('NumberOp', '/num')
       renderNodeProperties(node)
 
-      expect(screen.getByLabelText('val')).toBeInTheDocument()
+      expect(screen.getByLabelText('Val')).toBeInTheDocument()
       expect(screen.getByRole('button', { name: /keyframe/i })).toBeInTheDocument()
     })
 
@@ -198,7 +218,7 @@ describe('NodeProperties field visibility editing', () => {
         data: { inputs: {} },
       })
 
-      expect(screen.queryByLabelText('val')).not.toBeInTheDocument()
+      expect(screen.queryByLabelText('Val')).not.toBeInTheDocument()
       expect(screen.queryByRole('button', { name: /keyframe/i })).not.toBeInTheDocument()
     })
   })
@@ -282,7 +302,7 @@ describe('NodeProperties field visibility editing', () => {
       expect(op.inputs.opacity.defaultValue).toBe(1)
 
       // Find the opacity field and click its − button
-      const opacityText = screen.getByText('opacity')
+      const opacityText = getRowLabel('opacity')
       const propertyContainer = opacityText.closest('[class*="property"]')
       const hideButton = propertyContainer?.querySelector('button')
       fireEvent.click(hideButton!)
@@ -378,8 +398,7 @@ describe('NodeProperties field visibility editing', () => {
       const node = setupOperator('GeoJsonLayerOp', '/geo', { opacity: 0.5 })
       renderNodeProperties(node)
 
-      // Use selector: 'span' to target the property label, not the field input label
-      const opacityLabel = screen.getByText('opacity', { selector: 'span' })
+      const opacityLabel = getRowLabel('opacity')
       fireEvent.contextMenu(opacityLabel.closest('[role="listitem"]')!)
 
       expect(screen.getByText('Reset to default')).toBeInTheDocument()
@@ -390,7 +409,7 @@ describe('NodeProperties field visibility editing', () => {
       const node = setupOperator('GeoJsonLayerOp', '/geo', { opacity: 1 })
       renderNodeProperties(node)
 
-      const opacityLabel = screen.getByText('opacity', { selector: 'span' })
+      const opacityLabel = getRowLabel('opacity')
       fireEvent.contextMenu(opacityLabel.closest('[role="listitem"]')!)
 
       expect(screen.getByText('Reset to default')).toBeDisabled()
@@ -400,7 +419,7 @@ describe('NodeProperties field visibility editing', () => {
       const node = setupOperator('GeoJsonLayerOp', '/geo', { opacity: 0.5 })
       renderNodeProperties(node)
 
-      const opacityLabel = screen.getByText('opacity', { selector: 'span' })
+      const opacityLabel = getRowLabel('opacity')
       fireEvent.contextMenu(opacityLabel.closest('[role="listitem"]')!)
       fireEvent.click(screen.getByText('Reset to default'))
 
@@ -437,7 +456,7 @@ describe('NodeProperties field visibility editing', () => {
 
       renderNodeProperties({ id: '/geo' })
 
-      const opacityLabel = screen.getByText('opacity')
+      const opacityLabel = getRowLabel('opacity')
       fireEvent.contextMenu(opacityLabel.closest('[role="listitem"]')!)
 
       expect(screen.getByText('Reset to default')).toBeDisabled()
@@ -453,7 +472,7 @@ describe('NodeProperties field visibility editing', () => {
       )
       renderNodeProperties(node)
 
-      const basemapLabel = screen.getByText('basemap')
+      const basemapLabel = getRowLabel('basemap')
       fireEvent.contextMenu(basemapLabel.closest('[role="listitem"]')!)
 
       expect(screen.getByText('Reset to default')).toBeInTheDocument()
@@ -469,6 +488,7 @@ describe('NodeProperties field visibility editing', () => {
       expect(op.isFieldVisible('effects')).toBe(false)
 
       // Show the effects field
+      showMoreSettings()
       const addButton = findFieldActionButton('effects')
       fireEvent.click(addButton!)
 

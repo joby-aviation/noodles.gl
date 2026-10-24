@@ -54,7 +54,7 @@ describe('per-field expression mode UI', () => {
     const op = new NumberOp('/num')
     setOp('/num', op)
     renderField(op)
-    fireEvent.contextMenu(screen.getByText('val'))
+    fireEvent.contextMenu(screen.getByText('Val'))
     expect(screen.getByText('Edit expression')).toBeTruthy()
   })
 
@@ -64,7 +64,7 @@ describe('per-field expression mode UI', () => {
     op.inputs.val.setValue(12)
     renderField(op)
 
-    fireEvent.contextMenu(screen.getByText('val'))
+    fireEvent.contextMenu(screen.getByText('Val'))
     fireEvent.click(screen.getByText('Edit expression'))
 
     expect(op.inputs.val.expression).toEqual('12')
@@ -78,7 +78,7 @@ describe('per-field expression mode UI', () => {
     setOp('/num', op)
     renderField(op)
 
-    fireEvent.contextMenu(screen.getByText('val'))
+    fireEvent.contextMenu(screen.getByText('Val'))
     fireEvent.click(screen.getByText('Edit expression'))
     const input = screen.getByPlaceholderText('Enter expression…')
     fireEvent.change(input, { target: { value: '2 + 3' } })
@@ -94,7 +94,7 @@ describe('per-field expression mode UI', () => {
     setOp('/num', op)
     renderField(op)
 
-    fireEvent.contextMenu(screen.getByText('val'))
+    fireEvent.contextMenu(screen.getByText('Val'))
     fireEvent.click(screen.getByText('Edit expression'))
     const input = screen.getByPlaceholderText('Enter expression…')
     fireEvent.change(input, { target: { value: '2 +' } })
@@ -108,7 +108,7 @@ describe('per-field expression mode UI', () => {
     setOp('/num', op)
     renderField(op)
 
-    fireEvent.contextMenu(screen.getByText('val'))
+    fireEvent.contextMenu(screen.getByText('Val'))
     fireEvent.click(screen.getByText('Edit expression'))
     const input = screen.getByPlaceholderText('Enter expression…')
     fireEvent.change(input, { target: { value: "op('/missing').out.val" } })
@@ -123,14 +123,14 @@ describe('per-field expression mode UI', () => {
     setOp('/num', op)
     renderField(op)
 
-    fireEvent.contextMenu(screen.getByText('val'))
+    fireEvent.contextMenu(screen.getByText('Val'))
     fireEvent.click(screen.getByText('Edit expression'))
     const input = screen.getByPlaceholderText('Enter expression…')
     fireEvent.change(input, { target: { value: '40 + 2' } })
     fireEvent.blur(input)
     expect(op.inputs.val.value).toEqual(42)
 
-    fireEvent.contextMenu(screen.getByText('val'))
+    fireEvent.contextMenu(screen.getByText('Val'))
     fireEvent.click(screen.getByText('Remove expression'))
 
     expect(op.inputs.val.expression).toBeNull()
@@ -144,7 +144,7 @@ describe('per-field expression mode UI', () => {
     setOp('/num', op)
     renderField(op)
 
-    fireEvent.contextMenu(screen.getByText('val'))
+    fireEvent.contextMenu(screen.getByText('Val'))
     fireEvent.click(screen.getByText('Edit expression'))
     const input = screen.getByPlaceholderText('Enter expression…')
     fireEvent.change(input, { target: { value: 'await Promise.resolve(5)' } })
@@ -184,7 +184,7 @@ describe('per-field expression mode UI', () => {
     })
     renderField(op)
 
-    fireEvent.contextMenu(screen.getByText('val'))
+    fireEvent.contextMenu(screen.getByText('Val'))
     fireEvent.click(screen.getByText('Edit expression'))
     const input = screen.getByPlaceholderText('Enter expression…')
     fireEvent.change(input, { target: { value: "op('/source').out.val + 1" } })
@@ -210,7 +210,7 @@ describe('per-field expression mode UI', () => {
         <FieldComponent id="expression" field={exprOp.inputs.expression} disabled={false} />
       </ReactFlowProvider>
     )
-    fireEvent.contextMenu(screen.getByText('expression'))
+    fireEvent.contextMenu(screen.getByText('Expression'))
     expect(screen.queryByText('Edit expression')).toBeNull()
   })
 })

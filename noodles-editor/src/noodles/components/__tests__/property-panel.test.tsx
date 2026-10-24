@@ -387,10 +387,12 @@ describe('NodeProperties', () => {
     wrapWithProviders(<NodeProperties nodeId="/bitmap" />)
 
     // Should show the bounds field (explicitly visible)
-    expect(screen.getByText('bounds')).toBeInTheDocument()
+    expect(screen.getByText('Bounds', { selector: 'span' })).toHaveAttribute('title', 'bounds')
 
     // The bounds field should render as a vector field (4 numeric inputs)
-    const propertyList = screen.getByText('bounds').closest('[class*="propertyList"]')
+    const propertyList = screen
+      .getByText('Bounds', { selector: 'span' })
+      .closest('[class*="propertyList"]')
     expect(propertyList).toBeInTheDocument()
   })
 })

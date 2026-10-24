@@ -17,7 +17,7 @@ import {
   Vec2Field,
   Vec3Field,
 } from '../fields'
-import { BitmapLayerOp, NumberOp, StringOp } from '../operators'
+import { ArcLayerOp, BitmapLayerOp, NumberOp, StringOp } from '../operators'
 import { clearOps, setOp } from '../store'
 import { FieldEditScope } from '../utils/field-edit-analytics'
 import { applyOperatorInputs, registerPropertyMutationCallback } from '../utils/property-history'
@@ -410,12 +410,12 @@ describe('TextFieldComponent', () => {
     expect(input).toHaveValue('hello <script>alert("xss")</script>')
   })
 
-  it('renders label with field id', () => {
+  it('renders the friendly label with the field id as its tooltip', () => {
     const field = new StringField('test')
     render(<TextFieldComponent id="myFieldName" field={field} disabled={false} />)
 
-    const label = screen.getByText('myFieldName')
-    expect(label).toBeInTheDocument()
+    const label = screen.getByText('My field name')
+    expect(label).toHaveAttribute('title', 'myFieldName')
   })
 })
 
@@ -484,12 +484,12 @@ describe('BooleanFieldComponent', () => {
     expect(checkbox).toBeChecked()
   })
 
-  it('renders label with field id', () => {
+  it('renders the friendly label with the field id as its tooltip', () => {
     const field = new BooleanField(true)
     render(<BooleanFieldComponent id="visible" field={field} disabled={false} />)
 
-    const label = screen.getByText('visible')
-    expect(label).toBeInTheDocument()
+    const label = screen.getByText('Visible')
+    expect(label).toHaveAttribute('title', 'visible')
   })
 
   it('has disabled attribute when disabled prop is true', () => {
@@ -568,12 +568,12 @@ describe('DateFieldComponent', () => {
     expect(input).toHaveAttribute('step', '0.001')
   })
 
-  it('renders label with field id', () => {
+  it('renders the friendly label with the field id as its tooltip', () => {
     const field = new DateField(Temporal.PlainDateTime.from('2024-01-15T10:30:00'))
     render(<DateFieldComponent id="startDate" field={field} disabled={false} />)
 
-    const label = screen.getByText('startDate')
-    expect(label).toBeInTheDocument()
+    const label = screen.getByText('Start date')
+    expect(label).toHaveAttribute('title', 'startDate')
   })
 })
 
@@ -588,8 +588,8 @@ describe('EmptyFieldComponent', () => {
     const field = new DataField()
     render(<EmptyFieldComponent id="data" field={field} />)
 
-    const label = screen.getByText('data')
-    expect(label).toBeInTheDocument()
+    const label = screen.getByText('Data')
+    expect(label).toHaveAttribute('title', 'data')
 
     // Should not have any interactive inputs
     expect(screen.queryByRole('textbox')).not.toBeInTheDocument()
@@ -601,8 +601,8 @@ describe('EmptyFieldComponent', () => {
     const field = new DataField()
     render(<EmptyFieldComponent id="customDataField" field={field} />)
 
-    const label = screen.getByText('customDataField')
-    expect(label).toBeInTheDocument()
+    const label = screen.getByText('Custom data field')
+    expect(label).toHaveAttribute('title', 'customDataField')
   })
 })
 
@@ -885,8 +885,35 @@ describe('CompoundFieldComponent', () => {
     fireEvent.click(hiddenPropsButton)
 
     // Should be expanded again - sub-field labels should appear
-    expect(screen.getByText('x')).toBeInTheDocument()
-    expect(screen.getByText('y')).toBeInTheDocument()
+    expect(screen.getByText('X')).toBeInTheDocument()
+    expect(screen.getByText('Y')).toBeInTheDocument()
+  })
+
+  it('renders the friendly label with the field id as its tooltip', () => {
+    const field = new CompoundPropsField({ depthTest: new BooleanField(true) })
+    render(
+      <ReactFlowProvider>
+        <CompoundFieldComponent id="lightSettings" field={field} disabled={false} />
+      </ReactFlowProvider>
+    )
+
+    const button = screen.getByRole('button', { name: /Light settings/ })
+    expect(button).toHaveAttribute('title', 'lightSettings')
+    expect(screen.getByText('Depth test')).toHaveAttribute('title', 'depthTest')
+  })
+
+  it('uses the shared layer label for layer parameters', () => {
+    const op = new ArcLayerOp('/arc')
+    render(
+      <ReactFlowProvider>
+        <CompoundFieldComponent id="parameters" field={op.inputs.parameters} disabled={false} />
+      </ReactFlowProvider>
+    )
+
+    expect(screen.getByRole('button', { name: /Render parameters/ })).toHaveAttribute(
+      'title',
+      'parameters'
+    )
   })
 
   it('renders sub-fields when expanded', () => {
@@ -901,8 +928,8 @@ describe('CompoundFieldComponent', () => {
     )
 
     // Should be expanded by default and have sub-field labels
-    expect(screen.getByText('x')).toBeInTheDocument()
-    expect(screen.getByText('y')).toBeInTheDocument()
+    expect(screen.getByText('X')).toBeInTheDocument()
+    expect(screen.getByText('Y')).toBeInTheDocument()
     const inputs = screen.getAllByRole('spinbutton')
     expect(inputs).toHaveLength(2)
   })
@@ -985,12 +1012,12 @@ describe('ColorFieldComponent', () => {
     expect(colorSwatch).toBeInTheDocument()
   })
 
-  it('renders label with field id', () => {
+  it('renders the friendly label with the field id as its tooltip', () => {
     const field = new ColorField('#00ff00ff')
     render(<ColorFieldComponent id="fillColor" field={field} disabled={false} />)
 
-    const label = screen.getByText('fillColor')
-    expect(label).toBeInTheDocument()
+    const label = screen.getByText('Fill color')
+    expect(label).toHaveAttribute('title', 'fillColor')
   })
 
   // BitmapLayerOp's transparentColor and tintColor are optional and default to no value.
@@ -1093,12 +1120,12 @@ describe('NumberFieldComponent edge cases', () => {
     expect(input).toHaveAttribute('max', '100')
   })
 
-  it('renders label with field id', () => {
+  it('renders the friendly label with the field id as its tooltip', () => {
     const field = new NumberField(42)
     render(<NumberFieldComponent id="myNumber" field={field} disabled={false} />)
 
-    const label = screen.getByText('myNumber')
-    expect(label).toBeInTheDocument()
+    const label = screen.getByText('My number')
+    expect(label).toHaveAttribute('title', 'myNumber')
   })
 })
 
