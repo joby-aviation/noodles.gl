@@ -7029,8 +7029,16 @@ export class TextLayerOp extends Operator<TextLayerOp> {
       getPosition: new Point3DField([0, 0, 0], { returnType: 'tuple', accessor: true }),
       getText: new StringField('', { accessor: true }),
       billboard: new BooleanField(true),
-      fontFamily: new StringField('Inter'),
-      fontWeight: new NumberField(400, { min: 100, max: 900, step: 100 }),
+      fontFamily: new StringField('Inter', {
+        description:
+          "CSS font family for the labels, e.g. 'Inter' or 'Georgia, serif'. The font must be available.",
+      }),
+      fontWeight: new NumberField(400, {
+        min: 100,
+        max: 900,
+        step: 100,
+        description: 'CSS font weight, from 100 (thin) to 900 (black). 400 is normal, 700 is bold.',
+      }),
       sizeUnits: new StringLiteralField('pixels', {
         values: ['pixels', 'meters', 'common'],
         showByDefault: false,
@@ -7044,53 +7052,81 @@ export class TextLayerOp extends Operator<TextLayerOp> {
       }),
       getSize: new NumberField(48, { min: 0, softMax: 200, accessor: true }),
       getColor: new ColorField('#f0f0f0', { accessor: true, transform: hexToColor }),
-      background: new BooleanField(false, { showByDefault: false }),
+      background: new BooleanField(false, {
+        showByDefault: false,
+        description:
+          'Draw a box behind each label, using Background color and the border settings.',
+      }),
       getBackgroundColor: new ColorField('#ffffffff', {
         accessor: true,
         transform: hexToColor,
         showByDefault: false,
+        description: 'Fill color of the box behind each label. Only drawn when Background is on.',
       }),
       getBorderColor: new ColorField('#000000ff', {
         accessor: true,
         transform: hexToColor,
         showByDefault: false,
+        description: "Color of the border around each label's background box. Needs Background on.",
       }),
       getBorderWidth: new NumberField(0, {
         min: 0,
         softMax: 20,
         accessor: true,
         showByDefault: false,
+        description:
+          "Width of the border around each label's background box, in pixels. 0 hides it.",
       }),
       backgroundPadding: new Vec2Field(
         { x: 0, y: 0 },
-        { returnType: 'tuple', showByDefault: false }
+        {
+          returnType: 'tuple',
+          showByDefault: false,
+          description:
+            'Space between the text and the edge of its background box, as [x, y] in pixels.',
+        }
       ),
       backgroundBorderRadius: new NumberField(0, {
         min: 0,
         softMax: 100,
         showByDefault: true,
+        description:
+          "Corner radius of each label's background box, in pixels. 0 gives square corners.",
       }),
       lineHeight: new NumberField(1, {
         min: 0,
         softMax: 4,
         step: 0.05,
         showByDefault: false,
+        description: 'Spacing between lines of multi-line labels, as a multiple of the text size.',
       }),
       outlineWidth: new NumberField(0, {
         min: 0,
         softMax: 12,
         step: 0.1,
         showByDefault: false,
+        description:
+          'Width of the outline around the text, relative to text size. Only works with SDF on in Font settings.',
       }),
       outlineColor: new ColorField('#000000ff', {
         transform: hexToColor,
         showByDefault: false,
+        description:
+          'Color of the outline around the text. Only visible when Outline width is above 0.',
       }),
       wordBreak: new StringLiteralField('break-word', {
         values: ['break-word', 'break-all'],
         showByDefault: false,
+        description:
+          "Where long labels wrap: 'break-word' at spaces, 'break-all' at any character. Needs Max width.",
       }),
-      maxWidth: new NumberField(-1, { min: -1, softMax: 100, showByDefault: false }),
+      maxWidth: new NumberField(-1, {
+        min: -1,
+        softMax: 100,
+        showByDefault: false,
+        description:
+          'Wrap labels longer than this many times the text size. -1 turns off wrapping.',
+      }),
       getAngle: new NumberField(0, {
         softMin: 0,
         softMax: 360,
@@ -7110,14 +7146,20 @@ export class TextLayerOp extends Operator<TextLayerOp> {
         accessor: true,
         showByDefault: false,
       }),
-      fontSettings: new CompoundPropsField({
-        sdf: new BooleanField(false),
-        fontSize: new NumberField(64, { min: 8, softMax: 256 }),
-        buffer: new NumberField(4, { min: 0, softMax: 20 }),
-        radius: new NumberField(12, { min: 0, softMax: 50 }),
-        cutoff: new NumberField(0.25, { min: 0, max: 1, step: 0.01 }),
-        smoothing: new NumberField(0.1, { min: 0, max: 1, step: 0.01 }),
-      }),
+      fontSettings: new CompoundPropsField(
+        {
+          sdf: new BooleanField(false),
+          fontSize: new NumberField(64, { min: 8, softMax: 256 }),
+          buffer: new NumberField(4, { min: 0, softMax: 20 }),
+          radius: new NumberField(12, { min: 0, softMax: 50 }),
+          cutoff: new NumberField(0.25, { min: 0, max: 1, step: 0.01 }),
+          smoothing: new NumberField(0.1, { min: 0, max: 1, step: 0.01 }),
+        },
+        {
+          description:
+            'Font atlas options: SDF rendering (needed for outlines), atlas font size, buffer, radius, cutoff, smoothing.',
+        }
+      ),
       parameters: new CompoundPropsField(
         {
           depthTest: new BooleanField(true),
@@ -7196,6 +7238,8 @@ export class IconLayerOp extends Operator<IconLayerOp> {
         values: ['height', 'width'],
         showByDefault: false,
         optional: true,
+        description:
+          "Whether Size sets each icon's height or its width. The other side keeps the icon's aspect ratio.",
       }),
       parameters: new CompoundPropsField(
         {
@@ -7402,11 +7446,23 @@ export class ScenegraphLayerOp extends Operator<ScenegraphLayerOp> {
       opacity: new NumberField(1, { min: 0, max: 1, step: 0.01 }),
       scenegraph: new FileUrlField(
         'https://raw.githubusercontent.com/visgl/deck.gl-data/master/examples/scenegraph-layer/airplane.glb',
-        { accept: '.glb,.gltf' }
+        {
+          accept: '.glb,.gltf',
+          label: 'Model',
+          description: 'URL of the glTF or GLB 3D model drawn at each position.',
+        }
       ),
       getPosition: new Point3DField([0, 0, 0], { returnType: 'tuple', accessor: true }),
-      getOrientation: new Vec3Field([0, 0, 0], { returnType: 'tuple', accessor: true }),
-      getScale: new Vec3Field([1, 1, 1], { returnType: 'tuple', accessor: true }),
+      getOrientation: new Vec3Field([0, 0, 0], {
+        returnType: 'tuple',
+        accessor: true,
+        description: 'Rotation of each model as [pitch, yaw, roll], in degrees.',
+      }),
+      getScale: new Vec3Field([1, 1, 1], {
+        returnType: 'tuple',
+        accessor: true,
+        description: "Scale of each model along each axis as [x, y, z]. 1 is the model's own size.",
+      }),
       sizeScale: new NumberField(1, { min: 0, softMax: 10_000, showByDefault: false }),
       sizeMinPixels: new NumberField(0, { min: 0, softMax: 100, showByDefault: false }),
       sizeMaxPixels: new NumberField(100, { min: 0, softMax: 100, showByDefault: false }),
@@ -7415,6 +7471,8 @@ export class ScenegraphLayerOp extends Operator<ScenegraphLayerOp> {
         returnType: 'tuple',
         accessor: true,
         showByDefault: false,
+        description:
+          'Offset of each model from its position as [x, y, z] (east, north, up), in meters.',
       }),
       parameters: new CompoundPropsField(
         {
@@ -7450,20 +7508,38 @@ export class SimpleMeshLayerOp extends Operator<SimpleMeshLayerOp> {
       visible: new BooleanField(true),
       opacity: new NumberField(1, { min: 0, max: 1, step: 0.01 }),
       mesh: new StringField(
-        'https://raw.githubusercontent.com/visgl/deck.gl-data/master/website/humanoid_quad.obj'
+        'https://raw.githubusercontent.com/visgl/deck.gl-data/master/website/humanoid_quad.obj',
+        {
+          description:
+            'URL of the OBJ or PLY mesh drawn at each position. Files not ending in .obj load as PLY.',
+        }
       ),
       wireframe: new BooleanField(false, { showByDefault: false }),
       texture: new UnknownField(null, { optional: true, showByDefault: false }),
-      textureParameters: new DataField(undefined, { showByDefault: false }),
+      textureParameters: new DataField(undefined, {
+        showByDefault: false,
+        description:
+          "Sampler settings for the texture, e.g. { minFilter: 'linear', magFilter: 'nearest' }.",
+      }),
       getPosition: new Point3DField([0, 0, 0], { returnType: 'tuple', accessor: true }),
       getColor: new ColorField('#000000', { accessor: true, transform: hexToColor }),
-      getOrientation: new Vec3Field([0, 0, 0], { returnType: 'tuple', accessor: true }),
-      getScale: new Vec3Field([1, 1, 1], { returnType: 'tuple', accessor: true }),
+      getOrientation: new Vec3Field([0, 0, 0], {
+        returnType: 'tuple',
+        accessor: true,
+        description: 'Rotation of each mesh as [pitch, yaw, roll], in degrees.',
+      }),
+      getScale: new Vec3Field([1, 1, 1], {
+        returnType: 'tuple',
+        accessor: true,
+        description: "Scale of each mesh along each axis as [x, y, z]. 1 is the mesh's own size.",
+      }),
       sizeScale: new NumberField(1, { min: 0, softMax: 1000, showByDefault: false }),
       getTranslation: new Vec3Field([0, 0, 0], {
         returnType: 'tuple',
         accessor: true,
         showByDefault: false,
+        description:
+          'Offset of each mesh from its position as [x, y, z] (east, north, up), in meters.',
       }),
       parameters: new CompoundPropsField(
         {
@@ -7504,7 +7580,11 @@ export class H3HexagonLayerOp extends Operator<H3HexagonLayerOp> {
       data: new DataField(),
       visible: new BooleanField(true),
       opacity: new NumberField(1, { min: 0, max: 1, step: 0.01 }),
-      getHexagon: new StringField('', { accessor: true }),
+      getHexagon: new StringField('', {
+        accessor: true,
+        label: 'H3 cell',
+        description: 'H3 cell ID (hex string) for each row; that hexagon is drawn on the map.',
+      }),
       getFillColor: new ColorField('#fff', { accessor: true, transform: hexToColor }),
       getRadius: new NumberField(1, { min: 0, accessor: true }),
       getLineWidth: new NumberField(1, { min: 0, accessor: true }),
@@ -7542,7 +7622,12 @@ export class A5LayerOp extends Operator<A5LayerOp> {
       data: new DataField(),
       visible: new BooleanField(true),
       opacity: new NumberField(1, { min: 0, max: 1, step: 0.01 }),
-      getPentagon: new UnknownField((d: unknown) => d?.pentagon || '', { accessor: true }),
+      getPentagon: new UnknownField((d: unknown) => d?.pentagon || '', {
+        accessor: true,
+        label: 'A5 cell',
+        description:
+          "A5 cell ID for each row (hex string or bigint). Reads the row's pentagon by default.",
+      }),
       getFillColor: new ColorField('#fff', { accessor: true, transform: hexToColor }),
       getElevation: new NumberField(1000, { min: 0, softMax: 100000, accessor: true }),
       elevationScale: new NumberField(1, { min: 0, softMax: 100, showByDefault: false }),
@@ -7627,6 +7712,7 @@ export class GeoJsonLayerOp extends Operator<GeoJsonLayerOp> {
       pointType: new StringLiteralField('circle', {
         values: ['circle', 'icon', 'text', 'circle+text', 'icon+text', 'circle+icon'],
         showByDefault: false,
+        description: 'How point features are drawn: circles, icons, text labels, or a combination.',
       }),
       getPointRadius: new NumberField(1, {
         min: 0,
@@ -7639,10 +7725,29 @@ export class GeoJsonLayerOp extends Operator<GeoJsonLayerOp> {
         values: ['pixels', 'meters'],
         showByDefault: false,
       }),
-      pointRadiusScale: new NumberField(1, { min: 0, softMax: 100, showByDefault: false }),
-      pointRadiusMinPixels: new NumberField(0, { min: 0, softMax: 100, showByDefault: false }),
-      pointRadiusMaxPixels: new NumberField(100, { min: 0, softMax: 1000, showByDefault: false }),
-      pointRadiusBillboard: new BooleanField(false, { showByDefault: false }),
+      pointRadiusScale: new NumberField(1, {
+        min: 0,
+        softMax: 100,
+        showByDefault: false,
+        description: 'Multiplier applied to every point radius.',
+      }),
+      pointRadiusMinPixels: new NumberField(0, {
+        min: 0,
+        softMax: 100,
+        showByDefault: false,
+        description: 'Smallest a point can draw on screen, in pixels, at any zoom.',
+      }),
+      pointRadiusMaxPixels: new NumberField(100, {
+        min: 0,
+        softMax: 1000,
+        showByDefault: false,
+        description: 'Largest a point can draw on screen, in pixels, at any zoom.',
+      }),
+      pointRadiusBillboard: new BooleanField(false, {
+        showByDefault: false,
+        description:
+          'When on, point circles always face the camera instead of lying flat on the ground.',
+      }),
 
       // pointType: icon
 
@@ -7653,17 +7758,20 @@ export class GeoJsonLayerOp extends Operator<GeoJsonLayerOp> {
         softMax: 200,
         accessor: true,
         showByDefault: false,
+        description: 'Label size for each point, in Text size units (pixels by default).',
       }),
       getTextColor: new ColorField('#000000', {
         accessor: true,
         transform: hexToColor,
         showByDefault: false,
+        description: 'Label color for each point, used when Point type includes text.',
       }),
       getTextAngle: new NumberField(0, {
         softMin: 0,
         softMax: 360,
         accessor: true,
         showByDefault: false,
+        description: 'Label rotation for each point, in degrees counterclockwise.',
       }),
       getTextAnchor: new StringLiteralField('middle', {
         values: ['start', 'middle', 'end'],
@@ -7674,21 +7782,55 @@ export class GeoJsonLayerOp extends Operator<GeoJsonLayerOp> {
         values: ['top', 'center', 'bottom'],
         accessor: true,
         showByDefault: false,
+        description:
+          'Vertical placement of each label relative to its point: top, center, or bottom.',
       }),
       getTextPixelOffset: new Vec2Field(
         { x: 0, y: 0 },
-        { returnType: 'tuple', accessor: true, showByDefault: false }
+        {
+          returnType: 'tuple',
+          accessor: true,
+          showByDefault: false,
+          description: 'Shifts each label by [x, y] screen pixels; x goes right, y goes down.',
+        }
       ),
       textSizeUnits: new StringLiteralField('pixels', {
         values: ['pixels', 'meters'],
         showByDefault: false,
+        description: 'Units for Text size: pixels stay fixed on screen, meters scale with zoom.',
       }),
-      textSizeScale: new NumberField(1, { min: 0, softMax: 100, showByDefault: false }),
-      textSizeMinPixels: new NumberField(0, { min: 0, softMax: 100, showByDefault: false }),
-      textSizeMaxPixels: new NumberField(100, { min: 0, showByDefault: false }),
-      textBillboard: new BooleanField(true, { showByDefault: false }),
-      textFontFamily: new StringField('Monaco, monospace', { showByDefault: false }),
-      textFontWeight: new NumberField(400, { min: 100, max: 900, step: 100, showByDefault: false }),
+      textSizeScale: new NumberField(1, {
+        min: 0,
+        softMax: 100,
+        showByDefault: false,
+        description: 'Multiplier applied to every label size, after Text size units.',
+      }),
+      textSizeMinPixels: new NumberField(0, {
+        min: 0,
+        softMax: 100,
+        showByDefault: false,
+        description: 'Smallest a label can draw on screen, in pixels.',
+      }),
+      textSizeMaxPixels: new NumberField(100, {
+        min: 0,
+        showByDefault: false,
+        description: 'Largest a label can draw on screen, in pixels.',
+      }),
+      textBillboard: new BooleanField(true, {
+        showByDefault: false,
+        description: 'When on, labels always face the camera. When off, they lie flat on the map.',
+      }),
+      textFontFamily: new StringField('Monaco, monospace', {
+        showByDefault: false,
+        description: "CSS font family for labels, e.g. 'Monaco, monospace'.",
+      }),
+      textFontWeight: new NumberField(400, {
+        min: 100,
+        max: 900,
+        step: 100,
+        showByDefault: false,
+        description: 'Label font weight, 100 (thin) to 900 (heavy). 400 is normal.',
+      }),
 
       // polygon (core fields visible by default)
       filled: new BooleanField(true),
@@ -7706,10 +7848,23 @@ export class GeoJsonLayerOp extends Operator<GeoJsonLayerOp> {
       lineWidthScale: new NumberField(1, { min: 0, softMax: 100, showByDefault: false }),
       lineWidthMinPixels: new NumberField(0, { min: 0, softMax: 100, showByDefault: false }),
       lineWidthMaxPixels: new NumberField(100, { min: 0, softMax: 1000, showByDefault: false }),
-      lineCapRounded: new BooleanField(false, { showByDefault: false }),
+      lineCapRounded: new BooleanField(false, {
+        showByDefault: false,
+        description: 'Draws rounded ends on lines instead of square ones.',
+      }),
       lineJointRounded: new BooleanField(false, { showByDefault: false }),
-      lineMiterLimit: new NumberField(4, { min: 0, softMax: 10, showByDefault: false }),
-      lineBillboard: new BooleanField(false, { showByDefault: false }),
+      lineMiterLimit: new NumberField(4, {
+        min: 0,
+        softMax: 10,
+        showByDefault: false,
+        description:
+          'How far sharp line corners can extend, in multiples of line width. Ignored when Line joint rounded is on.',
+      }),
+      lineBillboard: new BooleanField(false, {
+        showByDefault: false,
+        description:
+          'When on, line width always faces the camera. When off, lines lie flat on the ground.',
+      }),
       lineAntialiasing: new BooleanField(false, { showByDefault: false }),
 
       // 3d (hidden by default)
@@ -7722,7 +7877,11 @@ export class GeoJsonLayerOp extends Operator<GeoJsonLayerOp> {
         showByDefault: false,
       }),
       elevationScale: new NumberField(1, { min: 0, softMax: 100, showByDefault: false }),
-      _full3d: new BooleanField(false, { showByDefault: false }),
+      _full3d: new BooleanField(false, {
+        showByDefault: false,
+        description:
+          'Fills polygons with varying heights (e.g. walls) on their own plane, not flat. Experimental.',
+      }),
       parameters: new CompoundPropsField(
         {
           depthTest: new BooleanField(true),
@@ -7816,14 +7975,22 @@ export class GridLayerOp extends Operator<GridLayerOp> {
       getPosition: new Point3DField([0, 0, 0], { returnType: 'tuple', accessor: true }),
       cellSize: new NumberField(1000, { min: 1, softMax: 100000 }),
 
-      getColorWeight: new NumberField(1, { min: 0, accessor: true }),
+      getColorWeight: new NumberField(1, {
+        min: 0,
+        accessor: true,
+        description: "Value each row adds to its cell's color. Combined using Color aggregation.",
+      }),
       colorAggregation: new StringLiteralField('SUM', {
         values: ['SUM', 'MEAN', 'MIN', 'MAX', 'COUNT'],
+        description:
+          'How row weights in a cell combine into its color value. COUNT ignores the weight.',
       }),
       // TODO: Support the second agg option, getColorValue?
       colorScaleType: new StringLiteralField('quantize', {
         values: ['linear', 'quantize', 'quantile', 'ordinal'],
         showByDefault: false,
+        description:
+          'How cell values map onto Color range. Quantize splits evenly, quantile by equal counts.',
       }),
       colorRange: new UnknownField(DEFAULT_COLOR_RANGE, { optional: true }),
       // TODO: Support default color range
@@ -7835,29 +8002,49 @@ export class GridLayerOp extends Operator<GridLayerOp> {
       lowerPercentile: new NumberField(0, { min: 0, max: 100, step: 0.1, showByDefault: false }),
 
       extruded: new BooleanField(true),
-      getElevationWeight: new NumberField(1, { min: 0, accessor: true }),
+      getElevationWeight: new NumberField(1, {
+        min: 0,
+        accessor: true,
+        description:
+          "Value each row adds to its cell's height. Combined using Elevation aggregation.",
+      }),
       elevationAggregation: new StringLiteralField('SUM', {
         values: ['SUM', 'MEAN', 'MIN', 'MAX', 'COUNT'],
+        description:
+          'How row weights in a cell combine into its height value. COUNT ignores the weight.',
       }),
       // TODO: Support the second agg option, getElevationValue?
       elevationScaleType: new StringLiteralField('linear', {
         values: ['linear', 'quantile'],
         showByDefault: false,
+        description:
+          'How cell values map onto Elevation range: linear, or quantile (equal counts).',
       }),
       elevationScale: new NumberField(1, { min: 0, softMax: 100, showByDefault: false }),
-      elevationRange: new Vec2Field([0, 1000], { returnType: 'tuple', showByDefault: false }),
-      elevationDomain: new UnknownField(null, { optional: true, showByDefault: false }), // number[2] | null for auto
+      elevationRange: new Vec2Field([0, 1000], {
+        returnType: 'tuple',
+        showByDefault: false,
+        description: '[min, max] cell height in meters, before Elevation scale is applied.',
+      }),
+      elevationDomain: new UnknownField(null, {
+        optional: true,
+        showByDefault: false,
+        description:
+          '[min, max] cell values mapped to Elevation range. Empty uses 0 to the largest value.',
+      }), // number[2] | null for auto
       elevationUpperPercentile: new NumberField(100, {
         min: 0,
         max: 100,
         step: 0.1,
         showByDefault: false,
+        description: 'Hides cells whose height value is above this percentile, 0 to 100.',
       }),
       elevationLowerPercentile: new NumberField(0, {
         min: 0,
         max: 100,
         step: 0.1,
         showByDefault: false,
+        description: 'Hides cells whose height value is below this percentile, 0 to 100.',
       }),
 
       coverage: new NumberField(1, { min: 0, max: 1, step: 0.01, showByDefault: false }),
@@ -7897,16 +8084,29 @@ export class HexagonLayerOp extends Operator<HexagonLayerOp> {
       visible: new BooleanField(true),
       opacity: new NumberField(1, { min: 0, max: 1, step: 0.01 }),
       getPosition: new Point3DField([0, 0, 0], { returnType: 'tuple', accessor: true }),
-      radius: new NumberField(1000, { min: 1, softMax: 100000 }),
+      radius: new NumberField(1000, {
+        min: 1,
+        softMax: 100000,
+        description: 'Radius of each hexagon bin, in meters. Hexagons are pointy-topped.',
+      }),
 
-      getColorWeight: new NumberField(1, { min: 0, accessor: true }),
+      getColorWeight: new NumberField(1, {
+        min: 0,
+        accessor: true,
+        description:
+          "Value each row adds to its hexagon's color. Combined using Color aggregation.",
+      }),
       colorAggregation: new StringLiteralField('SUM', {
         values: ['SUM', 'MEAN', 'MIN', 'MAX', 'COUNT'],
+        description:
+          'How row weights in a hexagon combine into its color value. COUNT ignores the weight.',
       }),
       // TODO: Support the second agg option, getColorValue?
       colorScaleType: new StringLiteralField('quantize', {
         values: ['linear', 'quantize', 'quantile', 'ordinal'],
         showByDefault: false,
+        description:
+          'How hexagon values map onto Color range. Quantize splits evenly, quantile by equal counts.',
       }),
       colorRange: new UnknownField(DEFAULT_COLOR_RANGE, { optional: true }),
       // TODO: Support default color range
@@ -7918,29 +8118,50 @@ export class HexagonLayerOp extends Operator<HexagonLayerOp> {
       lowerPercentile: new NumberField(0, { min: 0, max: 100, step: 0.1, showByDefault: false }),
 
       extruded: new BooleanField(false),
-      getElevationWeight: new NumberField(1, { min: 0, accessor: true }),
+      getElevationWeight: new NumberField(1, {
+        min: 0,
+        accessor: true,
+        description:
+          "Value each row adds to its hexagon's height. Combined using Elevation aggregation.",
+      }),
       elevationAggregation: new StringLiteralField('SUM', {
         values: ['SUM', 'MEAN', 'MIN', 'MAX', 'COUNT'],
+        description:
+          'How row weights in a hexagon combine into its height value. COUNT ignores the weight.',
       }),
       // TODO: Support the second agg option, getElevationValue?
       elevationScaleType: new StringLiteralField('linear', {
         values: ['linear', 'quantile'],
         showByDefault: false,
+        description:
+          'How hexagon values map onto Elevation range: linear, or quantile (equal counts).',
       }),
       elevationScale: new NumberField(1, { min: 0, softMax: 100, showByDefault: false }),
-      elevationRange: new Vec2Field([0, 1000], { returnType: 'tuple', showByDefault: false }),
-      elevationDomain: new UnknownField(null, { optional: true, showByDefault: false }), // number[2] | null for auto
+      elevationRange: new Vec2Field([0, 1000], {
+        returnType: 'tuple',
+        showByDefault: false,
+        description:
+          '[min, max] hexagon height in meters, before Elevation scale. Needs Extruded on.',
+      }),
+      elevationDomain: new UnknownField(null, {
+        optional: true,
+        showByDefault: false,
+        description:
+          '[min, max] hexagon values mapped to Elevation range. Empty uses 0 to the largest value.',
+      }), // number[2] | null for auto
       elevationUpperPercentile: new NumberField(100, {
         min: 0,
         max: 100,
         step: 0.1,
         showByDefault: false,
+        description: 'Hides hexagons whose height value is above this percentile, 0 to 100.',
       }),
       elevationLowerPercentile: new NumberField(0, {
         min: 0,
         max: 100,
         step: 0.1,
         showByDefault: false,
+        description: 'Hides hexagons whose height value is below this percentile, 0 to 100.',
       }),
 
       coverage: new NumberField(1, { min: 0, max: 1, step: 0.01, showByDefault: false }),
@@ -7976,19 +8197,55 @@ export class Tile3DLayerOp extends Operator<Tile3DLayerOp> {
   createInputs() {
     return {
       visible: new BooleanField(true),
-      provider: new StringLiteralField('Google', ['Cesium', 'Generic', 'Google']),
-      tilesetUrl: new StringField('', { showByDefault: false }),
+      provider: new StringLiteralField('Google', {
+        values: ['Cesium', 'Generic', 'Google'],
+        description:
+          'Tile source. Google and Cesium need an API key in Settings. Generic loads any 3D Tiles URL.',
+      }),
+      tilesetUrl: new StringField('', {
+        showByDefault: false,
+        description:
+          'URL of a tileset.json to load. When empty, uses the Google tiles (or a sample NYC tileset for Cesium).',
+      }),
       opacity: new NumberField(1, { min: 0, max: 1, step: 0.01 }),
       operation: new StringLiteralField('terrain+draw', {
         values: ['terrain+draw', 'draw', 'terrain'],
+        description:
+          "'draw' shows the tiles, 'terrain' makes them a surface for the Terrain extension, or both.",
       }),
       wireframe: new BooleanField(false),
-      flatLighting: new BooleanField(true, { showByDefault: false }),
-      throttleRequests: new BooleanField(false, { showByDefault: false }),
+      flatLighting: new BooleanField(true, {
+        showByDefault: false,
+        description: 'Draw tile meshes without shading, so photo textures look as captured.',
+      }),
+      throttleRequests: new BooleanField(false, {
+        showByDefault: false,
+        description:
+          'Limit how many tile requests run at once. Loads more slowly but uses less bandwidth.',
+      }),
       pointSize: new NumberField(1, { min: 0, softMax: 100 }), // Only applies when tile format is 'pnts'
-      maxLodMetricValue: new NumberField(2, { min: 0, softMax: 10, showByDefault: false }),
-      maxScreenSpaceError: new NumberField(50, { min: 0, softMax: 1_000, showByDefault: false }),
-      maxMemoryUsage: new NumberField(2024, { min: 0, softMax: 10_000, showByDefault: false }),
+      maxLodMetricValue: new NumberField(2, {
+        min: 0,
+        softMax: 10,
+        showByDefault: false,
+        label: 'Max LOD metric',
+        description:
+          'Level of detail limit passed to deck.gl. The current Tile3D layer does not read it.',
+      }),
+      maxScreenSpaceError: new NumberField(50, {
+        min: 0,
+        softMax: 1_000,
+        showByDefault: false,
+        description:
+          'How blurry tiles may look before finer ones load. Higher values load fewer, coarser tiles.',
+      }),
+      maxMemoryUsage: new NumberField(2024, {
+        min: 0,
+        softMax: 10_000,
+        showByDefault: false,
+        description:
+          'Memory budget for loaded tiles, in megabytes. Older tiles are dropped past this limit.',
+      }),
       parameters: new CompoundPropsField(
         {
           depthTest: new BooleanField(true),
@@ -11356,16 +11613,25 @@ export class BitmapLayerOp extends Operator<BitmapLayerOp> {
         { southwest: { lng: -122.5, lat: 37.7 }, northeast: { lng: -122.3, lat: 37.9 } },
         { returnType: 'tuple' }
       ),
-      desaturate: new NumberField(0, { min: 0, max: 1, step: 0.01, showByDefault: false }),
+      desaturate: new NumberField(0, {
+        min: 0,
+        max: 1,
+        step: 0.01,
+        showByDefault: false,
+        description: 'Fades the image toward grayscale, 0 (full color) to 1 (gray).',
+      }),
       transparentColor: new ColorField(null, {
         optional: true,
         transform: hexToColor,
         showByDefault: false,
+        description: 'Color shown where the image is transparent. Unset leaves those pixels clear.',
       }),
       tintColor: new ColorField(null, {
         optional: true,
         transform: hexToColor,
         showByDefault: false,
+        description:
+          'Color multiplied with every pixel of the image. Unset leaves colors as they are.',
       }),
       parameters: new CompoundPropsField(
         {
@@ -11436,16 +11702,35 @@ export class ColumnLayerOp extends Operator<ColumnLayerOp> {
       data: new DataField(),
       visible: new BooleanField(true),
       opacity: new NumberField(1, { min: 0, max: 1, step: 0.01 }),
-      diskResolution: new NumberField(20, { min: 3, softMax: 100, showByDefault: false }),
-      vertices: new UnknownField(null, { optional: true, showByDefault: false }),
-      offset: new Vec3Field([0, 0, 0], { returnType: 'tuple', showByDefault: false }),
+      diskResolution: new NumberField(20, {
+        min: 3,
+        softMax: 100,
+        showByDefault: false,
+        description: 'Number of sides on each column, at least 3. Higher looks rounder.',
+      }),
+      vertices: new UnknownField(null, {
+        optional: true,
+        showByDefault: false,
+        description:
+          'Custom outline as [x, y] points in the unit circle, scaled by the radius. Replaces the round shape.',
+      }),
+      offset: new Vec3Field([0, 0, 0], {
+        returnType: 'tuple',
+        showByDefault: false,
+        description:
+          'Shifts each column from its position, as a fraction of the radius. Only x and y are used.',
+      }),
       coverage: new NumberField(1, { min: 0, max: 1, step: 0.01, showByDefault: false }),
       elevationScale: new NumberField(1, { min: 0, softMax: 100, showByDefault: false }),
       filled: new BooleanField(true),
       stroked: new BooleanField(false, { showByDefault: false }),
       extruded: new BooleanField(true),
       wireframe: new BooleanField(false, { showByDefault: false }),
-      flatShading: new BooleanField(false, { showByDefault: false }),
+      flatShading: new BooleanField(false, {
+        showByDefault: false,
+        description:
+          'Lights each side of the column as a flat face instead of smoothly. Only when Extruded is on.',
+      }),
       radiusUnits: new StringLiteralField('meters', {
         values: ['pixels', 'meters'],
         showByDefault: false,
@@ -11503,7 +11788,11 @@ export class GridCellLayerOp extends Operator<GridCellLayerOp> {
       filled: new BooleanField(true),
       stroked: new BooleanField(false),
       wireframe: new BooleanField(false, { showByDefault: false }),
-      flatShading: new BooleanField(false, { showByDefault: false }),
+      flatShading: new BooleanField(false, {
+        showByDefault: false,
+        description:
+          'Lights each side of a cell as a flat face instead of smoothly. Only when Extruded is on.',
+      }),
       getPosition: new Point3DField([0, 0, 0], { returnType: 'tuple', accessor: true }),
       getColor: new ColorField('#000000', { accessor: true, transform: hexToColor }),
       getElevation: new NumberField(1000, { min: 0, accessor: true }),
@@ -11644,7 +11933,13 @@ export class PolygonLayerOp extends Operator<PolygonLayerOp> {
       lineWidthMinPixels: new NumberField(0, { min: 0, softMax: 100, showByDefault: false }),
       lineWidthMaxPixels: new NumberField(100, { min: 0, softMax: 1000, showByDefault: false }),
       lineJointRounded: new BooleanField(false, { showByDefault: false }),
-      lineMiterLimit: new NumberField(4, { min: 0, softMax: 10, showByDefault: false }),
+      lineMiterLimit: new NumberField(4, {
+        min: 0,
+        softMax: 10,
+        showByDefault: false,
+        description:
+          'How far a sharp outline corner may extend, as a multiple of line width. Ignored when joints are rounded.',
+      }),
       lineAntialiasing: new BooleanField(false, { showByDefault: false }),
       getPolygon: new UnknownField((d: unknown) => d?.polygon || [], { accessor: true }),
       getFillColor: new ColorField('#000000', { accessor: true, transform: hexToColor }),
@@ -11689,12 +11984,25 @@ export class ContourLayerOp extends Operator<ContourLayerOp> {
       cellSize: new NumberField(1000, { min: 1, softMax: 100000 }),
       gpuAggregation: new BooleanField(true, { showByDefault: false }),
       aggregation: new StringLiteralField('SUM', { values: ['SUM', 'MEAN', 'MIN', 'MAX'] }),
-      contours: new UnknownField([
-        { threshold: 1, color: [255, 0, 0] },
-        { threshold: 5, color: [0, 255, 0] },
-        { threshold: 10, color: [0, 0, 255] },
-      ]),
-      zOffset: new NumberField(0.005, { min: 0, max: 1, step: 0.001, showByDefault: false }),
+      contours: new UnknownField(
+        [
+          { threshold: 1, color: [255, 0, 0] },
+          { threshold: 5, color: [0, 255, 0] },
+          { threshold: 10, color: [0, 0, 255] },
+        ],
+        {
+          description:
+            'List of {threshold, color}. A number threshold draws a line; [min, max] fills a band.',
+        }
+      ),
+      zOffset: new NumberField(0.005, {
+        min: 0,
+        max: 1,
+        step: 0.001,
+        showByDefault: false,
+        description:
+          'Tiny height added per contour so overlapping ones draw in order. Default 0.005.',
+      }),
       getPosition: new Point3DField([0, 0, 0], { returnType: 'tuple', accessor: true }),
       getWeight: new NumberField(1, { min: 0, accessor: true }),
       parameters: new CompoundPropsField(
@@ -11730,8 +12038,20 @@ export class ScreenGridLayerOp extends Operator<ScreenGridLayerOp> {
       data: new DataField(),
       visible: new BooleanField(true),
       opacity: new NumberField(1, { min: 0, max: 1, step: 0.01 }),
-      cellSizePixels: new NumberField(50, { min: 1, softMax: 1000 }),
-      cellMarginPixels: new NumberField(2, { min: 0, softMax: 100, showByDefault: false }),
+      cellSizePixels: new NumberField(50, {
+        min: 1,
+        softMax: 1000,
+        label: 'Cell size',
+        description:
+          'Width and height of each grid cell on screen, in pixels. Cells stay the same size as you zoom.',
+      }),
+      cellMarginPixels: new NumberField(2, {
+        min: 0,
+        softMax: 100,
+        showByDefault: false,
+        label: 'Cell margin',
+        description: 'Gap left between neighboring grid cells, in pixels.',
+      }),
       colorRange: new UnknownField(DEFAULT_COLOR_RANGE, { optional: true }),
       colorDomain: new UnknownField(null, { optional: true, showByDefault: false }),
       aggregation: new StringLiteralField('SUM', { values: ['SUM', 'MEAN', 'MIN', 'MAX'] }),
@@ -11772,7 +12092,12 @@ export class GreatCircleLayerOp extends Operator<GreatCircleLayerOp> {
       data: new DataField(),
       visible: new BooleanField(true),
       opacity: new NumberField(1, { min: 0, max: 1, step: 0.01 }),
-      numSegments: new NumberField(20, { min: 1, softMax: 100, showByDefault: false }),
+      numSegments: new NumberField(20, {
+        min: 1,
+        softMax: 100,
+        showByDefault: false,
+        description: 'Line segments used to draw each arc. Higher gives smoother curves.',
+      }),
       widthUnits: new StringLiteralField('pixels', {
         values: ['pixels', 'meters', 'common'],
         showByDefault: false,
@@ -11819,7 +12144,12 @@ export class H3ClusterLayerOp extends Operator<H3ClusterLayerOp> {
       data: new DataField(),
       visible: new BooleanField(true),
       opacity: new NumberField(1, { min: 0, max: 1, step: 0.01 }),
-      getHexagons: new UnknownField((d: unknown) => d?.hexagons || [], { accessor: true }),
+      getHexagons: new UnknownField((d: unknown) => d?.hexagons || [], {
+        accessor: true,
+        label: 'H3 cells',
+        description:
+          'Array of H3 cell IDs for each row, drawn as one merged shape. Reads hexagons by default.',
+      }),
       getLineWidth: new NumberField(1, { min: 0, accessor: true }),
       getFillColor: new ColorField('#000000', { accessor: true, transform: hexToColor }),
       getElevation: new NumberField(1000, { accessor: true }),
@@ -11857,7 +12187,10 @@ export class GeohashLayerOp extends Operator<GeohashLayerOp> {
       data: new DataField(),
       visible: new BooleanField(true),
       opacity: new NumberField(1, { min: 0, max: 1, step: 0.01 }),
-      getGeohash: new StringField('', { accessor: true }),
+      getGeohash: new StringField('', {
+        accessor: true,
+        description: 'Geohash string for each row; the cell it names is drawn as a polygon.',
+      }),
       getFillColor: new ColorField('#000000', { accessor: true, transform: hexToColor }),
       getLineColor: new ColorField('#000000', { accessor: true, transform: hexToColor }),
       getElevation: new NumberField(1000, { accessor: true }),
@@ -11900,7 +12233,10 @@ export class S2LayerOp extends Operator<S2LayerOp> {
       data: new DataField(),
       visible: new BooleanField(true),
       opacity: new NumberField(1, { min: 0, max: 1, step: 0.01 }),
-      getS2Token: new StringField('', { accessor: true }),
+      getS2Token: new StringField('', {
+        accessor: true,
+        description: 'S2 cell token for each row; the cell it names is drawn as a polygon.',
+      }),
       getFillColor: new ColorField('#000000', { accessor: true, transform: hexToColor }),
       getLineColor: new ColorField('#000000', { accessor: true, transform: hexToColor }),
       getElevation: new NumberField(1000, { accessor: true }),
@@ -11943,7 +12279,10 @@ export class QuadkeyLayerOp extends Operator<QuadkeyLayerOp> {
       data: new DataField(),
       visible: new BooleanField(true),
       opacity: new NumberField(1, { min: 0, max: 1, step: 0.01 }),
-      getQuadkey: new StringField('', { accessor: true }),
+      getQuadkey: new StringField('', {
+        accessor: true,
+        description: 'Quadkey string for each row; the map tile it names is drawn as a polygon.',
+      }),
       getFillColor: new ColorField('#000000', { accessor: true, transform: hexToColor }),
       getLineColor: new ColorField('#000000', { accessor: true, transform: hexToColor }),
       getElevation: new NumberField(1000, { accessor: true }),
@@ -12000,7 +12339,11 @@ export class MVTLayerOp extends Operator<MVTLayerOp> {
         values: ['pixels', 'meters'],
         showByDefault: false,
       }),
-      autoLabels: new BooleanField(false, { optional: true }),
+      autoLabels: new BooleanField(false, {
+        optional: true,
+        description:
+          'Ask for automatic feature labels. The deck.gl MVT layer ignores this, so it has no visible effect.',
+      }),
       parameters: new CompoundPropsField(
         {
           depthTest: new BooleanField(true),
@@ -12031,19 +12374,37 @@ export class TerrainLayerOp extends Operator<TerrainLayerOp> {
   static description = 'Render a terrain mesh from heightmap tiles'
   createInputs() {
     return {
-      elevationData: new StringField('https://example.com/elevation/{z}/{x}/{y}.png'),
+      elevationData: new StringField('https://example.com/elevation/{z}/{x}/{y}.png', {
+        description:
+          'Heightmap image URL, or a tile URL template with {z}, {x} and {y}. Pixel colors become heights.',
+      }),
       texture: new StringField('', { optional: true }),
       visible: new BooleanField(true),
       opacity: new NumberField(1, { min: 0, max: 1, step: 0.01 }),
-      meshMaxError: new NumberField(4, { min: 0, softMax: 100, showByDefault: false }),
-      elevationDecoder: new CompoundPropsField({
-        rScaler: new NumberField(1),
-        gScaler: new NumberField(0),
-        bScaler: new NumberField(0),
-        offset: new NumberField(0),
+      meshMaxError: new NumberField(4, {
+        min: 0,
+        softMax: 100,
+        showByDefault: false,
+        description:
+          'Allowed error when building the terrain mesh, in meters. Lower values give more detail.',
       }),
+      elevationDecoder: new CompoundPropsField(
+        {
+          rScaler: new NumberField(1),
+          gScaler: new NumberField(0),
+          bScaler: new NumberField(0),
+          offset: new NumberField(0),
+        },
+        {
+          description:
+            'Turns heightmap colors into meters: R * R scaler + G * G scaler + B * B scaler + Offset.',
+        }
+      ),
       bounds: new BboxField(null, { optional: true, returnType: 'tuple' }),
-      color: new ColorField('#ffffff', { transform: hexToColor }),
+      color: new ColorField('#ffffff', {
+        transform: hexToColor,
+        description: 'Color of the terrain surface, used when no Texture is loaded.',
+      }),
       wireframe: new BooleanField(false, { showByDefault: false }),
       parameters: new CompoundPropsField(
         {
@@ -12081,18 +12442,42 @@ export class TileLayerOp extends Operator<TileLayerOp> {
       minZoom: new NumberField(0, { min: 0, max: 24 }),
       maxZoom: new NumberField(24, { min: 0, max: 24 }),
       tileSize: new NumberField(256, { min: 1, softMax: 1024, showByDefault: false }),
-      maxCacheSize: new NumberField(Infinity, { optional: true, showByDefault: false }),
-      maxCacheByteSize: new NumberField(Infinity, { optional: true, showByDefault: false }),
+      maxCacheSize: new NumberField(Infinity, {
+        optional: true,
+        showByDefault: false,
+        description:
+          'Most tiles kept in memory after they leave the view. Infinity keeps them all.',
+      }),
+      maxCacheByteSize: new NumberField(Infinity, {
+        optional: true,
+        showByDefault: false,
+        description: 'Most memory, in bytes, used to keep loaded tiles. Infinity sets no limit.',
+      }),
       refinementStrategy: new StringLiteralField('best-available', {
         values: ['best-available', 'no-overlap', 'never'],
         showByDefault: false,
+        description:
+          "What shows while tiles load: 'best-available' uses other zooms, 'no-overlap' avoids overlap, 'never' waits.",
       }),
-      zRange: new UnknownField([0, 24], { optional: true, showByDefault: false }),
+      zRange: new UnknownField([0, 24], {
+        optional: true,
+        showByDefault: false,
+        label: 'Height range',
+        description:
+          'Lowest and highest heights in the tiles as [min, max], in meters. Helps pick visible tiles in 3D.',
+      }),
       extent: new UnknownField([-Infinity, -Infinity, Infinity, Infinity], {
         optional: true,
         showByDefault: false,
+        description:
+          'Area that has tiles, as [minX, minY, maxX, maxY] (longitude and latitude). Tiles outside are not loaded.',
       }),
-      renderSubLayers: new FunctionField(null, { optional: true, showByDefault: false }),
+      renderSubLayers: new FunctionField(null, {
+        optional: true,
+        showByDefault: false,
+        description:
+          "Function that takes each tile's props, including its data, and returns the layer that draws it.",
+      }),
       parameters: new CompoundPropsField(
         {
           depthTest: new BooleanField(true),
