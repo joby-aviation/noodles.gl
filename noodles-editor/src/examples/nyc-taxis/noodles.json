@@ -190,6 +190,18 @@
         "width": 300,
         "height": 80
       }
+    },
+    {
+      "id": "try-next-note",
+      "op": "comment",
+      "name": "try-next-note",
+      "x": 1200,
+      "y": 380,
+      "params": {
+        "text": "Try next:\n- Press the space bar to play the camera move on the Timeline.\n- Click arc-layer and change Height to raise or flatten the arcs.\n- Press Export and pick Video (MP4) to save the animation.",
+        "width": 340,
+        "height": 170
+      }
     }
   ],
   "edges": [

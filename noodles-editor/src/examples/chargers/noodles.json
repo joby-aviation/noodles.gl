@@ -132,68 +132,52 @@
       }
     },
     {
-      "id": "/city-note",
-      "type": "CommentOp",
-      "position": {
-        "x": -1628,
-        "y": -210
-      },
-      "data": {
-        "inputs": {
-          "text": "This finds Denver, CO on the map. Click it and type another city into query."
-        },
-        "locked": false
-      },
-      "width": 300,
-      "height": 80
+      "id": "city-note",
+      "op": "comment",
+      "name": "city-note",
+      "x": -1628,
+      "y": -210,
+      "params": {
+        "text": "This finds Denver, CO on the map. Click it and type another city into Query.",
+        "width": 300,
+        "height": 80
+      }
     },
     {
-      "id": "/query-note",
-      "type": "CommentOp",
-      "position": {
-        "x": -1264,
-        "y": -220
-      },
-      "data": {
-        "inputs": {
-          "text": "This asks the Open Charge Map service for up to 1,000 charging stations around that city."
-        },
-        "locked": false
-      },
-      "width": 320,
-      "height": 80
+      "id": "query-note",
+      "op": "comment",
+      "name": "query-note",
+      "x": -1264,
+      "y": -220,
+      "params": {
+        "text": "This asks the Open Charge Map service for up to 1,000 charging stations around that city.",
+        "width": 320,
+        "height": 80
+      }
     },
     {
-      "id": "/toggle-note",
-      "type": "CommentOp",
-      "position": {
-        "x": 137,
-        "y": -60
-      },
-      "data": {
-        "inputs": {
-          "text": "This picks which layer to show. Click it and set index to 1 to see a heatmap."
-        },
-        "locked": false
-      },
-      "width": 290,
-      "height": 80
+      "id": "toggle-note",
+      "op": "comment",
+      "name": "toggle-note",
+      "x": 137,
+      "y": -50,
+      "params": {
+        "text": "This picks which layer to show. Click it and set Index to 1 to see a heatmap.",
+        "width": 290,
+        "height": 80
+      }
     },
     {
-      "id": "/try-next-note",
-      "type": "CommentOp",
-      "position": {
-        "x": 621,
-        "y": 360
-      },
-      "data": {
-        "inputs": {
-          "text": "Try next:\n- Click charger-points and change getRadius to resize the dots.\n- Click the diamond next to zoom on auto-view, pick a later time in the Timeline, and change it again.\n- Press Export and pick Image (PNG) to save the map."
-        },
-        "locked": false
-      },
-      "width": 340,
-      "height": 190
+      "id": "try-next-note",
+      "op": "comment",
+      "name": "try-next-note",
+      "x": 621,
+      "y": 120,
+      "params": {
+        "text": "Try next:\n- Click charger-points and change Radius scale to resize the dots.\n- Click the diamond next to Zoom on auto-view, pick a later time in the Timeline, and change it again.\n- Press Export and pick Image (PNG) to save the map.",
+        "width": 340,
+        "height": 190
+      }
     }
   ],
   "edges": [

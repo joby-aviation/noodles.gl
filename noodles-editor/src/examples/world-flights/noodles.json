@@ -224,6 +224,18 @@
         "width": 300,
         "height": 80
       }
+    },
+    {
+      "id": "try-next-note",
+      "op": "comment",
+      "name": "try-next-note",
+      "x": 1600,
+      "y": 260,
+      "params": {
+        "text": "Try next:\n- Press the space bar to play the flights on the Timeline.\n- Click color and pick a different Ramp.\n- Press Export and pick Video (MP4) to save the animation.",
+        "width": 340,
+        "height": 170
+      }
     }
   ],
   "edges": [

@@ -381,6 +381,22 @@
       },
       "width": 300,
       "height": 80
+    },
+    {
+      "id": "/try-next-note",
+      "type": "CommentOp",
+      "position": {
+        "x": 1200,
+        "y": 10
+      },
+      "data": {
+        "inputs": {
+          "text": "Try next:\n- Press the space bar to play the camera move on the Timeline.\n- Click arc-layer and change getHeight to raise or flatten the arcs.\n- Press Export and pick Video (MP4) to save the animation."
+        },
+        "locked": false
+      },
+      "width": 340,
+      "height": 170
     }
   ],
   "timeline": {
@@ -404,7 +420,12 @@
                       "id": "kf_bearing_0",
                       "position": 0,
                       "connectedRight": true,
-                      "handles": [0.333, 0.333, 0.667, 0.667],
+                      "handles": [
+                        0.333,
+                        0.333,
+                        0.667,
+                        0.667
+                      ],
                       "type": "bezier",
                       "value": -15.25
                     },
@@ -412,7 +433,12 @@
                       "id": "kf_bearing_1",
                       "position": 20,
                       "connectedRight": false,
-                      "handles": [0.333, 0.333, 0.667, 0.667],
+                      "handles": [
+                        0.333,
+                        0.333,
+                        0.667,
+                        0.667
+                      ],
                       "type": "bezier",
                       "value": 344.75
                     }

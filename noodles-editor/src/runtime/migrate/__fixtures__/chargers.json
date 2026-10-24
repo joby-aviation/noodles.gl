@@ -284,6 +284,70 @@
         },
         "locked": false
       }
+    },
+    {
+      "id": "/city-note",
+      "type": "CommentOp",
+      "position": {
+        "x": -1628,
+        "y": -210
+      },
+      "data": {
+        "inputs": {
+          "text": "This finds Denver, CO on the map. Click it and type another city into query."
+        },
+        "locked": false
+      },
+      "width": 300,
+      "height": 80
+    },
+    {
+      "id": "/query-note",
+      "type": "CommentOp",
+      "position": {
+        "x": -1264,
+        "y": -220
+      },
+      "data": {
+        "inputs": {
+          "text": "This asks the Open Charge Map service for up to 1,000 charging stations around that city."
+        },
+        "locked": false
+      },
+      "width": 320,
+      "height": 80
+    },
+    {
+      "id": "/toggle-note",
+      "type": "CommentOp",
+      "position": {
+        "x": 137,
+        "y": -60
+      },
+      "data": {
+        "inputs": {
+          "text": "This picks which layer to show. Click it and set index to 1 to see a heatmap."
+        },
+        "locked": false
+      },
+      "width": 290,
+      "height": 80
+    },
+    {
+      "id": "/try-next-note",
+      "type": "CommentOp",
+      "position": {
+        "x": 621,
+        "y": 360
+      },
+      "data": {
+        "inputs": {
+          "text": "Try next:\n- Click charger-points and change getRadius to resize the dots.\n- Click the diamond next to zoom on auto-view, pick a later time in the Timeline, and change it again.\n- Press Export and pick Image (PNG) to save the map."
+        },
+        "locked": false
+      },
+      "width": 340,
+      "height": 190
     }
   ],
   "timeline": {
@@ -310,6 +374,9 @@
       }
     },
     "definitionVersion": "0.4.0",
-    "revisionHistory": ["RgR7etiO4UU4Vc5h", "fUMQMdteEoY7aslv"]
+    "revisionHistory": [
+      "RgR7etiO4UU4Vc5h",
+      "fUMQMdteEoY7aslv"
+    ]
   }
 }

@@ -97,68 +97,52 @@
       }
     },
     {
-      "id": "/query-note",
-      "type": "CommentOp",
-      "position": {
-        "x": -1183,
-        "y": -400
-      },
-      "data": {
-        "inputs": {
-          "text": "This query loads up to 500 flight tracks over California's Central Coast on June 15, 2024, from an online dataset."
-        },
-        "locked": false
-      },
-      "width": 340,
-      "height": 90
+      "id": "query-note",
+      "op": "comment",
+      "name": "query-note",
+      "x": -400,
+      "y": -10,
+      "params": {
+        "text": "This query loads up to 500 flight tracks over California's Central Coast on June 15, 2024, from an online dataset.",
+        "width": 340,
+        "height": 90
+      }
     },
     {
-      "id": "/end-note",
-      "type": "CommentOp",
-      "position": {
-        "x": 2,
-        "y": -720
-      },
-      "data": {
-        "inputs": {
-          "text": "This layer puts a red dot where each flight ends. The green dots come from scatterplot-start."
-        },
-        "locked": false
-      },
-      "width": 344,
-      "height": 80
+      "id": "end-note",
+      "op": "comment",
+      "name": "end-note",
+      "x": 400,
+      "y": 300,
+      "params": {
+        "text": "This layer puts a red dot where each flight ends. The green dots come from starts.",
+        "width": 344,
+        "height": 80
+      }
     },
     {
-      "id": "/path-note",
-      "type": "CommentOp",
-      "position": {
-        "x": 12,
-        "y": 540
-      },
-      "data": {
-        "inputs": {
-          "text": "This layer draws each flight's path. Click it and change getColor or getWidth."
-        },
-        "locked": false
-      },
-      "width": 300,
-      "height": 80
+      "id": "path-note",
+      "op": "comment",
+      "name": "path-note",
+      "x": 0,
+      "y": 120,
+      "params": {
+        "text": "tracks draws each flight's path. Click it and change Line color or Width scale.",
+        "width": 300,
+        "height": 80
+      }
     },
     {
-      "id": "/try-next-note",
-      "type": "CommentOp",
-      "position": {
-        "x": 760,
-        "y": 120
-      },
-      "data": {
-        "inputs": {
-          "text": "Try next:\n- Click basemap and change zoom under viewState to see more of the coast.\n- Click the diamond next to opacity on path-layer, pick a later time in the Timeline, and change it again.\n- Press Export and pick Image (PNG) to save the map."
-        },
-        "locked": false
-      },
-      "width": 340,
-      "height": 190
+      "id": "try-next-note",
+      "op": "comment",
+      "name": "try-next-note",
+      "x": 800,
+      "y": 120,
+      "params": {
+        "text": "Try next:\n- Click deck and change Zoom to see more of the coast.\n- Click the diamond next to Opacity on tracks, pick a later time in the Timeline, and change it again.\n- Press Export and pick Image (PNG) to save the map.",
+        "width": 340,
+        "height": 190
+      }
     }
   ],
   "edges": [

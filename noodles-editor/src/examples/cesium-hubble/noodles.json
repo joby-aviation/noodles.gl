@@ -122,6 +122,30 @@
           "}))"
         ]
       }
+    },
+    {
+      "id": "videos-note",
+      "op": "comment",
+      "name": "videos-note",
+      "x": -400,
+      "y": -60,
+      "params": {
+        "text": "This code puts street performance videos on spheres around Manhattan. Edit the videos list to change a clip or where it sits.",
+        "width": 330,
+        "height": 90
+      }
+    },
+    {
+      "id": "try-next-note",
+      "op": "comment",
+      "name": "try-next-note",
+      "x": 800,
+      "y": 180,
+      "params": {
+        "text": "Try next:\n- Press the space bar to play the camera flight on the Timeline.\n- Click point-cloud and change Opacity.\n- Press Export and pick Video (MP4) to save the flythrough.",
+        "width": 340,
+        "height": 150
+      }
     }
   ],
   "edges": [
