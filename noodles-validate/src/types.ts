@@ -5,6 +5,8 @@ export interface FieldInfo {
   // Field class name, e.g. NumberField, ListField
   type: string
   default?: unknown
+  // In place of default when JSON can't hold it, e.g. "[-Infinity,-Infinity,Infinity,Infinity]"
+  defaultText?: string
 }
 
 export interface OperatorInfo {

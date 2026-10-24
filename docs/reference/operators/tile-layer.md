@@ -32,11 +32,11 @@ Expressions and code read its fields as `op('/tile-layer').par.data` (an input) 
 | `minZoom` | `NumberField` | `0` |
 | `maxZoom` | `NumberField` | `24` |
 | `tileSize` | `NumberField` | `256` |
-| `maxCacheSize` | `NumberField` | `null` |
-| `maxCacheByteSize` | `NumberField` | `null` |
+| `maxCacheSize` | `NumberField` | `Infinity` |
+| `maxCacheByteSize` | `NumberField` | `Infinity` |
 | `refinementStrategy` | `StringLiteralField` | `"best-available"` |
 | `zRange` | `UnknownField` | `[0,24]` |
-| `extent` | `UnknownField` | `[null,null,null,null]` |
+| `extent` | `UnknownField` | `[-Infinity,-Infinity,Infinity,Infinity]` |
 | `renderSubLayers` | `FunctionField` | `null` |
 | `parameters` | `CompoundPropsField` | `{"depthTest":true}` |
 | `extensions` | `ListField` | `[]` |

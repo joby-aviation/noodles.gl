@@ -13,6 +13,8 @@ import {
   hasRemarks,
   renderDefault,
   spliceRegions,
+  stripComments,
+  tableCode,
   toSlug,
 } from './generate-operator-docs'
 
@@ -241,6 +243,31 @@ describe('generate-operator-docs', () => {
     expect(toSlug('Tile3DLayerOp')).toBe('tile3d-layer')
     expect(toSlug('DBScanClusterOp')).toBe('db-scan-cluster')
     expect(toSlug('JSONOp')).toBe('json')
+  })
+
+  it('escapes backslashes before the characters it escapes', () => {
+    // A backslash already in front of a brace would otherwise cancel the brace's escape
+    expect(escapeProse('a\\{b}')).toBe('a\\\\\\{b\\}')
+    expect(escapeProse('C:\\temp `C:\\temp`')).toBe('C:\\\\temp `C:\\temp`')
+    // JSON text has even runs of backslashes before a pipe; each pipe takes one more
+    expect(tableCode('"a\\\\|b"')).toBe('`"a\\\\\\|b"`')
+    expect(tableCode('a\\\\b')).toBe('`a\\\\b`')
+    expect(() => tableCode('a\\|b')).toThrow(/in a table cell/)
+  })
+
+  it('shows defaults JSON lost as their JS text', () => {
+    expect(renderDefault({ type: 'NumberField', defaultText: 'Infinity' })).toBe('`Infinity`')
+    expect(
+      renderDefault({
+        type: 'UnknownField',
+        defaultText: '[-Infinity,-Infinity,Infinity,Infinity]',
+      })
+    ).toBe('`[-Infinity,-Infinity,Infinity,Infinity]`')
+  })
+
+  it('strips comments that removing another comment would form', () => {
+    expect(stripComments('<!-<!-- a -->- b -->c')).toBe('c')
+    expect(hasRemarks('## Remarks\n\n<!-<!-- a -->- b -->\n')).toBe(false)
   })
 
   it('escapes table cells and MDX-sensitive prose', () => {

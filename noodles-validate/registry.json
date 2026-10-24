@@ -6716,11 +6716,11 @@
         },
         "maxCacheSize": {
           "type": "NumberField",
-          "default": null
+          "defaultText": "Infinity"
         },
         "maxCacheByteSize": {
           "type": "NumberField",
-          "default": null
+          "defaultText": "Infinity"
         },
         "refinementStrategy": {
           "type": "StringLiteralField",
@@ -6735,12 +6735,7 @@
         },
         "extent": {
           "type": "UnknownField",
-          "default": [
-            null,
-            null,
-            null,
-            null
-          ]
+          "defaultText": "[-Infinity,-Infinity,Infinity,Infinity]"
         },
         "renderSubLayers": {
           "type": "FunctionField",

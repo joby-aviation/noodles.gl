@@ -151,12 +151,18 @@ export function buildModel({
 // === Rendering ===
 
 // Descriptions are plain text in .md files, which Docusaurus compiles as MDX: braces
-// and angle brackets outside code would be read as JSX
+// and angle brackets outside code would be read as JSX. Backslashes are escaped first,
+// so a description's own backslash can't cancel the escape in front of a brace.
 export function escapeProse(text: string): string {
   return text
     .split(/(`[^`]*`)/)
     .map((part, i) =>
-      i % 2 === 1 ? part : part.replace(/[{}]/g, '\\$&').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      i % 2 === 1
+        ? part
+        : part
+            .replace(/[\\{}]/g, '\\$&')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
     )
     .join('')
 }
@@ -170,15 +176,26 @@ function firstSentence(text: string): string {
   return sentence(text.split(/(?<=\.)\s/)[0])
 }
 
-// Inline code that survives a table cell: a pipe would end the cell
-function tableCode(text: string): string {
-  const escaped = text.replace(/\|/g, '\\|')
+// Inline code that survives a table cell. A pipe ends the cell, even inside code, unless
+// a backslash escapes it. The table parser reads backslashes in pairs, and inside code
+// every other backslash stays literal, so a pipe after an even run of backslashes (as
+// JSON text always has) takes one more. After an odd run no escape can show the text
+// as it is, so that's an error rather than a wrong cell.
+export function tableCode(text: string): string {
+  const escaped = text.replace(/(\\*)\|/g, (_, slashes: string) => {
+    if (slashes.length % 2 === 1) throw new Error(`Can't show ${text} in a table cell`)
+    return `${slashes}\\|`
+  })
   return escaped.includes('`') ? `\`\` ${escaped} \`\`` : `\`${escaped}\``
 }
 
 export function renderDefault(field: FieldInfo): string {
-  if (!('default' in field) || field.default === undefined) return ''
-  let json = JSON.stringify(field.default)
+  // JS text for a default JSON can't hold, such as Infinity
+  let json = field.defaultText
+  if (json === undefined) {
+    if (!('default' in field) || field.default === undefined) return ''
+    json = JSON.stringify(field.default)
+  }
   if (json.length > MAX_DEFAULT_CHARS) json = `${json.slice(0, MAX_DEFAULT_CHARS - 3)}...`
   return tableCode(json)
 }
@@ -364,10 +381,22 @@ export function renderPage(doc: OpDoc, existing: string | null, file?: string): 
     : `# ${doc.name}\n\n${spliced}`
 }
 
+// Removing one comment can join the text around it into another, as in
+// `<!-<!-- x -->- y -->`, so repeat until nothing changes
+export function stripComments(text: string): string {
+  let previous: string
+  let current = text
+  do {
+    previous = current
+    current = current.replace(/<!--[\s\S]*?-->/g, '')
+  } while (current !== previous)
+  return current
+}
+
 // A page has Remarks once its "## Remarks" section has text beyond comments
 export function hasRemarks(text: string): boolean {
   const match = handWritten(text).match(/^## Remarks[ \t]*\n([\s\S]*?)(?=^## |(?![\s\S]))/m)
-  return !!match && match[1].replace(/<!--[\s\S]*?-->/g, '').trim().length > 0
+  return !!match && stripComments(match[1]).trim().length > 0
 }
 
 function renderIndexRegions(docs: OpDoc[], withRemarks: number) {
