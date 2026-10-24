@@ -2263,17 +2263,36 @@ export class FileOp extends Operator<FileOp> {
 
   createInputs() {
     return {
-      format: new StringLiteralField('json', { values: ['json', 'csv', 'tsv', 'text', 'binary'] }),
-      url: new FileUrlField(),
-      text: new StringField(), // TODO: make this mutually exclusive with `url`
-      autoType: new BooleanField(true, { showByDefault: false }),
-      pulse: new NumberField(0, { min: 0, step: 1, showByDefault: false }),
+      format: new StringLiteralField('json', {
+        values: ['json', 'csv', 'tsv', 'text', 'binary'],
+        description: 'How to read the file: json, csv, tsv, plain text or raw bytes.',
+      }),
+      url: new FileUrlField(undefined, {
+        description: 'Web address or project file to load. Takes priority over Text.',
+      }),
+      // TODO: make this mutually exclusive with `url`
+      text: new StringField('', {
+        description: 'File contents to use instead of a URL. Ignored when URL is set.',
+      }),
+      autoType: new BooleanField(true, {
+        showByDefault: false,
+        label: 'Detect types',
+        description:
+          'Turn number, true/false and date columns into values. Off keeps text, e.g. ZIP codes.',
+      }),
+      pulse: new NumberField(0, {
+        min: 0,
+        step: 1,
+        showByDefault: false,
+        label: 'Reload',
+        description: 'Change this number to fetch the file again.',
+      }),
     }
   }
 
   createOutputs() {
     return {
-      data: new DataField(),
+      data: new DataField(undefined, { description: 'The parsed file contents.' }),
     }
   }
 
@@ -2535,12 +2554,17 @@ export class DuckDbOp extends Operator<DuckDbOp> {
   asDownload = () => this.outputData
   createInputs() {
     return {
-      query: new CodeField('SELECT 1 as val;', { language: 'sql' }),
+      query: new CodeField('SELECT 1 as val;', {
+        language: 'sql',
+        label: 'SQL query',
+        description:
+          "SQL to run. Statements run in order. Insert another field's value with {{/op.out.field}}.",
+      }),
     }
   }
   createOutputs() {
     return {
-      data: new DataField(),
+      data: new DataField(undefined, { description: 'Rows returned by the last statement.' }),
     }
   }
 
