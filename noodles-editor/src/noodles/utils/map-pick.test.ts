@@ -38,16 +38,20 @@ describe('findPickedOperatorId', () => {
     )
   })
 
-  it('falls back to a suffixed id when no parent is reported', () => {
-    const sourceLayer = { id: '/group/scatter-points-circle' }
-    expect(findPickedOperatorId({ sourceLayer }, operators('/group/scatter'))).toBe(
-      '/group/scatter'
-    )
+  it('never guesses an operator from a suffixed id', () => {
+    // e.g. LayerProps renamed a layer, or a code-built layer with its own id
+    expect(findPickedOperatorId({ layer: { id: '/custom-copy' } }, operators('/custom'))).toBeNull()
+    expect(
+      findPickedOperatorId(
+        { sourceLayer: { id: '/group/scatter-points' } },
+        operators('/group/scatter')
+      )
+    ).toBeNull()
   })
 
-  it('never strips a suffix across a container boundary', () => {
-    const layer = { id: '/my-group/custom' }
-    expect(findPickedOperatorId({ layer }, operators('/my'))).toBeNull()
+  it('returns null for an id the lookup rejects, such as a data node', () => {
+    const layerOperators = operators('/scatter')
+    expect(findPickedOperatorId({ layer: { id: '/data' } }, layerOperators)).toBeNull()
   })
 
   it('returns null for layers no operator drew', () => {

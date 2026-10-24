@@ -5,7 +5,7 @@
 import type { PickingInfo } from '@deck.gl/core'
 import { type PointerEvent, useCallback, useEffect, useMemo, useRef } from 'react'
 import { analytics } from '../../utils/analytics'
-import { getGraphStore, getUIStore, hasOp, useGraphStore, useNestingStore } from '../store'
+import { getGraphStore, getOp, getUIStore, useGraphStore, useNestingStore } from '../store'
 import {
   findPickedOperatorId,
   isClickNotDrag,
@@ -42,8 +42,15 @@ export function selectNodeFromMap(nodeId: string) {
   getUIStore().focusNodeFromMap(nodeId)
 }
 
+// Layer operators are the ones whose display name ends in Layer, as for the starter node
+const isLayerOperator = (id: string) => {
+  const op = getOp(id)
+  const displayName = op && (op.constructor as { displayName?: string }).displayName
+  return Boolean(displayName?.endsWith('Layer'))
+}
+
 const pickedOperatorId = (info: PickingInfo) =>
-  info.picked ? findPickedOperatorId(info as PickedInfo, hasOp) : null
+  info.picked ? findPickedOperatorId(info as PickedInfo, isLayerOperator) : null
 
 export function useMapClickToEdit(enabled: boolean) {
   const enabledRef = useRef(enabled)

@@ -13,7 +13,7 @@ export type PickedInfo = {
   sourceLayer?: PickedLayer | null
 }
 
-type OperatorLookup = (id: string) => boolean
+type LayerOperatorLookup = (id: string) => boolean
 
 // Layer ids from the outermost layer in to the one that drew the pixel, without repeats
 function layerChain(info: PickedInfo): string[] {
@@ -33,34 +33,18 @@ function layerChain(info: PickedInfo): string[] {
   return ids.reverse()
 }
 
-// `/group/scatter-points-circle` -> [`/group/scatter-points`, `/group/scatter`]. Only the
-// last path segment is cut, so a container named `/my-group` never matches `/my`.
-function suffixedIdPrefixes(id: string): string[] {
-  const slash = id.lastIndexOf('/')
-  const prefixes: string[] = []
-  for (let dash = id.lastIndexOf('-'); dash > slash + 1; dash = id.lastIndexOf('-', dash - 1)) {
-    prefixes.push(id.slice(0, dash))
-  }
-  return prefixes
-}
-
-// Returns the id of the operator whose layer drew the picked feature, or null when the
-// pick is empty or the layer did not come from an operator (a code-built layer with its
-// own id, the editor's selection overlay).
+// Returns the id of the layer operator whose layer drew the picked feature, or null when
+// the pick is empty or no layer operator has that exact id (a code-built layer with its
+// own id, an id replaced through LayerProps, the editor's selection overlay). Ids are never
+// guessed from prefixes: a layer named `/custom-copy` is not `/custom`'s. `isLayerOperator`
+// must reject non-layer operators, so a data node that shares an id is never selected.
 export function findPickedOperatorId(
   info: PickedInfo | null | undefined,
-  isOperator: OperatorLookup
+  isLayerOperator: LayerOperatorLookup
 ): string | null {
   if (!info) return null
-  const chain = layerChain(info)
-  for (const id of chain) {
-    if (isOperator(id)) return id
-  }
-  // A layer built with a suffixed id, e.g. a sublayer whose parent deck no longer reports
-  for (const id of chain) {
-    for (const prefix of suffixedIdPrefixes(id)) {
-      if (isOperator(prefix)) return prefix
-    }
+  for (const id of layerChain(info)) {
+    if (isLayerOperator(id)) return id
   }
   return null
 }

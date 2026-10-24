@@ -41,6 +41,10 @@ const node = (id: string, type: string, selected = false) => ({
 // deck's pointer event, carrying the DOM event's client coordinates
 const pointerAt = (clientX: number, clientY: number) => ({ srcEvent: { clientX, clientY } })
 
+// An operator instance whose class has the given display name
+const fakeOp = (displayName: string) =>
+  ({ constructor: { displayName } }) as unknown as Operator<IOperator>
+
 const pick = (layerId: string | null, x = 50, y = 60) =>
   ({
     picked: layerId !== null,
@@ -69,10 +73,14 @@ describe('useMapClickToEdit', () => {
         node('/scatter', 'ScatterplotLayerOp', true),
         node('/group', 'ContainerOp'),
         node('/group/arcs', 'ArcLayerOp'),
+        node('/data', 'FileOp'),
       ],
-      operators: new Map(
-        ['/scatter', '/group', '/group/arcs'].map(id => [id, {} as Operator<IOperator>])
-      ),
+      operators: new Map([
+        ['/scatter', fakeOp('ScatterplotLayer')],
+        ['/group', fakeOp('Container')],
+        ['/group/arcs', fakeOp('ArcLayer')],
+        ['/data', fakeOp('File')],
+      ]),
     })
     useNestingStore.setState({ currentContainerId: '/' })
     useUIStore.setState({ mapPickFocus: null })
@@ -108,6 +116,16 @@ describe('useMapClickToEdit', () => {
       } as unknown as PickingInfo)
     )
     expect(useUIStore.getState().mapPickFocus?.nodeId).toBe('/scatter')
+  })
+
+  it('never selects a non-layer node that shares the picked id', () => {
+    render(<Harness enabled />)
+    act(() => api.onClick(pick('/data')))
+    expect(selectedIds()).toEqual(['/scatter'])
+    expect(track).toHaveBeenCalledWith('map_feature_clicked', {
+      operatorType: 'unknown',
+      selected: false,
+    })
   })
 
   it('ignores a drag that moved the map', () => {
