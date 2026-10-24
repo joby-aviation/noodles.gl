@@ -1896,8 +1896,9 @@ export function CompoundFieldComponent({
         type="button"
         onClick={() => setExpanded(e => !e)}
         aria-expanded={expanded}
+        title={id}
       >
-        {id}
+        {getFieldDocs(id, field, field.op).label}
         <span className={cx(s.compoundPropsExpander, expanded && s.compoundPropsExpanderExpanded)}>
           ►
         </span>

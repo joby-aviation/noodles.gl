@@ -17,7 +17,7 @@ import {
   Vec2Field,
   Vec3Field,
 } from '../fields'
-import { BitmapLayerOp, NumberOp, StringOp } from '../operators'
+import { ArcLayerOp, BitmapLayerOp, NumberOp, StringOp } from '../operators'
 import { clearOps, setOp } from '../store'
 import { FieldEditScope } from '../utils/field-edit-analytics'
 import { applyOperatorInputs, registerPropertyMutationCallback } from '../utils/property-history'
@@ -887,6 +887,33 @@ describe('CompoundFieldComponent', () => {
     // Should be expanded again - sub-field labels should appear
     expect(screen.getByText('X')).toBeInTheDocument()
     expect(screen.getByText('Y')).toBeInTheDocument()
+  })
+
+  it('renders the friendly label with the field id as its tooltip', () => {
+    const field = new CompoundPropsField({ depthTest: new BooleanField(true) })
+    render(
+      <ReactFlowProvider>
+        <CompoundFieldComponent id="lightSettings" field={field} disabled={false} />
+      </ReactFlowProvider>
+    )
+
+    const button = screen.getByRole('button', { name: /Light settings/ })
+    expect(button).toHaveAttribute('title', 'lightSettings')
+    expect(screen.getByText('Depth test')).toHaveAttribute('title', 'depthTest')
+  })
+
+  it('uses the shared layer label for layer parameters', () => {
+    const op = new ArcLayerOp('/arc')
+    render(
+      <ReactFlowProvider>
+        <CompoundFieldComponent id="parameters" field={op.inputs.parameters} disabled={false} />
+      </ReactFlowProvider>
+    )
+
+    expect(screen.getByRole('button', { name: /Render parameters/ })).toHaveAttribute(
+      'title',
+      'parameters'
+    )
   })
 
   it('renders sub-fields when expanded', () => {
