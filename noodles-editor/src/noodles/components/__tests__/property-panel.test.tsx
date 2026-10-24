@@ -169,6 +169,21 @@ describe('PropertyPanel', () => {
       expect(screen.queryByRole('status')).not.toBeInTheDocument()
     })
 
+    it('hides the hint after dragging a number field, which fires no input event', () => {
+      const { container } = wrapWithProviders(<PropertyPanel />)
+      const wrapper = container.querySelector('[role="list"] [role="group"]') as HTMLElement
+      expect(wrapper).not.toBeNull()
+      act(() => {
+        fireEvent.mouseDown(wrapper, { clientX: 100, clientY: 100 })
+        fireEvent.mouseMove(document, { clientX: 140, clientY: 100 })
+      })
+      expect(getOpStore().getOp('/layer')!.inputs.val.value).not.toBe(0)
+      act(() => {
+        fireEvent.mouseUp(document, { clientX: 140, clientY: 100 })
+      })
+      expect(screen.queryByRole('status')).not.toBeInTheDocument()
+    })
+
     it('does not show the hint for other nodes', () => {
       selectOnly('/other')
       wrapWithProviders(<PropertyPanel />)

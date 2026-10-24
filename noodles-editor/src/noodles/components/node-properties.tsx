@@ -34,7 +34,14 @@ import {
 import { useObservable } from '../hooks/use-observable'
 import type { IOperator, OpType } from '../operators'
 import { Operator, OutOp } from '../operators'
-import { getOp, getOpStore, getUIStore, useNestingStore, useUIStore } from '../store'
+import {
+  dismissStarterHint,
+  getOp,
+  getOpStore,
+  getUIStore,
+  useNestingStore,
+  useUIStore,
+} from '../store'
 import type { ConnectionPlan } from '../utils/auto-connect'
 import { appendUniqueEdges } from '../utils/edge-integrity'
 import { edgeId } from '../utils/id-utils'
@@ -1538,10 +1545,6 @@ export function PropertyPanel({ onAutoLayout }: PropertyPanelProps) {
       getUIStore().setStarterHintNodeId(null)
     }
   }, [selectedNodeId, starterHintNodeId])
-  const dismissStarterHint = useCallback(() => {
-    if (getUIStore().starterHintNodeId) getUIStore().setStarterHintNodeId(null)
-  }, [])
-
   return (
     <div className={s.panel} onChange={dismissStarterHint} onInput={dismissStarterHint}>
       {selectedNodeId != null ? (

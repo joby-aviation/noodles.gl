@@ -234,6 +234,11 @@ export const getOpStore = () => useOperatorStore.getState()
 // Get the UI store instance for use outside React components
 export const getUIStore = () => useUIStore.getState()
 
+// Hides the hint shown for an example's starter node; called on the first edit
+export const dismissStarterHint = () => {
+  if (getUIStore().starterHintNodeId) getUIStore().setStarterHintNodeId(null)
+}
+
 // `path` can be absolute or relative to `contextOperatorId`
 export const getOp = (
   path: string,

@@ -5,8 +5,9 @@ import { panViewportToShow } from '../utils/starter-node'
 
 // Pans the graph so the node an example selected on open is on screen. Runs once the
 // nodes are measured, after the graph's own fitView, and only pans when the node is
-// out of view, so a view that already shows it stays as it is.
-export function StarterNodeFocus() {
+// out of view, so a view that already shows it stays as it is. `loadId` changes on every
+// project load, so two examples that start on the same node id each get the check.
+export function StarterNodeFocus({ loadId }: { loadId: number }) {
   const nodeId = useUIStore(state => state.starterHintNodeId)
   const nodesInitialized = useNodesInitialized()
   const measuredWidth = useStore(state =>
@@ -18,12 +19,13 @@ export function StarterNodeFocus() {
   const focusedRef = useRef<string | null>(null)
 
   useEffect(() => {
-    if (!nodeId || !nodesInitialized || !measuredWidth || focusedRef.current === nodeId) return
+    const focusKey = `${loadId}:${nodeId}`
+    if (!nodeId || !nodesInitialized || !measuredWidth || focusedRef.current === focusKey) return
     // Wait a frame so a fitView queued for the same load has applied first
     const frame = requestAnimationFrame(() => {
       const node = getInternalNode(nodeId)
       if (!node?.measured.width || !node.measured.height) return
-      focusedRef.current = nodeId
+      focusedRef.current = focusKey
       const next = panViewportToShow(
         {
           x: node.internals.positionAbsolute.x,
@@ -38,6 +40,7 @@ export function StarterNodeFocus() {
     })
     return () => cancelAnimationFrame(frame)
   }, [
+    loadId,
     nodeId,
     nodesInitialized,
     measuredWidth,

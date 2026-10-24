@@ -1957,7 +1957,7 @@ export function getNoodles(): Visualization {
                 edgeTypes={edgeComponents}
               >
                 <ReactFlowInstanceCapture />
-                <StarterNodeFocus />
+                <StarterNodeFocus loadId={projectLoadId} />
                 <EdgeConnectionSynchronizer />
                 <CanvasDropImport
                   pendingFile={pendingImportFile}
