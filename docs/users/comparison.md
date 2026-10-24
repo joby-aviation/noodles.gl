@@ -32,7 +32,7 @@ Noodles.gl gives you AE-style keyframing (bezier curves, timeline scrubbing, eas
 | Keyframe timeline | Full, professional | Full, with bezier curves |
 | Data-driven | Static import per revision | Live reactive pipeline |
 | Map projections | Via plugin | Globe, Mercator, Orthographic |
-| 20+ geo layer types | Limited set | Arc, hex, heatmap, trips, etc. |
+| 30+ geo layer types | Limited set | Arc, hex, heatmap, trips, etc. |
 | Update when data changes | Re-do manually | Automatic propagation |
 | Runs in browser | No | Yes, no install |
 
@@ -42,7 +42,7 @@ D3 gives you complete control, but every visualization is code from scratch. The
 
 | | D3.js | Noodles.gl |
 |---|---|---|
-| Custom visualization | Unlimited (code) | 20+ layers, plus Code nodes and SQL |
+| Custom visualization | Unlimited (code) | 30+ layer types, plus Code nodes and SQL |
 | Visual editor | No | Full node graph + timeline |
 | GPU rendering | No (SVG/Canvas) | WebGL via Deck.gl |
 | Large datasets (1M+ rows) | Difficult | Handled natively |
