@@ -176,7 +176,7 @@ export const toolDefinitions: ToolDefinition[] = [
     name: 'list_files',
     annotations: { readOnlyHint: true },
     description:
-      "List the data files in the project's data directory — the CSV, JSON and GeoJSON files its FileOp and DuckDbOp nodes load, referenced as @/name.csv. Use it to find out what data a project actually has before assuming a file name. Pass path to list one subdirectory.",
+      "List the data files in the project's data directory — the CSV, JSON and GeoJSON files its file, geojson and sql nodes load, referenced as @/name.csv. Use it to find out what data a project actually has before assuming a file name. Pass path to list one subdirectory.",
     inputSchema: {
       type: 'object',
       properties: {
@@ -209,7 +209,7 @@ export const toolDefinitions: ToolDefinition[] = [
     name: 'write_file',
     annotations: { readOnlyHint: false, destructiveHint: false },
     description:
-      "Write a text file into the project's scratch directory, @/.agent/. Use it to save a derived dataset — a joined or aggregated CSV, a GeoJSON you generated in run_code — then point a FileOp's url at the returned @/.agent/… path to bring it into the graph. Writes are only allowed inside @/.agent/; the project's own input data is read-only, so this can never overwrite a source dataset. Replacing a scratch file keeps the old contents at @/.agent/.previous/.",
+      "Write a text file into the project's scratch directory, @/.agent/. Use it to save a derived dataset — a joined or aggregated CSV, a GeoJSON you generated in run_code — then point a file node's url at the returned @/.agent/… path to bring it into the document. Writes are only allowed inside @/.agent/; the project's own input data is read-only, so this can never overwrite a source dataset. Replacing a scratch file keeps the old contents at @/.agent/.previous/.",
     inputSchema: {
       type: 'object',
       properties: {

@@ -1,10 +1,10 @@
 // The agent filesystem: list_files, read_file, write_file, grep_files over the
 // project's own data directory.
 //
-// This is a thin layer over noodles/storage.ts — the same readAsset/writeAsset the
-// FileOp uses — so a file the assistant writes is loadable by a FileOp at
+// This is a thin layer over noodles/storage.ts — the same readAsset/writeAsset a file node
+// reads through — so a file the assistant writes is loadable by a file node at
 // `@/.agent/name.csv` with no import step. That round trip is the point: write a
-// joined CSV, point a FileOp at it, and the graph renders it.
+// joined CSV, point a file node at it, and the map draws it.
 //
 // The asymmetry is deliberate and load-bearing. Reads reach anywhere under `data/`,
 // because that is what the project already shows the assistant through its nodes.
@@ -117,7 +117,7 @@ export async function readFile(params: ReadFileParams): Promise<ToolResult> {
   if (text.includes(NUL)) {
     return {
       success: false,
-      error: `'${target.relative}' is not a text file. Load it with a FileOp, or read it in run_code.`,
+      error: `'${target.relative}' is not a text file. Load it with a file node, or read it in run_code.`,
     }
   }
 
@@ -191,7 +191,7 @@ export async function writeFile(params: WriteFileParams): Promise<ToolResult> {
       bytes: new TextEncoder().encode(params.content).length,
       lines: params.content === '' ? 0 : params.content.split('\n').length,
       ...(existing.success ? { replaced: true, previousContentsAt } : {}),
-      note: `Load it by setting a FileOp's url to ${path}`,
+      note: `Load it by setting a file node's url to ${path}`,
     },
   }
 }

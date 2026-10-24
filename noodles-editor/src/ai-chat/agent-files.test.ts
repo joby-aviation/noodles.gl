@@ -238,14 +238,14 @@ describe('read_file', () => {
 })
 
 describe('write_file', () => {
-  it('writes into the scratch directory and returns a FileOp-ready path', async () => {
+  it('writes into the scratch directory and returns a path a file node loads', async () => {
     const result = await writeFile({ path: '.agent/joined.csv', content: 'a,b\n1,2\n' })
     expect(result.success).toBe(true)
     expect(data(result).path).toBe('@/.agent/joined.csv')
     expect(data(result).bytes).toBe(8)
-    expect(data(result).note).toMatch(/FileOp/)
+    expect(data(result).note).toMatch(/file node/)
 
-    // The payoff loop: what was written is what a FileOp would load
+    // The payoff loop: what was written is what a file node would load
     const read = await readAsset('memory', PROJECT, '.agent/joined.csv')
     expect(read.success && read.data).toBe('a,b\n1,2\n')
   })
