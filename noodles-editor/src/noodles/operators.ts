@@ -5562,6 +5562,25 @@ export class ConsoleOp extends Operator<ConsoleOp> {
   }
 }
 
+// A note shown in the graph to explain the nodes beside it. It has no handles,
+// so nothing connects to it, and running it does nothing.
+export class CommentOp extends Operator<CommentOp> {
+  static displayName = 'Comment'
+  static description =
+    'A note that explains the nodes beside it. Double-click to edit its text. Nothing connects to it'
+  createInputs() {
+    return {
+      text: new StringField(''),
+    }
+  }
+  createOutputs() {
+    return {}
+  }
+  execute(_: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    return {}
+  }
+}
+
 export class RerouteOp extends Operator<RerouteOp> {
   static displayName = 'Reroute'
   static description = 'Pass-through for organizing graph layout'
@@ -10782,6 +10801,7 @@ export const opTypes = {
   ColumnLayerOp,
   CombineRGBAOp,
   CombineXYOp,
+  CommentOp,
   ConcatOp,
   CustomMapLibreLayerOp,
   ConsoleOp,

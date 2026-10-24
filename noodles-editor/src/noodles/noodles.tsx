@@ -1348,6 +1348,9 @@ export function getNoodles(): Visualization {
         ...node,
         hidden: false,
         dragHandle,
+        // Comments sit behind the nodes they overlap so they never block clicking them.
+        // React Flow still raises a selected comment above the rest while it's edited.
+        ...(node.type === 'CommentOp' ? { zIndex: -1 } : {}),
       }))
   }, [currentContainerId, nodes])
 

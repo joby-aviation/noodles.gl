@@ -77,7 +77,9 @@ function buildTypeIndex(): Map<string, Set<OpType>> {
       opTypeName === 'ForLoopEndOp' ||
       opTypeName === 'ForLoopMetaOp' ||
       opTypeName === 'GraphInputOp' ||
-      opTypeName === 'GraphOutputOp'
+      opTypeName === 'GraphOutputOp' ||
+      // Comments have no handles, so nothing can connect to them
+      opTypeName === 'CommentOp'
     ) {
       continue
     }
@@ -136,7 +138,7 @@ function getSameCategoryOps(opType: OpType): OpType[] {
   return (categoryOps as readonly string[])
     .filter(displayName => !SPECIAL_DISPLAY_NAMES.has(displayName))
     .map(displayName => `${displayName}Op` as OpType)
-    .filter(type => type !== opType && type in opTypes)
+    .filter(type => type !== opType && type !== 'CommentOp' && type in opTypes)
 }
 
 /**
@@ -149,6 +151,8 @@ function getSameCategoryOps(opType: OpType): OpType[] {
 export function getSuggestedNodes(op: Operator<IOperator>, limit = 6): SuggestedNode[] {
   const suggestions: SuggestedNode[] = []
   const seen = new Set<OpType>()
+  // A comment has no outputs to build on
+  if (op instanceof opTypes.CommentOp) return []
   const opType = op.constructor.name as OpType
 
   // Priority 1: Curated suggestions

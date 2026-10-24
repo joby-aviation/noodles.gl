@@ -66,3 +66,4 @@ See [API Keys](./api-keys.md) for which Google APIs to enable.
 ## Organization
 
 - **ContainerOp**: Use containers to group related operators
+- **CommentOp**: A resizable note that explains the nodes beside it. Double-click to edit it. See [Comments](./workflows-intro.md#comments)
