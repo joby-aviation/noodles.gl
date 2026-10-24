@@ -12,9 +12,9 @@
 // There is no keyless preset. Every free OpenAI-compatible endpoint that answers
 // without a key refuses browser traffic — text.pollinations.ai returns 403 "Missing
 // Turnstile token" from a page origin while working fine from curl, and the others
-// either 401 or refuse CORS. A keyless path would need a proxy we do not have.
-// The three free-key presets below are the closest thing: an account, but no card
-// and no wait.
+// either 401 or refuse CORS. The keyless path is the hosted free tier instead
+// (functions/api/llm), which is ours and capped at a couple of messages. The three
+// free-key presets below are the next step up: an account, but no card and no wait.
 
 export interface EndpointPreset {
   id: string
