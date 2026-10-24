@@ -245,6 +245,54 @@
         "inputs": {},
         "locked": false
       }
+    },
+    {
+      "id": "/data-note",
+      "type": "CommentOp",
+      "position": {
+        "x": -500,
+        "y": -630
+      },
+      "data": {
+        "inputs": {
+          "text": "This loads bike parking spots in San Francisco. Click it to see the data."
+        },
+        "locked": false
+      },
+      "width": 265,
+      "height": 80
+    },
+    {
+      "id": "/layers-note",
+      "type": "CommentOp",
+      "position": {
+        "x": 0,
+        "y": 130
+      },
+      "data": {
+        "inputs": {
+          "text": "Both layers count the bike spots in each area. Click one and change its radius or cellSize."
+        },
+        "locked": false
+      },
+      "width": 318,
+      "height": 80
+    },
+    {
+      "id": "/switch-note",
+      "type": "CommentOp",
+      "position": {
+        "x": 361,
+        "y": -490
+      },
+      "data": {
+        "inputs": {
+          "text": "This picks which layer to show. Click it and change index from 0 to 1."
+        },
+        "locked": false
+      },
+      "width": 260,
+      "height": 90
     }
   ],
   "timeline": {
