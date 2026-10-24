@@ -8,6 +8,7 @@ import logoSvg from '/noodles-favicon.svg'
 import { SettingsDialog } from '../../components/settings-dialog'
 import { docStore, useEditor } from '../../editor/doc-store'
 import type { CopyControlsRef, UndoRedoHandlerRef } from '../../editor/edit-menu'
+import { renderSettingsOf } from '../../editor/render-settings'
 import { type MapMode, useUIStore } from '../../editor/ui-store'
 import type { RenderSource } from '../../render/render-analytics'
 import { exportsTransparentVideo } from '../../render/video-export'
@@ -113,6 +114,9 @@ export function TopMenuBar({
     const n = st.doc.nodes.find(x => x.id === st.selection[0])
     return n?.op === 'subnet' ? n.id : null
   })
+  // Its export settings, for the Export menu's labels
+  const doc = useEditor(st => st.doc)
+  const renderSettings = useMemo(() => renderSettingsOf(doc), [doc])
 
   // Load recent projects on mount, and again when one is removed or its folder changes
   useEffect(() => {
@@ -589,6 +593,7 @@ export function TopMenuBar({
         <div className={s.rightSection}>
           <ExportButton
             deckName={deckName}
+            transparentVideo={exportsTransparentVideo(renderSettings)}
             isRendering={Boolean(isRendering)}
             takeScreenshot={takeScreenshot}
             startRender={startRender}

@@ -9,6 +9,7 @@ import {
   BboxField,
   ColorField,
   CompoundPropsField,
+  captureNodeUIMetadata,
   DateField,
   deriveDecimalStep,
   ExtensionField,
@@ -397,10 +398,11 @@ describe('NumberField', () => {
 
   it('uses the declared step unless value-derived precision is explicitly enabled', () => {
     const semanticField = new NumberField(0.25, { step: 0.5 })
-    const numberOp = new NumberOp('/number', { val: 0.25 })
+    // A number node's value field derives its step from its value's decimals
+    const derived = new NumberField(0.25, { step: 1, deriveStepFromValue: true })
 
     expect(semanticField.getEffectiveStep()).toBe(0.5)
-    expect(numberOp.inputs.val.getEffectiveStep()).toBe(0.01)
+    expect(derived.getEffectiveStep()).toBe(0.01)
 
     semanticField.setStepOverride(0.01)
     expect(semanticField.getEffectiveStep()).toBe(0.01)

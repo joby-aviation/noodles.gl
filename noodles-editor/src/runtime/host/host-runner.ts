@@ -10,6 +10,7 @@ import type { DocEdge, DocNode, EditorDoc } from '@noodles.gl/planner'
 import { applySerializedFieldValue, type Field, ListField } from '../../noodles/fields'
 import { type IOperator, type Operator, opTypes } from '../../noodles/operators'
 import { readsTimeline } from '../../noodles/utils/timeline-dependencies'
+import { getRenderSurfaceSize } from '../../render/render-surface-size'
 import { DECK_OP_INDEX, type DeckOp } from '../deck-ops'
 import { PENDING } from '../engine'
 import { isHostOperator } from './host-ops'
@@ -138,6 +139,11 @@ export class HostRunner {
         continue
       }
       if (entry.timed) read.push(inputs.time)
+      // An operator fitting a camera to the render surface (BoundingBox) reruns when it resizes
+      if ((op.constructor as { readsRenderSurface?: boolean }).readsRenderSurface) {
+        const { width, height } = getRenderSurfaceSize()
+        read.push(`${width}x${height}`)
+      }
       if (entry.outputs && entry.read && sameValues(entry.read, read)) {
         report.reused.push(node.id)
         continue

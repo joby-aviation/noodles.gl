@@ -14,6 +14,7 @@ import {
   instantiateLayer,
   instantiateWidget,
 } from '../noodles/utils/instantiate-vis'
+import { subscribeToRenderSurfaceSize } from '../render/render-surface-size'
 import { Engine, type EngineVis } from '../runtime/engine'
 import { registerHostOperators } from '../runtime/host/host-ops'
 import { HostRunner } from '../runtime/host/host-runner'
@@ -217,12 +218,18 @@ export function bindEngine(
   }
   // DuckDB-Wasm takes a second or more to start: start it while the project is still loading
   void openEngine(readAsset)
+  // A camera fitted to the render surface (BoundingBox) refits when it resizes
+  const surface = subscribeToRenderSurfaceSize(() => {
+    // The engine publishes what it drew through onChange
+    if (!stopped && store.get().loadId !== 0) void opened?.refresh()
+  })
   const unsubscribe = store.subscribe(() => void sync())
   setOpResolver((path, contextId) => opView(store, currentEngine, path, contextId))
   void sync()
   return () => {
     stopped = true
     unsubscribe()
+    surface.unsubscribe()
     setOpResolver(undefined)
   }
 }

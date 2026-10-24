@@ -1,6 +1,6 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { LayerRow } from './map-style-configurator-op'
+import { LayerRow } from './map-style-configurator'
 
 const layer = { id: 'water', type: 'fill', paint: { 'fill-color': '#00f' } } as never
 

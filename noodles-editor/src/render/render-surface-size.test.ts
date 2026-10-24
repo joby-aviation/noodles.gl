@@ -1,8 +1,10 @@
 import { fitBounds } from '@math.gl/web-mercator'
+import type { EditorDoc } from '@noodles.gl/planner'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-
 import { BoundingBoxOp } from '../noodles/operators'
 import { DEFAULT_RENDER_SETTINGS } from '../noodles/utils/render-settings-constants'
+import { registerHostOperators } from '../runtime/host/host-ops'
+import { HostRunner } from '../runtime/host/host-runner'
 import {
   calculateRenderSurfaceSize,
   getRenderSurfaceSize,
@@ -115,41 +117,25 @@ describe('BoundingBoxOp render size reactivity', () => {
     operator.dispose()
   })
 
-  it('invalidates a cached result when the render size changes', async () => {
+  // The host runner memoizes an operator by its inputs; BoundingBox reads the render surface too
+  it('refits when the render size changes, and only then', async () => {
+    registerHostOperators()
+    const runner = new HostRunner()
+    const doc: EditorDoc = {
+      version: 1,
+      name: 'b',
+      nodes: [{ id: 'b', op: 'BoundingBoxOp', x: 0, y: 0, params: { data, padding: 100 } }],
+      edges: [],
+    }
+    const inputs = { planner: () => undefined, slots: new Map(), time: 0 }
     setRenderSurfaceSize({ width: 1000, height: 500 })
-    const operator = new BoundingBoxOp('/bbox')
-    operator.inputs.data.setValue(data)
-    operator.inputs.padding.setValue(100)
-    await operator.pull()
-    expect(operator.dirty).toBe(false)
+    expect((await runner.run(doc, inputs)).ran).toEqual(['b'])
+    expect((await runner.run(doc, inputs)).reused).toEqual(['b'])
 
     setRenderSurfaceSize(calculateRenderSurfaceSize({ width: 1000, height: 500 }, 2))
-    expect(operator.dirty).toBe(true)
-    const resized = await operator.pull()
+    expect((await runner.run(doc, inputs)).ran).toEqual(['b'])
     const expected = fitBounds({ bounds, width: 2000, height: 1000, padding: 100 })
-
-    expect(resized.viewState.zoom).toBe(expected.zoom)
-    expect(operator.inputs.padding.value).toBe(100)
-    operator.dispose()
-  })
-
-  it('does not dirty a settled operator when the size is unchanged', async () => {
-    const operator = new BoundingBoxOp('/bbox')
-    await operator.pull()
-    expect(operator.dirty).toBe(false)
-
-    setRenderSurfaceSize(getRenderSurfaceSize())
-    expect(operator.dirty).toBe(false)
-    operator.dispose()
-  })
-
-  it('unsubscribes from render-size changes when disposed', async () => {
-    const operator = new BoundingBoxOp('/bbox')
-    await operator.pull()
-    operator.dispose()
-
-    setRenderSurfaceSize({ width: 1000, height: 500 })
-    expect(operator.dirty).toBe(false)
+    expect((runner.output('b', 'viewState') as { zoom: number }).zoom).toBe(expected.zoom)
   })
 
   it('does not expose the render size as an input', () => {

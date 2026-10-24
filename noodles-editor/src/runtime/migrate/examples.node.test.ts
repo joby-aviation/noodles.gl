@@ -18,7 +18,9 @@ beforeAll(async () => {
   duck = await openNodeDuck()
 }, 30_000)
 
-const EXAMPLES = readdirSync('src/examples').filter(n => !n.startsWith('.'))
+const EXAMPLES = readdirSync('src/examples', { withFileTypes: true })
+  .filter(e => e.isDirectory() && !e.name.startsWith('.'))
+  .map(e => e.name)
 const project = (name: string) =>
   JSON.parse(readFileSync(resolve(`src/examples/${name}/noodles.json`), 'utf8')) as NoodlesProject
 

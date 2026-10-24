@@ -270,7 +270,8 @@ async function runTurn(
     onEvent,
   })
 
-  // Edits written out as JSON are applied after the run, as the chat panel does
+  // Edits written out as JSON are applied after the run, as the chat panel does when the user
+  // accepts the proposal
   const modifications = response.projectModifications ?? []
   const apply = modifications.length ? await applyAndSettle(modifications) : null
 

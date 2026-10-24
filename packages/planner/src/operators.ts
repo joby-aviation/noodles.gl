@@ -1357,6 +1357,9 @@ export const OPERATORS: OpDef[] = [
       { name: 'framerate', label: 'Frame rate', kind: 'int', default: 30, min: 1, max: 120, step: 1, folder: 'Export' },
       { name: 'captureDelay', label: 'Capture delay (ms)', kind: 'int', default: 50, min: 0, max: 10000, step: 10, folder: 'Export' },
       { name: 'rendersDirectory', label: 'Renders folder', kind: 'string', default: 'renders', folder: 'Export' },
+      { name: 'exportAlpha', label: 'Transparent video', kind: 'toggle', default: false, folder: 'Export', help: 'A VP9 WebM with an alpha channel, for compositing.' },
+      { name: 'captureMode', label: 'Capture', kind: 'menu', default: 'final', options: [{ value: 'final', label: 'Final' }, { value: 'preview', label: 'Preview' }], folder: 'Export', help: 'Preview captures on the map\'s render event: faster, without waiting for every tile.' },
+      { name: 'sequenceFormat', label: 'Image sequence', kind: 'menu', default: 'png', options: [{ value: 'png', label: 'PNG' }, { value: 'exr', label: 'OpenEXR' }], folder: 'Export' },
     ],
     lower(ctx) {
       const deck: DeckNode = {

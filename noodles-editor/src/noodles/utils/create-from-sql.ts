@@ -1,128 +1,43 @@
-import newProjectJSON from '../new.json'
-import type { NoodlesProjectJSON } from './serialization'
-import { NOODLES_VERSION } from './serialization'
+import type { EditorDoc } from '@noodles.gl/planner'
 
 export interface CreateFromSQLOptions {
   sql: string
 }
 
-export function createProjectFromSQL({ sql }: CreateFromSQLOptions): NoodlesProjectJSON {
-  // Start with base template from new.json
-  const baseProject = { ...newProjectJSON }
+// Column names a query's coordinates usually go by, most common first
+const LONGITUDE_NAMES = ['lng', 'lon', 'longitude', 'long', 'x']
+const LATITUDE_NAMES = ['lat', 'latitude', 'y']
 
-  // Create DuckDBOp node
-  const duckDbNode = {
-    id: '/query',
-    type: 'DuckDbOp',
-    data: {
-      inputs: {
-        query: sql,
-      },
-      locked: false,
-    },
-    position: { x: 100, y: 200 },
-  }
+/** The first of `names` the query mentions as a word, else the first name. */
+function columnIn(sql: string, names: string[]): string {
+  const found = names.find(n => new RegExp(`\\b${n}\\b`, 'i').test(sql))
+  return found ?? names[0]
+}
 
-  // Create position accessor node
-  // Use fallback chain for common column name patterns
-  const positionAccessorNode = {
-    id: '/position',
-    type: 'AccessorOp',
-    data: {
-      inputs: {
-        expression: '[d.lng || d.lon || d.longitude || 0, d.lat || d.latitude || 0]',
-      },
-      locked: false,
-    },
-    position: { x: 400, y: 100 },
-  }
-
-  // Create color accessor node with default orange-red
-  const colorAccessorNode = {
-    id: '/color',
-    type: 'AccessorOp',
-    data: {
-      inputs: {
-        expression: '[255, 100, 100]',
-      },
-      locked: false,
-    },
-    position: { x: 400, y: 300 },
-  }
-
-  // Create ScatterplotLayerOp node
-  const scatterplotNode = {
-    id: '/points',
-    type: 'ScatterplotLayerOp',
-    data: {
-      inputs: {
-        opacity: 0.8,
-        getRadius: 50,
-      },
-      locked: false,
-    },
-    position: { x: 700, y: 200 },
-  }
-
-  // Update deck renderer position for better layout
-  const updatedNodes = baseProject.nodes.map(node => {
-    if (node.type === 'DeckRendererOp') {
-      return { ...node, position: { x: 1000, y: 200 } }
-    }
-    if (node.type === 'OutOp') {
-      return { ...node, position: { x: 1300, y: 200 } }
-    }
-    return node
-  })
-
-  // Add new nodes
-  const nodes = [
-    ...updatedNodes,
-    duckDbNode,
-    positionAccessorNode,
-    colorAccessorNode,
-    scatterplotNode,
-  ]
-
-  // Create edges connecting the graph
-  const newEdges = [
-    {
-      id: '/query.out.data->/points.par.data',
-      source: '/query',
-      target: '/points',
-      sourceHandle: 'out.data',
-      targetHandle: 'par.data',
-    },
-    {
-      id: '/position.out.accessor->/points.par.getPosition',
-      source: '/position',
-      target: '/points',
-      sourceHandle: 'out.accessor',
-      targetHandle: 'par.getPosition',
-    },
-    {
-      id: '/color.out.accessor->/points.par.getFillColor',
-      source: '/color',
-      target: '/points',
-      sourceHandle: 'out.accessor',
-      targetHandle: 'par.getFillColor',
-    },
-    {
-      id: '/points.out.layer->/deck.par.layers',
-      source: '/points',
-      target: '/deck',
-      sourceHandle: 'out.layer',
-      targetHandle: 'par.layers',
-    },
-  ]
-
-  const edges = [...baseProject.edges, ...newEdges]
-
+// A project from a query: its rows drawn as points, positioned by the coordinate columns the
+// query names. A document, not an operator graph: the position is an expression, no accessor.
+export function createProjectFromSQL({ sql }: CreateFromSQLOptions): EditorDoc {
+  const lng = columnIn(sql, LONGITUDE_NAMES)
+  const lat = columnIn(sql, LATITUDE_NAMES)
   return {
-    ...baseProject,
-    nodes,
-    edges,
-    version: NOODLES_VERSION,
+    version: 1,
+    name: 'new',
+    nodes: [
+      { id: 'n1', op: 'sql', name: 'query', x: 100, y: 200, params: { query: sql } },
+      {
+        id: 'n2',
+        op: 'scatter',
+        name: 'points',
+        x: 400,
+        y: 200,
+        params: { position: `[${lng}, ${lat}]`, fillColor: [255, 100, 100], opacity: 0.8 },
+      },
+      { id: 'n3', op: 'deck', name: 'deck', x: 700, y: 200, params: {} },
+    ],
+    edges: [
+      { id: 'e1', source: 'n1', sourcePort: 'out', target: 'n2', targetPort: 'in' },
+      { id: 'e2', source: 'n2', sourcePort: 'out', target: 'n3', targetPort: 'layers', index: 0 },
+    ],
   }
 }
 

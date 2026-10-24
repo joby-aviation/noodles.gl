@@ -50,7 +50,7 @@ describe('containers', () => {
   it('become subnets around the layers they held, wired through in0 and out0', async () => {
     const g = container('/group')
     const project: NoodlesProject = {
-      version: 18,
+      version: 19,
       nodes: [
         op('/rows', 'DuckDbOp', { query: QUERY }),
         ...g.nodes,
@@ -102,7 +102,7 @@ describe('containers', () => {
     const outer = container('/outer')
     const inner = container('/outer/inner')
     const project: NoodlesProject = {
-      version: 18,
+      version: 19,
       nodes: [
         op('/rows', 'DuckDbOp', { query: QUERY }),
         ...outer.nodes,
@@ -139,7 +139,7 @@ describe('containers', () => {
 
   it('refuse a ForLoop, naming it', () => {
     const project: NoodlesProject = {
-      version: 18,
+      version: 19,
       nodes: [op('/loop/begin', 'ForLoopBeginOp'), op('/deck', 'DeckRendererOp')],
       edges: [],
     }

@@ -30,7 +30,7 @@ const wire = (source: string, out: string, target: string, field: string): Noodl
   targetHandle: `par.${field}`,
 })
 const deck = (nodes: NoodlesNode[], edges: NoodlesEdge[], timeline?: unknown): NoodlesProject => ({
-  version: 18,
+  version: 19,
   nodes: [...nodes, op('/deck', 'DeckRendererOp'), op('/out', 'OutOp')],
   edges: [...edges, wire('/deck', 'vis', '/out', 'vis')],
   ...(timeline ? { timeline } : {}),

@@ -5,8 +5,8 @@ import type {
 } from '@xyflow/react'
 import { debugSerialize } from '../../utils/debug'
 import type { StorageType } from './filesystem'
-import type { RenderSettings } from './render-settings-constants'
 import { CACHE_DIRECTORY_NAME, type OutputCacheFiles } from './output-cache'
+import type { RenderSettings } from './render-settings-constants'
 
 export { NOODLES_VERSION } from './migrate-schema'
 

@@ -64,7 +64,7 @@ function layer(
     nodes.push(op(`/${field}-of`, 'AccessorOp', { expression }))
     edges.push(wire(`/${field}-of`, 'accessor', '/layer', field))
   }
-  return { version: 18, nodes, edges } as NoodlesProject
+  return { version: 19, nodes, edges } as NoodlesProject
 }
 
 const POINTS =
@@ -73,7 +73,7 @@ const POINTS =
 describe('row layers', () => {
   it('converts the table editor demo: points sized by population and their labels', async () => {
     const project = JSON.parse(
-      readFileSync(resolve('public/noodles/table-editor-demo.json'), 'utf8')
+      readFileSync(resolve('src/examples/table-editor-demo/noodles.json'), 'utf8')
     ) as NoodlesProject
     const { doc, layers } = await run(project)
     const labels = layers['/labels-layer']

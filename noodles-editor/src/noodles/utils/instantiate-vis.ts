@@ -1,6 +1,6 @@
 // Plain-object layers and widgets, as operators describe them, to deck.gl instances.
 
-import type { Layer, LayerExtension, Widget } from '@deck.gl/core'
+import { type Layer, LayerExtension, type Widget } from '@deck.gl/core'
 import {
   BrushingExtension,
   ClipExtension,
@@ -55,7 +55,9 @@ const extensionMap: Record<
 export function instantiateExtensions(extensions: unknown): LayerExtension[] | undefined {
   if (!extensions || !Array.isArray(extensions)) return undefined
   return extensions
-    .map((ext: Described) => {
+    .map((ext: Described | LayerExtension) => {
+      // An extension a code node built is used as it is
+      if (ext instanceof LayerExtension) return ext
       const { type: extType, ...constructorArgs } = ext
       const extensionDef = extensionMap[extType]
       if (!extensionDef) {

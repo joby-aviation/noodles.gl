@@ -1311,7 +1311,6 @@ export class CompoundPropsField extends Field<
       }
     }
   }
-
 }
 
 export type NumberStepOverrides = Record<string, number>
@@ -1388,7 +1387,6 @@ export class ListField<F extends Field> extends Field<
     const subschema = field?.schema || z.unknown()
     super([], { subschema, ...options })
   }
-
 }
 
 export class ArrayField<F extends Field> extends Field<

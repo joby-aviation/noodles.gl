@@ -80,8 +80,6 @@ function isJsonSafe(value: unknown, ancestors = new Set<unknown>()): boolean {
   return safe
 }
 
-
-
 async function hasContents(directory: FileSystemDirectoryHandle, name: string, contents: string) {
   try {
     const file = await (await directory.getFileHandle(name)).getFile()

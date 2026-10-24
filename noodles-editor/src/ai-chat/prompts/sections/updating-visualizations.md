@@ -8,6 +8,8 @@ Most requests change something already drawn: a color, a size, a filter, the cam
 
 ## Where a value comes from
 
+The map shows a run's changes as it makes them; the user then accepts or rejects them.
+
 A layer's `color` or `radius` is often an expression naming a column another node writes. If `color` is `Cd`, the color comes from the `color-ramp` node that writes `Cd`: change its `ramp`, `min` or `max` there rather than the layer. A parameter wired from a number node takes that node's value: change the number node, or delete the wire to set the parameter directly. A shared color can come from a `color` node referenced as `{ "ref": "accent/color" }`.
 
 ## Keyframed parameters

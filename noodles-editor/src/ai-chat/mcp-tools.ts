@@ -18,6 +18,7 @@ import {
 import type { ContextLoader } from './context-loader'
 import type { DocToolContext } from './doc-tools'
 import * as docTools from './doc-tools'
+import { searchDocumentation } from './docs-search'
 import {
   type ExportStatusParams,
   type ExportVideoParams,
