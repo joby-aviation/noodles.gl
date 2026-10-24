@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { cellValueToKeyframeValue } from '../../timeline/table-cell-bindings'
 import { NOODLES_VERSION } from './migrate-schema'
 import { projectJsonSchema, projectSchema, schemaFileName } from './project-schema'
 
@@ -117,6 +118,20 @@ describe('project schema', () => {
       keyframe('c', 5, { r: 1, g: 0, b: 0, a: 1 }),
     ])
     expect(issues(project)).toEqual([])
+  })
+
+  it('accepts saved table cell keyframes holding arrays and nulls', () => {
+    const project = withTrack([
+      keyframe('a', 0, cellValueToKeyframeValue({ samples: [1, 2], label: null })),
+      keyframe('b', 2, [1, 2, 3, 4]),
+    ])
+    expect(issues(project)).toEqual([])
+  })
+
+  it('rejects a null keyframe value', () => {
+    expect(issues(withTrack([keyframe('a', 0, null)]))).toEqual([
+      'timeline.sheetsById.Noodles.sequence.tracksByObject.basemap.trackData.track-1.keyframes.0.value',
+    ])
   })
 
   it('rejects keyframes out of position order', () => {

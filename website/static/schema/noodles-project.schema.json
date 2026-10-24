@@ -504,12 +504,49 @@
           "type": "string"
         },
         {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/JsonValue"
+          }
+        },
+        {
           "type": "object",
           "propertyNames": {
             "type": "string"
           },
           "additionalProperties": {
-            "$ref": "#/$defs/KeyframeValue"
+            "$ref": "#/$defs/JsonValue"
+          }
+        }
+      ]
+    },
+    "JsonValue": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        },
+        {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/JsonValue"
+          }
+        },
+        {
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/JsonValue"
           }
         }
       ]

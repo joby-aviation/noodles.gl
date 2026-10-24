@@ -76,17 +76,25 @@ const edge = z.looseObject({
 // Timeline (serialized form of src/timeline/types.ts TimelineData)
 // ============================================================================
 
-// A number, boolean or string, or an object of them such as { r, g, b, a } or { lng, lat }
-const keyframeValue: z.ZodType<unknown> = z
+// Any JSON value. Table cell objects are keyframed as they are, so they can hold arrays and nulls
+const jsonValue: z.ZodType<unknown> = z
   .union([
     z.number(),
     z.boolean(),
     z.string(),
+    z.null(),
+    z.array(z.lazy(() => jsonValue)),
     z.record(
       z.string(),
-      z.lazy(() => keyframeValue)
+      z.lazy(() => jsonValue)
     ),
   ])
+  .meta({ id: 'JsonValue' })
+
+// A number, boolean or string, or an object such as { r, g, b, a } or { lng, lat }. Arrays come
+// from tools that keyframe a raw tuple.
+const keyframeValue = z
+  .union([z.number(), z.boolean(), z.string(), z.array(jsonValue), z.record(z.string(), jsonValue)])
   .meta({ id: 'KeyframeValue' })
 
 const unit = z.number().min(0).max(1)
