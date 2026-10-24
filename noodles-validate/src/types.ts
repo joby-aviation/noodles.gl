@@ -14,6 +14,8 @@ export interface ParamInfo {
   // float, int, toggle, menu, string, text, expr, code, column, color, url, field
   kind: string
   default?: unknown
+  // A default JSON cannot hold (Infinity), as JS text
+  defaultText?: string
   // A menu's values
   options?: string[]
   // What a `par:<name>` edge into it takes; a number when absent
@@ -36,6 +38,8 @@ export interface Registry {
   documentVersion: number
   // Operator-graph files (version 2 to this) convert to documents when they open
   convertsFrom: number
+  // Categories in the Add Node menu's order
+  categories?: string[]
   operators: Record<string, OperatorInfo>
   // Operator classes of older files and the operators they convert to
   formerly?: Record<string, string[]>

@@ -84,3 +84,12 @@ stored only what was set and planner defaults differ. Anything it cannot express
 - A conversion: a case in `src/runtime/migrate/*-conversions.node.test.ts` that converts a
   Noodles node, lowers it, and checks the rows.
 - `src/runtime/migrate/examples.node.test.ts` runs every example; keep it passing.
+
+## Registry and reference pages
+
+A new or changed operator changes the catalog's snapshot and its reference page. From
+`noodles-editor/`, run `npm run generate:registry` (it writes `noodles-validate/registry.json`),
+then `npm run generate:op-docs` (it writes `docs/reference/operators/<type>.md` and the index).
+Tests fail while either is out of date. Write anything the tables can't say under the page's
+`## Remarks`: which parameter wins when two disagree, defaults that differ from deck.gl, mistakes
+that are easy to make. The generator keeps it.

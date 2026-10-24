@@ -91,6 +91,7 @@
     "build:migrate-script": "vite build --config vite.config.migrate.ts",
     "migrate-projects": "npm run build:migrate-script && node dist/migrate-project-files.js",
     "generate:registry": "vitest run src/editor/operator-registry-snapshot.test.ts --update",
+    "generate:op-docs": "tsx scripts/generate-operator-docs.ts",
     "bench:agent": "tsx bench/agent/run.ts",
     "bench:agent:report": "tsx bench/agent/report.ts",
     "bench:agent:judge": "tsx bench/agent/judge-run.ts"

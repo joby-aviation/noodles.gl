@@ -3,20 +3,10 @@
 import { OPERATORS, type OpDef } from '@noodles.gl/planner'
 import cx from 'classnames'
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { CATEGORY_ORDER } from './categories'
 import s from './doc-editor.module.css'
 
-const CATEGORY_ORDER = [
-  'data',
-  'table',
-  'geometry',
-  'rows',
-  'color',
-  'layer',
-  'number',
-  'output',
-  'structure',
-  'host',
-]
+const order = (category: string) => (CATEGORY_ORDER as readonly string[]).indexOf(category)
 const HIDDEN = new Set(['subnet-input', 'subnet-output', 'deck'])
 // A subnet's input and output nodes belong inside one
 const SUBNET_ONLY = new Set(['subnet-input', 'subnet-output'])
@@ -52,7 +42,7 @@ export function AddNodeMenu({
           o.type.toLowerCase().includes(q) ||
           o.category.includes(q)
       )
-      .sort((a, b) => CATEGORY_ORDER.indexOf(a.category) - CATEGORY_ORDER.indexOf(b.category))
+      .sort((a, b) => order(a.category) - order(b.category))
   }, [query, filter, inSubnet])
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: a new query moves the highlight back to the top

@@ -10,44 +10,45 @@ Render data organized in a tiled format (generic tile layer).
 
 <!-- gen:begin syntax -->
 ```json
-{
-  "id": "/tile-layer",
-  "type": "TileLayerOp",
-  "position": { "x": 0, "y": 0 },
-  "data": { "inputs": {} }
-}
+{ "id": "n1", "op": "TileLayerOp", "name": "tile-layer", "x": 0, "y": 0, "params": {} }
 ```
 
-Expressions and code read its fields as `op('/tile-layer').par.data` (an input) and `op('/tile-layer').out.layer` (an output). Edges name the same fields as handles: `par.data`, `out.layer`.
+One out of it starts at `"sourcePort": "layer"`.
 <!-- gen:end syntax -->
 
 ## Inputs
 
 <!-- gen:begin inputs -->
-| Name | Type | Default |
-|------|------|---------|
-| `data` | `StringField` | `"https://example.com/tiles/{z}/{x}/{y}"` |
-| `visible` | `BooleanField` | `true` |
-| `opacity` | `NumberField` | `1` |
-| `minZoom` | `NumberField` | `0` |
-| `maxZoom` | `NumberField` | `24` |
-| `tileSize` | `NumberField` | `256` |
-| `maxCacheSize` | `NumberField` | `Infinity` |
-| `maxCacheByteSize` | `NumberField` | `Infinity` |
-| `refinementStrategy` | `StringLiteralField` | `"best-available"` |
-| `zRange` | `UnknownField` | `[0,24]` |
-| `extent` | `UnknownField` | `[-Infinity,-Infinity,Infinity,Infinity]` |
-| `renderSubLayers` | `FunctionField` | `null` |
-| `parameters` | `CompoundPropsField` | `{"depthTest":true}` |
-| `extensions` | `ListField` | `[]` |
+This operator has no input ports.
 <!-- gen:end inputs -->
+
+## Parameters
+
+<!-- gen:begin params -->
+| Parameter | Kind | Default | Choices |
+|-----------|------|---------|---------|
+| `data` | `field` | `"https://example.com/tiles/{z}/{x}/{y}"` |  |
+| `visible` | `field` | `true` |  |
+| `opacity` | `field` | `1` |  |
+| `minZoom` | `field` | `0` |  |
+| `maxZoom` | `field` | `24` |  |
+| `tileSize` | `field` | `256` |  |
+| `maxCacheSize` | `field` |  |  |
+| `maxCacheByteSize` | `field` |  |  |
+| `refinementStrategy` | `field` | `"best-available"` |  |
+| `zRange` | `field` | `[0,24]` |  |
+| `extent` | `field` | `[-Infinity,-Infinity,Infinity,Infinity]` |  |
+| `renderSubLayers` | `field` |  |  |
+| `parameters` | `field` | `{"depthTest":true}` |  |
+| `extensions` | `field` | `[]` |  |
+<!-- gen:end params -->
 
 ## Outputs
 
 <!-- gen:begin outputs -->
-| Name | Type |
+| Port | Type |
 |------|------|
-| `layer` | `LayerField` |
+| `layer` | `layer` |
 <!-- gen:end outputs -->
 
 <!-- Add hand-written "## Remarks" and "## Examples" sections here. See the operator reference index for what goes in them. -->
@@ -55,8 +56,9 @@ Expressions and code read its fields as `op('/tile-layer').par.data` (an input) 
 ## Details
 
 <!-- gen:begin details -->
-- **Category:** [Layer](../operators.md#layer)
-- **Type name:** `TileLayerOp`
+- **Category:** [Host operators](../operators.md#host)
+- **Operator:** `TileLayerOp`
+- **Runs:** on the page, not in the engine: it cannot be compiled to SQL or an expression
 <!-- gen:end details -->
 
 <!-- gen:begin history -->

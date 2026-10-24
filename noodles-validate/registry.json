@@ -1,6 +1,18 @@
 {
   "documentVersion": 1,
   "convertsFrom": 19,
+  "categories": [
+    "data",
+    "table",
+    "geometry",
+    "rows",
+    "color",
+    "layer",
+    "number",
+    "output",
+    "structure",
+    "host"
+  ],
   "operators": {
     "aggregate": {
       "name": "Aggregate",
@@ -1289,7 +1301,7 @@
       "name": "Contour Layer",
       "type": "contour",
       "category": "layer",
-      "description": "Rows binned into a grid of a cell size in metres, drawn as iso-lines at thresholds or bands between them.",
+      "description": "Rows binned into a grid of a cell size in meters, drawn as iso-lines at thresholds or bands between them.",
       "inputs": {
         "in": {
           "type": "table"
@@ -2387,7 +2399,7 @@
       "name": "Grid Bin",
       "type": "grid",
       "category": "table",
-      "description": "Count rows per square cell and emit one row per cell at its centre (P), with n and the weight sum w.",
+      "description": "Count rows per square cell and emit one row per cell at its center (P), with n and the weight sum w.",
       "inputs": {
         "in": {
           "type": "table"
@@ -2421,7 +2433,7 @@
       "name": "Grid Cell Layer",
       "type": "grid-cell",
       "category": "layer",
-      "description": "A square column per row, of a cell size in metres, raised by a per-row elevation.",
+      "description": "A square column per row, of a cell size in meters, raised by a per-row elevation.",
       "inputs": {
         "in": {
           "type": "table"
@@ -4600,7 +4612,7 @@
       "name": "Point Cloud Layer",
       "type": "point-cloud",
       "category": "layer",
-      "description": "A lit point per row, sized in pixels or metres.",
+      "description": "A lit point per row, sized in pixels or meters.",
       "inputs": {
         "in": {
           "type": "table"
@@ -6194,12 +6206,7 @@
         },
         "extent": {
           "kind": "field",
-          "default": [
-            null,
-            null,
-            null,
-            null
-          ],
+          "defaultText": "[-Infinity,-Infinity,Infinity,Infinity]",
           "portType": "value"
         },
         "renderSubLayers": {

@@ -732,7 +732,7 @@ export const OPERATORS: OpDef[] = [
   },
   {
     type: 'grid', label: 'Grid Bin', category: 'table',
-    description: 'Count rows per square cell and emit one row per cell at its centre (P), with n and the weight sum w.',
+    description: 'Count rows per square cell and emit one row per cell at its center (P), with n and the weight sum w.',
     inputs: [table()], outputs: [out()],
     params: [
       { name: 'x', label: 'X', kind: 'expr', default: 'lng', of: 'in' },
@@ -997,7 +997,7 @@ export const OPERATORS: OpDef[] = [
     inputs: [table()], outputs: [out()],
     params: [
       { ...geometryParam, default: 'LINESTRING(-74.02 40.70, -73.99 40.73, -73.97 40.76)' },
-      { name: 'units', label: 'Units', kind: 'menu', default: 'm', options: [{ value: 'm', label: 'Metres' }, { value: 'km', label: 'Kilometres' }] },
+      { name: 'units', label: 'Units', kind: 'menu', default: 'm', options: [{ value: 'm', label: 'Meters' }, { value: 'km', label: 'Kilometers' }] },
       { name: 'name', label: 'Output', kind: 'string', default: 'dist' },
       { name: 'lng', label: 'Longitude', kind: 'expr', default: 'lng', of: 'in', folder: 'Point' },
       { name: 'lat', label: 'Latitude', kind: 'expr', default: 'lat', of: 'in', folder: 'Point' },
@@ -1017,7 +1017,7 @@ export const OPERATORS: OpDef[] = [
     description: 'A circle per row.',
     inputs: [table()], outputs: [out('layer')],
     params: [
-      channel('position', 'Position', 'P', '[lng, lat] or [lng, lat, metres], or an attribute holding one.'),
+      channel('position', 'Position', 'P', '[lng, lat] or [lng, lat, meters], or an attribute holding one.'),
       channel('color', 'Color', '', 'An RGB attribute or expression in 0–1, e.g. ramp(fit(mag, 0, 7, 0, 1)). Empty uses Fill color.'),
       channel('radius', 'Radius', '', 'Per-row radius, multiplied by Radius scale. Empty is 1.'),
       rampParam,
@@ -1256,7 +1256,7 @@ export const OPERATORS: OpDef[] = [
   },
   {
     type: 'point-cloud', label: 'Point Cloud Layer', category: 'layer',
-    description: 'A lit point per row, sized in pixels or metres.',
+    description: 'A lit point per row, sized in pixels or meters.',
     inputs: [table()], outputs: [out('layer')],
     params: [
       channel('position', 'Position', 'P'),
@@ -1315,7 +1315,7 @@ export const OPERATORS: OpDef[] = [
   },
   {
     type: 'grid-cell', label: 'Grid Cell Layer', category: 'layer',
-    description: 'A square column per row, of a cell size in metres, raised by a per-row elevation.',
+    description: 'A square column per row, of a cell size in meters, raised by a per-row elevation.',
     inputs: [table()], outputs: [out('layer')],
     params: [
       channel('position', 'Position', 'P'),
@@ -1359,7 +1359,7 @@ export const OPERATORS: OpDef[] = [
   },
   {
     type: 'contour', label: 'Contour Layer', category: 'layer',
-    description: 'Rows binned into a grid of a cell size in metres, drawn as iso-lines at thresholds or bands between them.',
+    description: 'Rows binned into a grid of a cell size in meters, drawn as iso-lines at thresholds or bands between them.',
     inputs: [table()], outputs: [out('layer')],
     params: [
       channel('position', 'Position', 'P'),
