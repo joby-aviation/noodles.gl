@@ -1763,6 +1763,23 @@ describe('MapViewOp', () => {
   })
 })
 
+describe('FirstPersonViewOp', () => {
+  it('accepts a camera looking down', () => {
+    const operator = new FirstPersonViewOp('/first-person-0')
+    operator.inputs.viewState.setValue({ ...operator.inputs.viewState.value, pitch: -30 })
+
+    const { view } = operator.execute(operator.data)
+    expect(view.viewState.pitch).toBe(-30)
+  })
+
+  it('leaves map views limited to pitch 0 and up', () => {
+    const operator = new MapViewOp('/map-0')
+    expect(() =>
+      operator.execute({ ...operator.data, viewState: { ...operator.data.viewState, pitch: -30 } })
+    ).toThrow(/pitch -30/)
+  })
+})
+
 describe('OrbitViewOp', () => {
   it('accepts zoom outside 0..1', () => {
     const operator = new OrbitViewOp('/orbit-0')

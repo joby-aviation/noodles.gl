@@ -5461,7 +5461,7 @@ export class FirstPersonViewOp extends Operator<FirstPersonViewOp> {
   }
 
   execute(props: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
-    validateViewState(props.viewState)
+    validateViewState(props.viewState, { minPitch: -90 })
     return { view: { type: 'FirstPersonView', id: this.id, ...props } }
   }
 }
