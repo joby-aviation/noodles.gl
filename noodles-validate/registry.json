@@ -4327,10 +4327,6 @@
           "type": "StringLiteralField",
           "default": "pixels"
         },
-        "autoLabels": {
-          "type": "BooleanField",
-          "default": false
-        },
         "parameters": {
           "type": "CompoundPropsField",
           "default": {

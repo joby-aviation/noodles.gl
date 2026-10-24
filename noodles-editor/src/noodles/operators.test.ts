@@ -1,5 +1,6 @@
 import { LayerExtension } from '@deck.gl/core'
 import { PathStyleExtension } from '@deck.gl/extensions'
+import { MVTLayer } from '@deck.gl/geo-layers'
 import * as deckWidgets from '@deck.gl/widgets'
 import * as turf from '@turf/turf'
 import { Temporal } from 'temporal-polyfill'
@@ -3831,6 +3832,13 @@ describe('Tile3DLayerOp', () => {
     const op = new Tile3DLayerOp('/tile3d-0')
     const values = op.inputs.provider.choices.map(c => c.value)
     expect(values).toContain('Generic')
+  })
+})
+
+describe('MVTLayerOp', () => {
+  it('has no autoLabels input, which deck.gl MVTLayer does not read', () => {
+    expect(new MVTLayerOp('/mvt-0').inputs).not.toHaveProperty('autoLabels')
+    expect(MVTLayer.defaultProps).not.toHaveProperty('autoLabels')
   })
 })
 

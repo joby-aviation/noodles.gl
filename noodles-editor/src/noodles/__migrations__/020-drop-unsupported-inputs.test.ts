@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import type { NoodlesProjectJSON } from '../utils/serialization'
-import { down, up } from './020-drop-unsupported-view-inputs'
+import { down, up } from './020-drop-unsupported-inputs'
 
-describe('020-drop-unsupported-view-inputs', () => {
+describe('020-drop-unsupported-inputs', () => {
   const baseProject: NoodlesProjectJSON = {
     version: 19,
     timeline: {},
@@ -86,6 +86,17 @@ describe('020-drop-unsupported-view-inputs', () => {
     const migrated = await up(project)
 
     expect(migrated.nodes[0].data.inputs).toEqual({ placement: 'top-left' })
+  })
+
+  it('removes MVTLayerOp autoLabels values', async () => {
+    const project = {
+      ...baseProject,
+      nodes: [node('/tiles', 'MVTLayerOp', { autoLabels: true, minZoom: 2 })],
+    }
+
+    const migrated = await up(project)
+
+    expect(migrated.nodes[0].data.inputs).toEqual({ minZoom: 2 })
   })
 
   it('returns the same project when nothing needs migrating', async () => {

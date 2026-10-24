@@ -64,5 +64,5 @@ Expressions and code read its fields as `op('/map-view').par.x` (an input) and `
 
 Schema migrations that changed this operator. Older project files go through them when they open.
 
-- Version 20: [`020-drop-unsupported-view-inputs`](https://github.com/joby-aviation/noodles.gl/blob/main/noodles-editor/src/noodles/__migrations__/020-drop-unsupported-view-inputs.ts)
+- Version 20: [`020-drop-unsupported-inputs`](https://github.com/joby-aviation/noodles.gl/blob/main/noodles-editor/src/noodles/__migrations__/020-drop-unsupported-inputs.ts)
 <!-- gen:end history -->
