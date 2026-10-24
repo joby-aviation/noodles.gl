@@ -262,7 +262,8 @@ function substitute(e: Expr, bound: ReadonlyMap<string, Expr>): Expr {
  * not a function declaration. Kept here rather than in `wrangle.ts` so the grammar and the
  * registry that consumes it stay together.
  */
-const FN_DECL = /^\s*fn\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(([^)]*)\)\s*=\s*(.+)$/s;
+// No `\s*` after `=`: it would race the body's `(.+)` for the same spaces (polynomial).
+const FN_DECL = /^\s*fn\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(([^)]*)\)\s*=(.+)$/s;
 
 export function parseFunctionDeclaration(
   text: string,

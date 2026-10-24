@@ -46,7 +46,9 @@ export class WrangleError extends Error {}
 
 // `s` (dotAll) matters: newlines are not statement separators, so a long expression is
 // allowed to wrap and `.` has to match across lines.
-const STATEMENT = /^\s*(?:(var)\s+([A-Za-z_][A-Za-z0-9_]*)|@([A-Za-z_][A-Za-z0-9_]*))\s*=\s*(.+)$/s;
+// The right-hand side keeps its leading spaces, which the expression parser skips: a `\s*`
+// after `=` would race the `(.+)` for them, a polynomial backtrack on long input.
+const STATEMENT = /^\s*(?:(var)\s+([A-Za-z_][A-Za-z0-9_]*)|@([A-Za-z_][A-Za-z0-9_]*))\s*=(.+)$/s;
 
 /**
  * Parse a wrangle body into statements.
