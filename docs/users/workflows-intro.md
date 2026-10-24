@@ -144,9 +144,8 @@ Comments sit behind other nodes, have no inputs or outputs, and don't change wha
 
 ### Node Tree Sidebar
 
-The left sidebar's **Nodes** tab shows every node in the project as a tree, a subnet's nodes under it:
+The Layers editor's **Nodes** tab shows every node in the project as a tree, a subnet's nodes under it:
 
-- **Toggle visibility**: Click the chevron button on the sidebar edge to collapse or expand
 - **Select nodes**: Click a node name to select it on the canvas
 - **Navigate to node**: Click the compass icon to zoom the canvas to that node
 - **Navigate into subnets**: Click the arrow icon on a subnet to enter it
@@ -277,5 +276,5 @@ Now that you understand workflows, explore:
 | Frame all | `F` |
 | Search operators | Type after pressing `Tab` |
 | Play animation | `Space` |
-| Rename node | Double-click its name in the sidebar |
+| Rename node | Double-click its name in the Nodes tab |
 | Insert node into wire | Right-click the wire |

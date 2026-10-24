@@ -4,7 +4,7 @@ A common use case when exporting videos is to add animation to highlight a map a
 
 ## Keyframe-based animation
 
-Select a node to show its parameters in the right panel. Clicking the diamond next to a number parameter adds a keyframe for it at the playhead. Any number parameter can be keyframed: the camera, a filter threshold, a layer's opacity, a Trips Layer's Current time.
+Select a node to show its parameters in the Properties Panel. Clicking the diamond next to a number parameter adds a keyframe for it at the playhead. Any number parameter can be keyframed: the camera, a filter threshold, a layer's opacity, a Trips Layer's Current time.
 
 <iframe src="https://drive.google.com/file/d/1YyKSAycDOmtWBvuyQYWWQ5b7mLhMxoOV/preview" width="800" height="390" allow="autoplay"></iframe>
 

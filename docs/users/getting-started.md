@@ -16,12 +16,23 @@ Open the editor and follow along.
 
 ## Interface Overview
 
+### Workspaces and Areas
+
+The editor's window is split into areas, as in Blender. Each area shows one editor: the Map, the Node Graph, Layers, Properties, the Timeline or the Spreadsheet.
+
+- **Workspaces**: The tabs at the top right switch between layouts. **Layout** has Layers and Properties on the left, the map, and the timeline under it, with no node graph. **Animation** runs the timeline across the whole window. **Nodes** adds the node graph under the map.
+- **Change an area's editor**: Click its name in the area's header. Picking an editor that is open in another area swaps the two.
+- **Split or close an area**: Hover the area's header and use the buttons on its right. Drag the line between two areas to resize them.
+- **Reset**: **View > Reset workspace layout** puts the current workspace back to its default.
+
+Each workspace keeps its own arrangement, and the editor remembers them between visits. Closing the Map area pops the map out into a floating window; its dock button brings the area back.
+
 ### Node Editor
 - **Add Nodes**: Press `Tab` or right-click an empty area of the canvas to open the Add Node menu
 - **Connect Data**: Drag from an output port to an input port
 - **Navigate**: Double-click a subnet (or select it and press `Enter`) to go inside, use the breadcrumbs or press `U` to go back up, and press `F` to frame the whole network
 
-### Parameter Pane
+### Properties
 - **Edit Parameters**: Adjust the selected node's parameters, grouped into folders
 - **Expressions and References**: Drive a parameter from the time or another parameter (see [Expressions](./expressions.md))
 - **Keyframes**: Click the diamond next to a number to keyframe it
