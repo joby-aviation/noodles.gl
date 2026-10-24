@@ -431,6 +431,16 @@ export async function compileProgram(
           : {}),
       };
       const described = await catalog.describe(rel);
+      // A query passing an input's vector through keeps it: its component columns are all
+      // still there (a SELECT * after a color ramp or a position, say), so readers still
+      // find the vector by its name
+      if (node.type === 'sql') {
+        const names = new Set(described.columns.map((c) => c.name));
+        for (const v of shapes.flatMap((sh) => sh.vectors)) {
+          if (names.has(v.name) || vectors.some((w) => w.name === v.name)) continue;
+          if (Array.from({ length: v.width }, (_, i) => `${v.name}_${i}`).every((c) => names.has(c))) vectors.push(v);
+        }
+      }
       // A numeric list of one length in every row is a vector: its items become component
       // columns, which consumers read like any other vector's.
       const unmeasured = described.columns
@@ -476,12 +486,15 @@ export async function compileProgram(
       // an unused one would be selected and uploaded for nothing.
       const tailText = JSON.stringify([...tail.map((id) => byId.get(id)), layer]);
       // A path-rows layer (its position a column holding whole paths) reads its other list
-      // channels as lists too, even one whose rows all happen to hold 2 to 4 numbers.
+      // channels as lists too, even one whose rows all happen to hold 2 to 4 numbers. A vector
+      // the relation stores only as components (a color ramp's) is no list: it is re-packed.
       const channels = (layer as { channels?: Record<string, string> }).channels ?? {};
       const positionColumn = rel.shape.columns.find((c) => c.name === channels.position);
       const positionPath = positionColumn ? pathColumnOf(positionColumn.duckType) : undefined;
       const listChannels = new Set(
-        positionPath === 'points' || positionPath === 'geometry' ? Object.values(channels) : [],
+        positionPath === 'points' || positionPath === 'geometry'
+          ? Object.values(channels).filter((ch) => rel.shape.columns.some((c) => c.name === ch))
+          : [],
       );
       const repack = rel.shape.vectors.filter(
         (v) => !listChannels.has(v.name) && new RegExp(`\\b${v.name}\\b`).test(tailText),

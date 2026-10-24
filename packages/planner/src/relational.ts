@@ -15,7 +15,7 @@
  *     full precision; only the final layer query narrows to f32 for the buffer.
  */
 
-import { type Expr, parseExpr, columnsOf } from './expr.js';
+import { type Expr, parseExpr, columnsOf, enginesFor } from './expr.js';
 import { toSql, toSqlColumns, castToDouble, quoteIdent, SqlParams } from './backends/sql.js';
 import { escapeLiteral } from './source.js';
 import type {
@@ -24,6 +24,7 @@ import type {
 } from './types.js';
 import { analyze, PlanError, type ColumnType, type AnalyzedNode, type PathColumnKind } from './analyze.js';
 import { GEO_PRELUDE } from './geo.js';
+import { RAMP_STOPS } from './types.js';
 
 /** One column of a relation, as DuckDB describes it. */
 export interface RelColumn {
@@ -474,7 +475,10 @@ export function rowwiseSql(
   };
 
   for (const node of analysis.order) {
-    if (!node.feasible.has('sql')) {
+    // A color ramp's `ramp(t)` samples a LUT on the GPU and the CPU; inside a relation it is
+    // three columns read from the ramp's stops instead (see rampColumns)
+    const ramped = rampedArg(node, analysis.ramp);
+    if (!node.feasible.has('sql') && !ramped) {
       throw new PlanError(`Node ${node.id}: feeds ${label}, so it must run in SQL, and it has no SQL form`);
     }
     noVectorReads(node);
@@ -492,7 +496,9 @@ export function rowwiseSql(
           columns.add(name);
           break;
         }
-        const { items } = toSqlColumns(e, name, new SqlParams(), castToDouble);
+        const { items } = ramped
+          ? { items: rampColumns(toSql(inlineParams(ramped, values, used, `Node ${node.id}`), new SqlParams()).code, analysis.ramp!, name) }
+          : toSqlColumns(e, name, new SqlParams(), castToDouble);
         const outNames = node.width === 1 ? [name] : Array.from({ length: node.width }, (_, i) => `${name}_${i}`);
         sql = `SELECT ${excluding(outNames)}, ${items.join(', ')} FROM (${sql})`;
         for (const n of outNames) columns.add(n);
@@ -522,6 +528,34 @@ export function rowwiseSql(
     throw new PlanError(`${label}: stats nodes publish parameters to layers and cannot feed a relation`);
   }
   return { sql, vectors, params: [...used] };
+}
+
+/**
+ * The argument of an attribute that is `ramp(t)` and nothing else, when `t` itself has a SQL
+ * form: a color ramp's output, which a relation can compute from the ramp's stops.
+ */
+function rampedArg(node: AnalyzedNode, ramp: string | undefined): Expr | undefined {
+  const e = node.expr;
+  if (node.kind !== 'attribute' || !ramp || !RAMP_STOPS[ramp]) return undefined;
+  if (e?.kind !== 'call' || e.fn !== 'ramp' || e.args.length !== 1) return undefined;
+  return enginesFor(e.args[0]).has('sql') ? e.args[0] : undefined;
+}
+
+/**
+ * `ramp(t)` as three DOUBLE columns `<name>_0..2`: the stops are evenly spaced over t in
+ * [0, 1], and each channel is linear between the two stops around t, as `sampleRamp` and
+ * `rampAt` are between their LUT entries.
+ */
+export function rampColumns(t: string, ramp: string, name: string): string[] {
+  const stops = RAMP_STOPS[ramp];
+  const last = stops.length - 1;
+  const x = `(greatest(0.0, least(1.0, CAST(${t} AS DOUBLE))) * ${last}.0)`;
+  const lo = `CAST(least(floor(${x}), ${last - 1}.0) AS INTEGER)`;
+  return [0, 1, 2].map((c) => {
+    const list = `[${stops.map((s) => (Number.isInteger(s[c]) ? `${s[c]}.0` : String(s[c]))).join(', ')}]::DOUBLE[]`;
+    const at = (k: number) => `list_extract(${list}, ${lo} + ${k + 1})`;
+    return `(${at(0)} + (${at(1)} - ${at(0)}) * (${x} - ${lo})) AS ${quoteIdent(`${name}_${c}`)}`;
+  });
 }
 
 /** Parse check for editor feedback: the error text for an expression, or undefined. */
