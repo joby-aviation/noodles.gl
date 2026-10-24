@@ -3790,6 +3790,13 @@ describe('Tile3DLayerOp', () => {
     await expect(op.execute({ provider: 'Google' })).rejects.toThrow('Google Maps API key')
   })
 
+  it('throws when the Generic provider has no tilesetUrl', async () => {
+    const op = new Tile3DLayerOp('/tile3d-0')
+    await expect(op.execute({ provider: 'Generic', tilesetUrl: '' })).rejects.toThrow(
+      'set Tileset URL'
+    )
+  })
+
   it('hides tilesetUrl by default', () => {
     const op = new Tile3DLayerOp('/tile3d-0')
     expect(op.isFieldVisible('tilesetUrl')).toBe(false)

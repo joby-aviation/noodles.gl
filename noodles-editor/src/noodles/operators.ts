@@ -8028,6 +8028,11 @@ export class Tile3DLayerOp extends Operator<Tile3DLayerOp> {
       )
     }
 
+    // Generic sends no credentials, so falling back to the Google tileset would fail
+    if (provider === 'Generic' && !tilesetUrl) {
+      throw new Error('Tile3DLayer: set Tileset URL to use the Generic provider')
+    }
+
     const defaultUrl = provider === 'Cesium' ? NYC_CESIUM_TILESET_URL : GOOGLE_TILESET_URL
     const data = tilesetUrl || defaultUrl
 
