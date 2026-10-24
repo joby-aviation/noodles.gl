@@ -24,7 +24,7 @@ const SECTIONS = ['users', 'developers', 'ai-assistant', 'examples'] as const
 export const INSTRUCTIONS = `Docs, operator schemas, examples and validation for Noodles.gl project files (noodles.json).
 
 - Start from a similar project: list_examples, then get_example.
-- Before writing an edge, read both operators with get_operator_schema. Edges go from out.<field> on the source to par.<field> on the target, using fields the schema lists or the node declares in data.customInputs. At a container's boundary the container's own par.<field> is a source and its out.<field> a target.
+- A project is a document: nodes {id, op, name, x, y, params} and edges {id, source, sourcePort, target, targetPort}, with node ids as source and target. Before writing a node or an edge, read its operator with get_operator_schema: an edge goes from one of the source's outputs to one of the target's inputs, or to par:<param> to drive a parameter from a number. Leave out parameters at their default.
 - After writing or editing a file, call validate_project with its path and fix every error.
 - When validate_project returns "valid": true, the file is done. Stop researching.
 
@@ -77,18 +77,22 @@ export function createServer({ repoRoot, cwd }: Context): McpServer {
     'get_operator_schema',
     {
       description:
-        'Get the input/output field schema for an operator type (e.g. FileOp, ScatterplotLayerOp)',
+        'Get the ports and parameters of an operator type (e.g. file, scatter, deck)',
       inputSchema: { type: z.string().describe('Operator type name') },
       annotations: readOnly,
     },
     ({ type }) => {
       const schema = registry.operators[resolveOperatorType(type, registry)]
-      if (!schema) return fail(unknownType(type, registry, 'list_operators shows every type.'))
+      if (!schema) return fail(unknownType(type, registry, 'list_operators shows every operator.'))
       return ok({
         ...schema,
-        handles: {
-          inputs: Object.keys(schema.inputs).map(name => `par.${name}`),
-          outputs: Object.keys(schema.outputs).map(name => `out.${name}`),
+        // What an edge's targetPort and sourcePort may be
+        ports: {
+          inputs: [
+            ...Object.keys(schema.inputs),
+            ...Object.keys(schema.params).map(name => `par:${name}`),
+          ],
+          outputs: Object.keys(schema.outputs),
         },
       })
     }
@@ -176,7 +180,7 @@ export function createServer({ repoRoot, cwd }: Context): McpServer {
     'validate_project',
     {
       description:
-        'Check a noodles.json project against the operator registry: schema version, operator types, input names, edge handles, duplicate edges. Every error says how to fix it. Call it after each edit; when valid is true, the file is done.',
+        'Check a noodles.json document against the operator registry: operators, parameters, ports, wire types, names, references, loops. Every error says how to fix it. Call it after each edit; when valid is true, the file is done.',
       inputSchema: {
         path: z
           .string()
@@ -223,13 +227,13 @@ export function createServer({ repoRoot, cwd }: Context): McpServer {
 function summarize({ valid, errors, warnings }: ValidationResult, registry: Registry): string {
   const warned = warnings.length > 0 ? ` (${count(warnings.length, 'warning')})` : ''
   return valid
-    ? `OK: valid against ${Object.keys(registry.operators).length} operators, schema version ${registry.projectVersion}${warned}. The file is done.`
+    ? `OK: valid against ${Object.keys(registry.operators).length} operators, document version ${registry.documentVersion}${warned}. The file is done.`
     : `FAIL: ${count(errors.length, 'error')}${warned}. Fix them and validate again.`
 }
 
 function about(registry: Registry) {
   return {
-    projectVersion: registry.projectVersion,
+    documentVersion: registry.documentVersion,
     operators: Object.keys(registry.operators).length,
   }
 }

@@ -90,9 +90,7 @@
     "fix-lint": "biome check --write --unsafe ./src",
     "build:migrate-script": "vite build --config vite.config.migrate.ts",
     "migrate-projects": "npm run build:migrate-script && node dist/migrate-project-files.js",
-    "generate:registry": "vitest run src/noodles/operator-registry-snapshot.test.ts --update",
-    "generate:schema": "node --import tsx scripts/generate-project-schema.ts",
-    "generate:op-docs": "tsx scripts/generate-operator-docs.ts",
+    "generate:registry": "vitest run src/editor/operator-registry-snapshot.test.ts --update",
     "bench:agent": "tsx bench/agent/run.ts",
     "bench:agent:report": "tsx bench/agent/report.ts",
     "bench:agent:judge": "tsx bench/agent/judge-run.ts"

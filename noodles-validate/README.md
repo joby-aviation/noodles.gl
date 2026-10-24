@@ -1,6 +1,6 @@
 # noodles-validate
 
-Checks Noodles.gl project files (`noodles.json`) against the operator registry, in plain Node, with no browser or build step. Use it after writing or editing a project file: when it prints `OK`, the file is done.
+Checks Noodles.gl project files (`noodles.json` documents) against the operator registry, in plain Node, with no browser or build step. Use it after writing or editing a project file: when it prints `OK`, the file is done.
 
 From the repo root, after `npm install`:
 
@@ -20,8 +20,8 @@ With no paths it checks `noodles-editor/src/examples`. A directory is searched f
 
 ```
 noodles-editor/src/examples/quakes/noodles.json
-  error   nodes[0]  /earthquakes: Unknown operator type File. Did you mean: FileOp? Types end in "Op", e.g. FileOp, ScatterplotLayerOp. [unknown-operator]
-  error   edges[1]  Edge /deck.out.vis->/out.in.vis: targetHandle in.vis is malformed: inputs are "par.<name>". Did you mean: par.vis. [edge-handle]
+  error   nodes[0]  n1: Unknown operator File. Did you mean: file? [unknown-operator]
+  error   edges[1]  Edge e2: targetPort par.layers is an old handle; write layers. [edge-port]
 
 FAIL: 2 errors in 1 of 1 file. Fix the errors and run validate-projects again.
 ```
@@ -37,29 +37,34 @@ Exit status: `0` when every file is valid (warnings allowed), `1` when any file 
 | Rule | Severity | Fires when |
 |---|---|---|
 | `invalid-json` | error | The file doesn't parse |
-| `project-shape` | error | `version`, `nodes` or `edges` is missing or the wrong type, or a node has no `type` |
-| `version` | error | `version` isn't the current schema version. Older files need a migration, not a new number |
-| `node-id` | error | A node id isn't an absolute path like `/earthquake-data` |
+| `project-shape` | error | `version`, `name`, `nodes` or `edges` is missing or the wrong type, or a node has no `op`, `x` or `y` |
+| `version` | error | `version` is neither 1 (a document) nor an operator-graph schema the editor converts |
+| `operator-graph` | warning | The file is an operator-graph file (schema 1 to 19, nodes with `type` and edges with handles). The editor converts it when it opens; nothing else is checked |
+| `node-id` | error | A node id is missing or empty |
 | `duplicate-node-id` | error | Two nodes share an id |
-| `unknown-operator` | error | A node's `type` isn't a registered operator (`group` nodes are allowed) |
-| `unknown-input` | error | `data.inputs` names an input the operator doesn't have and `data.customInputs` doesn't declare (a GraphInputOp also has its container's custom inputs) |
-| `custom-input` | error | A `data.customInputs` entry has no name, or a type the editor can't load (`number`, `string`, `color` and the rest of `customFieldTypes` in `registry.json`) |
-| `edge-shape` | error | An edge is missing `id`, `source`, `sourceHandle`, `target` or `targetHandle` |
-| `edge-unknown-node` | error | An edge's `source` or `target` isn't a node |
-| `edge-handle` | error | A handle isn't `out.<field>` on the source and `par.<field>` on the target, or names a field the operator doesn't have. Container boundary edges (`/c.par.in` to its GraphInputOp, its GraphOutputOp to `/c.out.out`) are allowed |
+| `unknown-operator` | error | A node's `op` isn't a registered operator. An operator class from an older file (`ScatterplotLayerOp`) gets the operator it is now |
+| `unknown-parent` | error | A node's `parent` isn't a `subnet` node |
+| `duplicate-name` | error | Two nodes in one network share a `name` |
+| `unknown-param` | error | `params` names a parameter the operator (or a subnet's promoted parameters) doesn't have |
+| `param-value` | error | An `{expr}` or `{ref}` object holds anything else, or a menu value isn't one of its choices |
+| `unknown-reference` | error | A `{ref}` or a `ch()` call in an expression or query names a node or parameter that isn't there |
+| `edge-shape` | error | An edge is missing `id`, `source`, `sourcePort`, `target` or `targetPort` |
+| `edge-unknown-node` | error | An edge's `source` or `target` isn't a node id (it says so when it is a node's name) |
+| `edge-port` | error | `sourcePort` isn't an output, or `targetPort` isn't an input or `par:<parameter>` |
+| `edge-type` | error | The output's type can't feed the input: a table into a deck's layers, a table into `par:` |
+| `edge-network` | error | An edge joins nodes in different networks |
 | `duplicate-edge` | error | Two edges make the same connection |
-| `duplicate-edge-id` | error | Two different connections share an id |
-| `multiple-inputs` | error | More than one edge goes into an input that isn't a list |
-| `stale-edge-id` | warning | An id in the `source.sourceHandle->target.targetHandle` form names other endpoints. Legacy ids in other forms are left alone, as migrations leave them |
-| `generic-node-name` | warning | A node id ends in `-<number>`, like `/file-1` |
+| `duplicate-edge-id` | error | Two edges share an id |
+| `multiple-inputs` | error | More than one edge goes into a port that isn't multi-input (a deck's `layers` is) |
+| `cycle` | error | Edges form a loop |
+| `timeline-target` | warning | A track's target isn't `<node id>.<param>` for a node and parameter that exist |
+| `generic-node-name` | warning | A node is named after its operator and a number, as the editor names new nodes (`scatter1`) |
 
-Saved `ReferenceEdge`s are skipped: the editor drops them on load and re-derives them from `op()` references.
-
-It does not run the project. It doesn't check timeline tracks and keyframes, input values against their field types, or that nested node ids sit inside a container.
+It does not run the project. It doesn't check expressions beyond their `ch()` references, SQL, column names, or that a parameter's literal has the right type.
 
 ## The registry
 
-`registry.json` is a snapshot of every operator's inputs and outputs and the current schema version, taken from the editor's operator classes. They can't load in plain Node, so the CLI reads the snapshot. `npm test` in `noodles-editor/` fails when the snapshot is out of date. After changing an operator, a field or a migration, regenerate it:
+`registry.json` is a snapshot of every operator's ports and parameters, taken from the editor's catalog (the planner operators plus the host operators, which can't load in plain Node), and the operator classes older files used with what they convert to. `npm test` in `noodles-editor/` fails when the snapshot is out of date. After changing an operator, regenerate it:
 
 ```bash
 cd noodles-editor && npm run generate:registry
@@ -73,7 +78,7 @@ import { loadRegistry, validateProject } from 'noodles-validate'
 const { valid, errors, warnings } = validateProject(JSON.parse(text), loadRegistry())
 ```
 
-`noodles-validate/fields` has the type, input and handle checks on their own, with no Node APIs, for the browser. The editor's `apply_modifications` uses them (`noodles-editor/src/ai-chat/modification-fields.ts`), so it reports the same errors as the CLI.
+`noodles-validate/fields` has the operator, parameter and port checks on their own, with no Node APIs, for the browser.
 
 ## Development
 

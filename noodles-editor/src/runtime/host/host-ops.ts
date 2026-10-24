@@ -120,7 +120,8 @@ export function hostOpDef(type: string, instance: Operator<IOperator>): OpDef {
     inputs: [],
     outputs: Object.entries(instance.outputs as Record<string, Field>).map(([name, field]) => ({
       name,
-      type: portTypeOf(field),
+      // Code returns rows, GeoJSON or layers, so its output feeds a table input or a deck
+      type: type === 'CodeOp' ? 'any' : portTypeOf(field),
       multi: field instanceof ListField,
     })),
     params,
