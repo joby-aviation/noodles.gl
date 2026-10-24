@@ -429,6 +429,29 @@ describe('LineToPolygon / PolygonToLine', () => {
     const result = op.execute({ geojson: polygonFC })
     expect(result.featureCollection.features[0].geometry.type).toBe('LineString')
   })
+
+  it('converts a MultiPolygon to one line feature per polygon', () => {
+    const op = new PolygonToLineOp('/p2l')
+    const square = (x: number) => [
+      [
+        [x, 0],
+        [x + 1, 0],
+        [x + 1, 1],
+        [x, 1],
+        [x, 0],
+      ],
+    ]
+    const multi = turf.featureCollection([
+      turf.multiPolygon([square(0), square(5)], { name: 'pair' }),
+    ])
+
+    const { features } = op.execute({ geojson: multi }).featureCollection
+
+    expect(features.map(f => [f.type, f.geometry.type, f.properties])).toEqual([
+      ['Feature', 'LineString', { name: 'pair' }],
+      ['Feature', 'LineString', { name: 'pair' }],
+    ])
+  })
 })
 
 describe('Explode Operator', () => {

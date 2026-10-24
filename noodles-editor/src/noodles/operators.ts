@@ -8841,14 +8841,15 @@ export class PolygonToLineOp extends Operator<PolygonToLineOp> {
   execute({ geojson }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     if (!geojson?.features?.length)
       return { featureCollection: { type: 'FeatureCollection', features: [] } }
-    const features = geojson.features.map((f: GeoJSON.Feature) => {
+    const features = geojson.features.flatMap((f: GeoJSON.Feature) => {
       if (f.geometry.type === 'Polygon' || f.geometry.type === 'MultiPolygon') {
-        return turf.polygonToLine(f)
+        // MultiPolygons come back as a FeatureCollection with one line feature per polygon
+        const lines = turf.polygonToLine(f)
+        return lines.type === 'FeatureCollection' ? lines.features : lines
       }
       return f
     })
-    const flat = features.flat ? features.flat() : features
-    return { featureCollection: { type: 'FeatureCollection', features: flat } }
+    return { featureCollection: { type: 'FeatureCollection', features } }
   }
 }
 
