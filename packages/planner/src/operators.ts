@@ -1503,6 +1503,17 @@ export const OPERATORS: OpDef[] = [
     },
   },
   {
+    type: 'comment', label: 'Comment', category: 'structure',
+    description: 'A note that explains the nodes beside it. Double-click it to edit its text. Nothing connects to it, and it lowers to nothing.',
+    inputs: [], outputs: [],
+    params: [
+      { name: 'text', label: 'Text', kind: 'text', default: '' },
+      { name: 'width', label: 'Width', kind: 'int', default: 240, min: 120, max: 2000, step: 1, bind: 'structural', folder: 'Size' },
+      { name: 'height', label: 'Height', kind: 'int', default: 80, min: 40, max: 2000, step: 1, bind: 'structural', folder: 'Size' },
+    ],
+    lower: () => ({ nodes: [], outputs: {} }),
+  },
+  {
     type: 'subnet', label: 'Subnetwork', category: 'structure',
     description: 'A network inside a node. Double-click to enter. Promote parameters to control the inside from here.',
     inputs: [{ name: 'in0', type: 'any', label: 'in0', optional: true }, { name: 'in1', type: 'any', label: 'in1', optional: true }],

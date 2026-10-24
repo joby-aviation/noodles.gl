@@ -154,6 +154,42 @@
         "name": "dropoff_position",
         "expression": "[dropoff_longitude, dropoff_latitude]"
       }
+    },
+    {
+      "id": "data-note",
+      "op": "comment",
+      "name": "data-note",
+      "x": 0,
+      "y": 320,
+      "params": {
+        "text": "This loads the taxi trips CSV. Click it to see its columns.",
+        "width": 265,
+        "height": 80
+      }
+    },
+    {
+      "id": "color-note",
+      "op": "comment",
+      "name": "color-note",
+      "x": 440,
+      "y": -60,
+      "params": {
+        "text": "These two nodes set the pickup and drop-off colors. Click one to pick a new color.",
+        "width": 290,
+        "height": 90
+      }
+    },
+    {
+      "id": "arc-note",
+      "op": "comment",
+      "name": "arc-note",
+      "x": 898,
+      "y": -260,
+      "params": {
+        "text": "This layer draws an arc from each pickup to its drop-off. Click it and change Width scale.",
+        "width": 300,
+        "height": 80
+      }
     }
   ],
   "edges": [

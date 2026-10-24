@@ -94,7 +94,7 @@ Opening a saved project by its URL (`/projects/:name`, which is where Recent pro
 
 | Event | Properties | Location |
 |-------|-----------|----------|
-| `node_added` | `nodeType` (`CommentOp` for a comment) | use-project-modifications.ts |
+| `node_added` | `nodeType` (`comment` for a comment) | use-project-modifications.ts |
 | `node_deleted` | `count` | use-project-modifications.ts |
 | `edge_added` | `count` | use-project-modifications.ts |
 | `edge_deleted` | `count` | use-project-modifications.ts |

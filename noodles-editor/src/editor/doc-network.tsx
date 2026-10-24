@@ -17,6 +17,7 @@ import {
 } from '@xyflow/react'
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { StarterNodeFocus } from '../noodles/components/starter-node-focus'
+import { DocCommentComponent } from './doc-comment'
 import { useEngineState } from './doc-engine'
 import ns from './doc-network.module.css'
 import { DocNodeComponent } from './doc-node'
@@ -35,7 +36,7 @@ import {
 import { docStore, useEditor } from './doc-store'
 import { AddNodeMenu, ContextMenu, type MenuItem } from './menus'
 
-const nodeTypes = { doc: DocNodeComponent }
+const nodeTypes = { doc: DocNodeComponent, comment: DocCommentComponent }
 
 const PORT_COLOR: Record<string, string> = {
   table: '#22c55e',
@@ -99,6 +100,8 @@ export function DocNetwork({ children }: { children?: ReactNode }) {
   const flow = useReactFlow()
   const [menu, setMenu] = useState<Menu>()
   const [nodes, setNodes] = useState<Node[]>([])
+  const nodesRef = useRef(nodes)
+  nodesRef.current = nodes
   const mouse = useRef({ x: 200, y: 200 })
 
   // The document's nodes in this network, reusing the object React Flow already has for any
@@ -110,16 +113,30 @@ export function DocNetwork({ children }: { children?: ReactNode }) {
         .filter(n => n.parent === network)
         .map(n => {
           const old = byId.get(n.id)
-          const position = old?.dragging ? old.position : { x: n.x, y: n.y }
+          const position = old?.dragging || old?.resizing ? old.position : { x: n.x, y: n.y }
           const selected = selection.includes(n.id)
+          // A comment's size is its own; while it is being resized React Flow's is newer
+          const size =
+            n.op === 'comment' && !old?.resizing
+              ? { width: Number(n.params.width ?? 240), height: Number(n.params.height ?? 80) }
+              : undefined
           if (
             old &&
             old.position.x === position.x &&
             old.position.y === position.y &&
-            old.selected === selected
+            old.selected === selected &&
+            (!size || (old.width === size.width && old.height === size.height))
           )
             return old
-          return { ...(old ?? { id: n.id, type: 'doc', data: NO_DATA }), position, selected }
+          const type = n.op === 'comment' ? 'comment' : 'doc'
+          return {
+            ...(old ?? { id: n.id, type, data: NO_DATA }),
+            position,
+            selected,
+            ...size,
+            // Behind the nodes it explains
+            ...(type === 'comment' ? { zIndex: -1 } : {}),
+          }
         })
     })
   }, [doc.nodes, network, selection])
@@ -190,6 +207,29 @@ export function DocNetwork({ children }: { children?: ReactNode }) {
       (c): c is Extract<NodeChange, { type: 'position' }> =>
         c.type === 'position' && c.dragging === false && !!c.position
     )
+    // A comment resized: its size, and its position when a top or left handle moved it, on
+    // release. Resize handles report positions with no drag state, so they come from React
+    // Flow's nodes.
+    const resized = changes.filter(
+      (c): c is Extract<NodeChange, { type: 'dimensions' }> =>
+        c.type === 'dimensions' && c.resizing === false && !!c.dimensions
+    )
+    if (resized.length) {
+      const now = new Map(nodesRef.current.map(n => [n.id, n]))
+      store.edit(d => {
+        for (const c of resized) {
+          const n = d.nodes.find(x => x.id === c.id)
+          if (!n || !c.dimensions) continue
+          n.params.width = Math.round(c.dimensions.width)
+          n.params.height = Math.round(c.dimensions.height)
+          const at = now.get(c.id)?.position
+          if (at) {
+            n.x = Math.round(at.x)
+            n.y = Math.round(at.y)
+          }
+        }
+      }, 'resize')
+    }
     if (finished.length) {
       store.edit(d => {
         for (const c of finished) {

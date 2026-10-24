@@ -62,6 +62,9 @@ describe('toEditorDoc', () => {
     const { doc, warnings, runtime } = await run('nyc-taxis')
     expect(doc.nodes.map(n => `${n.id}:${n.op}`).sort()).toEqual([
       '/arc-layer:arc',
+      '/arc-note:comment',
+      '/color-note:comment',
+      '/data-note:comment',
       '/data-source:file',
       '/deck:deck',
       '/dropoff-layer:scatter',

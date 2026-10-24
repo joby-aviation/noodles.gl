@@ -70,6 +70,7 @@ const refused = (reason: string): OpPlan => ({ becomes: 'refused', reason })
 export const OP_CATALOG: Record<string, OpPlan> = {
   // --- code ------------------------------------------------------------------------------
   AccessorOp: rows(['attribute', 'js-function']),
+  CommentOp: planner(['comment']),
   CodeOp: {
     ...code(['code']),
     hostWhen:
