@@ -1,6 +1,6 @@
 ---
 id: t1-pickup-color
-taskVersion: 2
+taskVersion: 3
 family: knowledge
 tier: T1
 tags: [knowledge, inspection, color]
@@ -17,8 +17,8 @@ grader:
       any: true
       patterns: ['8d12af', '141\D{1,3}18\D{1,3}175']
     - type: nodeCount
-      min: 9
-      max: 9
+      min: 12
+      max: 12
 ---
 
 Which node sets the color of the pickup points, and what color is it set to right now?

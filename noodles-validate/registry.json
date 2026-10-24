@@ -1235,6 +1235,28 @@
         }
       }
     },
+    "comment": {
+      "name": "Comment",
+      "type": "comment",
+      "category": "structure",
+      "description": "A note that explains the nodes beside it. Double-click it to edit its text. Nothing connects to it, and it lowers to nothing.",
+      "inputs": {},
+      "outputs": {},
+      "params": {
+        "text": {
+          "kind": "text",
+          "default": ""
+        },
+        "width": {
+          "kind": "int",
+          "default": 240
+        },
+        "height": {
+          "kind": "int",
+          "default": 80
+        }
+      }
+    },
     "compass-widget": {
       "name": "Compass Widget",
       "type": "compass-widget",
@@ -6835,6 +6857,9 @@
     ],
     "ColumnLayerOp": [
       "column"
+    ],
+    "CommentOp": [
+      "comment"
     ],
     "CompassWidgetOp": [
       "compass-widget"

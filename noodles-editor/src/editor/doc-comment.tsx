@@ -1,15 +1,12 @@
-import { NodeResizer, type NodeProps as ReactFlowNodeProps } from '@xyflow/react'
-import cx from 'classnames'
-import { type ReactNode, useEffect, useLayoutEffect, useRef, useState } from 'react'
+// A comment in the network: a note explaining the nodes beside it. Its text and size are its
+// parameters, so editing and resizing it are document edits that undo and save like any other.
 
-import nodeStyles from '../noodles.module.css'
-import type { CommentOp } from '../operators'
-import { getOp } from '../store'
-import type { NodeDataJSON } from '../transform-graph'
-import { FieldEditScope } from '../utils/field-edit-analytics'
-import { usePropertyHistory } from '../utils/property-history'
-import s from './comment-op.module.css'
-import { useLocked } from './op-components'
+import { type NodeProps, NodeResizer } from '@xyflow/react'
+import cx from 'classnames'
+import { type ReactNode, useLayoutEffect, useRef, useState } from 'react'
+import s from '../noodles/components/comment-op.module.css'
+import { setParam } from './doc-ops'
+import { docStore, useEditor } from './doc-store'
 
 export const COMMENT_MIN_WIDTH = 120
 export const COMMENT_MIN_HEIGHT = 40
@@ -38,19 +35,12 @@ export function linkifyText(text: string): ReactNode[] {
   )
 }
 
-function CommentEditor({
-  field,
-  onDone,
-}: {
-  field: CommentOp['inputs']['text']
-  onDone: () => void
-}) {
-  const [draft, setDraft] = useState(field.value)
-  const textareaRef = useRef<HTMLTextAreaElement>(null)
-  const { captureStart, commitChange } = usePropertyHistory()
+function CommentEditor({ id, text, onDone }: { id: string; text: string; onDone: () => void }) {
+  const [draft, setDraft] = useState(text)
+  const ref = useRef<HTMLTextAreaElement>(null)
 
   useLayoutEffect(() => {
-    const textarea = textareaRef.current
+    const textarea = ref.current
     if (!textarea) return
     textarea.focus()
     textarea.setSelectionRange(textarea.value.length, textarea.value.length)
@@ -58,20 +48,19 @@ function CommentEditor({
 
   return (
     <textarea
-      ref={textareaRef}
+      ref={ref}
       className={cx(s.commentTextarea, 'nodrag', 'nowheel', 'nokey')}
       aria-label="Comment text"
       value={draft}
       placeholder="Write a note"
-      onFocus={captureStart}
       onChange={e => setDraft(e.currentTarget.value)}
       onBlur={() => {
-        if (draft !== field.value) field.setValue(draft)
-        commitChange('Edit comment')
+        // One undo step for the whole edit
+        if (draft !== text) docStore().edit(d => setParam(d, id, 'text', draft))
         onDone()
       }}
       onKeyDown={e => {
-        // Keep editor shortcuts (delete node, undo) away from the text
+        // Keep the network's shortcuts (delete node, undo) away from the text
         e.stopPropagation()
         if (e.key === 'Escape' || (e.key === 'Enter' && (e.metaKey || e.ctrlKey))) {
           e.preventDefault()
@@ -82,32 +71,17 @@ function CommentEditor({
   )
 }
 
-export function CommentOpComponent({
-  id,
-  selected,
-}: ReactFlowNodeProps<NodeDataJSON<CommentOp>> & { type: 'CommentOp' }) {
-  const op = getOp(id as string) as CommentOp | undefined
-  const locked = useLocked(op)
-  const [text, setText] = useState(op?.inputs.text.value ?? '')
+export function DocCommentComponent({ id, selected }: NodeProps) {
+  const node = useEditor(st => st.doc.nodes.find(n => n.id === id))
   const [editing, setEditing] = useState(false)
-
-  useEffect(() => {
-    if (!op) return
-    const sub = op.inputs.text.subscribe(setText)
-    return () => sub.unsubscribe()
-  }, [op])
-
-  if (!op) return null
-
+  if (!node) return null
+  const text = typeof node.params.text === 'string' ? node.params.text : ''
   return (
     <div
       role="note"
-      className={cx(s.comment, {
-        [nodeStyles.dragHandle]: !editing,
-        [s.commentSelected]: selected,
-      })}
+      className={cx(s.comment, { [s.commentSelected]: selected })}
+      style={{ width: '100%', height: '100%' }}
       onDoubleClick={e => {
-        if (locked) return
         e.stopPropagation()
         setEditing(true)
       }}
@@ -118,9 +92,7 @@ export function CommentOpComponent({
         minHeight={COMMENT_MIN_HEIGHT}
       />
       {editing ? (
-        <FieldEditScope field={op.inputs.text}>
-          <CommentEditor field={op.inputs.text} onDone={() => setEditing(false)} />
-        </FieldEditScope>
+        <CommentEditor id={id} text={text} onDone={() => setEditing(false)} />
       ) : (
         <div className={cx(s.commentText, { [s.commentEmpty]: text === '' })}>
           {text === '' ? 'Double-click to write a note' : linkifyText(text)}

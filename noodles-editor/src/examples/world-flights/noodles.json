@@ -188,6 +188,42 @@
         "max": 1,
         "name": "color_ramp"
       }
+    },
+    {
+      "id": "transform-note",
+      "op": "comment",
+      "name": "transform-note",
+      "x": 0,
+      "y": -130,
+      "params": {
+        "text": "This loads the flights from a file on the web and turns each one into a path with a time for every point. Click it to read or change the code.",
+        "width": 420,
+        "height": 80
+      }
+    },
+    {
+      "id": "data-note",
+      "op": "comment",
+      "name": "data-note",
+      "x": 0,
+      "y": 480,
+      "params": {
+        "text": "This loads the same file as routes, drawn faintly under the trails.",
+        "width": 265,
+        "height": 80
+      }
+    },
+    {
+      "id": "trails-note",
+      "op": "comment",
+      "name": "trails-note",
+      "x": 820,
+      "y": -250,
+      "params": {
+        "text": "This layer draws the moving flight trails. Click it and change Trail length to make them longer.",
+        "width": 300,
+        "height": 80
+      }
     }
   ],
   "edges": [

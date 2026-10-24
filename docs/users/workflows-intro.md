@@ -134,13 +134,13 @@ For larger workflows, group nodes into **subnets** (`subnet`):
 
 ### Comments
 
-Add a **Comment** to explain part of a graph in place. Open the Add Node menu and choose **Comment** (under Utility), then move it next to the nodes it describes. The featured examples include a few to show the idea.
+Add a **Comment** to explain part of a graph in place. Open the Add Node menu and choose **Comment** (under Structure), then move it next to the nodes it describes. The featured examples include a few to show the idea.
 
 - **Edit the text**: Double-click the comment, type, then press Escape or click away to finish. Line breaks are kept, and web addresses become links.
 - **Resize**: Select the comment and drag its corners or edges.
 - **Move**: Drag the comment from anywhere on it.
 
-Comments sit behind other nodes, have no inputs or outputs, and don't change what the graph does. Their text and size are saved with the project.
+Comments sit behind other nodes, have no inputs or outputs, and don't change what the graph does. Their text and size are saved with the project, and the parameter pane edits them too.
 
 ### Node Tree Sidebar
 
@@ -161,6 +161,7 @@ The **Layers** tab lists what the deck draws.
 3. **Name your nodes**: Names are what paths and `ch()` references use
 4. **Start simple**: Build incrementally, checking each step
 5. **Inspect rows**: Select a node and press `D` to display its rows in the spreadsheet
+6. **Leave notes**: Add a Comment next to anything a reader might not understand
 
 ## Data Flow Patterns
 

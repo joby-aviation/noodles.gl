@@ -37,6 +37,9 @@ export interface NoodlesNode {
   position?: { x: number; y: number }
   parentId?: string
   data?: { inputs?: Record<string, unknown>; locked?: boolean }
+  // A node's size when it has its own: a CommentOp's
+  width?: number
+  height?: number
 }
 
 export interface NoodlesEdge {
@@ -3496,6 +3499,24 @@ export function toEditorDoc(original: NoodlesProject): Migrated {
   }
   for (const [layer, src] of layerSource) {
     if (!chains.has(src)) edge(src, sourcePort.get(src) ?? 'out', layer, 'in')
+  }
+
+  // Comments explain the nodes beside them; nothing reaches them from the deck
+  for (const n of project.nodes) {
+    if (n.type !== 'CommentOp' || used.has(n.id)) continue
+    used.add(n.id)
+    const text = inputs(n).text
+    nodes.push({
+      id: n.id,
+      op: 'comment',
+      name: segment(n.id),
+      ...position(n),
+      params: {
+        ...(typeof text === 'string' && text ? { text } : {}),
+        width: Math.round(num(n.width, 240)),
+        height: Math.round(num(n.height, 80)),
+      },
+    })
   }
 
   for (const n of project.nodes) {

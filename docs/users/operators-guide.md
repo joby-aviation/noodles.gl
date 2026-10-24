@@ -77,4 +77,5 @@ See [API Keys](./api-keys.md) for which Google APIs to enable.
 ## Structure
 
 - **Switch** (`switch`): Pass one of several layers through, chosen by an index
+- **Comment** (`comment`): A resizable note that explains the nodes beside it. Double-click to edit it. See [Comments](./workflows-intro.md#comments)
 - **Subnetwork** (`subnet`): A network inside a node. Select nodes and press `Shift+C` to collapse them into one, and promote parameters to control the inside from outside

@@ -340,3 +340,22 @@ describe('a file a host operator reads', () => {
     expect(doc.nodes.some(n => n.op === 'FileOp')).toBe(false)
   })
 })
+
+describe('a comment', () => {
+  it('converts with its text and size, though nothing reaches it from the deck', () => {
+    const note: NoodlesNode = {
+      ...op('/note', 'CommentOp', { text: 'Explains the layer' }),
+      position: { x: 40, y: 80 },
+      width: 300,
+      height: 90,
+    }
+    const { doc } = toEditorDoc(deck([note], []))
+    expect(doc.nodes.find(n => n.id === '/note')).toMatchObject({
+      op: 'comment',
+      x: 40,
+      y: 80,
+      params: { text: 'Explains the layer', width: 300, height: 90 },
+    })
+    expect(lowerDocument(doc).errors).toEqual([])
+  })
+})

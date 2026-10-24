@@ -264,6 +264,54 @@
         "x": 235.19973882458825,
         "y": 548.5423198131313
       }
+    },
+    {
+      "id": "/data-note",
+      "type": "CommentOp",
+      "position": {
+        "x": -30,
+        "y": -120
+      },
+      "data": {
+        "inputs": {
+          "text": "This loads the earthquake CSV. Click it to see its columns."
+        },
+        "locked": false
+      },
+      "width": 265,
+      "height": 80
+    },
+    {
+      "id": "/magnitude-note",
+      "type": "CommentOp",
+      "position": {
+        "x": -472,
+        "y": 490
+      },
+      "data": {
+        "inputs": {
+          "text": "This reads each earthquake's magnitude. The nodes to its right turn it into a circle size and color."
+        },
+        "locked": false
+      },
+      "width": 314,
+      "height": 80
+    },
+    {
+      "id": "/layer-note",
+      "type": "CommentOp",
+      "position": {
+        "x": 660,
+        "y": 40
+      },
+      "data": {
+        "inputs": {
+          "text": "This layer draws one circle per earthquake. Click it and change radiusScale to make the circles bigger."
+        },
+        "locked": false
+      },
+      "width": 329,
+      "height": 80
     }
   ],
   "timeline": {
