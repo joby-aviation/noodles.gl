@@ -1008,7 +1008,8 @@ export abstract class Operator<OP extends IOperator> {
       debugParams('unknown field type: %s', def.type)
       throw new Error(`Unknown field type: ${def.type}`)
     }
-    const field = new FieldClass(def.defaultValue, def.options)
+    // Users named these fields themselves, so show the name as typed rather than humanized
+    const field = new FieldClass(def.defaultValue, { label: def.name, ...def.options })
     // If value is still undefined, the defaultValue passed was invalid for this field type
     if (field.value === undefined) {
       debugParams(

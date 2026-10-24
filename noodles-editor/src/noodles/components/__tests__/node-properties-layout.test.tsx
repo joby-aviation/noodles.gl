@@ -52,10 +52,9 @@ const renderAtWidth = (width: number) => {
 }
 
 const rowParts = (container: HTMLElement, name: string) => {
-  // The panel's label span, not the hidden <label> the field component renders
-  const label = Array.from(
-    container.querySelectorAll<HTMLElement>('[role="listitem"] span:not(:has(*))')
-  ).find(el => el.textContent === name)
+  // The panel's label span (friendly label, field key as its tooltip), not the hidden
+  // <label> the field component renders
+  const label = container.querySelector<HTMLElement>(`[role="listitem"] span[title="${name}"]`)
   if (!label) throw new Error(`No label for ${name}`)
   const row = label.closest('[role="listitem"]') as HTMLElement
   const inputs = Array.from(
@@ -79,6 +78,7 @@ describe('NodeProperties row layout', () => {
     for (const name of ['opacity', 'radiusUnits']) {
       const { label } = rowParts(container, name)
       expect(label.scrollWidth, name).toBeLessThanOrEqual(label.clientWidth + 1)
+      expect(label.scrollHeight, name).toBeLessThanOrEqual(label.clientHeight + 1)
       expect(label.title, name).toBe(name)
     }
   })
