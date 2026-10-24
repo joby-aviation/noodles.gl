@@ -4825,12 +4825,6 @@ function createBaseViewFields() {
 
 function createGeoViewFields() {
   return {
-    altitude: new NumberField(1.5, {
-      softMin: -100_000,
-      softMax: 100_000,
-      step: 0.1,
-      showByDefault: false,
-    }),
     nearZMultiplier: new NumberField(0.1, {
       min: 0,
       softMax: 1_000,
@@ -4856,6 +4850,7 @@ export class MapViewOp extends Operator<MapViewOp> {
     return {
       ...createBaseViewFields(),
       orthographic: new BooleanField(false, { showByDefault: false }),
+      // No altitude input: deck.gl derives altitude from fovy whenever fovy is set
       fovy: new NumberField(40, { min: 0.1, max: 179.9, showByDefault: false }),
       repeat: new BooleanField(false, { showByDefault: false }),
       ...createGeoViewFields(),
@@ -5074,6 +5069,12 @@ export class GlobeViewOp extends Operator<GlobeViewOp> {
   createInputs() {
     return {
       ...createBaseViewFields(),
+      altitude: new NumberField(1.5, {
+        softMin: -100_000,
+        softMax: 100_000,
+        step: 0.1,
+        showByDefault: false,
+      }),
       ...createGeoViewFields(),
       viewState: new CompoundPropsField({
         ...createGeoViewStateFields(),

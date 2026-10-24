@@ -4098,10 +4098,6 @@
           "type": "BooleanField",
           "default": false
         },
-        "altitude": {
-          "type": "NumberField",
-          "default": 1.5
-        },
         "nearZMultiplier": {
           "type": "NumberField",
           "default": 0.1

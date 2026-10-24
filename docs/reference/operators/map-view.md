@@ -37,7 +37,6 @@ Expressions and code read its fields as `op('/map-view').par.x` (an input) and `
 | `orthographic` | `BooleanField` | `false` |
 | `fovy` | `NumberField` | `40` |
 | `repeat` | `BooleanField` | `false` |
-| `altitude` | `NumberField` | `1.5` |
 | `nearZMultiplier` | `NumberField` | `0.1` |
 | `farZMultiplier` | `NumberField` | `1.01` |
 | `viewState` | `CompoundPropsField` | `{"latitude":40.7128,"longitude":-74.006,"zoom":12,"bearing":0,"pitch":0,"position":[0,0,0]}` |
@@ -61,4 +60,9 @@ Expressions and code read its fields as `op('/map-view').par.x` (an input) and `
 <!-- gen:end details -->
 
 <!-- gen:begin history -->
+## History
+
+Schema migrations that changed this operator. Older project files go through them when they open.
+
+- Version 20: [`020-drop-unsupported-view-inputs`](https://github.com/joby-aviation/noodles.gl/blob/main/noodles-editor/src/noodles/__migrations__/020-drop-unsupported-view-inputs.ts)
 <!-- gen:end history -->

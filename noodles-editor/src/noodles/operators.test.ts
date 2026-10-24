@@ -1748,6 +1748,11 @@ describe('MapViewOp', () => {
     expect(view.clearColor).toEqual([127.5, 0, 127.5, 255])
   })
 
+  it('has no altitude input, since deck.gl derives altitude from fovy', () => {
+    expect(new MapViewOp('/map-0').inputs).not.toHaveProperty('altitude')
+    expect(new GlobeViewOp('/globe-0').inputs).toHaveProperty('altitude')
+  })
+
   it.each([
     [MapViewOp, 'MapView'],
     [GlobeViewOp, 'GlobeView'],

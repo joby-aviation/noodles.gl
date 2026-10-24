@@ -31,6 +31,52 @@ describe('020-drop-unsupported-view-inputs', () => {
     ])
   })
 
+  it('removes MapViewOp altitude values and edges', async () => {
+    const project = {
+      ...baseProject,
+      nodes: [
+        node('/altitude', 'NumberOp', { val: 3 }),
+        node('/map', 'MapViewOp', { altitude: 3, fovy: 50 }),
+        node('/globe', 'GlobeViewOp', { altitude: 3 }),
+      ],
+      edges: [
+        {
+          id: '/altitude.out.val->/map.par.altitude',
+          source: '/altitude',
+          target: '/map',
+          sourceHandle: 'out.val',
+          targetHandle: 'par.altitude',
+        },
+        {
+          id: '/altitude.out.val->/map.par.fovy',
+          source: '/altitude',
+          target: '/map',
+          sourceHandle: 'out.val',
+          targetHandle: 'par.fovy',
+        },
+        {
+          id: '/altitude.out.val->/globe.par.altitude',
+          source: '/altitude',
+          target: '/globe',
+          sourceHandle: 'out.val',
+          targetHandle: 'par.altitude',
+        },
+      ],
+    }
+
+    const migrated = await up(project)
+
+    expect(migrated.nodes.map(n => n.data.inputs)).toEqual([
+      { val: 3 },
+      { fovy: 50 },
+      { altitude: 3 },
+    ])
+    expect(migrated.edges.map(e => e.id)).toEqual([
+      '/altitude.out.val->/map.par.fovy',
+      '/altitude.out.val->/globe.par.altitude',
+    ])
+  })
+
   it('returns the same project when nothing needs migrating', async () => {
     const project = { ...baseProject, nodes: [node('/orbit', 'OrbitViewOp', {})] }
     expect(await up(project)).toBe(project)
