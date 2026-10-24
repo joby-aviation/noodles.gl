@@ -164,6 +164,54 @@
         },
         "locked": false
       }
+    },
+    {
+      "id": "/query-note",
+      "type": "CommentOp",
+      "position": {
+        "x": -300,
+        "y": -340
+      },
+      "data": {
+        "inputs": {
+          "text": "This asks OpenStreetMap for every park inside the box set by bounds. Change both park entries in query to playground to map playgrounds."
+        },
+        "locked": false
+      },
+      "width": 330,
+      "height": 110
+    },
+    {
+      "id": "/layer-note",
+      "type": "CommentOp",
+      "position": {
+        "x": 200,
+        "y": 130
+      },
+      "data": {
+        "inputs": {
+          "text": "This layer fills each park in green. Click it and pick a new getFillColor."
+        },
+        "locked": false
+      },
+      "width": 300,
+      "height": 80
+    },
+    {
+      "id": "/try-next-note",
+      "type": "CommentOp",
+      "position": {
+        "x": 800,
+        "y": -90
+      },
+      "data": {
+        "inputs": {
+          "text": "Try next:\n- Click maplibre-basemap and change zoom under viewState to see all the parks.\n- Click the diamond next to opacity on geojson-layer, pick a later time in the Timeline, and change it again.\n- Press Export and pick Image (PNG) to save the map."
+        },
+        "locked": false
+      },
+      "width": 340,
+      "height": 190
     }
   ],
   "timeline": {
