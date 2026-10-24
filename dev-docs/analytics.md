@@ -115,6 +115,7 @@ Opening a saved project by its URL (`/projects/:name`, which is where Recent pro
 | `map_interacted` | `kind` | editor-analytics.ts (from timeline-editor.tsx) |
 | `chat_opened` | `source` | top-menu-bar.tsx, doc-noodles.tsx |
 | `chat_closed` | `source` | top-menu-bar.tsx, doc-noodles.tsx |
+| `brushable_histogram_opened` | none | histogram-editor.tsx, when the parameter pane shows a Brushable Histogram |
 
 - `field_value_changed` counts edits the user makes in a parameter's widget in the parameter pane, where the widget writes its parameter, and only when the value changed. Project loads, keyframe playback, undo/redo and AI modifications reach the widgets without a write, so they are not counted. Commits to the same field less than 1 second apart are one edit and send one event after a second of quiet, so dragging a slider or typing sends one event, not one per frame or keystroke.
 - `fieldType`: the widget's field type (`number`, `color`, `boolean`, `string-literal`, `code`, ...). `operatorType`: the node's operator (`scatter`). `source`: `properties_panel`. The value, field name, node id and code are never sent.

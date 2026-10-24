@@ -74,3 +74,25 @@ describe('field_value_changed', () => {
     fields.dispose()
   })
 })
+
+describe('NodeFields', () => {
+  it('shows a float parameter with no bounds, which the field once refused', () => {
+    const store = new DocStore({
+      version: 1,
+      name: 'p',
+      nodes: [
+        {
+          id: 'h',
+          op: 'brushable-histogram',
+          x: 0,
+          y: 0,
+          params: { column: 'mag', brushMin: -3.5 },
+        },
+      ],
+      edges: [],
+    })
+    const fields = new NodeFields(store, store.get().doc.nodes[0])
+    expect(fields.bindings.get('brushMin')?.field.value).toBe(-3.5)
+    fields.dispose()
+  })
+})

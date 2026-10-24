@@ -157,6 +157,24 @@ export function registerRamp(name: string, stops: [number, number, number][], la
   else RAMPS.push({ value: name, label });
 }
 
+/**
+ * Equal-width bins of a column over its extent, empty ones included, as rows of `bin`, `x0`,
+ * `x1` and `count` over `from` (a table, or a parenthesized SELECT). The last bin holds the
+ * maximum, as d3.bin's does. The Brushable Histogram's `bins` output, and what its pane draws.
+ */
+export function histogramSql(column: string, bins: number, from: string): string {
+  const v = `CAST("${column.replace(/"/g, '""')}" AS DOUBLE)`;
+  return [
+    `WITH __v AS (SELECT ${v} AS v FROM ${from} WHERE isfinite(${v})),`,
+    `__e AS (SELECT min(v) AS lo, max(v) AS hi FROM __v),`,
+    `__c AS (SELECT least(${bins - 1}, CAST(floor((v - lo) / nullif(hi - lo, 0) * ${bins}) AS BIGINT)) AS bin, count(*) AS n FROM __v, __e GROUP BY 1)`,
+    `SELECT r.range AS bin, __e.lo + (__e.hi - __e.lo) * r.range / ${bins} AS x0,`,
+    `  __e.lo + (__e.hi - __e.lo) * (r.range + 1) / ${bins} AS x1, CAST(coalesce(__c.n, 0) AS DOUBLE) AS count`,
+    `FROM range(${bins}) r CROSS JOIN __e LEFT JOIN __c ON coalesce(__c.bin, 0) = r.range`,
+    `WHERE __e.lo IS NOT NULL ORDER BY r.range`,
+  ].join('\n');
+}
+
 const table = (name = 'in', label?: string, extra: Partial<PortSpec> = {}): PortSpec => ({ name, type: 'table', label, ...extra });
 const out = (type: PortType = 'table', name = 'out'): PortSpec => ({ name, type });
 
@@ -751,6 +769,38 @@ export const OPERATORS: OpDef[] = [
       return {
         nodes: [{ id: ctx.id, type: 'filter', input: ctx.input('in'), predicate: `${col} >= ${ctx.bind('min')} && ${col} <= ${ctx.bind('max')}` }],
         outputs: { out: ctx.id },
+      };
+    },
+  },
+  {
+    type: 'brushable-histogram', label: 'Brushable Histogram', category: 'rows',
+    description: 'Keep rows whose column lies in a brushed range, drawn over the column\'s histogram in the parameter pane. Drag the brush, or keyframe its ends to animate it. Bins is a table of the histogram.',
+    inputs: [table()],
+    outputs: [out(), { name: 'bins', type: 'table' }],
+    params: [
+      { name: 'column', label: 'Column', kind: 'column', default: '', of: 'in', columnType: 'num' },
+      { name: 'binCount', label: 'Bins', kind: 'int', default: 20, min: 5, max: 100, step: 1, bind: 'structural' },
+      { name: 'brushMin', label: 'Brush min', kind: 'float', default: 0, step: 0.1, changeRate: 4, port: true },
+      { name: 'brushMax', label: 'Brush max', kind: 'float', default: 100, step: 0.1, changeRate: 4, port: true },
+      {
+        name: 'brushMode', label: 'Brush', kind: 'menu', default: 'handles', bind: 'structural',
+        options: [{ value: 'handles', label: 'Handles' }, { value: 'offset', label: 'Center and width' }],
+        help: 'How the pane\'s brush is dragged: by its two ends, or by its center and width.',
+      },
+    ],
+    lower(ctx) {
+      const col = ctx.str('column');
+      if (!col) ctx.error('Brushable Histogram needs a column');
+      if (!BARE.test(col)) ctx.error(`'${col}' is not a column name`);
+      const input = ctx.input('in');
+      const bins = Math.max(1, Math.min(1000, Math.round(ctx.num('binCount') || 20)));
+      const query = histogramSql(col, bins, '{{input0}}');
+      return {
+        nodes: [
+          { id: ctx.id, type: 'filter', input, predicate: `${col} >= ${ctx.bind('brushMin')} && ${col} <= ${ctx.bind('brushMax')}` },
+          { id: `${ctx.id}__bins`, type: 'sql', inputs: [input], query },
+        ],
+        outputs: { out: ctx.id, bins: `${ctx.id}__bins` },
       };
     },
   },

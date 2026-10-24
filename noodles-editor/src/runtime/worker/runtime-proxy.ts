@@ -3,7 +3,7 @@
 // (keyed by a layer's data) re-uploads nothing a value edit did not touch.
 
 import type { Graph } from '@noodles.gl/planner'
-import type { Preview, RuntimeCounters, UpdateReport } from '../program-runtime'
+import type { NodeSql, Preview, RuntimeCounters, UpdateReport } from '../program-runtime'
 import type { Envelope, LayerView, Message, ProgramView, Request, Values } from './protocol'
 
 export interface WorkerPort {
@@ -110,8 +110,8 @@ export class RuntimeProxy {
     return this.request({ type: 'preview', nodeId, limit })
   }
 
-  nodeSql(nodeId: string): Promise<NodeSql | undefined> {
-    return this.request({ type: 'nodeSql', nodeId })
+  nodeSql(nodeId: string, columns?: string[]): Promise<NodeSql | undefined> {
+    return this.request({ type: 'nodeSql', nodeId, columns })
   }
 
   query(sql: string): Promise<Record<string, unknown>[]> {

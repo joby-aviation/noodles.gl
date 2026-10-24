@@ -477,6 +477,51 @@
         }
       }
     },
+    "brushable-histogram": {
+      "name": "Brushable Histogram",
+      "type": "brushable-histogram",
+      "category": "rows",
+      "description": "Keep rows whose column lies in a brushed range, drawn over the column's histogram in the parameter pane. Drag the brush, or keyframe its ends to animate it. Bins is a table of the histogram.",
+      "inputs": {
+        "in": {
+          "type": "table"
+        }
+      },
+      "outputs": {
+        "out": {
+          "type": "table"
+        },
+        "bins": {
+          "type": "table"
+        }
+      },
+      "params": {
+        "column": {
+          "kind": "column",
+          "default": ""
+        },
+        "binCount": {
+          "kind": "int",
+          "default": 20
+        },
+        "brushMin": {
+          "kind": "float",
+          "default": 0
+        },
+        "brushMax": {
+          "kind": "float",
+          "default": 100
+        },
+        "brushMode": {
+          "kind": "menu",
+          "default": "handles",
+          "options": [
+            "handles",
+            "offset"
+          ]
+        }
+      }
+    },
     "brushing": {
       "name": "Brushing",
       "type": "brushing",
@@ -6748,6 +6793,9 @@
     ],
     "BrightnessContrastExtensionOp": [
       "brightness-contrast"
+    ],
+    "BrushableHistogramOp": [
+      "brushable-histogram"
     ],
     "BrushingExtensionOp": [
       "brushing"

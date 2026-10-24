@@ -106,6 +106,7 @@ export const OP_CATALOG: Record<string, OpPlan> = {
   // --- data ------------------------------------------------------------------------------
   ArcOp: code(['code']),
   BoundingBoxOp: { becomes: 'deck', ops: ['fit-bounds'] },
+  BrushableHistogramOp: planner(['brushable-histogram']),
   BoundsOp: { becomes: 'folded' },
   ChartOp: host('draws an Observable Plot chart into the page'),
   ConcatOp: planner(['union']),

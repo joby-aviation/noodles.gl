@@ -23,13 +23,16 @@
 
 import {
   type CostConstants,
+  columnsOf,
   compileProgram,
+  type Expr,
   type Graph,
   type GraphNode,
   inputsOf,
   type LayerPlan,
   listComponentColumns,
   type ProgramPlan,
+  parseExpr,
   quoteIdent,
   type RelColumn,
   type RelShape,
@@ -420,9 +423,10 @@ export class ProgramRuntime {
   /**
    * A SELECT of the rows at a node and their shape, for a statistic of them (a camera fit's
    * extent): its relation, or the row-wise nodes over it lowered to SQL. `hash` changes when
-   * the rows can.
+   * the rows can. With `columns`, only the filters and the attributes those columns need are
+   * lowered: a color ramp with no SQL form, say, does not stop a count of the rows.
    */
-  async nodeSql(nodeId: string): Promise<NodeSql | undefined> {
+  async nodeSql(nodeId: string, columns?: string[]): Promise<NodeSql | undefined> {
     await this.compiled(nodeId)
     const program = this.programPlan
     const graph = this.graph
@@ -442,8 +446,9 @@ export class ProgramRuntime {
       chain.push(n)
     }
     walk(nodeId)
+    const lowered = columns ? neededChain(chain, columns) : chain
     const { sql, vectors, params } = rowwiseSql(
-      chain,
+      lowered,
       relation.ref,
       relation.shape,
       this.values,
@@ -454,7 +459,7 @@ export class ProgramRuntime {
     return {
       sql,
       shape: { columns: relation.shape.columns, vectors },
-      hash: `${relation.hash}:${chain.map(n => n.id).join(',')}:${values.join(',')}`,
+      hash: `${relation.hash}:${lowered.map(n => n.id).join(',')}:${values.join(',')}`,
     }
   }
 
@@ -567,4 +572,27 @@ export class ProgramRuntime {
       note,
     }
   }
+}
+
+// The row-wise nodes a statistic of `columns` needs: every filter, as it decides which rows
+// there are, and the attributes that make those columns, with what they read in turn
+function neededChain(chain: GraphNode[], columns: string[]): GraphNode[] {
+  const needed = new Set(columns)
+  const kept: GraphNode[] = []
+  for (const n of [...chain].reverse()) {
+    const name = (n as { name?: unknown }).name
+    const filter = n.type === 'filter'
+    if (!filter && !(n.type === 'attribute' && typeof name === 'string' && needed.has(name))) {
+      continue
+    }
+    kept.unshift(n)
+    const text = filter ? n.predicate : (n as { expr: unknown }).expr
+    try {
+      const tree = typeof text === 'string' ? parseExpr(text) : (text as Expr)
+      for (const c of columnsOf(tree)) needed.add(c)
+    } catch {
+      // A predicate the parser cannot read keeps its node and adds nothing
+    }
+  }
+  return kept
 }

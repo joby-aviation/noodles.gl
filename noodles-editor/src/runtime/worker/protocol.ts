@@ -15,7 +15,7 @@ export type Request =
   | { type: 'query'; sql: string }
   | { type: 'relationRows'; relation: string }
   | { type: 'preview'; nodeId: string; limit: number }
-  | { type: 'nodeSql'; nodeId: string }
+  | { type: 'nodeSql'; nodeId: string; columns?: string[] }
 
 /** A layer plan as the editor reads it: what to draw with, never how it was planned. */
 export type LayerPlanView = Pick<LayerPlan, 'id' | 'kind' | 'relation' | 'hash' | 'nodes'> & {
