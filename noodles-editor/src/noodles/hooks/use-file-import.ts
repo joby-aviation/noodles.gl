@@ -1,6 +1,5 @@
 import { type Edge, useReactFlow } from '@xyflow/react'
 import { useCallback } from 'react'
-import { getRenderSurfaceSize } from '../../render/render-surface-size'
 import { analytics } from '../../utils/analytics'
 import { debugUI } from '../../utils/debug'
 import {
@@ -16,6 +15,7 @@ import {
   extensionOf,
   isBinaryFormat,
 } from '../components/tools/import-pipelines'
+import { readEnvironment } from '../environment'
 import { useFileSystemStore } from '../filesystem-store'
 import type { Operator } from '../operators'
 import { writeAsset } from '../storage'
@@ -85,7 +85,7 @@ export function useFileImport({ getBasePosition, onImported }: UseFileImportOpti
         basePosition,
         detection,
         // Fit to the surface the renderer draws to, as BoundingBoxOp does
-        mapSize: getRenderSurfaceSize(),
+        mapSize: readEnvironment('renderSurface'),
         rendererId,
       })
       const { edges, primaryNodeId, viewState } = built

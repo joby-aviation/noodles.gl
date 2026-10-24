@@ -1,7 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useTimelineStore } from '../timeline/timeline-store'
 import { AccessorOp, CodeOp, ExpressionOp } from './operators'
-import { unsubscribeOpFromTimeline } from './utils/timeline-dependencies'
 
 describe('Timeline Variables Integration', () => {
   beforeEach(() => {
@@ -154,7 +153,6 @@ describe('Timeline Variables Integration', () => {
 
       const op = new CodeOp('/test', { code: 'return sequenceTime' })
 
-      // First execution - establishes subscriptions
       let result = await op.execute({ data: [], code: 'return sequenceTime' })
       expect(result.data).toBe(1)
 
@@ -170,7 +168,7 @@ describe('Timeline Variables Integration', () => {
       result = await op.execute({ data: [], code: 'return sequenceTime' })
       expect(result.data).toBe(5)
 
-      unsubscribeOpFromTimeline(op.id)
+      op.dispose()
     })
   })
 
