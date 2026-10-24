@@ -12,6 +12,8 @@ import { EXAMPLES, openExample, screenshotMap, waitForScene } from './helpers'
 // a few seconds.
 const MOUNT_ONLY: Record<string, string> = {
   chargers: 'live Open Charge Map API data',
+  'overpass-nyc-parks': 'live Overpass API data',
+  'overture-nyc-parks': 'queries Overture Maps on S3 through DuckDB',
   'cesium-hubble': 'streams a point-cloud video from S3',
   'nyc-taxis': 'too heavy for software WebGL',
   'sf-elevation-contours': 'too heavy for software WebGL',
@@ -26,8 +28,10 @@ const AUTHORED_LOD = new Set(['orbit'])
 // Deck text layers draw labels with a system font, which differs between macOS and Linux.
 // At the test LOD the labels are about 4x larger relative to the map, so geojson-example's
 // station names cover about 11% of the image and differ that much between the two.
+// table-editor-demo's baseline was rendered on CI (Linux); the allowance covers macOS runs.
 const MAX_DIFF_PIXEL_RATIO: Record<string, number> = {
   'geojson-example': 0.15,
+  'table-editor-demo': 0.05,
   'us-state-population': 0.05,
 }
 
