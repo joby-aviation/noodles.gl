@@ -1225,3 +1225,65 @@ describe('undo history for a focused field', () => {
     expect(other.inputs.val.value).toBe(7)
   })
 })
+
+describe('undo history for a focused compound child', () => {
+  let op: StringOp
+  let padding: CompoundPropsField
+  let top: StringField
+  let right: StringField
+  let onMutation: ReturnType<typeof vi.fn>
+
+  beforeEach(() => {
+    op = new StringOp('/box')
+    top = new StringField('')
+    right = new StringField('')
+    padding = new CompoundPropsField({ top, right })
+    for (const field of [padding, top, right]) field.op = op
+    ;(op.inputs as unknown as { padding: CompoundPropsField }).padding = padding
+    setOp(op.id, op)
+    onMutation = vi.fn()
+    registerPropertyMutationCallback(onMutation)
+    render(
+      <ReactFlowProvider>
+        <FieldEditScope source="properties_panel" operatorType="StringOp">
+          <FieldComponent id="padding" field={padding} disabled={false} />
+        </FieldEditScope>
+      </ReactFlowProvider>
+    )
+  })
+
+  afterEach(() => {
+    cleanup()
+    clearOps()
+    registerPropertyMutationCallback(undefined)
+  })
+
+  it('records no undo step when only a sibling changed while focused', () => {
+    const [topInput] = screen.getAllByRole('textbox')
+    fireEvent.focus(topInput)
+    // Keyframe playback moves the sibling while the child has focus
+    act(() => right.setValue('animated'))
+    fireEvent.blur(topInput)
+
+    expect(onMutation).not.toHaveBeenCalled()
+  })
+
+  it('undoes an edit of the focused child without touching its sibling', () => {
+    const [topInput] = screen.getAllByRole('textbox')
+    fireEvent.focus(topInput)
+    act(() => right.setValue('animated'))
+    fireEvent.change(topInput, { target: { value: 'hello' } })
+    fireEvent.blur(topInput)
+
+    expect(onMutation).toHaveBeenCalledTimes(1)
+    const [, before, after] = onMutation.mock.calls[0]
+
+    act(() => right.setValue('later'))
+    act(() => applyOperatorInputs(before))
+    expect(top.value).toBe('')
+    expect(right.value).toBe('later')
+    act(() => applyOperatorInputs(after))
+    expect(top.value).toBe('hello')
+    expect(right.value).toBe('later')
+  })
+})

@@ -77,7 +77,7 @@ export function applyOperatorInputs(snapshot: string): void {
     if (!op) continue
     const opInputs = op.inputs as Record<string, IField>
     for (const [name, value] of Object.entries(inputs)) {
-      const field = opInputs[name]
+      const field = getInputField(opInputs, name)
       if (field) {
         // Routes { $expr } payloads to setExpression, plain values to setValue
         applySerializedFieldValue(field as Field, value)
@@ -124,39 +124,52 @@ function serializeScopedField(field: object | undefined): string | undefined {
 
 interface OperatorInput {
   op: { id: OpId; inputs: object }
-  name: string
+  // Input name, then child keys down to the field (e.g. `padding.top`)
+  path: string
+  field: IField
 }
 
-function containsField(parent: object, field: object): boolean {
-  if (parent === field) return true
-  const children = (parent as { fields?: unknown }).fields
-  return (
-    typeof children === 'object' &&
-    children !== null &&
-    Object.values(children).some(child => containsField(child, field))
-  )
-}
-
-// The operator input a field belongs to: the field itself, or the compound input holding it
-function findOperatorInput(field: object | undefined): OperatorInput | undefined {
-  const op = (field as { op?: OperatorInput['op'] } | undefined)?.op
-  if (!field || !op) return undefined
-  for (const [name, input] of Object.entries(op.inputs as Record<string, object>)) {
-    if (containsField(input, field)) return { op, name }
+function findFieldPath(fields: object, field: object): string[] | undefined {
+  for (const [key, child] of Object.entries(fields as Record<string, object>)) {
+    if (child === field) return [key]
+    // Compound fields hold their children in `fields`. A list's `fields` is a Map, which has
+    // no own entries, so list items aren't matched.
+    const children = (child as { fields?: unknown }).fields
+    if (typeof children !== 'object' || children === null) continue
+    const rest = findFieldPath(children, field)
+    if (rest) return [key, ...rest]
   }
   return undefined
 }
 
-// One input and its operator's UI state, in the snapshot format applyOperatorInputs reads
-function captureInputState({ op, name }: OperatorInput): string | null {
-  const field = (op.inputs as Record<string, IField>)[name]
-  const state: Record<string, unknown> = { [op.id]: { [name]: field.serialize() } }
+// The operator input a field belongs to, down to a compound input's child
+function findOperatorInput(field: object | undefined): OperatorInput | undefined {
+  const op = (field as { op?: OperatorInput['op'] } | undefined)?.op
+  if (!field || !op) return undefined
+  const path = findFieldPath(op.inputs, field)
+  return path ? { op, path: path.join('.'), field: field as IField } : undefined
+}
+
+// Resolves a snapshot key: an input name, or a dotted path to a compound input's child
+function getInputField(inputs: Record<string, IField>, key: string): IField | undefined {
+  if (inputs[key] || !key.includes('.')) return inputs[key]
+  let field: unknown = { fields: inputs }
+  for (const part of key.split('.')) {
+    field = (field as { fields?: Record<string, unknown> } | undefined)?.fields?.[part]
+  }
+  return field as IField | undefined
+}
+
+// One field and its operator's UI state, in the snapshot format applyOperatorInputs reads.
+// Only the focused field is saved, so undo leaves its siblings where playback put them.
+function captureInputState({ op, path, field }: OperatorInput): string | null {
+  const state: Record<string, unknown> = { [op.id]: { [path]: field.serialize() } }
   const ui = captureNodeUIMetadata(op.inputs as Record<string, unknown>)
   if (ui) state[UI_STATE_KEY] = { [op.id]: ui }
   try {
     return JSON.stringify(state)
   } catch {
-    debugHistory('Failed to serialize %s.%s for property history', op.id, name)
+    debugHistory('Failed to serialize %s.%s for property history', op.id, path)
     return null
   }
 }
@@ -167,8 +180,8 @@ function captureInputState({ op, name }: OperatorInput): string | null {
 // A commit that changed something inside a FieldEditScope also counts as a user field edit.
 //
 // Other inputs can change while a field is focused (keyframe playback, upstream
-// connections), so when the scope names a field, the undo step holds only that field's
-// operator input. Node widgets without a field (ramp stops, histogram brush) edit several
+// connections), so when the scope names a field, the undo step holds only that field.
+// Node widgets without a field (ramp stops, histogram brush) edit several
 // inputs at once and record the whole snapshot.
 export function usePropertyHistory() {
   const beforeRef = useRef<string | null>(null)
@@ -177,7 +190,7 @@ export function usePropertyHistory() {
   const scopeRef = useRef(scope)
   scopeRef.current = scope
 
-  // The scoped field's operator input, and the field's own value at captureStart
+  // Where the scoped field sits in its operator's inputs, and its own value at captureStart
   const inputRef = useRef<OperatorInput | undefined>(undefined)
   const fieldBeforeRef = useRef<string | undefined>(undefined)
 
@@ -202,7 +215,7 @@ export function usePropertyHistory() {
 
     let changed = false
     if (input) changed = firePropertyMutation(description, before, captureInputState(input))
-    // A scoped field outside any operator input can't be isolated; record only its own edits
+    // A scoped field outside its operator's inputs can't be isolated; record only its own edits
     else if (fieldChanged) changed = firePropertyMutation(description, before)
     if (changed && fieldChanged) trackFieldEdit(scopeRef.current)
   }, [])
