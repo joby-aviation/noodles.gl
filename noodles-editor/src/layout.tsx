@@ -16,10 +16,11 @@ import {
 // useDefaultLayout under 'react-resizable-panels:<group id>' keys. The timeline and
 // spreadsheet panels are pixel-sized instead so they keep their size when the window
 // or the surrounding panels change; their sizes are persisted under these keys.
-const TIMELINE_HEIGHT_KEY = 'noodles-timeline-height'
+const TIMELINE_HEIGHT_KEY = 'noodles-timeline-height-v2'
 const SPREADSHEET_WIDTH_KEY = 'noodles-spreadsheet-width'
 
-const TIMELINE_DEFAULT_HEIGHT = 200
+// Toolbar, ruler and two track rows
+const TIMELINE_DEFAULT_HEIGHT = 130
 const SPREADSHEET_DEFAULT_WIDTH = 400
 
 function loadPx(key: string, fallback: number): number {
@@ -34,6 +35,8 @@ function savePx(key: string, px: number | undefined) {
 // Panel state was briefly persisted under these keys by an earlier revision
 localStorage.removeItem('noodles-panel-sizes')
 localStorage.removeItem('noodles-panel-collapsed')
+// Saved on first layout at the old 200px default; dropped so the shorter default applies
+localStorage.removeItem('noodles-timeline-height')
 
 export function Layout({
   top,
@@ -59,7 +62,6 @@ export function Layout({
   const sidebarSearchFocusTrigger = useUIStore(state => state.sidebarSearchFocusTrigger)
 
   const sidebarRef = usePanelRef()
-  const timelineRef = usePanelRef()
   const spreadsheetRef = usePanelRef()
 
   const [sidebarCollapsed, setSidebarCollapsed] = useState(true)
@@ -113,11 +115,7 @@ export function Layout({
     <div className={s.layout}>
       <div className={s.topBar}>{top}</div>
 
-      <Group
-        orientation="vertical"
-        className={s.rootGroup}
-        onLayoutChanged={() => savePx(TIMELINE_HEIGHT_KEY, timelineRef.current?.getSize().inPixels)}
-      >
+      <Group orientation="vertical" className={s.rootGroup}>
         <Panel id="workspace" minSize="20%">
           <Group
             orientation="horizontal"
@@ -223,12 +221,16 @@ export function Layout({
             <Separator className={s.horizontalHandle} />
             <Panel
               id="timeline"
-              panelRef={timelineRef}
               defaultSize={`${loadPx(TIMELINE_HEIGHT_KEY, TIMELINE_DEFAULT_HEIGHT)}px`}
-              minSize="150px"
+              minSize="100px"
               maxSize="800px"
               groupResizeBehavior="preserve-pixel-size"
-              onResize={size => setTimelineHeightPx(size.inPixels)}
+              onResize={size => {
+                setTimelineHeightPx(size.inPixels)
+                // Saved here, not in the group's onLayoutChanged, which reports the
+                // min size while the panel mounts and would shrink it on the next load
+                savePx(TIMELINE_HEIGHT_KEY, size.inPixels)
+              }}
               className={s.timelinePanel}
             >
               {timeline(timelineHeightPx)}

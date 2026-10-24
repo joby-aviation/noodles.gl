@@ -230,11 +230,6 @@
       "targetHandle": "par.vis"
     }
   ],
-  "viewport": {
-    "x": 560,
-    "y": 420,
-    "zoom": 0.35
-  },
   "timeline": {
     "sheetsById": {
       "Noodles": {

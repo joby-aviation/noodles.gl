@@ -23,11 +23,6 @@
       "targetHandle": "par.vis"
     }
   ],
-  "viewport": {
-    "x": 0,
-    "y": 0,
-    "zoom": 1
-  },
   "editorSettings": {
     "layoutMode": "noodles-on-top",
     "showOverlay": true

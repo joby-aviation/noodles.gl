@@ -102,11 +102,6 @@
       }
     }
   ],
-  "viewport": {
-    "x": 620,
-    "y": 360,
-    "zoom": 0.8
-  },
   "editorSettings": {
     "layoutMode": "noodles-on-top",
     "showOverlay": true

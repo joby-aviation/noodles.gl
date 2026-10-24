@@ -73,6 +73,7 @@ import { PropertyPanel } from './components/node-properties'
 import { NodeTreeSidebar } from './components/node-tree-sidebar'
 import { edgeComponents, nodeComponents } from './components/op-components'
 import { ParameterEditorDialog } from './components/parameter-editor-dialog'
+import { ProjectLoadView } from './components/project-load-view'
 import {
   ProjectNotFoundDialog,
   type ProjectOpenProblem,
@@ -80,7 +81,6 @@ import {
 import { RenameDialog } from './components/rename-dialog'
 import { SaveAsDialog } from './components/save-as-dialog'
 import { SidebarTabs } from './components/sidebar-tabs'
-import { StarterNodeFocus } from './components/starter-node-focus'
 import { StorageErrorHandler } from './components/storage-error-handler'
 import { CanvasDropImport } from './components/tools/canvas-drop-import'
 import { UndoRedoHandler, type UndoRedoHandlerRef } from './components/UndoRedoHandler'
@@ -300,7 +300,6 @@ export function getNoodles(): Visualization {
     () => [...(edges as ReactFlowEdge[]), ...referenceEdges],
     [edges, referenceEdges]
   )
-  const [defaultViewport, setDefaultViewport] = useState({ x: 0, y: 0, zoom: 1 })
 
   useEffect(() => () => referenceDependencyModel.reset(), [])
 
@@ -893,6 +892,8 @@ export function getNoodles(): Visualization {
   const currentProjectRef = useRef<NoodlesProjectJSON>(newProjectJSON)
   // Counts project loads, so the chat panel can tell its proposal's project was replaced
   const [projectLoadId, setProjectLoadId] = useState(0)
+  // False while an undo/redo restore reloads the project, so the graph keeps its view
+  const [fitViewOnLoad, setFitViewOnLoad] = useState(false)
 
   // Track when we're programmatically loading a project to prevent useEffect from trying to reload
   const isProgrammaticLoadRef = useRef(false)
@@ -1053,7 +1054,7 @@ export function getNoodles(): Visualization {
     ) => {
       // A load that resolves after the editor unmounted must not refill the shared store
       if (!isMountedRef.current) return
-      const { nodes, edges, viewport, timeline, editorSettings, apiKeys } = project
+      const { nodes, edges, timeline, editorSettings, apiKeys } = project
 
       // Prevent the storage-loading useEffect from reloading when the URL changes below
       isProgrammaticLoadRef.current = true
@@ -1062,6 +1063,7 @@ export function getNoodles(): Visualization {
 
       currentProjectRef.current = project
       setProjectLoadId(id => id + 1)
+      setFitViewOnLoad(!undoRedoRef.current?.isRestoring())
       getUIStore().setStarterHintNodeId(null)
 
       // Install embedded keys before constructing operators. Key-dependent operators
@@ -1133,11 +1135,6 @@ export function getNoodles(): Visualization {
       })
 
       // Render settings are now stored as OutOp inputs (migration 012 handles conversion)
-
-      // Restore viewport unless we're in an undo/redo restore
-      if (viewport && name && !undoRedoRef.current?.isRestoring()) {
-        setDefaultViewport(viewport)
-      }
 
       // Navigate to the project URL
       const effectiveRoutePrefix = targetRoutePrefix ?? routePrefix
@@ -1371,7 +1368,6 @@ export function getNoodles(): Visualization {
   const getNoodlesProjectJson = useCallback((): NoodlesProjectJSON => {
     const store = getOpStore()
     const timeline = timelineStore.toTimelineJSON() as unknown as Record<string, unknown>
-    const viewport = reactFlowInstanceRef.current?.getViewport() || { x: 0, y: 0, zoom: 1 }
     const projectKeys = getKeysForProject()
     // Render settings are now stored as OutOp inputs, serialized with the node
 
@@ -1384,7 +1380,6 @@ export function getNoodles(): Visualization {
       version: NOODLES_VERSION,
       nodes: serializeNodes(store, nodes, edges),
       edges: serializeEdges(store, nodes, edges),
-      viewport,
       timeline,
       editorSettings: {
         showOverlay,
@@ -2010,12 +2005,11 @@ export function getNoodles(): Visualization {
                 minZoom={0.2}
                 fitViewOptions={fitViewOptions}
                 defaultEdgeOptions={defaultEdgeOptions}
-                defaultViewport={defaultViewport}
                 nodeTypes={nodeComponents}
                 edgeTypes={edgeComponents}
               >
                 <ReactFlowInstanceCapture />
-                <StarterNodeFocus loadId={projectLoadId} />
+                <ProjectLoadView loadId={projectLoadId} fitView={fitViewOnLoad} />
                 <EdgeConnectionSynchronizer />
                 <CanvasDropImport
                   pendingFile={pendingImportFile}

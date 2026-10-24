@@ -50,11 +50,6 @@
       "id": "/maplibre-basemap.out.maplibre->/deck.par.basemap"
     }
   ],
-  "viewport": {
-    "x": 545.8912906768109,
-    "y": 46.884631018890104,
-    "zoom": 0.5895523675768745
-  },
   "version": 19,
   "name": "GeoJSON BART Stations",
   "editorSettings": {

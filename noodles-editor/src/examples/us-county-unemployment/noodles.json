@@ -78,11 +78,6 @@
       "id": "/extent.out.max->/map-range.par.inMax"
     }
   ],
-  "viewport": {
-    "x": 32.46497320518563,
-    "y": 206.86749887589406,
-    "zoom": 0.6158038261288714
-  },
   "version": 19,
   "name": "US County Unemployment",
   "editorSettings": {
