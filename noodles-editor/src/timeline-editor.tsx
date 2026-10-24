@@ -842,7 +842,11 @@ export default function TimelineEditor() {
       />
     )
     return (
-      <div ref={renderSurfaceRef} style={{ position: 'relative', width: '100%', height: '100%' }}>
+      <div
+        ref={renderSurfaceRef}
+        data-render-surface
+        style={{ position: 'relative', width: '100%', height: '100%' }}
+      >
         {content}
       </div>
     )
