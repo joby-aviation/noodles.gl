@@ -8112,6 +8112,7 @@ export class PMTilesOp extends Operator<PMTilesOp> {
   createInputs() {
     return {
       url: new FileUrlField(),
+      tileType: new StringLiteralField('vector', ['vector', 'raster']),
       sourceLayer: new StringField(''),
       minZoom: new NumberField(0, { min: 0, max: 22 }),
       maxZoom: new NumberField(14, { min: 0, max: 22 }),
@@ -8124,6 +8125,7 @@ export class PMTilesOp extends Operator<PMTilesOp> {
   }
   execute({
     url,
+    tileType,
     sourceLayer,
     minZoom,
     maxZoom,
@@ -8131,11 +8133,12 @@ export class PMTilesOp extends Operator<PMTilesOp> {
     if (!url) return { sourceConfig: null }
     return {
       sourceConfig: {
-        type: 'vector',
+        type: tileType,
         url: `pmtiles://${url}`,
         minzoom: minZoom,
         maxzoom: maxZoom,
-        ...(sourceLayer ? { sourceLayer } : {}),
+        // Raster tiles have no layers to pick from
+        ...(sourceLayer && tileType === 'vector' ? { sourceLayer } : {}),
       },
     }
   }

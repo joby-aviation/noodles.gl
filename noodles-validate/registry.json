@@ -4831,6 +4831,10 @@
           "type": "FileUrlField",
           "default": ""
         },
+        "tileType": {
+          "type": "StringLiteralField",
+          "default": "vector"
+        },
         "sourceLayer": {
           "type": "StringField",
           "default": ""

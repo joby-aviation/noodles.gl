@@ -579,6 +579,7 @@ describe('Format Support Operators', () => {
     const op = new PMTilesOp('/pmtiles')
     const result = op.execute({
       url: 'https://example.com/tiles.pmtiles',
+      tileType: 'vector',
       sourceLayer: 'buildings',
       minZoom: 0,
       maxZoom: 14,
@@ -588,9 +589,36 @@ describe('Format Support Operators', () => {
     expect(result.sourceConfig.sourceLayer).toBe('buildings')
   })
 
+  it('PMTilesOp generates raster source config', () => {
+    const op = new PMTilesOp('/pmtiles')
+    const result = op.execute({
+      url: 'https://example.com/imagery.pmtiles',
+      tileType: 'raster',
+      sourceLayer: 'buildings',
+      minZoom: 0,
+      maxZoom: 14,
+    })
+    expect(result.sourceConfig).toEqual({
+      type: 'raster',
+      url: 'pmtiles://https://example.com/imagery.pmtiles',
+      minzoom: 0,
+      maxzoom: 14,
+    })
+  })
+
+  it('PMTilesOp defaults to vector tiles', () => {
+    expect(new PMTilesOp('/pmtiles').inputs.tileType.value).toBe('vector')
+  })
+
   it('PMTilesOp returns null for empty URL', () => {
     const op = new PMTilesOp('/pmtiles')
-    const result = op.execute({ url: '', sourceLayer: '', minZoom: 0, maxZoom: 14 })
+    const result = op.execute({
+      url: '',
+      tileType: 'vector',
+      sourceLayer: '',
+      minZoom: 0,
+      maxZoom: 14,
+    })
     expect(result.sourceConfig).toBeNull()
   })
 
