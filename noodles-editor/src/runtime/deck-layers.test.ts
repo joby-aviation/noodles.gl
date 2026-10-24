@@ -238,6 +238,8 @@ describe('DeckLayerBuilder other row layers', () => {
   })
   const P = new Float32Array([-40, -40, 40, 40])
 
+  // Six layer kinds compile their shaders on software WebGL, which takes CI past the default
+  // 15 s
   it('draws lines, point clouds, square cells, text, screen grids and contours without errors', async () => {
     const builder = new DeckLayerBuilder()
     const built = builder.build([
@@ -330,5 +332,5 @@ describe('DeckLayerBuilder other row layers', () => {
     const pixel = await draw([...built.values()].flat())
     const all = Array.from({ length: 100 * 100 }, (_, k) => pixel(k % 100, Math.floor(k / 100)))
     expect(all.some(p => p[0] === 255 && p[1] === 0 && p[2] === 0 && p[3] === 255)).toBe(true)
-  })
+  }, 60_000)
 })
