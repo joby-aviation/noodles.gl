@@ -69,6 +69,7 @@ import {
   ScreenshotWidgetOp,
   SelectOp,
   SmoothOp,
+  SortOp,
   SwitchOp,
   TableEditorOp,
   Tile3DLayerOp,
@@ -1109,6 +1110,52 @@ describe('FilterOp', () => {
     ]
     operator.inputs.data.setValue(data)
     expect(operator.inputs.columnName.choices.map(c => c.value)).toEqual(['a', 'b'])
+  })
+})
+
+describe('SortOp', () => {
+  it('sorts string keys', () => {
+    const operator = new SortOp('/sort')
+    const data = [{ n: 'b' }, { n: 'c' }, { n: 'a' }]
+
+    expect(operator.execute({ data, key: 'n', order: 'asc' }).data).toEqual([
+      { n: 'a' },
+      { n: 'b' },
+      { n: 'c' },
+    ])
+    expect(operator.execute({ data, key: 'n', order: 'desc' }).data).toEqual([
+      { n: 'c' },
+      { n: 'b' },
+      { n: 'a' },
+    ])
+  })
+
+  it('leaves the input array in its original order', () => {
+    const operator = new SortOp('/sort')
+    const data = [{ n: 3 }, { n: 1 }, { n: 2 }]
+
+    const result = operator.execute({ data, key: 'n', order: 'asc' })
+
+    expect(result.data).toEqual([{ n: 1 }, { n: 2 }, { n: 3 }])
+    expect(data).toEqual([{ n: 3 }, { n: 1 }, { n: 2 }])
+  })
+
+  it('puts missing values last in either order', () => {
+    const operator = new SortOp('/sort')
+    const data = [{ n: 2 }, {}, { n: 1 }, { n: null }]
+
+    expect(operator.execute({ data, key: 'n', order: 'asc' }).data).toEqual([
+      { n: 1 },
+      { n: 2 },
+      {},
+      { n: null },
+    ])
+    expect(operator.execute({ data, key: 'n', order: 'desc' }).data).toEqual([
+      { n: 2 },
+      { n: 1 },
+      {},
+      { n: null },
+    ])
   })
 })
 

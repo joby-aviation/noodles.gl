@@ -4185,11 +4185,15 @@ export class SortOp extends Operator<SortOp> {
     key,
     order,
   }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
-    const sorted = data.sort((a, b) => {
-      if (order === 'asc') {
-        return a[key] - b[key]
-      }
-      return b[key] - a[key]
+    const direction = order === 'asc' ? 1 : -1
+    // Copy first: Array.sort works in place and would reorder the upstream data
+    const sorted = [...data].sort((a, b) => {
+      const x = a[key]
+      const y = b[key]
+      // Missing values go last in either order
+      if (x == null || y == null) return (x == null ? 1 : 0) - (y == null ? 1 : 0)
+      // < compares strings and dates as well as numbers
+      return (x < y ? -1 : x > y ? 1 : 0) * direction
     })
     return { data: sorted }
   }
