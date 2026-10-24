@@ -10,6 +10,7 @@ import {
 
 // Mock the store module
 vi.mock('../store', () => ({
+  dismissStarterHint: vi.fn(),
   getAllOps: vi.fn(),
   getGraphStore: vi.fn(),
   useGraphStore: {

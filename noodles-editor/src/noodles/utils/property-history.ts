@@ -8,7 +8,7 @@ import {
   type IField,
   type NodeUIMetadata,
 } from '../fields'
-import { getAllOps, getGraphStore } from '../store'
+import { dismissStarterHint, getAllOps, getGraphStore } from '../store'
 import { trackFieldEdit, useFieldEditScope } from './field-edit-analytics'
 import type { OpId } from './id-utils'
 
@@ -91,9 +91,12 @@ export function applyOperatorInputs(snapshot: string): void {
 // and calls the registered callback with both before and after. Skips if state is unchanged.
 // Returns whether a mutation was recorded. Mirrors fireTimelineMutation() in timeline-store.ts.
 export function firePropertyMutation(description: string, before: string | null): boolean {
-  if (!_propertyMutationCallback || before === null) return false
+  if (before === null) return false
   const after = captureOperatorInputs()
   if (after === null || before === after) return false
+  // Covers edits that never fire a DOM input event, such as dragging a number field
+  dismissStarterHint()
+  if (!_propertyMutationCallback) return false
   _lastCommittedBeforeState = before
   debugHistorySnapshot('Firing property mutation: %s', description)
   _propertyMutationCallback(description, before, after)

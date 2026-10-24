@@ -80,6 +80,7 @@ import {
 import { RenameDialog } from './components/rename-dialog'
 import { SaveAsDialog } from './components/save-as-dialog'
 import { SidebarTabs } from './components/sidebar-tabs'
+import { StarterNodeFocus } from './components/starter-node-focus'
 import { StorageErrorHandler } from './components/storage-error-handler'
 import { CanvasDropImport } from './components/tools/canvas-drop-import'
 import { UndoRedoHandler, type UndoRedoHandlerRef } from './components/UndoRedoHandler'
@@ -90,7 +91,7 @@ import { useKeyboardShortcut } from './hooks/use-keyboard-shortcut'
 import { useNodeDropOnEdge } from './hooks/use-node-drop-on-edge'
 import { useProjectModifications } from './hooks/use-project-modifications'
 import type { DeckRendererOp, IOperator, Operator, OutOp } from './operators'
-import { instantiateExtension } from './operators'
+import { instantiateExtension, opTypes } from './operators'
 import { referenceDependencyModel } from './reference-dependencies'
 import {
   copyDataDirectory,
@@ -155,6 +156,7 @@ import {
   serializeNodes,
 } from './utils/serialization'
 import { EdgeSpatialIndex } from './utils/spatial-index'
+import { claimStarterSelection, findStarterNodeId } from './utils/starter-node'
 import { expandTimelineIfAnimated } from './utils/timeline-panel'
 import { calculateViewerPosition } from './utils/viewer-position'
 
@@ -192,6 +194,9 @@ const fitViewOptions: FitViewOptions = {
 const defaultEdgeOptions: DefaultEdgeOptions = {
   animated: false,
 }
+
+const isLayerType = (type: string) =>
+  (opTypes[type as keyof typeof opTypes]?.displayName ?? '').endsWith('Layer')
 
 // Syncs edge data from React Flow store to centralized EdgeConnectionStore for O(1) lookups
 function EdgeConnectionSynchronizer() {
@@ -1057,6 +1062,7 @@ export function getNoodles(): Visualization {
 
       currentProjectRef.current = project
       setProjectLoadId(id => id + 1)
+      getUIStore().setStarterHintNodeId(null)
 
       // Install embedded keys before constructing operators. Key-dependent operators
       // may inspect credentials while their fields and listeners are initialized.
@@ -1145,6 +1151,27 @@ export function getNoodles(): Visualization {
   // Assign to ref for undo/redo system
   loadProjectFileRef.current = loadProjectFile
 
+  // Examples open with one layer selected, so the properties panel starts with controls
+  const selectStarterNode = useCallback(
+    (project: NoodlesProjectJSON) => {
+      const starterId = findStarterNodeId(project, isLayerType)
+      const starter = starterId ? project.nodes.find(node => node.id === starterId) : undefined
+      if (!starter) return
+      setNodes(nodes =>
+        nodes.map(node =>
+          node.id === starter.id
+            ? { ...node, selected: true }
+            : node.selected
+              ? { ...node, selected: false }
+              : node
+        )
+      )
+      getUIStore().setStarterHintNodeId(starter.id)
+      analytics.track('starter_node_selected', { operatorType: starter.type })
+    },
+    [setNodes]
+  )
+
   // Keyboard shortcuts are now handled by UndoRedoHandler component
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: loadProjectFile would cause infinite loop
@@ -1223,6 +1250,15 @@ export function getNoodles(): Visualization {
             setCurrentDirectory(null, projectName)
             setActiveStorageType('memory')
             loadProjectFile(project, projectName, undefined, outputCache)
+            if (
+              claimStarterSelection({
+                exampleId: projectName,
+                fromBundledExample: true,
+                agentControlled: externalControl || agentBench,
+              })
+            ) {
+              selectStarterNode(project)
+            }
             return
           } catch (error) {
             debugApp('Failed to load example project:', error)
@@ -1338,6 +1374,8 @@ export function getNoodles(): Visualization {
 
     // Only include autoLayout if different from defaults
     const autoLayoutChanged = autoLayout.enabled !== DEFAULT_AUTO_LAYOUT.enabled
+    // Kept so saving an example from the editor doesn't drop its starter node
+    const startNode = currentProjectRef.current?.editorSettings?.startNode
 
     return {
       version: NOODLES_VERSION,
@@ -1349,6 +1387,7 @@ export function getNoodles(): Visualization {
         showOverlay,
         ...(autoLayoutChanged ? { autoLayout } : {}),
         showDebugInfo,
+        ...(startNode ? { startNode } : {}),
       },
       ...(projectKeys ? { apiKeys: projectKeys } : {}),
     }
@@ -1973,6 +2012,7 @@ export function getNoodles(): Visualization {
                 edgeTypes={edgeComponents}
               >
                 <ReactFlowInstanceCapture />
+                <StarterNodeFocus loadId={projectLoadId} />
                 <EdgeConnectionSynchronizer />
                 <CanvasDropImport
                   pendingFile={pendingImportFile}
