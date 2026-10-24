@@ -45,6 +45,9 @@ EditorDoc ─lowerDocument─► planner IR + scalar program ─compileProgram�
   recompiles; a structural edit recompiles only what changed.
 - **Per-row values are columns**, made by `attribute` nodes and channel expressions. There are
   no accessor functions.
+- **A path is one row.** A path, trips or polygon layer whose position reads a list of
+  positions or a geometry draws a row per path; the worker flattens the column into deck's
+  vertex buffers. Never unnest paths into vertex rows just to draw them.
 - **Host operators** are the few Noodles classes that cannot compile (CodeOp reading `op()` or
   the timeline, Geocoder, Directions, Chart, BoundingBox, Merge, LayerProps, Mouse, TileLayer,
   custom MapLibre layers). They run their `execute()` on the main thread.
