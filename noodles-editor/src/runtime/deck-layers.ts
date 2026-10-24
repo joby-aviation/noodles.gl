@@ -452,7 +452,11 @@ function colorRange(name: ResolvedProp | undefined): { colorRange?: number[][] }
 const widthUnits = (v: ResolvedProp | undefined) =>
   v === 'meters' || v === 'common' ? v : 'pixels'
 
-function buildLayer(input: ProgramLayerInput, binary: Binary, pickable: boolean): Layer | undefined {
+function buildLayer(
+  input: ProgramLayerInput,
+  binary: Binary,
+  pickable: boolean
+): Layer | undefined {
   const p = input.props
   const has = (deckName: string) => deckName in binary.attributes
   const opacity = num(p.opacity, 1)

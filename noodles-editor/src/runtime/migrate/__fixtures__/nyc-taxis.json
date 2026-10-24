@@ -420,12 +420,7 @@
                       "id": "kf_bearing_0",
                       "position": 0,
                       "connectedRight": true,
-                      "handles": [
-                        0.333,
-                        0.333,
-                        0.667,
-                        0.667
-                      ],
+                      "handles": [0.333, 0.333, 0.667, 0.667],
                       "type": "bezier",
                       "value": -15.25
                     },
@@ -433,12 +428,7 @@
                       "id": "kf_bearing_1",
                       "position": 20,
                       "connectedRight": false,
-                      "handles": [
-                        0.333,
-                        0.333,
-                        0.667,
-                        0.667
-                      ],
+                      "handles": [0.333, 0.333, 0.667, 0.667],
                       "type": "bezier",
                       "value": 344.75
                     }
