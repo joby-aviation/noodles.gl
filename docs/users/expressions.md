@@ -1,67 +1,82 @@
-# Field Expressions
+# Expressions
 
-Drive any input field with a live JavaScript expression — like expressions in TouchDesigner and Houdini, or Drivers in Blender. Expressions let you build reactive relationships between operators without adding Expression or Accessor nodes for simple math.
+Noodles has two kinds of expression. A **row expression** computes a value for every row of a table: a position, a radius, a color. A **parameter expression** computes one number for a parameter from the time and other parameters, like expressions in Houdini and TouchDesigner or drivers in Blender. Neither needs a separate node for simple math.
 
-## Enabling Expression Mode
+## Row Expressions
 
-Right-click any input field — on a node body or in the Properties Panel — and choose **Add expression**. The field switches to expression mode, pre-filled with its current value, and turns violet to show it's driven.
+Layer channels (Position, Color, Radius, Width...), Attribute Create, the inputs of Map Range and Color Ramp, and a Filter in Expression mode all take a row expression over the input table's columns:
 
-Right-click again and choose **Remove expression** to exit. The field keeps its last evaluated value.
-
-## Writing Expressions
-
-Click a driven field to open the expression editor (with autocomplete). Any JavaScript expression works:
-
-```javascript
-// Simple math
-40 + 2
-
-// Reference another operator's output
-op('/time').out.seconds * 2
-
-// Mustache shorthand for the same thing
-{{/time.out.seconds}} * 2
-
-// Reference a sibling parameter on the same operator
-par.radius * 0.5
-
-// Timeline-driven animation
-Math.sin(sequenceTime * Math.PI) * 100
-
-// Use bundled libraries
-d3.mean(op('/data-source').out.data.map(d => d.value))
+```
+[lng, lat]                    a position from two columns
+sqrt(pop) * 2.0               arithmetic and functions
+ramp(fit(mag, 0, 8, 0, 1))    a color from the layer's color ramp
+mag > 5 ? 2.0 : 1.0           a condition
+coalesce(depth, 0)            a fallback for missing values
+hex_color(color)              a "#rrggbb" text column as a color
 ```
 
-Press **Enter** to confirm, **Escape** to cancel, **Tab** to accept an autocomplete suggestion.
+- Names are column names exactly as the table has them; case matters. A channel holding just a column name, such as `position` or `Cd`, reads that column.
+- `[a, b]` makes a vector. A column with 2 to 4 numbers per row (`coordinates: [lng, lat]` in JSON) is a vector too: read one item with `coordinates[1]` or `coordinates.y`.
+- Operators: `+ - * / %`, comparisons, `&&`, `||`, `!` and `test ? a : b`.
+- Functions include `sqrt`, `abs`, `floor`, `ceil`, `round`, `exp`, `ln`, `log10`, `pow`, `sin`, `cos`, `atan2`, `min`, `max`, `clamp`, `fit(x, inMin, inMax, outMin, outMax)`, `lerp(a, b, t)`, `smoothstep`, `ramp(t)`, `coalesce`, `to_number` (text as a number), `category(value, n)` (a bucket from 0 to n - 1 per distinct value) and `random()`.
+- Geographic functions take `[lng, lat]` points: `distance(a, b)` in kilometers, `bearing(a, b)`, `destination(p, km, degrees)`, `midpoint(a, b)`, and `st_distance`, `st_dwithin` and `st_contains` against a WKT or GeoJSON literal.
+- `ch('node/param')` reads a parameter's value, as in a parameter expression below: `mag * ch('size/value')`.
+- Colors are `[r, g, b]` from 0 to 1 in expressions. Constant color parameters, such as a layer's Fill color, are 0 to 255.
 
-## Available Context
+A value several layers share belongs in an **Attribute Create** node (`attribute`): it writes one column, and the layers after it name that column.
 
-| Name | Description |
-|------|-------------|
-| `op('/path')` | Reference another operator (absolute, `./sibling`, or `../parent` paths) |
-| `par` | The current operator's own parameter values |
-| `me` | The current operator instance |
-| `sequenceTime`, `frame`, `totalFrames`, `sequence` | Timeline state |
-| `utils`, `d3`, `turf`, `deck`, `Plot`, `Temporal` | Bundled libraries |
+### JS Function
 
-## Reactivity
+For logic the expression language has no words for, a **JS Function** node (`js-function`) defines a function that any expression can call by name. Set its **Name**, **Parameters** (comma-separated; `name: text` for a text parameter), **Returns** (1 number, or an array of 2 to 4) and **Body**:
 
-Driven fields re-evaluate automatically when their dependencies change:
+```javascript
+// Name: jitter, Parameters: x
+return x + (Math.random() - 0.5) * 0.01
+```
 
-- **Operator references** (`op()` or `{{...}}`) create dashed reference edges on the canvas — the same dependency wires Code fields use. When the referenced value changes, the expression re-runs.
-- **Sibling references** (`par.x`) re-evaluate when the sibling parameter changes.
-- **Timeline references** (`sequenceTime`, `frame`) re-evaluate as the playhead moves.
+A layer's Position can then be `[jitter(lng), jitter(lat)]`. The body runs in the engine worker with `d3`, `turf` and `utils` in scope. DuckDB runs it about 20 times slower than SQL, so prefer an expression where one will do.
 
-## Type Safety and Errors
+## Parameter Expressions
 
-Expression results are validated against the field's schema. If an expression returns the wrong type (say, a string into a number field), the field keeps its last good value and shows a ⚠ indicator with the error. Syntax errors and unknown operator paths are reported the same way — the graph keeps running with the previous value.
+Right-click a number parameter in the parameter pane and choose **Set expression...**. The parameter then shows the expression and its current value. Choose **Revert to value** to go back to a plain number.
 
-Fields that transform their input accept results in either form. A color field takes a hex string (`'#ff0000'`) or the RGBA array the layer actually consumes (`[255, 0, 0, 255]`) — whichever your expression naturally produces.
+| Name | Value |
+|------|-------|
+| `T` | Seconds on the timeline |
+| `F` | The frame number |
+| `ch('node/param')` | Another parameter's value, by path (`ch('../controls/size')` reaches up out of a subnet) |
 
-## Serialization
+The math functions above work here too:
 
-Expressions are saved with the project as `{ "$expr": "..." }` payloads in the field's slot, and they round-trip through undo/redo and copy/paste.
+```
+4 + 2 * sin(T)
+ch('threshold/value') * 2
+```
 
-## Safe Mode
+An expression updates when the playhead moves or when a parameter it reads changes. A name other than `T`, `F` or a `ch()` reference is an error on the node.
 
-Expressions are JavaScript, so they follow the same trust model as Code operators: loading a project with `?safeMode=true` skips expression evaluation. Driven fields keep their saved values and show a ⚠ indicator explaining that evaluation is disabled. The expressions themselves are preserved and run again once safe mode is off.
+## References
+
+To make a parameter follow another one, right-click it and choose **Reference a parameter...**, or click the link button next to it, and pick a parameter of the same kind on another node. A referenced parameter shows a chip naming its source: click the chip to go to that node, or click × to break the reference and keep the current value. **Copy parameter** and **Paste relative reference** do the same from the context menu.
+
+References work for numbers, colors, toggles and text. They are how several layers share one color from a **Color** node. Every reference and `ch()` call draws a dashed edge on the canvas, and a parameter that others read lists them under "used by".
+
+## In SQL
+
+A `sql` node's query can read parameters with `ch()` as well, so a slider can drive a `WHERE` clause:
+
+```sql
+SELECT * FROM {{input0}} WHERE pop > ch('threshold/value')
+```
+
+## In Project Files
+
+Expressions and references are saved in a node's `params`:
+
+```json
+{ "radiusScale": { "expr": "4 + 2 * sin(T)" },
+  "fillColor": { "ref": "accent/color" },
+  "position": "[lng, lat]" }
+```
+
+A row expression is a plain string, since it is the parameter's value.
