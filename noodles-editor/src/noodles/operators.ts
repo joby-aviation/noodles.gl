@@ -8205,7 +8205,7 @@ export class Tile3DLayerOp extends Operator<Tile3DLayerOp> {
       tilesetUrl: new StringField('', {
         showByDefault: false,
         description:
-          'URL of a tileset.json to load. When empty, uses the Google tiles (or a sample NYC tileset for Cesium).',
+          'URL of a tileset.json to load. Required for Generic; Google and Cesium use their own tilesets when empty.',
       }),
       opacity: new NumberField(1, { min: 0, max: 1, step: 0.01 }),
       operation: new StringLiteralField('terrain+draw', {
@@ -8224,14 +8224,7 @@ export class Tile3DLayerOp extends Operator<Tile3DLayerOp> {
           'Limit how many tile requests run at once. Loads more slowly but uses less bandwidth.',
       }),
       pointSize: new NumberField(1, { min: 0, softMax: 100 }), // Only applies when tile format is 'pnts'
-      maxLodMetricValue: new NumberField(2, {
-        min: 0,
-        softMax: 10,
-        showByDefault: false,
-        label: 'Max LOD metric',
-        description:
-          'Level of detail limit passed to deck.gl. The current Tile3D layer does not read it.',
-      }),
+      maxLodMetricValue: new NumberField(2, { min: 0, softMax: 10, showByDefault: false }),
       maxScreenSpaceError: new NumberField(50, {
         min: 0,
         softMax: 1_000,
@@ -11714,12 +11707,7 @@ export class ColumnLayerOp extends Operator<ColumnLayerOp> {
         description:
           'Custom outline as [x, y] points in the unit circle, scaled by the radius. Replaces the round shape.',
       }),
-      offset: new Vec3Field([0, 0, 0], {
-        returnType: 'tuple',
-        showByDefault: false,
-        description:
-          'Shifts each column from its position, as a fraction of the radius. Only x and y are used.',
-      }),
+      offset: new Vec3Field([0, 0, 0], { returnType: 'tuple', showByDefault: false }),
       coverage: new NumberField(1, { min: 0, max: 1, step: 0.01, showByDefault: false }),
       elevationScale: new NumberField(1, { min: 0, softMax: 100, showByDefault: false }),
       filled: new BooleanField(true),
@@ -12339,11 +12327,7 @@ export class MVTLayerOp extends Operator<MVTLayerOp> {
         values: ['pixels', 'meters'],
         showByDefault: false,
       }),
-      autoLabels: new BooleanField(false, {
-        optional: true,
-        description:
-          'Ask for automatic feature labels. The deck.gl MVT layer ignores this, so it has no visible effect.',
-      }),
+      autoLabels: new BooleanField(false, { optional: true }),
       parameters: new CompoundPropsField(
         {
           depthTest: new BooleanField(true),
