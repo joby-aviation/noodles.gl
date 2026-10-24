@@ -19,7 +19,7 @@ import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } fro
 import {
   MapPickFocus,
   mapPickPulseClass,
-  StarterNodeFocus,
+  ProjectLoadView,
 } from '../noodles/components/starter-node-focus'
 import { DocCommentComponent } from './doc-comment'
 import { useEngineState } from './doc-engine'
@@ -38,8 +38,8 @@ import {
   validConnection,
 } from './doc-ops'
 import { docStore, useEditor } from './doc-store'
-import { useUIStore } from './ui-store'
 import { AddNodeMenu, ContextMenu, type MenuItem } from './menus'
+import { useUIStore } from './ui-store'
 
 const nodeTypes = { doc: DocNodeComponent, comment: DocCommentComponent }
 
@@ -58,6 +58,10 @@ type Menu =
 
 const CLIP_TYPE = 'application/x-noodles-doc-nodes'
 let clipboard: Clip | undefined
+
+// The controls' fit button. One object, not one per render: React Flow copies a new one into
+// its store, replacing the options of a fit already queued (the load's, in ProjectLoadView).
+const FIT_VIEW_OPTIONS = { padding: 0.15 }
 
 /** Copy the selection: kept here, and as JSON on the system clipboard for other tabs. */
 export function copySelection(): boolean {
@@ -377,7 +381,7 @@ export function DocNetwork({ children }: { children?: ReactNode }) {
       const first = docStore().get().selection[0]
       if (first) enter(first)
     } else if (e.key === 'f' && !meta) {
-      void flow.fitView({ padding: 0.15, duration: 250 })
+      void flow.fitView({ ...FIT_VIEW_OPTIONS, duration: 250 })
     }
   }
 
@@ -420,8 +424,7 @@ export function DocNetwork({ children }: { children?: ReactNode }) {
         deleteKeyCode={null}
         selectionKeyCode="Shift"
         multiSelectionKeyCode={['Meta', 'Control']}
-        fitView
-        fitViewOptions={{ padding: 0.15 }}
+        fitViewOptions={FIT_VIEW_OPTIONS}
         minZoom={0.2}
         onNodeDoubleClick={(_, n) => enter(n.id)}
         onNodeContextMenu={(e, n) => {
@@ -447,7 +450,8 @@ export function DocNetwork({ children }: { children?: ReactNode }) {
       >
         <Background />
         <Controls position="bottom-right" showInteractive={false} />
-        <StarterNodeFocus loadId={loadId} />
+        {/* A load frames the graph once its nodes are measured; an empty one has nothing to fit */}
+        <ProjectLoadView loadId={loadId} fitView={doc.nodes.length > 0} />
         <MapPickFocus />
         {children}
       </ReactFlow>

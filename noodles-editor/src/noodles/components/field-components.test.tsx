@@ -10,6 +10,7 @@ import {
   CompoundPropsField,
   DataField,
   DateField,
+  LayerField,
   NumberField,
   Point2DField,
   Point3DField,
@@ -859,10 +860,12 @@ describe('CompoundFieldComponent', () => {
   })
 
   it('uses the shared layer label for layer parameters', () => {
-    const op = new ArcLayerOp('/arc')
+    // A layer operator is one with a layer output; no Noodles layer class is left to build
+    const field = new CompoundPropsField({})
+    field.op = { outputs: { layer: new LayerField() } } as unknown as typeof field.op
     render(
       <ReactFlowProvider>
-        <CompoundFieldComponent id="parameters" field={op.inputs.parameters} disabled={false} />
+        <CompoundFieldComponent id="parameters" field={field} disabled={false} />
       </ReactFlowProvider>
     )
 

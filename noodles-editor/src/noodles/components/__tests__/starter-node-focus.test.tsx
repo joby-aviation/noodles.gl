@@ -3,7 +3,12 @@
 import { act, cleanup, render } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useUIStore } from '../../../editor/ui-store'
-import { MAP_PICK_PULSE_MS, MapPickFocus, StarterNodeFocus } from '../starter-node-focus'
+import {
+  LOAD_FIT_VIEW_OPTIONS,
+  MAP_PICK_PULSE_MS,
+  MapPickFocus,
+  ProjectLoadView,
+} from '../starter-node-focus'
 
 const setViewport = vi.fn()
 const fitView = vi.fn(() => Promise.resolve(true))
@@ -17,7 +22,13 @@ const offscreenNode = {
 }
 
 vi.mock('@xyflow/react', () => ({
-  useNodesInitialized: () => true,
+  useNodesInitialized: () => measured,
+  useStoreApi: () => ({
+    getState: () => ({
+      nodeLookup: new Map([['/scatterplot-layer', offscreenNode]]),
+      nodesInitialized: measured,
+    }),
+  }),
   useReactFlow: () => ({
     fitView,
     getInternalNode: () => offscreenNode,
