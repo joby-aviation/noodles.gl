@@ -90,6 +90,24 @@ VITE_GA_MEASUREMENT_ID=G-XXXXXXXXXX
 
 - `outcome`: `accepted`, `rejected`, or `failed` (accepted, but the editor refused the batch)
 
+### Editor Interactions
+
+| Event | Properties | Location |
+|-------|-----------|----------|
+| `field_value_changed` | `fieldType, operatorType, source` | field-edit-analytics.tsx (from property-history.ts commitChange) |
+| `panel_toggled` | `panel, visible` | layout.tsx, timeline-editor.tsx, top-menu-bar.tsx |
+| `map_mode_changed` | `mode` | layout.tsx, top-menu-bar.tsx |
+| `map_interacted` | `kind` | editor-analytics.ts (from timeline-editor.tsx) |
+| `chat_opened` | `source` | top-menu-bar.tsx, noodles.tsx |
+| `chat_closed` | `source` | top-menu-bar.tsx, noodles.tsx |
+
+- `field_value_changed` counts edits the user commits in a field's control, at the same point an undo step is recorded, and only when a value changed. Project loads, keyframe playback, upstream connections, undo/redo and AI modifications set values without a commit, so they are not counted. Commits to the same field less than 1 second apart are one edit and send one event after a second of quiet, so dragging a slider or typing sends one event, not one per frame or keystroke.
+- `fieldType`: the field's type (`number`, `color`, `boolean`, `string-literal`, `code`, ...), or `custom` for a node's own controls such as histogram brushes. `operatorType`: the node type (`ScatterplotLayerOp`). `source`: `node` or `properties_panel`. The value, field name, node id and code are never sent.
+- `panel`: `sidebar`, `properties`, `timeline` or `spreadsheet`. The sidebar and properties panel are tracked when a resize makes them appear or disappear (dragging the separator, the sidebar chevron, Cmd+F); the timeline when its tab or collapse button is clicked; the spreadsheet from Editor > Show spreadsheet. The timeline opening by itself for an animated project is not counted.
+- `mode`: `docked`, `floating` or `underlay` (the map behind the node graph)
+- `map_interacted` fires once per page load for each `kind`: `pan`, `zoom` or `rotate` (rotate includes pitch). Only user gestures count: deck's controller interaction state, or MapLibre events that carry the input event that caused them. Camera keyframes and programmatic camera moves are not counted.
+- `chat_opened` `source`: `toolbar` (the top bar's Assistant button) or `quick_start` (the Quick Start dialog's AI path). `chat_closed` `source`: `toolbar` (the same button, labeled Hide while the assistant is open) or `panel` (the panel's own close button).
+
 ### Rendering and Export
 
 Tracked in the renderer, not the buttons, so the Export button, the render settings panel and the `export_video` agent tool are each counted once. Every `render_started` is followed by exactly one of `render_completed`, `render_failed` or `render_cancelled`.
@@ -215,10 +233,6 @@ These properties are automatically removed:
 
 ```typescript
 import { analytics } from '../utils/analytics'
-
-// Panel toggle
-analytics.track('ai_panel_opened')
-analytics.track('ai_panel_closed')
 
 // Message sent
 analytics.track('ai_message_sent', {

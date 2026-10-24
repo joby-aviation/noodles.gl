@@ -18,6 +18,11 @@ import { getNoodles } from './noodles/noodles'
 import { fnWithSource } from './noodles/operators'
 import { useUIStore } from './noodles/store'
 import {
+  trackDeckInteraction,
+  trackMapLibreGesture,
+  trackPanelToggled,
+} from './noodles/utils/editor-analytics'
+import {
   createCameraGestureHistory,
   updateCameraInputs,
   useCameraControlState,
@@ -254,6 +259,8 @@ export default function TimelineEditor() {
     },
     onInteractionStateChange: interactionState => {
       visualizationDeckProps?.onInteractionStateChange?.(interactionState)
+      // Only deck's controller sets these, so they always come from the user
+      trackDeckInteraction(interactionState)
       if (basemapEnabled || !cameraControl.enabled) return
       cameraHistoryRef.current.setInteracting(
         Boolean(
@@ -281,6 +288,10 @@ export default function TimelineEditor() {
     onMove: visualizationOnMove,
     onMoveStart: visualizationOnMoveStart,
     onMoveEnd: visualizationOnMoveEnd,
+    onDragStart: visualizationOnDragStart,
+    onZoomStart: visualizationOnZoomStart,
+    onRotateStart: visualizationOnRotateStart,
+    onPitchStart: visualizationOnPitchStart,
     ...basemapProps
   } = visualization.mapProps ?? {}
   const mapProps: MapProps = {
@@ -316,6 +327,22 @@ export default function TimelineEditor() {
     onMoveEnd: event => {
       visualizationOnMoveEnd?.(event)
       finishCameraGesture()
+    },
+    onDragStart: event => {
+      visualizationOnDragStart?.(event)
+      trackMapLibreGesture('pan', event)
+    },
+    onZoomStart: event => {
+      visualizationOnZoomStart?.(event)
+      trackMapLibreGesture('zoom', event)
+    },
+    onRotateStart: event => {
+      visualizationOnRotateStart?.(event)
+      trackMapLibreGesture('rotate', event)
+    },
+    onPitchStart: event => {
+      visualizationOnPitchStart?.(event)
+      trackMapLibreGesture('rotate', event)
     },
   }
 
@@ -867,7 +894,13 @@ export default function TimelineEditor() {
           left={nodeSidebar}
           right={propertiesPanel}
           timeline={heightPx => (
-            <TimelinePanel height={heightPx} onCollapse={() => setTimelineExpanded(false)} />
+            <TimelinePanel
+              height={heightPx}
+              onCollapse={() => {
+                trackPanelToggled('timeline', false)
+                setTimelineExpanded(false)
+              }}
+            />
           )}
           flowGraph={flowGraph}
           spreadsheet={<SpreadsheetPane selectedNodeIds={selectedNodeIds ?? []} />}

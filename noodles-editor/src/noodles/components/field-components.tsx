@@ -68,6 +68,7 @@ import { getFriendlyErrorMessage } from '../operators'
 import { checkAssetExists, getAssetFileHandle, writeAsset } from '../storage'
 import { getOp, useEdgeConnectionStore } from '../store'
 import { type ExpressionContext, getExpressionContext } from '../utils/expression-context'
+import { FieldEditScope } from '../utils/field-edit-analytics'
 import { projectScheme } from '../utils/filesystem'
 import type { OpId } from '../utils/id-utils'
 import { computeRelativePath } from '../utils/path-utils'
@@ -2857,18 +2858,21 @@ export function FieldComponent({
             position={Position.Left}
           />
         ))}
-      {renderInput &&
-        (hasIncomingConnection ? (
-          <EmptyFieldComponent id={fieldId} field={field} />
-        ) : isDriven ? (
-          <ExpressionDrivenInput id={fieldId} field={field} disabled={disabled} />
-        ) : hasKeyframes ? (
-          <div className={s.keyframedFieldInput}>
+      {renderInput && (
+        <FieldEditScope field={field}>
+          {hasIncomingConnection ? (
+            <EmptyFieldComponent id={fieldId} field={field} />
+          ) : isDriven ? (
+            <ExpressionDrivenInput id={fieldId} field={field} disabled={disabled} />
+          ) : hasKeyframes ? (
+            <div className={s.keyframedFieldInput}>
+              <InputComp id={fieldId} field={field} disabled={disabled} />
+            </div>
+          ) : (
             <InputComp id={fieldId} field={field} disabled={disabled} />
-          </div>
-        ) : (
-          <InputComp id={fieldId} field={field} disabled={disabled} />
-        ))}
+          )}
+        </FieldEditScope>
+      )}
       {contextMenuPos && nid && (
         <FieldContextMenu
           field={field}

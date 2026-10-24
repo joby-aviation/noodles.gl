@@ -9,6 +9,7 @@ import {
   type NodeUIMetadata,
 } from '../fields'
 import { getAllOps, getOpStore } from '../store'
+import { trackFieldEdit, useFieldEditScope } from './field-edit-analytics'
 import type { OpId } from './id-utils'
 
 type PropertyMutationCallback = (description: string, before: string, after: string) => void
@@ -88,14 +89,15 @@ export function applyOperatorInputs(snapshot: string): void {
 
 // Records a property mutation to the undo/redo history. Captures the "after" state
 // and calls the registered callback with both before and after. Skips if state is unchanged.
-// Mirrors fireTimelineMutation() in timeline-store.ts.
-export function firePropertyMutation(description: string, before: string | null): void {
-  if (!_propertyMutationCallback || before === null) return
+// Returns whether a mutation was recorded. Mirrors fireTimelineMutation() in timeline-store.ts.
+export function firePropertyMutation(description: string, before: string | null): boolean {
+  if (!_propertyMutationCallback || before === null) return false
   const after = captureOperatorInputs()
-  if (after === null || before === after) return
+  if (after === null || before === after) return false
   _lastCommittedBeforeState = before
   debugHistorySnapshot('Firing property mutation: %s', description)
   _propertyMutationCallback(description, before, after)
+  return true
 }
 
 export function getLastCommittedBeforeState(): string | null {
@@ -105,8 +107,13 @@ export function getLastCommittedBeforeState(): string | null {
 // React hook that provides captureStart/commitChange for use in field components.
 // Call captureStart() at the beginning of a user interaction (focus, drag start).
 // Call commitChange(description) when the interaction ends (blur, drag end, close).
+// A commit that changed something inside a FieldEditScope also counts as a user field edit.
 export function usePropertyHistory() {
   const beforeRef = useRef<string | null>(null)
+  // Read through a ref so commitChange keeps a stable identity (the code editor binds it once)
+  const scope = useFieldEditScope()
+  const scopeRef = useRef(scope)
+  scopeRef.current = scope
 
   const captureStart = useCallback(() => {
     beforeRef.current = captureOperatorInputs()
@@ -114,8 +121,9 @@ export function usePropertyHistory() {
 
   const commitChange = useCallback((description: string) => {
     if (beforeRef.current) {
-      firePropertyMutation(description, beforeRef.current)
+      const changed = firePropertyMutation(description, beforeRef.current)
       beforeRef.current = null
+      if (changed) trackFieldEdit(scopeRef.current)
     }
   }, [])
 
