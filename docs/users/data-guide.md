@@ -1,189 +1,130 @@
 # Working with Data
 
-Learn how to load, process, and transform data in Noodles.gl for your visualizations.
+Learn how to load, process, and transform data in Noodles.gl for your visualizations. Every table in a project runs in DuckDB, and every node after a data node works on rows and columns.
 
 ## Data Sources
 
 ### Local and Remote Files
 
-Use a `FileOp` to read a file from a URL or text. Supported formats:
+Use a **File** node (`file`) to read a file from a URL, or `@/name.csv` from the project's data directory. Supported formats:
 
-| Format | Output Type | Use Case |
-|--------|-------------|----------|
-| `json` | Parsed object/array | JSON data files |
-| `csv` | Array of row objects | Tabular data |
-| `text` | Raw string | Plain text files, custom parsing |
-| `binary` | ArrayBuffer/Uint8Array | Images, binary files |
+| Format | Rows | Use Case |
+|--------|------|----------|
+| `csv` | One per line | Tabular data. Header row, column names and a null marker are options |
+| `json` | One per array item | JSON arrays of records |
+| `parquet` | One per row | Large columnar files |
+
+The table's columns are what the file has, and expressions after it name them exactly.
 
 ### Common Data Formats
 
 ### JSON Data
-```javascript
-{
-  "flights": [
-    {
-      "origin": "SFO",
-      "destination": "LAX",
-      "coordinates": [-122.4194, 37.7749]
-    }
-  ]
-}
+```json
+[
+  { "origin": "SFO", "destination": "LAX", "coordinates": [-122.4194, 37.7749] }
+]
 ```
 
+A column holding a list of 2 to 4 numbers, like `coordinates`, is a vector: a layer's Position can be `coordinates` as it is.
+
 ### CSV Data
-```javascript
-origin,destination,passengers,coordinates
-SFO,LAX,150,"[-122.4194, 37.7749]"
+```
+origin,destination,passengers,lng,lat
+SFO,LAX,150,-122.4194,37.7749
 ```
 
 ### GeoJSON
-```javascript
-{
-  "type": "FeatureCollection",
-  "features": [
-    {
-      "type": "Feature",
-      "geometry": {
-        "type": "Point",
-        "coordinates": [-122.4194, 37.7749]
-      },
-      "properties": {
-        "name": "SFO",
-        "passengers": 25000
-      }
-    }
-  ]
-}
-```
 
-### Text and Binary Formats
+Use a **GeoJSON** node (`geojson`) for GeoJSON, and for any vector file DuckDB spatial reads (Shapefile, GeoPackage, KML...). It has several outputs:
 
-Use `text` format for custom parsing or `binary` for non-text files (images, etc.).
+- `features`: one row per feature, its geometry in a `geom` column and its properties as columns. A Path or Polygon layer with Position `geom` draws one path or polygon per row.
+- `polygons`, `lines`, `points`: one row per vertex, with `lng` and `lat` columns.
+- `all`: every vertex row, with a `kind` column.
 
 ### Geospatial Data
 
-**Overture Maps** - Global datasets (places, buildings, roads) via `DuckDbOp`. Best for large-scale analytics. Query Parquet files on S3 with SQL. See [docs.overturemaps.org](https://docs.overturemaps.org/).
+**Overture Maps**: Global datasets (places, buildings, roads) via a `sql` node. Best for large-scale analytics. Query Parquet files on S3 with SQL. See [docs.overturemaps.org](https://docs.overturemaps.org/).
 
-**Overpass API** - Real-time OpenStreetMap via `OverpassOp`. Best for current data and city-scale queries. Uses Overpass QL syntax with `{{bbox}}` template replacement. See [Overpass QL docs](https://wiki.openstreetmap.org/wiki/Overpass_API/Overpass_QL).
+**Overpass API**: Current OpenStreetMap data via an **Overpass** node (`overpass`). Best for city-scale queries. Uses Overpass QL syntax, with `{{bbox}}` replaced by the bounds. See [Overpass QL docs](https://wiki.openstreetmap.org/wiki/Overpass_API/Overpass_QL).
 
 ## Data Processing
 
-### Code Operators
+### Row Nodes
 
-Run custom JavaScript code on the data. Use `data` to access the input data list, `d` for the first element of the list, and `op` to access other operators. Also passes utils like `turf` and `d3`, and all Noodles.gl operator classes as variables. Use `this` to store state.
+Most processing is a node per step, with [expressions](./expressions.md) over columns:
 
-```javascript
-// CodeOp
-const csvData = d // input data list connected to FileOp
-const parsed = d3.csvParse(csvData) // parse CSV string using available d3 utility
-const filtered = parsed.filter(row => row.passengers > 100)
-return turf.featureCollection(filtered.map(row => (
-  turf.point([row.lng, row.lat], { name: row.name, passengers: row.passengers })
-)))
+- **Filter**, **Range Filter**, **Region Filter**: keep rows
+- **Attribute Create**: add a column, such as `position = [lng, lat]`
+- **Map Range**, **Color Ramp**: scale a value, or turn it into a color
+- **Sort**, **Limit**, **Join**, **Union**, **Aggregate**: reshape tables
+
+### SQL
+
+A **DuckDB SQL** node (`sql`) takes any SELECT. `{{input0}}` to `{{input2}}` are the tables wired into `in0` to `in2`, and `ch('node/param')` reads a parameter, so a slider can drive the query:
+
+```sql
+SELECT origin, count(*) AS flights, avg(passengers) AS passengers
+FROM {{input0}}
+WHERE passengers > ch('min-passengers/value')
+GROUP BY origin
 ```
 
-### Referencing Operators
+A `sql` node with nothing wired in can read files itself, such as `read_parquet('https://...')`.
 
-Use the `op` function to reference data from other operators.
+### Code
 
-```javascript
-// In a CodeOp, reference other nodes:
-op('/data-source/my-csv').out.data       // Absolute path
-op('./sibling-operator').out.val         // Relative path
-op('../parent-container/node').out.val   // Parent navigation
-```
-
-### Free Exports
-
-Use utilities from `turf`, `d3`, or import any ESM module.
+A **Code** node (`code`) makes rows with JavaScript. `d` is the input's rows as objects (or, when the input has a `geom` geometry column, a GeoJSON FeatureCollection), and `d3`, `turf` and `utils` are in scope. Return an array of rows or a GeoJSON FeatureCollection; either becomes a table that the nodes after it work on.
 
 ```javascript
-// CodeOp - use a pre-bundled d3 utility
-return d3.scaleLinear()
-  .domain([0, 100])
-  .range([0, 1])
-```
-
-```javascript
-// CodeOp - import an ESM module
-const _ = await import('https://esm.sh/lodash')
-return _.mapValues(
-  _.groupBy(d, 'name'),
-  group => _.sortBy(group, 'ts'),
+// Code: points to features with turf
+return turf.featureCollection(
+  d.filter(row => row.passengers > 100)
+    .map(row => turf.point([row.lng, row.lat], { name: row.name, passengers: row.passengers }))
 )
 ```
 
 ```javascript
-// CodeOp - use turf for geospatial calculations
-const buffered = d.map(feature =>
-  turf.buffer(feature, 5, { units: 'kilometers' })
-)
-return buffered
+// Code: a buffer around every feature of a GeoJSON input
+return turf.featureCollection(d.features.map(f => turf.buffer(f, 5, { units: 'kilometers' })))
 ```
+
+With a **JSON file** URL set and nothing wired in, `d` is that file, parsed whole. The code runs in the engine's worker, not the page, and runs again only when its input changes. It can `await`, for example a `fetch`. For a value computed per row, use an expression or a JS Function instead.
+
+See the [utils API reference](../developers/utils-api-reference.md) for what `utils` contains.
 
 ## Common Data Tasks
 
 ### Coordinate Conversion
-```javascript
-// Convert lat/lng to [lng, lat] for Deck.gl as a reactive reference
-const data = op('./raw-coordinates').out.data
-return data.map(point => ({
-  ...point,
-  coordinates: [point.longitude, point.latitude] // [lng, lat]
-}))
-```
+
+Add an **Attribute Create** node with Name `position` and Expression `[longitude, latitude]`, then set the layer's Position to `position`. Or write the expression in the layer's Position directly.
 
 ### Color Mapping
-```javascript
-// Map data values to colors
-const data = op('./flight-data').out.data
-const maxPassengers = Math.max(...data.map(d => d.passengers))
 
-return data.map(flight => ({
-  ...flight,
-  color: [
-    255 * (flight.passengers / maxPassengers), // Red
-    0,                                         // Green
-    255 * (1 - flight.passengers / maxPassengers) // Blue
-  ]
-}))
-```
+Add a **Color Ramp** node with Input `passengers`, a Ramp, and Min and Max. It writes an RGB column (`Cd` by default) that a layer's Color names. To set Min and Max from the data, wire an **Extent** node's `min` and `max` outputs into them.
+
+Or write it in the layer's Color channel: `ramp(clamp(passengers / 300.0, 0.0, 1.0))` uses the layer's own Color ramp.
 
 ### Time-based Filtering
-```javascript
-// Filter by time range for animations
-const allData = op('./complete-dataset').out.data // FileOp
-const currentTime = op('./current-time').out.val // NumberOp
 
-return allData.filter(item => {
-  const itemTime = new Date(item.timestamp).getTime()
-  return itemTime <= currentTime
-})
-```
+For a column of times in seconds, add a **Filter** in Compare mode with Column `timestamp` and Operator `<=`, and wire a **Time** node into its Value port. As the timeline plays, the filter keeps the rows up to the current time. For paths that move over time, use a Trips Layer or a Time Series node instead (see [Animation and Rendering](./animation-and-rendering.md)).
 
 ## Performance Tips
 
 ### Large Datasets
-- Use aggregation operators before visualization
+- Aggregate or bin before drawing (Aggregate, Grid Bin, or a Hexagon or Heatmap layer)
 - Filter early in your pipeline
-- Consider sampling for real-time preview
-- Use efficient data structures (arrays vs objects)
-
-### Memory Management
-- Avoid copying large datasets unnecessarily
-- Use references instead of duplicating data
-- Clean up intermediate calculations
-- Monitor browser memory usage
+- Prefer expressions and `sql` over `code` and JS Functions, which run JavaScript per row or per table
+- Keep a slider on a parameter rather than inside a code node: a parameter change re-runs only what reads it
 
 ## Debugging Data Issues
 
 ### Data Preview
-- Use `ViewerOp` and `ConsoleOp` to inspect intermediate results
-- Check data types and structure
-- Verify coordinate formats ([lng, lat])
+- Select a node and press `D` (display) to see its rows in the spreadsheet and preview them as points on the map
+- Hover the `i` in a node's header for its row count, columns and errors
+- Verify coordinate order (`[lng, lat]`)
 
 ### Common Issues
-- **Wrong coordinate order**: Use [longitude, latitude]
-- **String vs number**: Ensure numeric fields are parsed
-- **Missing data**: Check for null/undefined handling
-- **Array structure**: Deck.gl expects arrays, not objects
+- **Wrong coordinate order**: Use `[longitude, latitude]`
+- **Text instead of numbers**: JSON files often hold numbers as text; `to_number(column)` reads them as numbers
+- **Missing data**: `coalesce(column, 0)` gives a value for missing rows
+- **Wrong column name**: Names are case-sensitive and must match the table exactly

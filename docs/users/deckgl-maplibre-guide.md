@@ -1,26 +1,26 @@
-# deck.gl and Maplibre Guide
+# deck.gl and MapLibre Guide
 
-For developers familiar with [deck.gl](https://deck.gl) and [Maplibre GL JS](https://maplibre.org).
+For developers familiar with [deck.gl](https://deck.gl) and [MapLibre GL JS](https://maplibre.org).
 
 ## Overview
 
-Noodles.gl is built on deck.gl (WebGL visualization framework) and Maplibre GL JS (vector tile rendering). If you're already familiar with these libraries, you'll feel right at home. Noodles.gl adds a node-based workflow layer that makes building complex visualizations easier, with built-in timeline animation support.
+Noodles.gl draws with deck.gl (GPU visualization layers) over a MapLibre GL JS basemap (vector tiles). If you already know these libraries, most of what you see will be familiar. Noodles.gl adds a node editor in front of them, runs your data through DuckDB, and adds timeline animation.
 
 ## Relationship to Kepler.gl
 
-Like [Kepler.gl](https://kepler.gl), Noodles.gl is built on deck.gl and Maplibre. Kepler.gl focuses on rapid data exploration, while Noodles.gl adds:
+Like [Kepler.gl](https://kepler.gl), Noodles.gl is built on deck.gl and MapLibre. Kepler.gl focuses on rapid data exploration, while Noodles.gl adds:
 
-- **Timeline animations**: Keyframe any parameter
-- **Node-based workflows**: Visual data processing pipelines
-- **Full deck.gl access**: All [layer types](https://deck.gl/docs/api-reference/layers), not just Kepler.gl presets
-- **Custom basemaps**: Programmatically edit Maplibre style specs
-- **Export**: Videos, images, and embeddable applications
+- **Timeline animations**: Keyframe any number parameter
+- **Node-based workflows**: Visual data processing pipelines, with SQL and JavaScript where you need them
+- **More deck.gl layers**: Including trips, mesh, scenegraph, terrain and 3D tiles
+- **Custom basemaps**: Hide or recolor the layers of a MapLibre style
+- **Export**: Videos and images
 
 Many Noodles.gl [examples](https://github.com/visgl/kepler.gl/tree/master/examples/demo-app/public) are adapted from Kepler.gl to show the same visualizations with animation.
 
 <OpenInEditor example="world-flights" label="Open World Flights">
 
-World Flights is one of them. It draws flight paths with a `GeoJsonLayerOp`, replays them with a `TripsLayerOp`, and animates the trails on the timeline.
+World Flights is one of them. It draws flight routes with a Path Layer, replays them with a Trips Layer, and animates the trails on the timeline.
 
 </OpenInEditor>
 
@@ -30,14 +30,14 @@ Here's how the pieces fit together:
 
 ```
 ┌─────────────────────────────────────────┐
-│         Noodles.gl Node Graph           │
-│  (Data processing & visualization flow) │
+│          Noodles.gl project             │
+│   (nodes and wires, compiled to DuckDB) │
 └──────────────┬──────────────────────────┘
                │
        ┌───────┴────────┐
        │                │
 ┌──────▼──────┐  ┌──────▼──────────┐
-│   deck.gl   │  │    Maplibre     │
+│   deck.gl   │  │    MapLibre     │
 │   Layers    │  │    Basemap      │
 └──────┬──────┘  └──────┬──────────┘
        │                │
@@ -49,101 +49,95 @@ Here's how the pieces fit together:
        └────────────────┘
 ```
 
-Data flows through operators to create layers that render together:
+Tables flow along the wires and become layers:
 
-1. **Data Sources** (FileOp, JSONOp) load your geospatial data
-2. **Processing** (CodeOp, DuckDbOp, AccessorOp) transform and prepare data
-3. **Layers** (ScatterplotLayerOp, ArcLayerOp, etc.) configure deck.gl visualizations
-4. **Basemap** (MaplibreBasemapOp) provides the map foundation
-5. **Renderer** (DeckRendererOp) composites everything to a WebGL canvas
+1. **Data nodes** (`file`, `geojson`, `sql`, `code`) load your data as tables
+2. **Row nodes** (`filter`, `attribute`, `map-range`, `color-ramp`, `aggregate`, `join`, `sort`, `limit`) shape the tables and add columns
+3. **Layers** (`scatter`, `arc`, `path`, `trips`, `polygon`, `heatmap`, `hexagon`, `text`...) draw a table
+4. **The deck node** (`deck`) shows the layers over the basemap, and holds the basemap style, the camera and the render settings
+
+Noodles compiles the project and runs it in DuckDB in a background worker. Layer data reaches deck.gl as binary attribute buffers, and changing a slider re-runs only the part of the plan it affects.
 
 ## deck.gl Layers
 
-Noodles.gl provides access to all standard deck.gl layers as operators. Here are the main categories:
-
 **Core Layers:**
 
-- ScatterplotLayerOp - Points and circles
-- LineLayerOp - Line segments between points
-- ArcLayerOp - Arcs connecting origin-destination pairs
-- PathLayerOp - Multi-segment paths
-- PolygonLayerOp - Filled polygons with optional extrusion
-- IconLayerOp - Icon markers
-- TextLayerOp - Text labels (see [Text Rendering](#text-rendering) below)
+- Scatterplot Layer (`scatter`): Points and circles
+- Line Layer (`line`): Line segments between points
+- Arc Layer (`arc`): Arcs connecting origin and destination, with a Great circle option
+- Path Layer (`path`): Multi-segment paths
+- Polygon Layer (`polygon`): Filled polygons with optional extrusion
+- Icon Layer (`icon`): Icon markers from an atlas
+- Text Layer (`text`): Text labels (see [Text Rendering](#text-rendering) below)
+- Point Cloud Layer (`point-cloud`): Lit points
 
 **Aggregation Layers:**
 
-- HexagonLayerOp - Hexagonal binning
-- GridLayerOp - Square grid aggregation
-- HeatmapLayerOp - Continuous density visualization
-- ContourLayerOp - Isoline/isoband visualization
-- ScreenGridLayerOp - Screen-space aggregation
+- Hexagon Layer (`hexagon`): Hexagonal binning
+- Grid Layer (`grid-layer`): Square grid aggregation
+- Heatmap Layer (`heatmap`): Continuous density
+- Contour Layer (`contour`): Isolines and isobands
+- Screen Grid Layer (`screen-grid`): Screen-space aggregation
 
-**GeoJSON & Tiles:**
+**Tiles and Images:**
 
-- GeoJsonLayerOp - Renders any GeoJSON geometry type
-- MVTLayerOp - Mapbox Vector Tiles
+- MVT Layer (`mvt`): Mapbox Vector Tiles
+- Raster Tile Layer (`raster-tiles`): Raster tiles from a URL template
+- Bitmap Layer (`bitmap`): An image stretched over bounds
 
 **3D Layers:**
 
-- ColumnLayerOp - Extruded cylinders
-- SimpleMeshLayerOp - 3D mesh rendering
-- ScenegraphLayerOp - glTF 3D models
-- TerrainLayerOp - 3D terrain with heightmaps
+- Column Layer (`column`) and Grid Cell Layer (`grid-cell`): Extruded columns
+- Simple Mesh Layer (`mesh`): A 3D mesh per row
+- Scenegraph Layer (`scenegraph`): A glTF model per row
+- Terrain Layer (`terrain`): 3D terrain from heightmap tiles
+- Tile 3D Layer (`tile-3d`): Google, Cesium or custom 3D tilesets
 
-**Special Layers:**
+**Animation:**
 
-- TripsLayerOp - Animated path trails
-- GreatCircleLayerOp - Great circle routes
-- S2LayerOp - S2 geometry cells
-- TileLayerOp - Custom tile-based layers
+- Trips Layer (`trips`): Animated path trails
 
 ### Layer Configuration
 
-Each layer operator exposes the same properties as its deck.gl counterpart. For example, `ScatterplotLayerOp` accepts `data`, `getPosition`, `getRadius`, `getFillColor`, `radiusScale`, etc.
+Each layer has the props of its deck.gl counterpart under plain names: a Scatterplot Layer has Radius scale (`radiusScale`), Units (`radiusUnits`), Fill color (`fillColor`), Opacity (`opacity`) and so on. Blending and Extensions are on every layer that draws a table.
 
-### Accessors
+### Per-row Values
 
-In native deck.gl, you write accessor functions in JavaScript: `d => [d.longitude, d.latitude]`
+In deck.gl you write accessor functions in JavaScript: `getPosition: d => [d.longitude, d.latitude]`.
 
-In Noodles.gl, you can use `AccessorOp` with simple expression strings like `[d.longitude, d.latitude]`, or switch to `CodeOp` when you need more complex logic. CodeOp gives you access to special variables: `data` (the full input list), `d` (the first element), and `op()` (to reference other operators).
+In Noodles.gl, per-row values are columns. A layer's channels (Position, Color, Radius, Width...) take a column name or an [expression](./expressions.md) over the table's columns, and Noodles computes the column for every row:
 
-**Color mapping operators:**
-
-- `CategoricalColorRampOp` - Assign colors to discrete categories
-- `SequentialColorRampOp` - Map numeric ranges to color gradients
-- `DivergingColorRampOp` - Two-color diverging scales
-
-## Maplibre Basemaps
-
-The `MaplibreBasemapOp` controls your base map and camera position:
-
-- **mapStyle**: A Maplibre style specification (JSON object or URL)
-- **viewState**: Camera position (latitude, longitude, zoom, pitch, bearing)
-
-### Importing and Editing Hosted Styles
-
-One of the most powerful features is the ability to import style specifications from map hosting providers like [MapTiler](https://www.maptiler.com/) or Mapbox, then modify them programmatically before rendering:
-
-```
-FileOp (style URL) → CodeOp (edit layers) → MaplibreBasemapOp.mapStyle
+```json
+{ "op": "scatter", "params": {
+  "position": "[longitude, latitude]",
+  "radius": "sqrt(population) / 100.0",
+  "color": "ramp(fit(magnitude, 0, 8, 0, 1))" } }
 ```
 
-Example CodeOp to modify a style:
+A value several layers share goes in an Attribute Create node, which writes a column the layers then name. For logic an expression can't express, use a `sql` node, a `code` node, or a JS Function that expressions call by name.
 
-```javascript
-// CodeOp receives style JSON in `d` variable (first input)
-const style = d
-let layers = style.layers.filter(l => !l.id.includes('building')) // Filter layers
+**Color mapping:**
 
-// Update existing layer
-const waterLayer = layers.find(l => l.id === 'water')
-if (waterLayer) waterLayer.paint['fill-color'] = '#1a1a2e'
+- Color Ramp (`color-ramp`): a numeric column through a ramp (viridis, magma, turbo, cividis, categorical ramps) into an RGB column
+- Map Range (`map-range`): a column rescaled to a new range, linearly, on a log scale or a square root
+- `ramp(t)` in any channel: a color from the layer's own Color ramp parameter
 
-return { ...style, layers }
-```
+### Paths and Polygons
 
-This pattern enables dynamic styling, layer filtering, custom overlays, branding, and performance optimization.
+A Path, Trips or Polygon layer whose Position reads a list of positions or a geometry column draws one path or polygon per row. A GeoJSON node's `features` output, with its `geom` column, draws that way. Otherwise rows are vertices, grouped by an id column and ordered by another. A Scatterplot or Text layer on a geometry column draws a mark per point.
+
+## MapLibre Basemaps
+
+The deck node controls the basemap and the camera:
+
+- **Basemap**: Dark Matter, Positron, Voyager or None
+- **Map style URL** (`mapStyle`): Any MapLibre style specification URL, overriding Basemap
+- **Camera**: Longitude, Latitude, Zoom, Pitch and Bearing
+- **Projection**: Mercator or Globe
+
+### Editing Hosted Styles
+
+To change a hosted style from [MapTiler](https://www.maptiler.com/), Mapbox or another provider, add a **Map Style** node (`map-style`), set its Base Style URL, and click **Edit style**. The style editor hides layers and changes their colors, and can scale every label and line width at once. Wire the Map Style node into the deck's map style to use it.
 
 **Common providers:** [MapTiler](https://www.maptiler.com/), [Mapbox](https://www.mapbox.com/), [CARTO](https://carto.com/basemaps/), [OpenMapTiles](https://openmaptiles.org/), [Stadia Maps](https://stadiamaps.com/)
 
@@ -154,8 +148,7 @@ Here are some common patterns to get you started:
 **Point visualization:**
 
 ```
-FileOp → AccessorOp (position/color) → ScatterplotLayerOp → DeckRendererOp → OutOp
-MaplibreBasemapOp ↗
+file → attribute (position) → map-range → color-ramp → scatter → deck
 ```
 
 See it in the <EditorLink example="california-earthquakes">California Earthquakes example</EditorLink>.
@@ -163,18 +156,16 @@ See it in the <EditorLink example="california-earthquakes">California Earthquake
 **Origin-destination flow (similar to Kepler.gl arcs):**
 
 ```
-FileOp → AccessorOp (source/target positions & colors) → ArcLayerOp → DeckRendererOp → OutOp
-MaplibreBasemapOp ↗
+file → attribute (pickup position) → attribute (dropoff position) → arc → deck
 ```
 
 See it in the <EditorLink example="nyc-taxis">NYC Taxis example</EditorLink>.
 
-**Animated trips (the key difference: you can keyframe currentTime!):**
+**Animated trips (the key difference: you can keyframe currentTime):**
 
 ```
-FileOp → AccessorOp (path/timestamps/color) → TripsLayerOp → DeckRendererOp → OutOp
-NumberOp (currentTime - keyframe this!) ↗
-MaplibreBasemapOp ↗
+code (a row per flight: path, timestamps) → attribute → color-ramp → trips → deck
+time ─────────────────────────────────────────────────────────────→ trips (par:currentTime)
 ```
 
 See it in the <EditorLink example="world-flights">World Flights example</EditorLink>.
@@ -182,19 +173,18 @@ See it in the <EditorLink example="world-flights">World Flights example</EditorL
 **Custom basemap styling:**
 
 ```
-StringOp (style URL) → FileOp → CodeOp (edit layers) → MaplibreBasemapOp → DeckRendererOp → OutOp
-ScatterplotLayerOp ↗
+map-style (base style URL, edited) → deck (par:mapStyle)
 ```
 
 ## Deck.gl Views
 
-Beyond the standard `MapViewOp`, you can use `FirstPersonViewOp`, `OrbitViewOp`, and `OrthographicViewOp` for different camera perspectives. You can even render multiple views simultaneously for side-by-side comparisons.
+The deck draws one map view by default. Wire Map, Globe, First Person, Orbit or Orthographic view nodes into its `views` port for other camera perspectives, or several of them for side-by-side comparisons.
 
 ## Comparison
 
 ### vs Pure deck.gl Code
 
-If you're used to writing deck.gl code directly, Noodles.gl offers visual workflows, built-in timeline animation, and live parameter editing. All without code/rebuild cycles.
+If you're used to writing deck.gl code directly, Noodles.gl offers visual workflows, built-in timeline animation, and live parameter editing, all without code and rebuild cycles.
 
 ### vs Kepler.gl
 
@@ -202,52 +192,29 @@ Both tools share the same foundation, so choosing between them depends on your u
 
 **Use Kepler.gl for:** Quick data exploration, simpler interface, built-in filter UI
 
-**Use Noodles.gl for:** Timeline animations, full deck.gl layer library, custom data processing (CodeOp/DuckDbOp), programmatic basemap editing, video/image export, motion graphics
+**Use Noodles.gl for:** Timeline animations, more deck.gl layers, custom data processing (SQL and JavaScript), basemap style editing, video and image export, motion graphics
 
 ## Text Rendering
 
-### TextLayerOp
+### Text Layer
 
-TextLayerOp supports SDF (Signed Distance Field) font rendering for crisp text at any zoom level. Enable SDF in the `fontSettings` input:
+The Text Layer (`text`) draws a label per row from a text column (Text). Its Style folder sets Size (px), Size units, Text color, Offset X and Y, Angle, Anchor (`start`, `middle`, `end`) and Baseline (`top`, `center`, `bottom`). The Font folder sets the Font family, Weight, Face the camera, and an Outline width and color; the Background folder adds a background color behind each label. Per-row Color and Size channels take expressions like any other layer's.
 
-- **sdf**: Enable SDF rendering (default: false). When enabled, text remains sharp at high zoom levels.
+### Labels for GeoJSON
 
-SDF rendering is recommended for labels that will be viewed at varying zoom levels.
-
-### GeoJsonLayerOp Text
-
-GeoJsonLayerOp supports combined point and text rendering via the `pointType` property:
-
-| pointType | Description |
-|-----------|-------------|
-| `circle` | Standard circle markers (default) |
-| `icon` | Icon markers |
-| `text` | Text labels only |
-| `circle+text` | Circles with text labels |
-| `icon+text` | Icons with text labels |
-
-When using text modes, configure text appearance with these properties:
-
-- **getText**: Accessor for label text (e.g., `d.properties.name`)
-- **getTextSize**: Font size in pixels (default: 32)
-- **getTextColor**: Text color
-- **getTextAngle**: Rotation angle in degrees
-- **getTextAnchor**: Horizontal alignment (`start`, `middle`, `end`)
-- **getTextAlignmentBaseline**: Vertical alignment (`top`, `center`, `bottom`)
-- **getTextPixelOffset**: Offset from point position `[x, y]`
-- **textSizeScale**: Global scale multiplier for text size
+To label GeoJSON point features, wire the GeoJSON node's `points` output into a Text Layer with Position `[lng, lat]`, and set Text to a property column such as `name`. For polygons, put a Centroid node on the `features` output and set the Text Layer's Position to `geom`.
 
 ## Learn More
 
 **External Resources:**
 
 - [deck.gl Documentation](https://deck.gl/docs)
-- [Maplibre GL JS Documentation](https://maplibre.org/maplibre-gl-js/docs/)
-- [Maplibre Style Specification](https://maplibre.org/maplibre-style-spec/)
-- [Kepler.gl](https://kepler.gl) - Many examples adapted in Noodles.gl
+- [MapLibre GL JS Documentation](https://maplibre.org/maplibre-gl-js/docs/)
+- [MapLibre Style Specification](https://maplibre.org/maplibre-style-spec/)
+- [Kepler.gl](https://kepler.gl): many examples adapted in Noodles.gl
 
 **Noodles.gl Guides:**
 
-- [Animation and Rendering](./animation-and-rendering.md) - Create animated visualizations
-- [Operators Guide](./operators-guide.md) - Complete reference for all layer types
-- [Data Guide](./data-guide.md) - Data loading and processing techniques
+- [Animation and Rendering](./animation-and-rendering.md): create animated visualizations
+- [Operators Guide](./operators-guide.md): every layer type and operator
+- [Data Guide](./data-guide.md): data loading and processing techniques
