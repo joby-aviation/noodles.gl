@@ -95,6 +95,11 @@ export interface LowerCtx {
   bool(param: string): boolean;
   /** `{{key}}` for a value or prop parameter. */
   bind(param: string): string;
+  /**
+   * The keyframed parts of a parameter, such as a table's cells (`rows.3.population` is part
+   * `3.population` of `rows`), each bound as a value: playing the timeline rebinds them.
+   */
+  bindTracked(param: string): { part: string; placeholder: string }[];
   /** Three `{{key}}` references, 0–255, for a color. */
   bindColor(param: string): string[];
   /** Expression text with `ch()` references rewritten to placeholders. */
@@ -478,7 +483,39 @@ export const OPERATORS: OpDef[] = [
       let rows: unknown;
       try { rows = JSON.parse(ctx.str('rows') || '[]'); } catch { ctx.error('Rows must be a JSON array'); }
       if (!Array.isArray(rows)) ctx.error('Rows must be a JSON array');
-      return { nodes: [{ id: ctx.id, type: 'js', code: `return ${JSON.stringify(rows)}` }], outputs: { out: ctx.id } };
+      // Keyframed cells (`rows.<row>.<column>` tracks) are bound values laid over the rows in
+      // SQL, so playing the timeline rebinds them and never reloads the table
+      const cells = ctx.bindTracked('rows').flatMap(({ part, placeholder }) => {
+        const dot = part.indexOf('.');
+        const row = Number(part.slice(0, dot));
+        const column = part.slice(dot + 1);
+        // A track for a row or column the table no longer has drives nothing
+        const has = (rows as unknown[]).some((r) => r !== null && typeof r === 'object' && column in r);
+        return dot > 0 && Number.isInteger(row) && row < (rows as unknown[]).length && has
+          ? [{ row, column, placeholder }]
+          : [];
+      });
+      if (cells.length === 0) {
+        return { nodes: [{ id: ctx.id, type: 'js', code: `return ${JSON.stringify(rows)}` }], outputs: { out: ctx.id } };
+      }
+      // Each row knows its index; an attribute per animated column picks the bound value for
+      // its rows and keeps the typed one for the rest. Attributes route like any expression (a
+      // uniform, a CPU pass), so a frame rebinds them
+      const numbered = (rows as unknown[]).map((r, i) => ({ ...(r && typeof r === 'object' ? r : {}), __row: i }));
+      const byColumn = new Map<string, { row: number; placeholder: string }[]>();
+      for (const c of cells) byColumn.set(c.column, [...(byColumn.get(c.column) ?? []), c]);
+      const nodes: GraphNode[] = [{ id: `${ctx.id}__rows`, type: 'js', code: `return ${JSON.stringify(numbered)}` }];
+      const unreadable = [...byColumn.keys()].filter((c) => !BARE.test(c));
+      if (unreadable.length) ctx.error(`Keyframed cells need column names an expression can read: ${unreadable.join(', ')}`);
+      const plain = [...byColumn];
+      plain.forEach(([column, at], i) => {
+        const expr = at.reduceRight((rest, c) => `__row == ${c.row} ? ${c.placeholder} : (${rest})`, column);
+        nodes.push({
+          id: i === plain.length - 1 ? ctx.id : `${ctx.id}__${i}`,
+          type: 'attribute', input: nodes[nodes.length - 1].id, name: column, expr,
+        });
+      });
+      return { nodes, outputs: { out: ctx.id } };
     },
   },
   {

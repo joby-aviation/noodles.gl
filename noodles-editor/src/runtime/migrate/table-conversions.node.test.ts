@@ -354,3 +354,71 @@ describe('BrushableHistogramOp', () => {
     expect(() => toEditorDoc(project)).toThrow(/wired histogram binData is not converted/)
   })
 })
+
+describe('TableEditorOp cell keyframes', () => {
+  const kf = (id: string, position: number, value: unknown) => ({
+    id,
+    position,
+    connectedRight: true,
+    handles: [0.5, 1, 0.5, 0] as [number, number, number, number],
+    value,
+  })
+
+  it('convert to tracks on the table rows, text included', () => {
+    const project: NoodlesProject = {
+      version: 19,
+      nodes: [
+        op('/table', 'TableEditorOp', {
+          data: [
+            { city: 'Denver', population: 700 },
+            { city: 'Boulder', population: 100 },
+          ],
+        }),
+        op('/where', 'AccessorOp', { expression: '[0, 0]' }),
+        op('/points', 'ScatterplotLayerOp'),
+        op('/deck', 'DeckRendererOp'),
+        op('/out', 'OutOp'),
+      ],
+      edges: [
+        wire('/table', 'data', '/points', 'data'),
+        wire('/where', 'accessor', '/points', 'getPosition'),
+        wire('/points', 'layer', '/deck', 'layers'),
+        wire('/deck', 'vis', '/out', 'vis'),
+      ],
+      timeline: {
+        sheetsById: {
+          Noodles: {
+            sequence: {
+              length: 10,
+              subUnitsPerUnit: 30,
+              tracksByObject: {
+                table: {
+                  trackIdByPropPath: { 'data / 1 / population': 'a', 'data / 0 / city': 'b' },
+                  trackData: {
+                    a: {
+                      type: 'BasicKeyframedTrack',
+                      keyframes: [kf('a0', 0, 100), kf('a1', 10, 300)],
+                    },
+                    b: { type: 'BasicKeyframedTrack', keyframes: [kf('b0', 0, 'Denver')] },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    }
+    const { doc, warnings } = toEditorDoc(project)
+    expect(warnings.filter(w => w.startsWith('timeline'))).toEqual([])
+    const tracks = doc.timeline?.tracks ?? []
+    expect(tracks.map(t => t.target).sort()).toEqual([
+      '/table.rows.0.city',
+      '/table.rows.1.population',
+    ])
+    expect(tracks.find(t => t.target === '/table.rows.0.city')?.keyframes[0]).toMatchObject({
+      value: 'Denver',
+      interpolation: 'hold',
+    })
+    expect(lowerDocument(doc).errors).toEqual([])
+  })
+})

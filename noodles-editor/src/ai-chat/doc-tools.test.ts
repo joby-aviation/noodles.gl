@@ -166,6 +166,27 @@ describe('timeline tools', () => {
     expect(deleteKeyframe(ctx, { target: 'dots.opacity', time: 2 }).success).toBe(true)
     expect(ctx.store.get().doc.timeline?.tracks[0].keyframes).toHaveLength(1)
   })
+
+  it('keys a table cell, by its path or as the panel names it, text included', () => {
+    const d = doc()
+    d.nodes.push({
+      id: 't1',
+      op: 'table',
+      name: 'cities',
+      x: 0,
+      y: 200,
+      params: { rows: '[{"city":"Denver","population":700}]' },
+    })
+    const ctx = context(d)
+    expect(
+      setKeyframe(ctx, { target: 'cities.rows.0.population', time: 1, value: 750 }).data
+    ).toMatchObject({ target: 't1.rows.0.population' })
+    expect(
+      setKeyframe(ctx, { target: 'cities / city (row 1)', time: 1, value: 'Boulder' }).data
+    ).toMatchObject({ target: 't1.rows.0.city', value: 'Boulder' })
+    // Text only in a cell: a parameter's keyframes are numbers
+    expect(setKeyframe(ctx, { target: 'dots.opacity', time: 1, value: 'half' }).success).toBe(false)
+  })
 })
 
 describe('operator schema', () => {

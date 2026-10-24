@@ -18,6 +18,12 @@ The camera is the deck node's Longitude, Latitude, Zoom, Pitch and Bearing. Turn
 
 A Trips Layer draws paths over time. Its Timestamp channel names a column, and its **Current time** is the time drawn: keyframe it, or wire a Time node into its `currentTime` port. A Time Series node gives each path's position at one time, with its own Time parameter driven the same way.
 
+### Animating table cells
+
+Cells in a Table node can be keyframed one at a time. Select the table, hover a cell in the parameter pane and click its diamond to add a keyframe at the playhead, then move the playhead and edit the cell to add the next one. Numbers ease from key to key; text switches at each key. The timeline shows each cell's track by its column and row, such as `population (row 1)`.
+
+Tracks follow the row's position in the table. Adding or deleting rows above an animated row moves its animation onto whichever row takes that position, and renaming a column leaves its tracks on the old name. A keyframed column needs a name an expression can read: letters, digits and underscores.
+
 ## Rendering output
 
 The deck node holds the export settings, in its Export folder: size, frame rate, codec, bitrate and more. Adjust them, then click **Export** in the top bar and choose **Video (MP4)** to render the timeline, or **Image (PNG)** to save the current frame. Noodles steps through your timeline and writes each frame to the video.

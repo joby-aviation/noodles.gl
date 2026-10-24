@@ -22,11 +22,21 @@ const splitTarget = (target: string) => {
   return { nodeId: target.slice(0, dot), param: target.slice(dot + 1) }
 }
 
-/** A track's name in the panel: the node's name, then the parameter. */
+/**
+ * A track's name in the panel: the node's name, then the parameter. A table cell's track,
+ * `rows.<row>.<column>`, is its column and 1-based row: `population (row 1)`.
+ */
 export function trackLabel(doc: EditorDoc, target: string): string {
-  const { nodeId, param } = splitTarget(target)
-  const node = doc.nodes.find(n => n.id === nodeId)
-  return `${node ? nameOf(node) : nodeId} / ${param}`
+  // The longest node id the target starts with: a parameter part may hold dots too
+  const node = doc.nodes
+    .filter(n => target.startsWith(`${n.id}.`))
+    .sort((a, b) => b.id.length - a.id.length)[0]
+  const { nodeId, param } = node
+    ? { nodeId: node.id, param: target.slice(node.id.length + 1) }
+    : splitTarget(target)
+  const cell = /^rows\.(\d+)\.(.+)$/.exec(param)
+  const shown = cell ? `${cell[2]} (row ${Number(cell[1]) + 1})` : param
+  return `${node ? nameOf(node) : nodeId} / ${shown}`
 }
 
 const toPanelKey = (k: Keyframe): PanelKeyframe => ({

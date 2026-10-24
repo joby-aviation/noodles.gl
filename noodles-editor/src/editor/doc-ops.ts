@@ -309,19 +309,22 @@ export function ensureTimeline(doc: EditorDoc): NonNullable<EditorDoc['timeline'
   return doc.timeline
 }
 
-export function setKey(doc: EditorDoc, target: string, time: number, value: number): void {
+// A number eases to the next key; text, which cannot be blended, holds until it
+export function setKey(doc: EditorDoc, target: string, time: number, value: number | string): void {
   const tl = ensureTimeline(doc)
   const track = tl.tracks.find(t => t.target === target) ?? { target, keyframes: [] }
   const existing = track.keyframes.find(k => Math.abs(k.time - time) < 1e-3)
   const key: Keyframe = existing
     ? { ...existing, value }
-    : {
-        id: newId('k'),
-        time,
-        value,
-        interpolation: 'bezier',
-        handles: { left: [0.42, 0], right: [0.58, 1] },
-      }
+    : typeof value === 'string'
+      ? { id: newId('k'), time, value, interpolation: 'hold' }
+      : {
+          id: newId('k'),
+          time,
+          value,
+          interpolation: 'bezier',
+          handles: { left: [0.42, 0], right: [0.58, 1] },
+        }
   tl.tracks = [...tl.tracks.filter(t => t.target !== target), setKeyframe(track, key)]
 }
 

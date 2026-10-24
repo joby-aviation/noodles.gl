@@ -618,13 +618,27 @@ function trackTarget(
   }
   const raw = params.target ?? params.trackId
   if (!raw) return undefined
-  // `node / param`, as the timeline panel shows a track, or `node.param`
-  const [ref, param] = raw.includes(' / ')
-    ? raw.split(' / ')
-    : [raw.slice(0, raw.lastIndexOf('.')), raw.slice(raw.lastIndexOf('.') + 1)]
-  const n = findNode(doc, ref)
-  return n && param ? `${n.id}.${param.replace(/^par\./, '')}` : undefined
+  if (raw.includes(' / ')) {
+    // `node / param`, as the timeline panel shows a track; a cell is `node / column (row 1)`
+    const [ref, ...rest] = raw.split(' / ')
+    const n = findNode(doc, ref)
+    const param = rest.join('.').replace(/^par\./, '')
+    const cell = /^(.+) \(row (\d+)\)$/.exec(param)
+    if (!n || !param) return undefined
+    return cell ? `${n.id}.rows.${Number(cell[2]) - 1}.${cell[1]}` : `${n.id}.${param}`
+  }
+  // `node.param`, or a part of one such as a table cell, `cities.rows.0.population`: the node
+  // is the shortest prefix that names one
+  for (let at = raw.indexOf('.'); at > 0; at = raw.indexOf('.', at + 1)) {
+    const n = findNode(doc, raw.slice(0, at))
+    const param = raw.slice(at + 1).replace(/^par\./, '')
+    if (n && param) return `${n.id}.${param}`
+  }
+  return undefined
 }
+
+// A table cell's track (`node.rows.<row>.<column>`), whose keys may hold text
+const isCellTarget = (target: string) => /\.rows\.\d+\./.test(target)
 
 export function getTimeline(ctx: DocToolContext): ToolResult {
   const { doc } = ctx.store.get()
@@ -669,9 +683,13 @@ export function setKeyframe(
       error: `No parameter for '${params.target ?? params.trackId ?? params.nodeId}'. Use target: 'node.param', e.g. '${doc.nodes[0] ? nameOf(doc.nodes[0]) : 'scatter1'}.opacity'`,
     }
   const time = params.time ?? params.position ?? ctx.store.get().time
-  const value = Number(params.value)
-  if (!Number.isFinite(value))
-    return { success: false, error: 'Only numbers are keyframed; value must be a number' }
+  const text = typeof params.value === 'string' && isCellTarget(target)
+  const value = text ? (params.value as string) : Number(params.value)
+  if (typeof value === 'number' && !Number.isFinite(value))
+    return {
+      success: false,
+      error: 'Only numbers are keyframed, and text in a table cell; value must be a number',
+    }
   ctx.store.edit(d => {
     setKey(d, target, time, value)
     if (params.interpolation) {
