@@ -29,7 +29,7 @@ Expressions and code read its fields as `op('/combine-rgba').par.r` (an input) a
 | `r` | `NumberField` | `0` |
 | `g` | `NumberField` | `0` |
 | `b` | `NumberField` | `0` |
-| `a` | `NumberField` | `1` |
+| `a` | `NumberField` | `255` |
 <!-- gen:end inputs -->
 
 ## Outputs

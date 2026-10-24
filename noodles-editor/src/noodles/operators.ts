@@ -6,7 +6,7 @@ import type {
   HexagonLayerProps,
   ScreenGridLayerProps,
 } from '@deck.gl/aggregation-layers'
-import { LayerExtension, type LayerProps, WebMercatorViewport } from '@deck.gl/core'
+import { type Color, LayerExtension, type LayerProps, WebMercatorViewport } from '@deck.gl/core'
 import {
   BrushingExtension,
   ClipExtension,
@@ -1913,7 +1913,7 @@ export class CombineRGBAOp extends Operator<CombineRGBAOp> {
       r: new NumberField(0, { accessor: true }),
       g: new NumberField(0, { accessor: true }),
       b: new NumberField(0, { accessor: true }),
-      a: new NumberField(1, { accessor: true }),
+      a: new NumberField(255, { accessor: true }),
     }
   }
   createOutputs() {
@@ -1922,6 +1922,10 @@ export class CombineRGBAOp extends Operator<CombineRGBAOp> {
     }
   }
   execute({ r, g, b, a }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    // Hex digits need whole numbers in 0-255
+    const toHex = (channels: number[]) =>
+      colorToHex(channels.map(c => Math.min(255, Math.max(0, Math.round(c)))) as Color)
+
     // Check if any inputs are accessor functions
     const rIsAccessor = isAccessor(r)
     const gIsAccessor = isAccessor(g)
@@ -1930,7 +1934,7 @@ export class CombineRGBAOp extends Operator<CombineRGBAOp> {
 
     if (!rIsAccessor && !gIsAccessor && !bIsAccessor && !aIsAccessor) {
       // All static values
-      return { color: colorToHex([r as number, g as number, b as number, a as number]) }
+      return { color: toHex([r as number, g as number, b as number, a as number]) }
     }
 
     // At least one is an accessor - return accessor function
@@ -1939,7 +1943,7 @@ export class CombineRGBAOp extends Operator<CombineRGBAOp> {
       const gVal = gIsAccessor ? (g as (...args: unknown[]) => unknown)(...args) : (g as number)
       const bVal = bIsAccessor ? (b as (...args: unknown[]) => unknown)(...args) : (b as number)
       const aVal = aIsAccessor ? (a as (...args: unknown[]) => unknown)(...args) : (a as number)
-      return colorToHex([rVal as number, gVal as number, bVal as number, aVal as number])
+      return toHex([rVal as number, gVal as number, bVal as number, aVal as number])
     }
     return { color } as ExtractProps<typeof this.outputs>
   }

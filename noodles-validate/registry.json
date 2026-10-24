@@ -1179,7 +1179,7 @@
         },
         "a": {
           "type": "NumberField",
-          "default": 1
+          "default": 255
         }
       },
       "outputs": {
