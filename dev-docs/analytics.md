@@ -110,6 +110,7 @@ Opening a saved project by its URL (`/projects/:name`, which is where Recent pro
 | `panel_toggled` | `panel, visible` | layout.tsx, timeline-editor.tsx, top-menu-bar.tsx |
 | `map_mode_changed` | `mode` | layout.tsx, top-menu-bar.tsx |
 | `map_interacted` | `kind` | editor-analytics.ts (from timeline-editor.tsx) |
+| `map_feature_clicked` | `operatorType, selected` | map-click-to-edit.tsx |
 | `chat_opened` | `source` | top-menu-bar.tsx, noodles.tsx |
 | `chat_closed` | `source` | top-menu-bar.tsx, noodles.tsx |
 
@@ -118,6 +119,7 @@ Opening a saved project by its URL (`/projects/:name`, which is where Recent pro
 - `panel`: `sidebar`, `properties`, `timeline` or `spreadsheet`. The sidebar and properties panel are tracked when a resize makes them appear or disappear (dragging the separator, the sidebar chevron, Cmd+F); the timeline when its tab or collapse button is clicked; the spreadsheet from Editor > Show spreadsheet. The timeline opening by itself for an animated project is not counted.
 - `mode`: `docked`, `floating` or `underlay` (the map behind the node graph)
 - `map_interacted` fires once per page load for each `kind`: `pan`, `zoom` or `rotate` (rotate includes pitch). Only user gestures count: deck's controller interaction state, or MapLibre events that carry the input event that caused them. Camera keyframes and programmatic camera moves are not counted.
+- `map_feature_clicked` fires when a click on the map lands on a feature, after the layer's own `onClick` (if any) passed on it. `selected` is true when the editor found the node that drew the feature and selected it; `operatorType` is that node's type (`ScatterplotLayerOp`), or `unknown` for a layer no node drew. Drags, clicks on empty map, and clicks while a map tool is armed, during an export, or with `?externalControl=true` are not counted. No ids, coordinates or feature data are sent.
 - `chat_opened` `source`: `toolbar` (the top bar's Assistant button) or `quick_start` (the Quick Start dialog's AI path). `chat_closed` `source`: `toolbar` (the same button, labeled Hide while the assistant is open) or `panel` (the panel's own close button).
 
 ### Rendering and Export

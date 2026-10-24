@@ -80,7 +80,7 @@ import {
 import { RenameDialog } from './components/rename-dialog'
 import { SaveAsDialog } from './components/save-as-dialog'
 import { SidebarTabs } from './components/sidebar-tabs'
-import { StarterNodeFocus } from './components/starter-node-focus'
+import { MapPickFocus, StarterNodeFocus } from './components/starter-node-focus'
 import { StorageErrorHandler } from './components/storage-error-handler'
 import { CanvasDropImport } from './components/tools/canvas-drop-import'
 import { UndoRedoHandler, type UndoRedoHandlerRef } from './components/UndoRedoHandler'
@@ -194,6 +194,10 @@ const fitViewOptions: FitViewOptions = {
 const defaultEdgeOptions: DefaultEdgeOptions = {
   animated: false,
 }
+
+// Click-to-edit (map-click-to-edit.tsx) is off when an agent drives the editor, and so is
+// the pickable default it needs
+const EDITOR_PICKING = !externalControl && !agentBench
 
 const isLayerType = (type: string) =>
   (opTypes[type as keyof typeof opTypes]?.displayName ?? '').endsWith('Layer')
@@ -2013,6 +2017,7 @@ export function getNoodles(): Visualization {
               >
                 <ReactFlowInstanceCapture />
                 <StarterNodeFocus loadId={projectLoadId} />
+                <MapPickFocus />
                 <EdgeConnectionSynchronizer />
                 <CanvasDropImport
                   pendingFile={pendingImportFile}
@@ -2212,6 +2217,9 @@ export function getNoodles(): Visualization {
 
                     // biome-ignore lint/performance/noDynamicNamespaceImportAccess: We intentionally support all deck.gl layer types dynamically
                     return new deck[type]({
+                      // Click-to-edit picks features, so layers that don't say otherwise
+                      // are pickable in the editor. The node's output is unchanged.
+                      ...(EDITOR_PICKING ? { pickable: true } : {}),
                       ...layer,
                       ...(instantiatedExtensions ? { extensions: instantiatedExtensions } : {}),
                       // Prevent deck.gl layer errors from crashing the GPU process

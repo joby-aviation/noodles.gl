@@ -1,0 +1,21 @@
+/* Set on a React Flow node for a second after it is picked on the map */
+.mapPickPulse {
+  outline: 2px solid var(--node-selected-color);
+  outline-offset: 2px;
+  animation: map-pick-pulse 1s ease-out;
+}
+
+@keyframes map-pick-pulse {
+  0% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--node-selected-color) 70%, transparent);
+  }
+  100% {
+    box-shadow: 0 0 0 14px transparent;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mapPickPulse {
+    animation: none;
+  }
+}
