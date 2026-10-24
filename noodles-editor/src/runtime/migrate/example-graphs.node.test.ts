@@ -18,7 +18,9 @@ beforeAll(async () => {
 }, 60_000)
 
 const example = (name: string) =>
-  JSON.parse(readFileSync(resolve(`src/examples/${name}/noodles.json`), 'utf8')) as NoodlesProject
+  JSON.parse(
+    readFileSync(resolve(`src/runtime/migrate/__fixtures__/${name}.json`), 'utf8')
+  ) as NoodlesProject
 
 async function draw(name: string, files: Record<string, string>) {
   const { doc } = toEditorDoc(example(name))

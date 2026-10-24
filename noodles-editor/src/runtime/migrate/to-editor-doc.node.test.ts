@@ -18,7 +18,9 @@ import {
 } from './to-editor-doc'
 
 const example = (name: string) =>
-  JSON.parse(readFileSync(resolve(`src/examples/${name}/noodles.json`), 'utf8')) as NoodlesProject
+  JSON.parse(
+    readFileSync(resolve(`src/runtime/migrate/__fixtures__/${name}.json`), 'utf8')
+  ) as NoodlesProject
 
 let duck: NodeDuck
 beforeAll(async () => {
@@ -208,7 +210,7 @@ describe('toEditorDoc', () => {
     )
     expect(doc.nodes.find(n => n.id === '/hexagon-layer')).toMatchObject({
       op: 'hexagon',
-      params: { radius: 200, extruded: true, elevationScale: 4, colorWeight: 'spaces_accessor' },
+      params: { radius: 200, extruded: true, elevationScale: 4, colorWeight: 'SPACES' },
     })
     // Switch index 0 is the first value wired in, the hexagon layer.
     expect(lowered.outputs['/switch'].out).toBe('/hexagon-layer')
@@ -284,13 +286,14 @@ describe('toEditorDoc', () => {
     expect(mesh.plan.kind).toBe('mesh')
     expect(mesh.error).toBeUndefined()
     const at = (name: string) => [...(mesh.data?.attributes.get(name)?.data ?? [])]
-    expect(at('position_accessor').map(v => +v.toFixed(2))).toEqual([-122.4, 37.79, -122.41, 37.78])
+    // The position accessor read a column as it was, so the layer reads the column
+    expect(at('coordinates').map(v => +v.toFixed(2))).toEqual([-122.4, 37.79, -122.41, 37.78])
     // [sqrt(exits), 140, 0] in 0–255, divided down to 0–1 for the planner.
     const color = mesh.data?.attributes.get(
       mesh.plan.plan.layer?.bindings.find(b => b.channel === 'color')?.attribute ?? ''
     )
     expect([...(color?.data.slice(0, 3) ?? [])].map(v => Math.round(v * 255))).toEqual([20, 140, 0])
-    const yaw = at('orientation_accessor').filter((_, i) => i % 3 === 1)
+    const yaw = at('orientation').filter((_, i) => i % 3 === 1)
     expect(yaw.every(v => v >= 0 && v < 180)).toBe(true)
   })
 
@@ -512,5 +515,15 @@ describe('the schema conversion reads', () => {
   it('is the latest migration: a new migration must update the conversion too', async () => {
     const { NOODLES_VERSION } = await import('../../noodles/utils/migrate-schema')
     expect(CONVERTED_SCHEMA).toBe(NOODLES_VERSION)
+  })
+})
+
+describe('a DuckDB query reading a constant', () => {
+  it('writes a Bounds it references, relatively, into the query', () => {
+    const { doc } = toEditorDoc(example('overture-nyc-parks'))
+    const query = String(doc.nodes.find(n => n.op === 'sql')?.params.query)
+    expect(query).toContain('bbox.xmin >= -74.05')
+    expect(query).toContain('bbox.ymax <= 40.82')
+    expect(query).not.toContain('{{')
   })
 })

@@ -73,7 +73,7 @@ const POINTS =
 describe('row layers', () => {
   it('converts the table editor demo: points sized by population and their labels', async () => {
     const project = JSON.parse(
-      readFileSync(resolve('src/examples/table-editor-demo/noodles.json'), 'utf8')
+      readFileSync(resolve('src/runtime/migrate/__fixtures__/table-editor-demo.json'), 'utf8')
     ) as NoodlesProject
     const { doc, layers } = await run(project)
     const labels = layers['/labels-layer']

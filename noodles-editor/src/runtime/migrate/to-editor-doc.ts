@@ -508,6 +508,7 @@ const PLANNER_LAYERS = new Set([
   'GeohashLayerOp',
   'QuadkeyLayerOp',
   'A5LayerOp',
+  'ChoroplethLayerOp',
 ])
 
 /** Cell layers: the column holding each row's cell id, and the grid it is in. */
@@ -543,6 +544,8 @@ const CATEGORICAL_SCHEMES: Record<string, number> = {
 /** How a path list column's positions are named once unnested into vertex rows. */
 const VERTEX_COMPONENTS = ['lng', 'lat', 'alt']
 const PLANNER_SOURCES = new Set(['FileOp', 'DuckDbOp'])
+/** Operators whose GeoJSON output converts to a table of features a code node can read. */
+const FEATURE_SOURCES = new Set(['ChoroplethJoinOp', 'GeoJsonOp'])
 
 const DECK_VALUE_PORTS = ['views', 'effects', 'widgets', 'viewState', 'maplibreLayers']
 
@@ -560,6 +563,87 @@ const attributeName = (id: string) =>
   segment(id)
     .replace(/[^A-Za-z0-9_]/g, '_')
     .replace(/^(\d)/, '_$1')
+
+/**
+ * An accessor op's attribute: its id without the "accessor" it was named for
+ * (`/position-accessor` is `position`), unless that is a name its expression reads.
+ */
+function accessorAttribute(id: string, expression: string): string {
+  const full = attributeName(id)
+  const short = full.replace(/^accessor_|_accessor$/i, '')
+  if (!short || short === full) return full
+  const reads = new Set((expression.match(/[A-Za-z_]\w*/g) ?? []).map(w => w.toLowerCase()))
+  return reads.has(short.toLowerCase()) ? full : short
+}
+
+/**
+ * Attribute nodes that only copy a column (`magnitude = Magnitude`, an accessor that read
+ * `d.Magnitude`) taken out: what read the attribute downstream reads the column. Run last, as a
+ * channel can still rewrite an accessor's expression (`hex_color(...)`, an item of a list).
+ */
+function inlineCopies(nodes: DocNode[], edges: DocEdge[]) {
+  for (const copy of nodes.filter(
+    n => n.op === 'attribute' && /^[A-Za-z_]\w*$/.test(String(n.params.expression ?? ''))
+  )) {
+    const name = String(copy.params.name ?? '')
+    const column = String(copy.params.expression)
+    const into = edges.find(e => e.target === copy.id && e.targetPort === 'in')
+    if (!name || !into) continue
+    // Everything downstream of the copy, through tables
+    const downstream = new Set<string>()
+    const queue = [copy.id]
+    while (queue.length) {
+      const id = queue.pop() as string
+      for (const e of edges) {
+        if (e.source === id && !downstream.has(e.target)) {
+          downstream.add(e.target)
+          queue.push(e.target)
+        }
+      }
+    }
+    if (name !== column) {
+      const word = new RegExp(`\\b${name}\\b`, 'g')
+      for (const n of nodes) {
+        if (!downstream.has(n.id)) continue
+        for (const [k, v] of Object.entries(n.params)) {
+          if (typeof v === 'string') n.params[k] = v.replace(word, column)
+          else if (v && typeof v === 'object' && 'expr' in v && typeof v.expr === 'string') {
+            n.params[k] = { ...v, expr: v.expr.replace(word, column) }
+          }
+        }
+      }
+    }
+    for (const e of edges) {
+      if (e.source === copy.id) {
+        e.source = into.source
+        e.sourcePort = into.sourcePort
+      }
+    }
+    edges.splice(edges.indexOf(into), 1)
+    nodes.splice(nodes.indexOf(copy), 1)
+  }
+}
+
+/**
+ * A ChoroplethJoin's or ChoroplethLayer's join: its boundaries and keys. Custom boundaries and a
+ * custom join query have no planner form; a join node does either.
+ */
+function choroplethParams(n: NoodlesNode): Record<string, ParamValue> {
+  const i = (n.data?.inputs ?? {}) as Record<string, unknown>
+  const geography = String(i.geography ?? 'us-states')
+  if (geography === 'custom') {
+    throw new MigrationError(
+      `${n.id}: custom choropleth boundaries are not converted; join them with a Join node`
+    )
+  }
+  const sql = Array.isArray(i.customSQL) ? i.customSQL.join('\n') : String(i.customSQL ?? '')
+  if (sql.trim()) {
+    throw new MigrationError(
+      `${n.id}: a custom choropleth join query is not converted; use a DuckDB SQL node`
+    )
+  }
+  return { geography, joinKey: String(i.joinKey ?? ''), geoKey: String(i.geoKey ?? 'auto') }
+}
 
 /** The length of a JSON array literal such as `[null]`, or undefined for any other text. */
 function literalLength(text: string): number | undefined {
@@ -1113,6 +1197,12 @@ export function toEditorDoc(original: NoodlesProject): Migrated {
       used.add(from.id)
     } else if (from && PLANNER_SOURCES.has(from.type)) {
       input = source(from.id)
+    } else if (from && FEATURE_SOURCES.has(from.type)) {
+      // GeoJSON an operator makes: the code gets its features as a FeatureCollection
+      const made = features(from.id, handleField(feed.sourceHandle))
+      nodes.push({ id: n.id, op: 'code', name: segment(n.id), ...position(n), params })
+      edge(made.node, made.port, n.id, 'in')
+      return true
     } else if (from) {
       return false
     }
@@ -1192,10 +1282,26 @@ export function toEditorDoc(original: NoodlesProject): Migrated {
       }
       // `{{op.par.x}}` / `{{op.out.x.y}}` references become ch(), which the planner binds as a
       // parameter of the relation: a change rematerializes it, as DuckDbOp re-ran its query.
+      // A reference may be relative (`./bounds`). One to a constant (a Bounds, a Date Time) is
+      // the constant itself, written into the query.
       const query = text.replace(
-        /\{\{([^.}]+)\.(par|out)\.([\w.-]+)\}\}/g,
+        /\{\{((?:\.{1,2}\/)*[^.}]+)\.(par|out)\.([\w.-]+)\}\}/g,
         (_m, ref, inOut, path) => {
           const target = resolveNoodlesPath(ref, id)
+          const node = byId.get(target)
+          if (inOut === 'out' && node && FOLDED.has(node.type)) {
+            const [port, ...rest] = String(path).split('.')
+            const v = foldValue(target, port)
+            const value = v && rest.reduce<unknown>((x, k) => (x as never)?.[k], v.value)
+            if (typeof value === 'number') {
+              used.add(target)
+              return lit(value)
+            }
+            if (typeof value === 'string') {
+              used.add(target)
+              return `'${value.replace(/'/g, "''")}'`
+            }
+          }
           referenced.add(target)
           return inOut === 'out'
             ? `ch('${segment(target)}/out.${path}')`
@@ -1523,6 +1629,21 @@ export function toEditorDoc(original: NoodlesProject): Migrated {
       used.add(id)
       sources.set(id, id)
       made = { node: id, port: 'out' }
+    } else if (n.type === 'ChoroplethJoinOp') {
+      // Rows joined onto boundaries: a feature per boundary, in the engine
+      used.add(id)
+      nodes.push({
+        id,
+        op: 'choropleth-join',
+        name: segment(id),
+        ...position(n),
+        params: choroplethParams(n),
+      })
+      const data = incomingOne(id, 'data')
+      if (!data) throw new MigrationError(`${id} has no data`)
+      const rows = source(data.source, false, handleField(data.sourceHandle))
+      edge(rows, sourcePort.get(rows) ?? 'out', id, 'in')
+      made = { node: id, port: 'out' }
     } else if (n.type === 'GeoJsonOp') {
       // A FeatureCollection of features other operators made: their rows, together
       used.add(id)
@@ -1688,11 +1809,13 @@ export function toEditorDoc(original: NoodlesProject): Migrated {
       params: Record<string, ParamValue>,
       reads: string[],
       key = id,
-      name = attribute
+      name = attribute,
+      label?: string
     ) => {
       const nodeId = docId(key)
+      const shown = label ? docId(label.replace(/_/g, '-')) : segment(nodeId)
       chain.set(key, {
-        node: { id: nodeId, op, name: segment(nodeId), ...position(n), params },
+        node: { id: nodeId, op, name: shown, ...position(n), params },
         reads: new Set(reads),
         attribute: name,
       })
@@ -1710,7 +1833,12 @@ export function toEditorDoc(original: NoodlesProject): Migrated {
       case 'AccessorOp': {
         const source = (accessorRewrites.get(src) ?? (x => x))(String(i.expression ?? ''))
         const expr = translateAccessor(source, indexNames.get(src))
-        if (expr) return add('attribute', { name: attribute, expression: expr }, [])
+        // Named for what it computes, not for the accessor it was: `position`, not
+        // `position_accessor`, unless that would be a column it reads
+        const named = accessorAttribute(id, expr ?? source)
+        if (expr) {
+          return add('attribute', { name: named, expression: expr }, [], id, named, named)
+        }
         const text = translateStringAccessor(source)
         if (!text) {
           // JS the expression language has no words for runs as a JS function DuckDB calls
@@ -1721,7 +1849,7 @@ export function toEditorDoc(original: NoodlesProject): Migrated {
           }
           let fn = jsFunctions.get(id)
           if (!fn) {
-            fn = `${attribute}_fn`
+            fn = `${named}_fn`
             jsFunctions.set(id, fn)
             nodes.push({
               id: `${id}-fn`,
@@ -1734,11 +1862,14 @@ export function toEditorDoc(original: NoodlesProject): Migrated {
           }
           return add(
             'attribute',
-            { name: attribute, expression: `${fn}(${js.columns.join(', ')})` },
-            []
+            { name: named, expression: `${fn}(${js.columns.join(', ')})` },
+            [],
+            id,
+            named,
+            named
           )
         }
-        const value = add('attribute', { name: attribute, expression: text }, [])
+        const value = add('attribute', { name: named, expression: text }, [], id, named, named)
         const row = chain.get(id)
         if (row) row.stringValued = true
         return value
@@ -2617,6 +2748,39 @@ export function toEditorDoc(original: NoodlesProject): Migrated {
         )
         return
       }
+      case 'ChoroplethLayerOp': {
+        // A choropleth draws with normal blending only
+        if (params.blend !== 'normal') warnings.push(`${layer.id}: custom blending is not converted; using normal`)
+        delete params.blend
+        Object.assign(params, choroplethParams(layer))
+        params.valueColumn = String(i.valueColumn ?? '')
+        params.colorScheme = String(i.colorScheme ?? 'viridis')
+        params.opacity = num(i.opacity, 0.85)
+        params.stroked = i.stroked !== false
+        const line = colorInput(
+          { kind: 'const', value: i.getLineColor ?? '#000000' },
+          layer.id,
+          'getLineColor'
+        )
+        if (line.color) params.lineColor = line.color
+        params.lineWidth = num(i.getLineWidth, 1)
+        push('choropleth')
+        dropUnmapped(layer, [
+          'opacity',
+          'visible',
+          'geography',
+          'joinKey',
+          'geoKey',
+          'customSQL',
+          'boundaries',
+          'valueColumn',
+          'colorScheme',
+          'stroked',
+          'getLineColor',
+          'getLineWidth',
+        ])
+        break
+      }
       case 'TextLayerOp': {
         params.position = positionOf(v('getPosition'), layer.id)
         params.text = stringColumn(v('getText'), layer.id, 'getText')
@@ -3307,6 +3471,18 @@ export function toEditorDoc(original: NoodlesProject): Migrated {
     warnings.push(`${n.id}: dropped ${n.type}; nothing drawn reads it`)
   }
   const timeline = project.timeline ? convertTimeline(project.timeline, nodes, warnings) : undefined
+  inlineCopies(nodes, edges)
+
+  // A name is unique within its network: a shortened accessor name can meet a node's own
+  const taken = new Map<string, Set<string>>()
+  for (const n of nodes) {
+    const names = taken.get(n.parent ?? '') ?? new Set<string>()
+    taken.set(n.parent ?? '', names)
+    let name = n.name ?? segment(n.id)
+    for (let k = 2; names.has(name); k++) name = `${n.name}-${k}`
+    names.add(name)
+    n.name = name
+  }
   const converted: EditorDoc = { version: 1, name: project.name ?? 'Untitled', nodes, edges }
   intoSubnets(converted, containers, warnings)
 

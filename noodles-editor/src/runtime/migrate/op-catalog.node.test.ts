@@ -3,6 +3,7 @@ import { resolve } from 'node:path'
 import { OPERATORS } from '@noodles.gl/planner'
 import { describe, expect, it } from 'vitest'
 import { registerDeckOperators } from '../deck-ops'
+import { UNCONVERTIBLE } from './__fixtures__/unconvertible'
 import { OP_CATALOG } from './op-catalog'
 import { type NoodlesProject, toEditorDoc } from './to-editor-doc'
 
@@ -32,11 +33,11 @@ describe('the operator catalog', () => {
 
   it('leaves only host operators, or ones a later step converts, in the examples', () => {
     const left: string[] = []
-    for (const name of readdirSync('src/examples', { withFileTypes: true })
-      .filter(e => e.isDirectory() && !e.name.startsWith('.'))
-      .map(e => e.name)) {
+    for (const name of readdirSync('src/runtime/migrate/__fixtures__')
+      .filter(f => f.endsWith('.json') && !UNCONVERTIBLE[f.replace(/\.json$/, '')])
+      .map(f => f.replace(/\.json$/, ''))) {
       const project = JSON.parse(
-        readFileSync(resolve(`src/examples/${name}/noodles.json`), 'utf8')
+        readFileSync(resolve(`src/runtime/migrate/__fixtures__/${name}.json`), 'utf8')
       ) as NoodlesProject
       for (const n of toEditorDoc(project).doc.nodes) {
         const plan = OP_CATALOG[n.op]
@@ -51,7 +52,7 @@ describe('the operator catalog', () => {
 describe('dropped operators', () => {
   it('wires through reroutes, even a reroute of a reroute', () => {
     const project = JSON.parse(
-      readFileSync(resolve('src/examples/nyc-taxis/noodles.json'), 'utf8')
+      readFileSync(resolve('src/runtime/migrate/__fixtures__/nyc-taxis.json'), 'utf8')
     ) as NoodlesProject
     const [first, ...rest] = project.edges
     const bent: NoodlesProject = {

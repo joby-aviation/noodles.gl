@@ -96,7 +96,7 @@ const FIXES: Record<string, DocModification[]> = {
   't4-wrong-columns': [
     {
       type: 'update_node',
-      id: '/position-accessor',
+      id: '/position',
       params: { expression: '[Longitude, Latitude]' },
     },
   ],
