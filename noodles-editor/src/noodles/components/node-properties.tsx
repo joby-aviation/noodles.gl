@@ -326,7 +326,12 @@ function FieldInputWithHighlight({
       : (state.tracks.get(getFieldPath(opId, fieldName, subPath))?.keyframes.length ?? 0) > 0
   )
   return (
-    <div className={cx(s.editableFieldContent, { [s.keyframedField]: hasKeyframes })}>
+    <div
+      className={cx(s.editableFieldContent, {
+        [s.keyframedField]: hasKeyframes,
+        [s.vectorFieldContent]: channelKeys !== null,
+      })}
+    >
       <EditableFieldInput
         fieldName={subPath?.[0] ?? fieldName}
         field={field}
@@ -904,7 +909,9 @@ export function NodeProperties({ nodeId }: { nodeId: string }) {
                       )}
                       <div className={cx(s.port, input.handleClass)} />
                       <span className={s.propertyLabel}>
-                        <span className={s.propertyLabelText}>{input.name}</span>
+                        <span className={s.propertyLabelText} title={input.name}>
+                          {input.name}
+                        </span>
                         {incomers.length > 0 && (
                           <Tooltip text="Field is connected" position="right">
                             <span className={s.connectedIcon}>
