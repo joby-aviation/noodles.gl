@@ -58,6 +58,14 @@ parameter widget uses. `HostRunner` runs them in dependency order and memoizes t
 Per-row values never come from accessor functions: they are columns, made by attribute nodes
 and expressions, and layers bind columns to channels.
 
+A path is one row. When a path, trips or polygon layer's position reads a list of positions
+(`DOUBLE[3][]`) or a geometry, `compileProgram` marks the layer's path columns
+(`LayerAnalysis.lists`), its query selects them whole, and `runtime/path-rows.ts` flattens the
+Arrow lists or the geometry bytes into the vertex buffer and `startIndices`, repeating each
+row's other values along its vertices. A scatter or text layer on a geometry draws a mark per
+point. Time Series samples path rows in place (`rows: 'paths'`). world-flights draws 12,938
+flight rows this way rather than 1.5M vertex rows.
+
 ## The document (`EditorDoc`)
 
 Defined in `packages/planner/src/doc.ts`:
