@@ -28,6 +28,8 @@ export interface FlatPaths {
   rowOf: Uint32Array
   /** Flattened list channels, by column: the position three-wide, a number list one-wide. */
   values: Map<string, { data: Float32Array; width: number }>
+  /** A number list's values in doubles, by column: what a trips layer's times are made from. */
+  doubles: Map<string, Float64Array>
 }
 
 /** A Float32Array that grows as values are pushed. */
@@ -50,6 +52,41 @@ class Floats {
   done(): Float32Array {
     return this.data.slice(0, this.length)
   }
+}
+
+/** The same for doubles: a list of times keeps its precision until `fromOrigin`. */
+class Doubles {
+  data = new Float64Array(1024)
+  length = 0
+  push(v: number) {
+    if (this.length === this.data.length) this.reserve(1)
+    this.data[this.length++] = v
+  }
+  reserve(n: number) {
+    if (this.length + n <= this.data.length) return
+    let size = this.data.length * 2
+    while (size < this.length + n) size *= 2
+    const next = new Float64Array(size)
+    next.set(this.data.subarray(0, this.length))
+    this.data = next
+  }
+  done(): Float64Array {
+    return this.data.slice(0, this.length)
+  }
+}
+
+/**
+ * Times as f32 offsets from the earliest: epoch seconds are past f32's integers (it steps
+ * 128 s at 1.5e9), an offset from the first time of a day of trips is exact to the
+ * millisecond. The layer's current time is moved by the same origin.
+ */
+export function fromOrigin(times: Float64Array): { data: Float32Array; origin: number } {
+  let origin = Number.POSITIVE_INFINITY
+  for (let i = 0; i < times.length; i++) if (times[i] < origin) origin = times[i]
+  if (!Number.isFinite(origin)) origin = 0
+  const data = new Float32Array(times.length)
+  for (let i = 0; i < times.length; i++) data[i] = times[i] - origin
+  return { data, origin }
 }
 
 class Indices {
@@ -158,7 +195,7 @@ function pointsOf(vector: Vector) {
 /** A list of numbers per row: `List<number>`. */
 function numbersOf(vector: Vector) {
   const at = locate(vector)
-  return (row: number, out: Floats): number => {
+  return (row: number, out: Doubles): number => {
     const [d, i] = at(row)
     if (!isValid(d, i)) return 0
     const offsets = d.valueOffsets as Int32Array
@@ -372,6 +409,7 @@ export function flattenPaths(
   const rings = new Indices()
   const rowOf = new Indices()
   const values = new Map<string, { data: Float32Array; width: number }>()
+  const doubles = new Map<string, Float64Array>()
   let vertices = 0
 
   if (position.kind === 'geometry') {
@@ -421,7 +459,7 @@ export function flattenPaths(
       if (l.kind !== 'numbers') {
         throw new Error(`'${l.channel}' reads '${l.column}', which is not a list of numbers`)
       }
-      return { l, read: numbersOf(l.vector), out: new Floats() }
+      return { l, read: numbersOf(l.vector), out: new Doubles() }
     })
     for (let j = 0; j < kept.length; j++) {
       const row = kept[j]
@@ -440,7 +478,11 @@ export function flattenPaths(
       rowOf.push(j)
       vertices += n
     }
-    for (const x of lists) values.set(x.l.column, { data: x.out.done(), width: 1 })
+    for (const x of lists) {
+      const d = x.out.done()
+      doubles.set(x.l.column, d)
+      values.set(x.l.column, { data: Float32Array.from(d), width: 1 })
+    }
   }
   values.set(position.column, { data: out.done(), width: 3 })
   return {
@@ -449,6 +491,7 @@ export function flattenPaths(
     rings: kind === 'polygon' ? rings.done() : undefined,
     rowOf: rowOf.done(),
     values,
+    doubles,
   }
 }
 
