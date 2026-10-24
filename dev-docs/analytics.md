@@ -91,7 +91,7 @@ Opening a saved project by its URL (`/projects/:name`, which is where Recent pro
 
 | Event | Properties | Location |
 |-------|-----------|----------|
-| `node_added` | `nodeType` | use-project-modifications.ts |
+| `node_added` | `nodeType` (`CommentOp` for a comment) | use-project-modifications.ts |
 | `node_deleted` | `count` | use-project-modifications.ts |
 | `edge_added` | `count` | use-project-modifications.ts |
 | `edge_deleted` | `count` | use-project-modifications.ts |
@@ -106,7 +106,7 @@ Opening a saved project by its URL (`/projects/:name`, which is where Recent pro
 
 | Event | Properties | Location |
 |-------|-----------|----------|
-| `field_value_changed` | `fieldType, operatorType, source` | field-edit-analytics.tsx (from property-history.ts commitChange) |
+| `field_value_changed` | `fieldType, operatorType, source` (a comment edit is `operatorType: 'CommentOp'`, `source: 'node'`; the text isn't sent) | field-edit-analytics.tsx (from property-history.ts commitChange) |
 | `panel_toggled` | `panel, visible` | layout.tsx, timeline-editor.tsx, top-menu-bar.tsx |
 | `map_mode_changed` | `mode` | layout.tsx, top-menu-bar.tsx |
 | `map_interacted` | `kind` | editor-analytics.ts (from timeline-editor.tsx) |

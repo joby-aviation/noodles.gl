@@ -85,6 +85,7 @@ import {
 } from '../utils/property-history'
 import { BrushableHistogramOpComponent } from './brushable-histogram-op'
 import { categories as baseCategories, nodeTypeToDisplayName } from './categories'
+import { CommentOpComponent } from './comment-op'
 import { FieldComponent, type inputComponents } from './field-components'
 import { GeoEditorOpComponent } from './geo-editor-op'
 import previewStyles from './handle-preview.module.css'
@@ -278,6 +279,7 @@ function UnknownOperatorComponent({
 export const nodeComponents = {
   ...defaultNodeComponents,
   BrushableHistogramOp: memoNode(BrushableHistogramOpComponent),
+  CommentOp: memoNode(CommentOpComponent),
   GeocoderOp: memoNode(GeocoderOpComponent),
   GeoEditorOp: memoNode(GeoEditorOpComponent),
   MapStyleConfiguratorOp: memoNode(MapStyleConfiguratorOpComponent),
@@ -438,6 +440,7 @@ function MultiInputEdgeComponent({
 }
 
 export const resizeableNodes = [
+  'CommentOp',
   'ViewerOp',
   'TableEditorOp',
   'CodeOp',

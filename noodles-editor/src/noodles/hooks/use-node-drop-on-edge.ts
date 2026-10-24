@@ -257,6 +257,8 @@ export function useNodeDropOnEdge(options: UseNodeDropOnEdgeOptions) {
   // Callback for node drag (update visual feedback)
   const onNodeDrag = useCallback(
     (_event: React.MouseEvent, node: ReactFlowNode) => {
+      // Comments have no handles, so moving one across an edge shouldn't flag the edge
+      if (node.type === 'CommentOp') return
       const nodeCenter = getNodeCenter(node)
       const edge = findEdgeAtPosition(node.id, nodeCenter)
 

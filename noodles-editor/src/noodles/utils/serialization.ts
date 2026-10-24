@@ -203,6 +203,8 @@ export function serializeNodes(
       dragging: __,
       hidden: ___,
       dragHandle: ____,
+      // Set by NodeResizer while a resize is in progress
+      resizing: _____,
       measured,
       width,
       height,

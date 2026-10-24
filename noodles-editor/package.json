@@ -93,6 +93,7 @@
     "generate:migration": "tsx scripts/generate-migration.ts",
     "generate:registry": "vitest run src/noodles/operator-registry-snapshot.test.ts --update",
     "generate:schema": "node --import tsx scripts/generate-project-schema.ts",
+    "generate:op-docs": "tsx scripts/generate-operator-docs.ts",
     "bench:agent": "tsx bench/agent/run.ts",
     "bench:agent:report": "tsx bench/agent/report.ts",
     "bench:agent:judge": "tsx bench/agent/judge-run.ts"
