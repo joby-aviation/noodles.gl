@@ -33,14 +33,15 @@ import {
 
 export type SlotValue = number | string | boolean | number[];
 
-export interface Clock { T: number; F: number }
+/** The time, and the pointer over the map in CSS pixels (`MX`, `MY`) when the host tracks it. */
+export interface Clock { T: number; F: number; MX?: number; MY?: number }
 
 type Source =
   | { kind: 'literal'; value: SlotValue }
-  | { kind: 'expr'; text: string; deps: string[]; clock: boolean; run: (deps: number[], clock: Clock) => number }
+  | { kind: 'expr'; text: string; deps: string[]; clock: boolean; pointer?: boolean; run: (deps: number[], clock: Clock) => number }
   | { kind: 'alias'; key: string }
   | { kind: 'track'; track: Track; fallback: Source }
-  | { kind: 'scalar'; node: DocNode; op: OpDef }
+  | { kind: 'scalar'; node: DocNode; op: OpDef; port?: string }
   | { kind: 'error'; message: string };
 
 /** Keys of slot `nodeId.param`, and of a scalar node's output `nodeId.out`. */
@@ -59,6 +60,7 @@ function compileScalar(
   const tree = parseExpr(text, { functions: new Map([['ch', { params: ['path'] }]]) });
   const deps: string[] = [];
   let clock = false;
+  let pointer = false;
   const depVar = (key: string) => {
     let i = deps.indexOf(key);
     if (i < 0) { deps.push(key); i = deps.length - 1; }
@@ -75,8 +77,9 @@ function compileScalar(
         return { ...n, args: n.args.map(rewrite) };
       case 'col':
         if (n.name === 'T' || n.name === 'F') { clock = true; return { kind: 'param', name: n.name }; }
+        if (n.name === 'MX' || n.name === 'MY') { pointer = true; return { kind: 'param', name: n.name }; }
         if (vars[n.name]) return { kind: 'param', name: depVar(vars[n.name]) };
-        throw new DocumentError(`Unknown name '${n.name}' in '${text}'. Use T, F or ch('path').`);
+        throw new DocumentError(`Unknown name '${n.name}' in '${text}'. Use T, F, MX, MY or ch('path').`);
       case 'unary': return { ...n, operand: rewrite(n.operand) };
       case 'binary': return { ...n, left: rewrite(n.left), right: rewrite(n.right) };
       case 'vec': return { ...n, components: n.components.map(rewrite) };
@@ -90,9 +93,9 @@ function compileScalar(
   const body = `return (${js.components[0]});`;
   const fn = new Function('p', body) as (p: Record<string, number>) => number;
   return {
-    kind: 'expr', text, deps, clock,
+    kind: 'expr', text, deps, clock, pointer,
     run: (values, c) => {
-      const p: Record<string, number> = { T: c.T, F: c.F };
+      const p: Record<string, number> = { T: c.T, F: c.F, MX: c.MX ?? 0, MY: c.MY ?? 0 };
       values.forEach((v, i) => { p[`d${i}`] = v; });
       return fn(p);
     },
@@ -109,7 +112,7 @@ export class ScalarProgram {
   }
 
   /** Every slot's value at one instant. Cycles and bad expressions come back as errors. */
-  evaluate(clock: Clock): { values: Map<string, SlotValue>; errors: Map<string, string> } {
+  evaluate(clock: Clock, external?: External): { values: Map<string, SlotValue>; errors: Map<string, string> } {
     const values = new Map<string, SlotValue>();
     const errors = new Map<string, string>();
     const visiting = new Set<string>();
@@ -121,7 +124,13 @@ export class ScalarProgram {
         return NaN;
       }
       const src = this.sources.get(key);
-      if (!src) { errors.set(key, `nothing named ${key}`); return NaN; }
+      if (!src) {
+        // A host operator's output, which the host application computes
+        const outside = external?.get(key) as SlotValue | undefined;
+        if (outside !== undefined && outside !== null) { values.set(key, outside); return outside; }
+        errors.set(key, `nothing named ${key}`);
+        return NaN;
+      }
       visiting.add(key);
       const v = this.run(src, key, get, clock, errors);
       visiting.delete(key);
@@ -158,9 +167,19 @@ export class ScalarProgram {
           return v !== null && typeof v === 'object' ? JSON.stringify(v) : String(v);
         };
         if (src.op.type === 'expression') return get(slotKey(id, '__expr'));
+        if (src.port !== undefined) return src.op.scalarPorts?.[src.port]?.({ num, str }, clock) ?? NaN;
         return src.op.scalar ? src.op.scalar({ num, str }, clock) : NaN;
       }
     }
+  }
+
+  /** True when a slot reads the pointer, so the host should move the clock's `MX`, `MY`. */
+  readsPointer(): boolean {
+    for (const src of this.sources.values()) {
+      if (src.kind === 'expr' && src.pointer) return true;
+      if (src.kind === 'scalar' && src.op.readsPointer) return true;
+    }
+    return false;
   }
 
   /** True when a slot's value can change without an edit: keyframed, or reading the clock. */
@@ -237,7 +256,19 @@ export interface LowerOptions {
    * nodes can read what a host operator made. Undefined while there is none yet.
    */
   hostTable?: (nodeId: string, port: string) => string | undefined;
+  /** Values the scalar program does not compute: a host application's operator outputs. */
+  external?: External;
 }
+
+/**
+ * Values from outside the scalar program, by key: `nodeId.out.<port>` for an operator the host
+ * application runs, and `nodeId.out.<port>.<path>` for a value inside one of its outputs.
+ */
+export interface External { get(key: string): unknown }
+
+/** The key an edge from an output reads: a number operator's `out`, or any other's port. */
+export const outputKey = (op: OpDef | undefined, nodeId: string, port: string): string =>
+  op?.category === 'number' && !op.scalarPorts ? slotKey(nodeId, 'out') : slotKey(nodeId, `out.${port}`);
 
 const firstTablePort = (n: DocNode): string | undefined =>
   OPERATOR_INDEX.get(n.op)?.inputs.find((p) => p.type === 'table')?.name;
@@ -275,8 +306,9 @@ export function lowerDocument(doc: EditorDoc, options: LowerOptions = {}): Lower
       return { kind: 'literal', value: 0 };
     }
     if (edge) {
-      references.push({ from: slotKey(edge.source, 'out'), to: key });
-      return { kind: 'alias', key: slotKey(edge.source, 'out') };
+      const from = outputKey(OPERATOR_INDEX.get(byId.get(edge.source)?.op ?? ''), edge.source, edge.sourcePort);
+      references.push({ from, to: key });
+      return { kind: 'alias', key: from };
     }
     let base: Source;
     try {
@@ -309,7 +341,11 @@ export function lowerDocument(doc: EditorDoc, options: LowerOptions = {}): Lower
     for (const [param, value] of Object.entries(node.params)) {
       if (!defs.some((d) => d.name === param)) sources.set(slotKey(node.id, param), sourceFor(node, undefined, param, value));
     }
-    if (op?.category === 'number') {
+    if (op?.scalarPorts) {
+      for (const port of Object.keys(op.scalarPorts)) {
+        sources.set(slotKey(node.id, `out.${port}`), { kind: 'scalar', node, op, port });
+      }
+    } else if (op?.category === 'number') {
       sources.set(slotKey(node.id, 'out'), { kind: 'scalar', node, op });
       if (op.type === 'expression') {
         const text = node.params.expression;
@@ -325,7 +361,7 @@ export function lowerDocument(doc: EditorDoc, options: LowerOptions = {}): Lower
     }
   }
   const scalars = new ScalarProgram(sources);
-  const initial = scalars.evaluate({ T: 0, F: 0 }).values;
+  const initial = scalars.evaluate({ T: 0, F: 0 }, options.external).values;
 
   // --- lowering -------------------------------------------------------------
   const outputs: Lowered['outputs'] = {};
@@ -494,6 +530,17 @@ export function lowerDocument(doc: EditorDoc, options: LowerOptions = {}): Lower
 
   // --- display flags: a preview layer on top of the deck --------------------
   const deck = irOut.find((n): n is DeckNode => n.type === 'deck');
+  // A layer a host operator reads (props added to it, a switch between it and another) is
+  // compiled too: the host draws it, so the deck's own inputs do not list it.
+  if (deck) {
+    const layerIds = new Set(irOut.filter((n) => n.type === 'layer').map((n) => n.id));
+    for (const e of edges) {
+      const target = byId.get(e.target);
+      if (!target || OPERATOR_INDEX.get(target.op)?.lower) continue;
+      const ir = outputs[e.source]?.[e.sourcePort];
+      if (ir && layerIds.has(ir) && !deck.inputs.includes(ir)) deck.inputs = [...deck.inputs, ir];
+    }
+  }
   for (const n of nodes) {
     if (!n.flags?.display || n.flags.bypass) continue;
     const op = OPERATOR_INDEX.get(n.op);
@@ -533,12 +580,12 @@ export function lowerDocument(doc: EditorDoc, options: LowerOptions = {}): Lower
  * scalar program does not compute: a host application's operator outputs, such as
  * `nodeId.out.location.lat` for a `ch('geocoder/out.location.lat')` reference.
  */
-export function parameterValues(lowered: Lowered, clock: Clock, host?: { get(key: string): unknown }): {
+export function parameterValues(lowered: Lowered, clock: Clock, host?: External): {
   values: Record<string, number | string>;
   slots: Map<string, SlotValue>;
   errors: Map<string, string>;
 } {
-  const { values: slots, errors } = lowered.scalars.evaluate(clock);
+  const { values: slots, errors } = lowered.scalars.evaluate(clock, host);
   const values: Record<string, number | string> = {};
   for (const p of Object.values(lowered.params)) {
     const v = slots.get(p.key) ?? (host?.get(p.key) as SlotValue | undefined);

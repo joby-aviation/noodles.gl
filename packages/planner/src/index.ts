@@ -105,8 +105,8 @@ export {
   type LowerCtx, type LowerResult, type ScalarParams,
 } from './operators.js';
 export {
-  lowerDocument, parameterValues, slotKey, ScalarProgram,
-  type Lowered, type LoweredParam, type LowerOptions, type SlotValue, type Clock,
+  lowerDocument, parameterValues, slotKey, outputKey, ScalarProgram,
+  type Lowered, type LoweredParam, type LowerOptions, type SlotValue, type Clock, type External,
 } from './lower.js';
 
 // --- planning --------------------------------------------------------------
