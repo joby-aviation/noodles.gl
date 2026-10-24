@@ -123,6 +123,11 @@ jobs:
       - name: Validate every project file
         run: npm run validate:projects
 
+      # A new migration changes the version, so this fails until the schema is regenerated
+      - name: Check the published project schema
+        working-directory: noodles-editor
+        run: npm run generate:schema -- --check
+
   test-website:
     runs-on: ubuntu-latest
     permissions:

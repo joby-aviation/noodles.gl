@@ -1,7 +1,7 @@
 # Operator Reference
 
 <!-- gen:begin coverage -->
-175 operators in 15 categories. 5 of 175 have written Remarks.
+176 operators in 15 categories. 5 of 176 have written Remarks.
 <!-- gen:end coverage -->
 
 One page per operator, grouped by the category it has in the Add Node menu. Each page gives the type name a node uses in `noodles.json`, the operator's inputs with their field types and defaults, and its outputs. The tables are generated from the operator classes, so they match the editor built from the same commit. Remarks and Examples are written by hand and cover what the tables can't: which input wins when two disagree, defaults that differ from deck.gl, and mistakes that are easy to make.
@@ -189,6 +189,7 @@ To update the pages after changing an operator, run `npm run generate:registry` 
 
 - [Blending](./operators/blending.md): Configure WebGL blending mode for layers (additive, normal, subtractive).
 - [Boolean](./operators/boolean.md): A boolean.
+- [Comment](./operators/comment.md): A note that explains the nodes beside it.
 - [Console](./operators/console.md): Log data to the console.
 - [ForLoopMeta](./operators/for-loop-meta.md): Access iteration metadata and accumulator within a ForLoop scope.
 - [LayerProps](./operators/layer-props.md): Add additional props to a layer (e.g., operation: "mask" for mask layers, beforeId for maplibre layer ordering).
