@@ -64,37 +64,36 @@ export function StarterNodeFocus({ loadId }: { loadId: number }) {
   return null
 }
 
-// Brings a node picked on the map into view and pulses its outline for a second
+// Brings a node picked on the map into view and pulses its outline for a second. The
+// network draws the pulse from `pulsingNodeId`, so a re-render (the selection arriving)
+// keeps it.
 export function MapPickFocus() {
   const request = useUIStore(state => state.mapPickFocus)
-  const domNode = useStore(state => state.domNode)
-  const timersRef = useRef(new Map<Element, ReturnType<typeof setTimeout>>())
+  const timerRef = useRef<ReturnType<typeof setTimeout>>(undefined)
+  const frameRef = useRef(0)
 
   useShowNode(request?.nodeId ?? null, `map:${request?.seq}`, nodeId => {
-    const element = domNode?.querySelector(`.react-flow__node[data-id="${CSS.escape(nodeId)}"]`)
-    if (!element) return
-    const timers = timersRef.current
-    clearTimeout(timers.get(element))
-    // Restart the animation when the same node is picked again mid-pulse
-    element.classList.remove(s.mapPickPulse)
-    void (element as HTMLElement).offsetWidth
-    element.classList.add(s.mapPickPulse)
-    timers.set(
-      element,
-      setTimeout(() => {
-        element.classList.remove(s.mapPickPulse)
-        timers.delete(element)
-      }, MAP_PICK_PULSE_MS)
-    )
+    const { setPulsingNodeId } = useUIStore.getState()
+    clearTimeout(timerRef.current)
+    cancelAnimationFrame(frameRef.current)
+    // Off for a frame first, so picking the same node mid-pulse restarts the animation
+    setPulsingNodeId(null)
+    frameRef.current = requestAnimationFrame(() => {
+      setPulsingNodeId(nodeId)
+      timerRef.current = setTimeout(() => setPulsingNodeId(null), MAP_PICK_PULSE_MS)
+    })
   })
 
-  useEffect(() => {
-    const timers = timersRef.current
-    return () => {
-      for (const timer of timers.values()) clearTimeout(timer)
-      timers.clear()
-    }
-  }, [])
+  useEffect(
+    () => () => {
+      clearTimeout(timerRef.current)
+      cancelAnimationFrame(frameRef.current)
+    },
+    []
+  )
 
   return null
 }
+
+// The class the network puts on the node `pulsingNodeId` names
+export const mapPickPulseClass = s.mapPickPulse

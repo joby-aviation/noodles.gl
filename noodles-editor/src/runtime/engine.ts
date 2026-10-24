@@ -82,6 +82,12 @@ export interface HostRunInputs {
   planner(nodeId: string, port: string): unknown
   slots: ReadonlyMap<string, unknown>
   time: number
+  /** One row of SQL over a planner node's rows, for a deck operator's statistic. */
+  aggregate?(
+    nodeId: string,
+    port: string,
+    select: (shape: RelationShape) => string
+  ): Promise<Record<string, unknown> | undefined> | typeof PENDING
 }
 
 export interface EngineOptions {
@@ -93,6 +99,8 @@ export interface EngineOptions {
   registerFile?: (name: string, bytes: Uint8Array) => Promise<void>
   /** Bytes of a remote file. Defaults to `fetch`. */
   fetchBytes?: (url: string) => Promise<Uint8Array>
+  /** Planner layers are pickable, for the editor's click-to-edit. */
+  pickable?: boolean
 }
 
 type Listener = (vis: EngineVis, report?: UpdateReport) => void
@@ -135,7 +143,7 @@ export function localRuntime(sql: SqlEngine): RuntimeLike {
 
 export class Engine {
   readonly runtime: RuntimeLike
-  private readonly builder = new DeckLayerBuilder()
+  private readonly builder: DeckLayerBuilder
   private readonly listeners = new Set<Listener>()
   private readonly registered = new Set<string>()
   private doc?: EditorDoc
@@ -162,6 +170,7 @@ export class Engine {
     private readonly options: EngineOptions = {}
   ) {
     registerNoodlesRamps()
+    this.builder = new DeckLayerBuilder({ pickable: options.pickable })
     this.runtime = 'setGraph' in backend ? backend : localRuntime(backend)
     this.runtime.onUpdate(report => this.emit(report))
   }

@@ -57,6 +57,13 @@ interface UIStoreState {
   // edits a value or selects something else
   starterHintNodeId: string | null
   setStarterHintNodeId: (id: string | null) => void
+  // A node selected from the map: the graph pans to it if needed and pulses it. `seq`
+  // grows with each request, so clicking the same feature twice pulses twice.
+  mapPickFocus: { nodeId: string; seq: number } | null
+  focusNodeFromMap: (nodeId: string) => void
+  // The node the graph outlines for a second after it was picked on the map
+  pulsingNodeId: string | null
+  setPulsingNodeId: (id: string | null) => void
 }
 
 // docked: map in its own panel above the node graph
@@ -104,6 +111,11 @@ export const useUIStore = create<UIStoreState>(set => ({
   },
   starterHintNodeId: null,
   setStarterHintNodeId: id => set({ starterHintNodeId: id }),
+  mapPickFocus: null,
+  focusNodeFromMap: nodeId =>
+    set(state => ({ mapPickFocus: { nodeId, seq: (state.mapPickFocus?.seq ?? 0) + 1 } })),
+  pulsingNodeId: null,
+  setPulsingNodeId: id => set({ pulsingNodeId: id }),
 }))
 
 export const getUIStore = () => useUIStore.getState()

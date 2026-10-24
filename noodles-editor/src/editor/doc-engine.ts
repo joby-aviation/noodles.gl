@@ -6,6 +6,7 @@
 import type { EditorDoc, Lowered } from '@noodles.gl/planner'
 import { useSyncExternalStore } from 'react'
 import { useFileSystemStore } from '../noodles/filesystem-store'
+import { agentBench, externalControl } from '../noodles/globals'
 import { setOpResolver } from '../noodles/op-resolver'
 import { DeckProjectAssetResolver } from '../noodles/utils/deck-project-asset-resolver'
 import { instantiateDeckView } from '../noodles/utils/deck-view'
@@ -99,6 +100,10 @@ async function resolveAssets(nodeId: string, outputs: Record<string, unknown>) {
 let engine: Promise<Engine> | undefined
 let opened: Engine | undefined
 
+// Click-to-edit (map-click-to-edit.tsx) picks features, so layers are pickable in the editor
+// unless they say otherwise. Off when an agent drives the editor, as click-to-edit is.
+const EDITOR_PICKING = !externalControl && !agentBench
+
 /** The engine once it has started; tools read rows and errors from it. */
 export const currentEngine = (): Engine | undefined => opened
 
@@ -113,10 +118,11 @@ function openEngine(readAsset: (name: string) => Promise<Uint8Array>): Promise<E
     registerHostOperators()
     const e = new Engine(runtime, {
       readAsset,
+      pickable: EDITOR_PICKING,
       registerFile: (n, b) => runtime.registerFile(n, b),
       host: {
         runner: new HostRunner({ resolveOutputs: resolveAssets }),
-        layer: instantiateLayer,
+        layer: d => instantiateLayer(EDITOR_PICKING ? { pickable: true, ...d } : d),
         widget: instantiateWidget,
         // Extension operators' { extension, props }: the extensions, and their props merged
         extensions: values => {

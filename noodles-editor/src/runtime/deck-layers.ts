@@ -91,6 +91,8 @@ type Binary = {
  */
 export class DeckLayerBuilder {
   private readonly built = new WeakMap<LayerData, Binary>()
+  // `pickable`: deck picks the layers' features, for the editor's click-to-edit
+  constructor(private readonly options: { pickable?: boolean } = {}) {}
   private metricsValue: ProgramPaneMetrics = {
     layers: 0,
     instances: 0,
@@ -124,7 +126,7 @@ export class DeckLayerBuilder {
         triangulateMs += binary.triangulateMs ?? 0
       }
       instances += input.data.rows
-      const layers = buildLayers(input, binary)
+      const layers = buildLayers(input, binary, this.options.pickable ?? false)
       count += layers.length
       out.set(input.id, layers)
     }
@@ -338,13 +340,13 @@ export function programLayers(input: ProgramLayerInput): Layer[] {
 }
 
 /** A layer kind's deck layers: one, or for a stroked polygon a fill and its ring outlines. */
-function buildLayers(input: ProgramLayerInput, binary: Binary): Layer[] {
+function buildLayers(input: ProgramLayerInput, binary: Binary, pickable = false): Layer[] {
   if (input.kind !== 'polygon') {
-    const layer = buildLayer(input, binary)
+    const layer = buildLayer(input, binary, pickable)
     return layer ? [layer] : []
   }
   const p = input.props
-  const fill = buildLayer(input, binary)
+  const fill = buildLayer(input, binary, pickable)
   const layers = fill ? [fill] : []
   if (p.stroked === true && binary.outline) {
     const perRowColor = 'getColor' in binary.outline.attributes
@@ -352,7 +354,7 @@ function buildLayers(input: ProgramLayerInput, binary: Binary): Layer[] {
       new PathLayer({
         id: `${input.id}:outline`,
         opacity: num(p.opacity, 1),
-        pickable: false,
+        pickable,
         parameters: BLEND_PARAMETERS[String(p.blend)] ?? {},
         data: binary.outline as never,
         _pathType: 'loop',
@@ -450,14 +452,14 @@ function colorRange(name: ResolvedProp | undefined): { colorRange?: number[][] }
 const widthUnits = (v: ResolvedProp | undefined) =>
   v === 'meters' || v === 'common' ? v : 'pixels'
 
-function buildLayer(input: ProgramLayerInput, binary: Binary): Layer | undefined {
+function buildLayer(input: ProgramLayerInput, binary: Binary, pickable: boolean): Layer | undefined {
   const p = input.props
   const has = (deckName: string) => deckName in binary.attributes
   const opacity = num(p.opacity, 1)
   const parameters = BLEND_PARAMETERS[String(p.blend)] ?? {}
   // The kind is part of the id: deck keeps a layer's state by id, so a node whose layer kind
   // changes (scatter to column, say) must start fresh rather than inherit the old layer's state.
-  const common = { id: `${input.id}:${input.kind}`, opacity, pickable: false, parameters }
+  const common = { id: `${input.id}:${input.kind}`, opacity, pickable, parameters }
   // A constant color is an accessor too; its trigger is its value, so deck re-reads it only
   // when the color actually changes.
   const constant = (deckName: string, value: [number, number, number, number]) =>
