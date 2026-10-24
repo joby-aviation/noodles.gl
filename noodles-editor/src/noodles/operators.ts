@@ -8182,7 +8182,7 @@ export class PathStyleExtensionOp extends Operator<PathStyleExtensionOp> {
       dashMode: new StringLiteralField('segment', {
         values: ['segment', 'path'],
         description:
-          "'segment' restarts dashes at each segment; 'path' keeps them continuous along the path.",
+          "'segment' restarts dashes at each segment; 'path' keeps them continuous. Needs Dash on.",
       }),
       dashJustified: new BooleanField(false, {
         description: 'When on, adjusts gaps so dashes line up with both ends of each path.',
