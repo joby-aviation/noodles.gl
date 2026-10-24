@@ -18,6 +18,7 @@ vi.mock('./utils/filesystem', () => ({
   writeFileToDirectory: vi.fn(),
   fileExists: vi.fn(),
   directoryExists: vi.fn(),
+  queryPermission: vi.fn(),
   requestPermission: vi.fn(),
 }))
 
@@ -77,6 +78,8 @@ describe('storage.ts', () => {
   beforeEach(() => {
     fetchMock.resetMocks()
     vi.clearAllMocks()
+    // Loads without a user gesture only read the permission of a remembered folder
+    vi.mocked(filesystem.queryPermission).mockResolvedValue('granted')
   })
 
   afterEach(() => {

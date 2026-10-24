@@ -5,6 +5,7 @@ import {
   directoryExists,
   fileExists,
   getOPFSRoot,
+  queryPermission,
   readFileFromDirectory,
   readFileFromDirectoryBinary,
   requestPermission,
@@ -50,6 +51,7 @@ export type FileSystemResult<T> =
 export interface FileSystemError {
   type:
     | 'permission-denied'
+    | 'permission-prompt' // The browser will ask again, but only during a click
     | 'not-found'
     | 'unsupported'
     | 'invalid-state'
@@ -60,6 +62,12 @@ export interface FileSystemError {
   message: string // Human-readable error message
   details?: string // Optional error details or recovery suggestions
   originalError?: unknown // Original error object if available
+  directoryHandle?: FileSystemDirectoryHandle // The remembered folder, for permission errors
+}
+
+// The `reason` sent with project_open_failed: the error type in snake_case, never the message
+export function openFailureReason(type: FileSystemError['type']): string {
+  return type.replace(/-/g, '_')
 }
 
 const PROJECT_FILE_NAME = 'noodles.json'
@@ -140,7 +148,22 @@ export async function getProjectDirectoryHandle(
         let projectDirectory: FileSystemDirectoryHandle | null = null
         const cached = await directoryHandleCache.getCachedHandle(projectName)
 
-        if (cached) {
+        // Without a user gesture we can only read the permission. After a browser restart
+        // it is back to 'prompt'; return the handle so a button click can ask for it.
+        if (cached && !promptIfMissing) {
+          const permission = await queryPermission(cached.handle, 'readwrite')
+          if (permission !== 'granted') {
+            return {
+              success: false,
+              error: {
+                type: permission === 'prompt' ? 'permission-prompt' : 'permission-denied',
+                message: `Access to folder ${cached.handle.name} needs permission`,
+                directoryHandle: cached.handle,
+              },
+            }
+          }
+          projectDirectory = cached.handle
+        } else if (cached) {
           const isValid = await directoryHandleCache.validateHandle(projectName)
           if (isValid) {
             projectDirectory = cached.handle

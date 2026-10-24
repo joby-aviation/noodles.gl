@@ -8,6 +8,7 @@ import s from './menu.module.css'
 
 const errorTitles: Record<FileSystemError['type'], string> = {
   'permission-denied': 'Permission Denied',
+  'permission-prompt': 'Permission Needed',
   'not-found': 'Project Not Found',
   unsupported: 'Storage Not Supported',
   'invalid-state': 'Invalid State',
@@ -19,6 +20,7 @@ const errorTitles: Record<FileSystemError['type'], string> = {
 
 const errorTypeMap: Record<FileSystemError['type'], string> = {
   'permission-denied': 'permission_denied',
+  'permission-prompt': 'permission_prompt',
   'not-found': 'not_found',
   unsupported: 'not_supported',
   'invalid-state': 'invalid_state',
