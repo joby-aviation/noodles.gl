@@ -37,6 +37,7 @@ import { Operator, OutOp } from '../operators'
 import { getOp, getOpStore, useNestingStore, useUIStore } from '../store'
 import type { ConnectionPlan } from '../utils/auto-connect'
 import { appendUniqueEdges } from '../utils/edge-integrity'
+import { FieldEditScope } from '../utils/field-edit-analytics'
 import { edgeId } from '../utils/id-utils'
 import {
   moveEdgeWithinGroup,
@@ -327,13 +328,15 @@ function FieldInputWithHighlight({
   )
   return (
     <div className={cx(s.editableFieldContent, { [s.keyframedField]: hasKeyframes })}>
-      <EditableFieldInput
-        fieldName={subPath?.[0] ?? fieldName}
-        field={field}
-        disabled={false}
-        opId={opId}
-        expandTimeline={expandTimeline}
-      />
+      <FieldEditScope field={field}>
+        <EditableFieldInput
+          fieldName={subPath?.[0] ?? fieldName}
+          field={field}
+          disabled={false}
+          opId={opId}
+          expandTimeline={expandTimeline}
+        />
+      </FieldEditScope>
     </div>
   )
 }
@@ -758,7 +761,7 @@ export function NodeProperties({ nodeId }: { nodeId: string }) {
   }
 
   return (
-    <>
+    <FieldEditScope source="properties_panel" operatorType={nodeType}>
       <div className={s.header}>
         <div className={s.title}>
           {getBaseName(op.id)}
@@ -1328,7 +1331,7 @@ export function NodeProperties({ nodeId }: { nodeId: string }) {
           </div>,
           document.body
         )}
-    </>
+    </FieldEditScope>
   )
 }
 

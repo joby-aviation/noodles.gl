@@ -4,7 +4,13 @@ import { useEffect, useState } from 'react'
 import { Group, Panel, Separator, useDefaultLayout, usePanelRef } from 'react-resizable-panels'
 import { DockablePane } from './components/dockable-pane'
 import s from './layout.module.css'
+import type { MapMode } from './noodles/store'
 import { useUIStore } from './noodles/store'
+import {
+  createPanelVisibilityTracker,
+  trackMapModeChanged,
+  trackPanelToggled,
+} from './noodles/utils/editor-analytics'
 
 // Percentage-based splits (sidebar/main/properties, map/noodles) are persisted by
 // useDefaultLayout under 'react-resizable-panels:<group id>' keys. The timeline and
@@ -57,6 +63,20 @@ export function Layout({
   const spreadsheetRef = usePanelRef()
 
   const [sidebarCollapsed, setSidebarCollapsed] = useState(true)
+  // The sidebar and properties panels are shown and hidden by dragging their separators
+  // (and the sidebar by its chevron or Cmd+F), so their visibility is tracked on resize
+  const [trackSidebarVisible] = useState(() => createPanelVisibilityTracker('sidebar'))
+  const [trackPropertiesVisible] = useState(() => createPanelVisibilityTracker('properties'))
+
+  const changeMapMode = (mode: MapMode) => {
+    if (mode !== mapMode) trackMapModeChanged(mode)
+    setMapMode(mode)
+  }
+
+  const expandTimeline = () => {
+    trackPanelToggled('timeline', true)
+    setTimelineExpanded(true)
+  }
 
   // TimelinePanel needs its height as a number to size its canvases
   const [timelineHeightPx, setTimelineHeightPx] = useState(() =>
@@ -112,7 +132,10 @@ export function Layout({
               maxSize="30%"
               collapsible
               collapsedSize={0}
-              onResize={size => setSidebarCollapsed(size.asPercentage === 0)}
+              onResize={size => {
+                setSidebarCollapsed(size.asPercentage === 0)
+                trackSidebarVisible(size.asPercentage > 0)
+              }}
               className={s.sidebarPanel}
             >
               {left}
@@ -151,7 +174,7 @@ export function Layout({
                         <button
                           type="button"
                           className={cx(s.paneActionButton, s.underlayRestoreButton)}
-                          onClick={() => setMapMode('docked')}
+                          onClick={() => changeMapMode('docked')}
                           title="Dock map back into its own panel"
                         >
                           <i className="pi pi-window-maximize" />
@@ -187,6 +210,7 @@ export function Layout({
               maxSize="30%"
               collapsible
               collapsedSize={0}
+              onResize={size => trackPropertiesVisible(size.asPercentage > 0)}
               className={s.rightPanel}
             >
               {right}
@@ -228,7 +252,7 @@ export function Layout({
         <button
           type="button"
           className={s.timelineCollapseTab}
-          onClick={() => setTimelineExpanded(true)}
+          onClick={expandTimeline}
           title="Expand Timeline (click to open)"
         >
           <ChevronUpIcon />
@@ -241,13 +265,13 @@ export function Layout({
         storageKey="noodles-floating-map"
         mode={mapMode}
         dockTo={mapMode === 'underlay' ? mapUnderlayAnchor : mapDockAnchor}
-        onDock={() => setMapMode('docked')}
+        onDock={() => changeMapMode('docked')}
         dockedActions={
           <>
             <button
               type="button"
               className={s.paneActionButton}
-              onClick={() => setMapMode('underlay')}
+              onClick={() => changeMapMode('underlay')}
               title="Show map behind the node graph"
             >
               <i className="pi pi-clone" />
@@ -255,7 +279,7 @@ export function Layout({
             <button
               type="button"
               className={s.paneActionButton}
-              onClick={() => setMapMode('floating')}
+              onClick={() => changeMapMode('floating')}
               title="Pop out map into a floating window"
             >
               <i className="pi pi-external-link" />

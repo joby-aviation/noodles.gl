@@ -117,6 +117,7 @@ import { DeckProjectAssetResolver } from './utils/deck-project-asset-resolver'
 import { instantiateDeckView } from './utils/deck-view'
 import { directoryHandleCache } from './utils/directory-handle-cache'
 import { insertUniqueEdge } from './utils/edge-integrity'
+import { trackChatClosed, trackChatOpened } from './utils/editor-analytics'
 import {
   fileExists,
   requestPermission,
@@ -1243,6 +1244,7 @@ export function getNoodles(): Visualization {
     if (plan.chatMessage) {
       setChatInitialMessage(plan.chatMessage)
       setShowChatPanel(true)
+      trackChatOpened('quick_start')
     }
     analytics.track(plan.event, plan.mode ? { mode: plan.mode } : undefined)
   }, [nodes.length])
@@ -2212,6 +2214,7 @@ export function getNoodles(): Visualization {
         project={{ nodes, edges }}
         projectKey={projectLoadId}
         onClose={() => {
+          trackChatClosed('panel')
           setShowChatPanel(false)
           setChatInitialMessage(undefined)
         }}
