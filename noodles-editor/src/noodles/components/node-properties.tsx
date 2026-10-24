@@ -70,6 +70,7 @@ import {
   toggleFieldExpression,
   VectorFieldComponent,
 } from './field-components'
+import { FieldTooltip } from './field-tooltip'
 import menuStyles from './menu.module.css'
 import s from './node-properties.module.css'
 import {
@@ -450,11 +451,19 @@ function CompoundSubFields({
         } catch {
           currentValue = subField.value as KeyframeValue
         }
+        const subDocs = getFieldDocs(subName, subField, field.op)
         return (
-          <div key={subName} className={s.compoundSubField}>
-            <span className={s.compoundSubFieldLabel} title={subName}>
-              {getFieldDocs(subName, subField).label}
-            </span>
+          <div key={subName} className={s.compoundSubField} data-field-row>
+            <FieldTooltip fieldKey={subName} description={subDocs.description} side="left">
+              <span
+                className={cx(s.compoundSubFieldLabel, {
+                  [s.hasDescription]: subDocs.description,
+                })}
+                data-field-key={subName}
+              >
+                {subDocs.label}
+              </span>
+            </FieldTooltip>
             <FieldInputWithHighlight
               opId={opId}
               fieldName={fieldName}
@@ -900,6 +909,7 @@ export function NodeProperties({ nodeId }: { nodeId: string }) {
                   <div
                     key={input.name}
                     role="listitem"
+                    data-field-row
                     className={cx(s.property, s.propertyWithAction)}
                     onContextMenu={e => {
                       e.preventDefault()
@@ -935,9 +945,20 @@ export function NodeProperties({ nodeId }: { nodeId: string }) {
                       )}
                       <div className={cx(s.port, input.handleClass)} />
                       <span className={s.propertyLabel}>
-                        <span className={s.propertyLabelText} title={input.name}>
-                          {input.docs.label}
-                        </span>
+                        <FieldTooltip
+                          fieldKey={input.name}
+                          description={input.docs.description}
+                          side="left"
+                        >
+                          <span
+                            className={cx(s.propertyLabelText, {
+                              [s.hasDescription]: input.docs.description,
+                            })}
+                            data-field-key={input.name}
+                          >
+                            {input.docs.label}
+                          </span>
+                        </FieldTooltip>
                         {incomers.length > 0 && (
                           <Tooltip text="Field is connected" position="right">
                             <span className={s.connectedIcon}>
@@ -947,16 +968,26 @@ export function NodeProperties({ nodeId }: { nodeId: string }) {
                         )}
                       </span>
                       {/* Value type, not connected: editable input + keyframe indicator */}
-                      {isValueField(input.field) && incomers.length === 0 && (
-                        <>
+                      {isValueField(input.field) &&
+                        incomers.length === 0 &&
+                        ((input.field.constructor as typeof Vec2Field).channelKeys ? (
+                          // Vec fields render per-channel indicators inside VectorFieldComponent
                           <FieldInputWithHighlight
                             opId={op.id}
                             fieldName={input.name}
                             field={input.field}
                             expandTimeline={expandTimeline}
                           />
-                          {/* Vec fields render per-channel indicators inside VectorFieldComponent */}
-                          {!(input.field.constructor as typeof Vec2Field).channelKeys && (
+                        ) : (
+                          // Input and keyframe button wrap under the label together when the
+                          // row is too narrow for both
+                          <div className={s.propertyControl}>
+                            <FieldInputWithHighlight
+                              opId={op.id}
+                              fieldName={input.name}
+                              field={input.field}
+                              expandTimeline={expandTimeline}
+                            />
                             <KeyframeIndicator
                               opId={op.id}
                               fieldName={input.name}
@@ -965,13 +996,9 @@ export function NodeProperties({ nodeId }: { nodeId: string }) {
                               size="small"
                               onKeyframeAdded={expandTimeline}
                             />
-                          )}
-                        </>
-                      )}
+                          </div>
+                        ))}
                     </div>
-                    {input.docs.description && (
-                      <div className={s.propertyDescription}>{input.docs.description}</div>
-                    )}
                     {/* Compound field: expand sub-fields inline */}
                     {input.field instanceof CompoundPropsField && (
                       <CompoundSubFields
@@ -1048,6 +1075,7 @@ export function NodeProperties({ nodeId }: { nodeId: string }) {
             <div
               key={output.name}
               role="listitem"
+              data-field-row
               className={s.property}
               onContextMenu={e => {
                 e.preventDefault()
@@ -1071,16 +1099,22 @@ export function NodeProperties({ nodeId }: { nodeId: string }) {
               <div className={cx(s.propertyRow, s.outputRow)}>
                 <div className={cx(s.port, output.handleClass)} />
                 <span className={s.propertyLabel}>
-                  <span className={s.propertyLabelText} title={output.name}>
-                    {output.docs.label}
-                  </span>
+                  <FieldTooltip
+                    fieldKey={output.name}
+                    description={output.docs.description}
+                    side="left"
+                  >
+                    <span
+                      className={cx(s.propertyLabelText, {
+                        [s.hasDescription]: output.docs.description,
+                      })}
+                      data-field-key={output.name}
+                    >
+                      {output.docs.label}
+                    </span>
+                  </FieldTooltip>
                 </span>
               </div>
-              {output.docs.description && (
-                <div className={cx(s.propertyDescription, s.outputDescription)}>
-                  {output.docs.description}
-                </div>
-              )}
             </div>
           ))}
         </div>
