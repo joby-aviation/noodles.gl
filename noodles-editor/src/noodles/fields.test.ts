@@ -21,6 +21,7 @@ import {
   getFieldReferences,
   LayerField,
   ListField,
+  MapLibreLayerField,
   MapStyleField,
   NumberField,
   Point2DField,
@@ -32,6 +33,7 @@ import {
   Vec2Field,
   Vec3Field,
   ViewField,
+  VisualizationField,
 } from './fields'
 import { NumberOp } from './operators'
 import { clearOps, setOp } from './store'
@@ -1940,5 +1942,27 @@ describe('BboxField', () => {
       southwest: { lng: -74.05, lat: 40.68 },
       northeast: { lng: -73.9, lat: 40.82 },
     })
+  })
+})
+
+describe('MapLibreLayerField', () => {
+  const layer = {
+    id: 'test-custom-layer',
+    type: 'custom' as const,
+    code: '{ render() {} }',
+    renderingMode: '3d' as const,
+    params: { color: '#ff0000', opacity: 0.5 },
+  }
+
+  // A one-argument z.record() has no value type in Zod 4, so parsing params threw
+  // "Cannot read properties of undefined (reading '_zod')"
+  it('accepts a custom layer with params', () => {
+    expect(new MapLibreLayerField().schema.safeParse(layer).success).toBe(true)
+    expect(new ListField(new MapLibreLayerField()).schema.safeParse([layer]).success).toBe(true)
+  })
+
+  it('accepts maplibreLayers with params on a VisualizationField', () => {
+    const vis = { deckProps: {}, maplibreLayers: [layer] }
+    expect(new VisualizationField().schema.safeParse(vis).success).toBe(true)
   })
 })
