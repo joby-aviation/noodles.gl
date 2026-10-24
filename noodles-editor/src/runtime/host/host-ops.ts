@@ -38,6 +38,17 @@ export const PLANNER_REPLACED = new Set([
 /** Operators that exist only to make per-row functions. Their work moves to row nodes. */
 const ACCESSOR_ONLY = new Set(['AccessorOp'])
 
+/**
+ * Classes kept only for the widgets of their fields (a curve, an extension's settings): the
+ * planner's curve and extension operators do their work, so none of them runs as a host.
+ */
+const FIELD_OWNERS = new Set([
+  'BezierCurveOp',
+  'BrushingExtensionOp',
+  'PathStyleExtensionOp',
+  'FillStyleExtensionOp',
+])
+
 /** What a field's value is, for ports. */
 function portTypeOf(field: Field): PortType {
   const inner = field instanceof ListField ? (field as ListField<Field>).field : field
@@ -59,13 +70,14 @@ function catalogHost(type: string): boolean {
   return !!plan && (plan.becomes === 'host' || !!plan.hostWhen || !!plan.pending)
 }
 
-/** Whether a Noodles operator can run as a host operator: no accessor inputs, not replaced. */
+/** Whether a Noodles operator runs as a host operator: not replaced, not a field owner. */
 export function isHostOperator(type: string, instance?: Operator<IOperator>): boolean {
-  if (PLANNER_REPLACED.has(type) || ACCESSOR_ONLY.has(type) || !catalogHost(type)) return false
+  if (PLANNER_REPLACED.has(type) || ACCESSOR_ONLY.has(type) || FIELD_OWNERS.has(type)) return false
+  if (!catalogHost(type)) return false
   const known = eligible.get(type)
   if (known !== undefined) return known
   const op = instance ?? sample(type)
-  const ok = !!op && !Object.values(op.inputs as Record<string, Field>).some(f => f.accessor)
+  const ok = !!op
   eligible.set(type, ok)
   if (op && !instance) (op as { dispose?: () => void }).dispose?.()
   return ok

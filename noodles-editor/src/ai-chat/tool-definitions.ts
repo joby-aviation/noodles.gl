@@ -153,7 +153,7 @@ export const toolDefinitions: ToolDefinition[] = [
     // by the identifiers they are bound to — that is how a query like "compute a
     // distance" or "check the shape of the data" reaches it.
     description:
-      "Run JavaScript against the live graph and get the value back. The same sandbox CodeOp uses: op('/node-id').out.data and .par.field read any operator's output or input, and d3, turf, deck, Plot, Temporal, utils and every operator class are in scope, plus sequenceTime, frame, totalFrames and sequence. Use it to compute a statistic, inspect the shape of a dataset, test a transform before committing it to a CodeOp, or check what an accessor would return. Return a value to see it; console.log is captured too. Large results come back as a sample with a length. Runs on the main thread, so no unbounded loops. Use apply_modifications to add or remove nodes — this tool is for computing and reading.",
+      "Run JavaScript against the live document and get the value back. The same sandbox a code node's op() uses: op('node/path').out.data reads a node's rows and .par.name a parameter (assigning one edits the document), and d3, turf, Plot, Temporal and utils are in scope, plus sequenceTime, frame, totalFrames and sequence. Use it to compute a statistic, inspect the shape of a dataset, or test a transform before putting it in a code node or an expression. Return a value to see it; console.log is captured too. Large results come back as a sample with a length. Runs on the main thread, so no unbounded loops. Use apply_modifications to add or remove nodes — this tool is for computing and reading.",
     inputSchema: {
       type: 'object',
       properties: {
