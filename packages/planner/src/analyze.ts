@@ -785,7 +785,7 @@ function pushDownFilters(nodes: CoreNode[], notes: string[]): CoreNode[] {
 }
 
 /** Functions whose arguments are not numbers: they read strings or lists as they are. */
-const TEXT_ARGUMENTS = new Set(['as_text', 'category', 'coalesce', 'hex_byte', 'item', 'to_number']);
+const TEXT_ARGUMENTS = new Set(['as_text', 'category', 'coalesce', 'hex_byte', 'item', 'to_number', 'epoch']);
 
 /**
  * A string column used as a number (`sqrt(exits)`, `pop * 2`) read as one, as JS would: JSON
@@ -843,9 +843,13 @@ function isStringValued(e: Expr, strings: ReadonlySet<string>): boolean {
     case 'str': return true;
     case 'col': return strings.has(e.name);
     case 'cond': return isStringValued(e.then, strings) || isStringValued(e.else, strings);
+    case 'call': return STRING_RESULTS.has(e.fn);
     default: return false;
   }
 }
+
+/** Functions whose result is text. */
+const STRING_RESULTS = new Set(['as_text', 'date_format']);
 
 function paramsOfExpr(e: Expr): string[] {
   const out = new Set<string>();

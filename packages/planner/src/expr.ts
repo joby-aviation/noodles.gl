@@ -75,6 +75,8 @@ export interface FnSpec {
    * a number otherwise), which analysis resolves from the column's type.
    */
   argTypes?: ('number' | 'text' | 'auto')[];
+  /** A call to show and test it with, when its arguments are not all columns (a unit literal). */
+  example?: string;
 }
 
 export const FUNCTIONS: Record<string, FnSpec> = {
@@ -153,6 +155,61 @@ export const FUNCTIONS: Record<string, FnSpec> = {
     width: 1,
   },
 
+  // --- dates, as epoch seconds: the unit timestamps and the timeline already use. SQL only. -----
+  // A timestamp or date column, or ISO text, as epoch seconds
+  epoch: { arity: [1, 1], sql: (a) => `epoch(TRY_CAST(${a[0]} AS TIMESTAMP))`, wgsl: null, width: 1 },
+  // `n` of a unit after `t`: years and months on the calendar, the rest a fixed number of seconds
+  date_add: {
+    example: "date_add(a0, a1, 'days')",
+    arity: [3, 3],
+    sql: (a) => {
+      const unit = dateUnit(a[2]);
+      if (unit === 'years' || unit === 'months') {
+        const months = unit === 'years' ? `CAST(${a[1]} AS INTEGER) * 12` : `CAST(${a[1]} AS INTEGER)`;
+        return `epoch(${timestampOf(a[0])} + to_months(${months}))`;
+      }
+      return `((${a[0]}) + (${a[1]}) * ${SECONDS[unit]})`;
+    },
+    wgsl: null,
+    width: 1,
+  },
+  // `b` less `a` in a unit: fractional for fixed units, whole calendar months or years
+  date_diff: {
+    example: "date_diff(a0, a1, 'hours')",
+    arity: [3, 3],
+    sql: (a) => {
+      const unit = dateUnit(a[2]);
+      if (unit === 'years' || unit === 'months') {
+        return `CAST(datediff('${unit === 'years' ? 'year' : 'month'}', ${timestampOf(a[0])}, ${timestampOf(a[1])}) AS DOUBLE)`;
+      }
+      return `(((${a[1]}) - (${a[0]})) / ${SECONDS[unit]})`;
+    },
+    wgsl: null,
+    width: 1,
+  },
+  // One part of a date: year, month, day, hour, minute, second, millisecond, dayOfWeek (ISO,
+  // Monday is 1), dayOfYear or weekOfYear (ISO)
+  date_part: {
+    example: "date_part(a0, 'month')",
+    arity: [2, 2],
+    sql: (a) => {
+      const part = literalText(a[1]);
+      const fn = DATE_PARTS[part];
+      if (!fn) throw new Error(`date_part: unknown part '${part}'. Parts: ${Object.keys(DATE_PARTS).join(', ')}`);
+      return `CAST(${fn(timestampOf(a[0]))} AS DOUBLE)`;
+    },
+    wgsl: null,
+    width: 1,
+  },
+  // A date as text, by a pattern of YYYY, MM, DD, HH, mm, ss and SSS; empty is ISO 8601
+  date_format: {
+    example: "date_format(a0, 'YYYY-MM-DD')",
+    arity: [2, 2],
+    sql: (a) => `strftime(${timestampOf(a[0])}, '${strftimePattern(literalText(a[1]))}')`,
+    wgsl: null,
+    width: 1,
+  },
+
   // `clamp` exists in both but DuckDB has no 3-arg clamp, so spell it out.
   clamp: {
     arity: [3, 3],
@@ -196,6 +253,48 @@ export const FUNCTIONS: Record<string, FnSpec> = {
   quantile: { arity: [2, 2], sql: (a) => `quantile_cont(${a[0]}, ${a[1]})`, wgsl: null, width: 1, aggregate: true },
   stddev:   { arity: [1, 1], sql: 'stddev',   wgsl: null, width: 1, aggregate: true },
 };
+
+// --- dates -----------------------------------------------------------------------------------
+
+/** Epoch seconds as a DuckDB TIMESTAMP, to the microsecond, with no time zone. */
+const timestampOf = (t: string) => `make_timestamp(CAST(round((${t}) * 1000000) AS BIGINT))`;
+
+/** A string literal's text, as a date function's unit or pattern argument must be. */
+function literalText(sql: string): string {
+  const m = /^'((?:[^']|'')*)'$/.exec(sql.trim());
+  if (!m) throw new Error('a date unit, part or pattern must be a quoted string, as in \'days\'');
+  return m[1].replace(/''/g, "'");
+}
+
+const SECONDS: Record<string, number> = {
+  weeks: 604800, days: 86400, hours: 3600, minutes: 60, seconds: 1, milliseconds: 0.001,
+};
+
+function dateUnit(sql: string): string {
+  const unit = literalText(sql);
+  if (unit !== 'years' && unit !== 'months' && !(unit in SECONDS)) {
+    throw new Error(`unknown date unit '${unit}'. Units: years, months, ${Object.keys(SECONDS).join(', ')}`);
+  }
+  return unit;
+}
+
+const DATE_PARTS: Record<string, (ts: string) => string> = {
+  year: (ts) => `year(${ts})`, month: (ts) => `month(${ts})`, day: (ts) => `day(${ts})`,
+  hour: (ts) => `hour(${ts})`, minute: (ts) => `minute(${ts})`, second: (ts) => `second(${ts})`,
+  millisecond: (ts) => `(millisecond(${ts}) % 1000)`, dayOfWeek: (ts) => `isodow(${ts})`,
+  dayOfYear: (ts) => `dayofyear(${ts})`, weekOfYear: (ts) => `weekofyear(${ts})`,
+};
+
+/** Noodles' date pattern tokens as strftime's. */
+function strftimePattern(pattern: string): string {
+  if (!pattern) return '%Y-%m-%dT%H:%M:%S';
+  const tokens: Record<string, string> = { YYYY: '%Y', MM: '%m', DD: '%d', HH: '%H', mm: '%M', ss: '%S', SSS: '%g' };
+  return pattern
+    .split(/(YYYY|MM|DD|HH|mm|ss|SSS)/)
+    .map((part) => tokens[part] ?? part.replace(/%/g, '%%'))
+    .join('')
+    .replace(/'/g, "''");
+}
 
 /** Operators that SQL spells differently from WGSL. */
 const SQL_BINARY: Partial<Record<BinaryOp, string>> = {

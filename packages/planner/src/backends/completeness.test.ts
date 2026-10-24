@@ -17,6 +17,7 @@ const ENTRIES = Object.entries(FUNCTIONS) as [string, FnSpec][];
 
 /** A call to `name` with the right arity, using distinct scalar columns as arguments. */
 function callOf(name: string, spec: FnSpec): string {
+  if (spec.example) return spec.example;
   const [lo] = spec.arity;
   const args = Array.from({ length: lo }, (_, i) => `a${i}`);
   return `${name}(${args.join(', ')})`;
