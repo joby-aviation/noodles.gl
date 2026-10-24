@@ -123,12 +123,11 @@ export class DirectoryHandleCache {
       const cached = await this.getCachedHandle(projectName)
       if (!cached) return false
 
+      // Keep the handle when access isn't granted: after a browser restart the permission
+      // is back to 'prompt' and a click can grant it again. Forgetting the handle here
+      // would drop the project from Recent projects.
       const hasPermission = await requestPermission(cached.handle, 'readwrite')
-      if (!hasPermission) {
-        // Permission denied, remove invalid cache
-        await this.removeHandle(projectName)
-        return false
-      }
+      if (!hasPermission) return false
 
       // Handle is valid, update last validated timestamp
       await this.cacheHandle(projectName, cached.handle, cached.path)
