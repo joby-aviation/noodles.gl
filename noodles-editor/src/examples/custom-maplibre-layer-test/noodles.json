@@ -1,123 +1,61 @@
 {
-  "version": 19,
-  "edges": [
-    {
-      "id": "/maplibre-basemap.maplibre->/deck-renderer.basemap",
-      "source": "/maplibre-basemap",
-      "target": "/deck-renderer",
-      "sourceHandle": "out.maplibre",
-      "targetHandle": "par.basemap"
-    },
-    {
-      "id": "/test-layer.layer->/deck-renderer.maplibreLayers",
-      "source": "/test-layer",
-      "target": "/deck-renderer",
-      "sourceHandle": "out.layer",
-      "targetHandle": "par.maplibreLayers"
-    },
-    {
-      "id": "/deck-renderer.vis->/out.vis",
-      "source": "/deck-renderer",
-      "target": "/out",
-      "sourceHandle": "out.vis",
-      "targetHandle": "par.vis"
-    }
-  ],
-  "viewport": {
-    "x": 0,
-    "y": 0,
-    "zoom": 1
-  },
-  "editorSettings": {
-    "layoutMode": "noodles-on-top",
-    "showOverlay": true
-  },
+  "version": 1,
+  "name": "custom-maplibre-layer-test",
   "nodes": [
     {
-      "id": "/maplibre-basemap",
-      "type": "MaplibreBasemapOp",
-      "position": {
-        "x": 100,
-        "y": 100
-      },
-      "data": {
-        "inputs": {
-          "mapStyle": "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json",
-          "projection": "mercator",
-          "viewState": {
-            "latitude": 40.7128,
-            "longitude": -74.006,
-            "zoom": 13,
-            "pitch": 45,
-            "bearing": 0
-          }
-        }
+      "id": "deck-renderer",
+      "op": "deck",
+      "name": "deck-renderer",
+      "x": 400,
+      "y": 200,
+      "params": {
+        "mapStyle": "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json",
+        "projection": "mercator",
+        "longitude": -74.006,
+        "latitude": 40.7128,
+        "zoom": 13,
+        "pitch": 45,
+        "bearing": 0,
+        "display": "fixed",
+        "width": 1920,
+        "height": 1080,
+        "lod": 2,
+        "scaleMode": "fit",
+        "waitForData": true,
+        "codec": "avc",
+        "bitrateMbps": 10,
+        "bitrateMode": "constant",
+        "scaleControl": 0.3,
+        "framerate": 30,
+        "captureDelay": 50,
+        "rendersDirectory": "renders"
       }
     },
     {
-      "id": "/test-layer",
-      "type": "CustomMapLibreLayerOp",
-      "position": {
-        "x": 100,
-        "y": 300
-      },
-      "data": {
-        "inputs": {
-          "id": "test-custom-layer",
-          "renderingMode": "3d",
-          "code": "{\n  onAdd: function(map, gl) {\n    console.log('Custom layer added:', params);\n    this.map = map;\n    this.gl = gl;\n  },\n  render: function(gl, matrix) {\n    // Simple render - just log once\n    if (!this.hasLogged) {\n      console.log('Custom layer rendering');\n      this.hasLogged = true;\n    }\n  },\n  onRemove: function(map, gl) {\n    console.log('Custom layer removed');\n  }\n}",
-          "params": {
-            "color": "#ff0000",
-            "opacity": 0.5
-          }
-        }
-      }
-    },
-    {
-      "id": "/deck-renderer",
-      "type": "DeckRendererOp",
-      "position": {
-        "x": 400,
-        "y": 200
-      },
-      "data": {
-        "inputs": {
-          "layers": [],
-          "views": []
-        }
-      }
-    },
-    {
-      "id": "/out",
-      "type": "OutOp",
-      "position": {
-        "x": 700,
-        "y": 200
-      },
-      "data": {
-        "inputs": {
-          "display": "fixed",
-          "width": 1920,
-          "height": 1080,
-          "lod": 2,
-          "waitForData": true,
-          "codec": "avc",
-          "bitrateMbps": 10,
-          "bitrateMode": "constant",
-          "scaleControl": 0.3,
-          "framerate": 30,
-          "captureDelay": 50
+      "id": "test-layer",
+      "op": "CustomMapLibreLayerOp",
+      "name": "test-layer",
+      "x": 100,
+      "y": 300,
+      "params": {
+        "id": "test-custom-layer",
+        "renderingMode": "3d",
+        "code": "{\n  onAdd: function(map, gl) {\n    console.log('Custom layer added:', params);\n    this.map = map;\n    this.gl = gl;\n  },\n  render: function(gl, matrix) {\n    // Simple render - just log once\n    if (!this.hasLogged) {\n      console.log('Custom layer rendering');\n      this.hasLogged = true;\n    }\n  },\n  onRemove: function(map, gl) {\n    console.log('Custom layer removed');\n  }\n}",
+        "params": {
+          "color": "#ff0000",
+          "opacity": 0.5
         }
       }
     }
   ],
-  "timeline": {
-    "sheetsById": {
-      "Noodles": {
-        "staticOverrides": {
-          "byObject": {}
-        }
-      }
+  "edges": [
+    {
+      "id": "test-layer.layer->deck-renderer.maplibreLayers",
+      "source": "test-layer",
+      "sourcePort": "layer",
+      "target": "deck-renderer",
+      "targetPort": "maplibreLayers",
+      "index": 0
     }
-  }
+  ]
 }

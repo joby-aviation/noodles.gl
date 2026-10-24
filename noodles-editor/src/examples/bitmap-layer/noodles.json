@@ -1,155 +1,65 @@
 {
-  "version": 19,
+  "version": 1,
   "name": "BitmapLayer — San Francisco Districts",
-  "edges": [
-    {
-      "id": "/bitmap-layer.out.layer->/deck.par.layers",
-      "source": "/bitmap-layer",
-      "target": "/deck",
-      "sourceHandle": "out.layer",
-      "targetHandle": "par.layers"
-    },
-    {
-      "id": "/maplibre-basemap.out.maplibre->/deck.par.basemap",
-      "source": "/maplibre-basemap",
-      "target": "/deck",
-      "sourceHandle": "out.maplibre",
-      "targetHandle": "par.basemap"
-    },
-    {
-      "id": "/deck.out.vis->/out.par.vis",
-      "source": "/deck",
-      "target": "/out",
-      "sourceHandle": "out.vis",
-      "targetHandle": "par.vis"
-    }
-  ],
   "nodes": [
     {
-      "id": "/bitmap-layer",
-      "type": "BitmapLayerOp",
-      "position": {
-        "x": -460,
-        "y": -140
-      },
-      "data": {
-        "inputs": {
-          "image": "@/sf-districts.png",
-          "bounds": {
-            "southwest": {
-              "lng": -122.519,
-              "lat": 37.7045
-            },
-            "northeast": {
-              "lng": -122.355,
-              "lat": 37.829
-            }
+      "id": "deck",
+      "op": "deck",
+      "name": "deck",
+      "x": -60,
+      "y": 0,
+      "params": {
+        "mapStyle": "https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json",
+        "projection": "mercator",
+        "longitude": -122.4,
+        "latitude": 37.74,
+        "zoom": 11,
+        "pitch": 0,
+        "bearing": 0,
+        "display": "fixed",
+        "width": 1280,
+        "height": 720,
+        "lod": 1,
+        "scaleMode": "fit",
+        "waitForData": true,
+        "codec": "avc",
+        "bitrateMbps": 10,
+        "bitrateMode": "constant",
+        "scaleControl": 0.6,
+        "framerate": 30,
+        "captureDelay": 50,
+        "rendersDirectory": "renders"
+      }
+    },
+    {
+      "id": "bitmap-layer",
+      "op": "bitmap",
+      "name": "bitmap-layer",
+      "x": -460,
+      "y": -140,
+      "params": {
+        "image": "@/sf-districts.png",
+        "bounds": {
+          "southwest": {
+            "lng": -122.519,
+            "lat": 37.7045
+          },
+          "northeast": {
+            "lng": -122.355,
+            "lat": 37.829
           }
-        },
-        "locked": false
-      }
-    },
-    {
-      "id": "/maplibre-basemap",
-      "type": "MaplibreBasemapOp",
-      "position": {
-        "x": -460,
-        "y": 180
-      },
-      "data": {
-        "inputs": {
-          "mapStyle": "https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json",
-          "viewState": {
-            "latitude": 37.74,
-            "longitude": -122.4,
-            "zoom": 11,
-            "pitch": 0,
-            "bearing": 0
-          }
-        },
-        "locked": false
-      }
-    },
-    {
-      "id": "/deck",
-      "type": "DeckRendererOp",
-      "position": {
-        "x": -60,
-        "y": 0
-      },
-      "data": {
-        "inputs": {},
-        "locked": false
-      }
-    },
-    {
-      "id": "/out",
-      "type": "OutOp",
-      "position": {
-        "x": 320,
-        "y": 0
-      },
-      "data": {
-        "inputs": {
-          "display": "fixed",
-          "width": 1280,
-          "height": 720,
-          "lod": 1,
-          "waitForData": true,
-          "scaleControl": 0.6
-        },
-        "locked": false
-      }
-    },
-    {
-      "id": "/image-note",
-      "type": "CommentOp",
-      "position": {
-        "x": -460,
-        "y": -260
-      },
-      "data": {
-        "inputs": {
-          "text": "This places a picture of San Francisco's districts on the map. Click it and lower opacity to see the streets below."
-        },
-        "locked": false
-      },
-      "width": 331,
-      "height": 90
-    },
-    {
-      "id": "/try-next-note",
-      "type": "CommentOp",
-      "position": {
-        "x": -60,
-        "y": 180
-      },
-      "data": {
-        "inputs": {
-          "text": "Try next:\n- Click bitmap-layer and change desaturate to fade the colors.\n- Click the diamond next to opacity, pick a later time in the Timeline, and change it again.\n- Press Export and pick Video (MP4) to save the fade."
-        },
-        "locked": false
-      },
-      "width": 340,
-      "height": 170
-    }
-  ],
-  "viewport": {
-    "x": 620,
-    "y": 360,
-    "zoom": 0.8
-  },
-  "editorSettings": {
-    "layoutMode": "noodles-on-top",
-    "showOverlay": true
-  },
-  "timeline": {
-    "sheetsById": {
-      "Noodles": {
-        "staticOverrides": {
-          "byObject": {}
         }
       }
     }
-  }
+  ],
+  "edges": [
+    {
+      "id": "bitmap-layer.layer->deck.layers",
+      "source": "bitmap-layer",
+      "sourcePort": "layer",
+      "target": "deck",
+      "targetPort": "layers",
+      "index": 0
+    }
+  ]
 }

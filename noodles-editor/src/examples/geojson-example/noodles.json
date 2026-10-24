@@ -1,198 +1,149 @@
 {
-  "edges": [
-    {
-      "id": "/deck.out.vis->/out.par.vis",
-      "source": "/deck",
-      "target": "/out",
-      "sourceHandle": "out.vis",
-      "targetHandle": "par.vis"
-    },
-    {
-      "id": "/data-source.out.data->/geojson-layer.par.data",
-      "source": "/data-source",
-      "target": "/geojson-layer",
-      "sourceHandle": "out.data",
-      "targetHandle": "par.data"
-    },
-    {
-      "id": "/fill-color.out.color->/geojson-layer.par.getFillColor",
-      "source": "/fill-color",
-      "target": "/geojson-layer",
-      "sourceHandle": "out.color",
-      "targetHandle": "par.getFillColor"
-    },
-    {
-      "id": "/line-color-accessor.out.accessor->/geojson-layer.par.getLineColor",
-      "source": "/line-color-accessor",
-      "target": "/geojson-layer",
-      "sourceHandle": "out.accessor",
-      "targetHandle": "par.getLineColor"
-    },
-    {
-      "id": "/text-accessor.out.accessor->/geojson-layer.par.getText",
-      "source": "/text-accessor",
-      "target": "/geojson-layer",
-      "sourceHandle": "out.accessor",
-      "targetHandle": "par.getText"
-    },
-    {
-      "id": "/geojson-layer.out.layer->/deck.par.layers",
-      "source": "/geojson-layer",
-      "target": "/deck",
-      "sourceHandle": "out.layer",
-      "targetHandle": "par.layers"
-    },
-    {
-      "source": "/maplibre-basemap",
-      "sourceHandle": "out.maplibre",
-      "target": "/deck",
-      "targetHandle": "par.basemap",
-      "id": "/maplibre-basemap.out.maplibre->/deck.par.basemap"
-    }
-  ],
-  "viewport": {
-    "x": 545.8912906768109,
-    "y": 46.884631018890104,
-    "zoom": 0.5895523675768745
-  },
-  "version": 19,
+  "version": 1,
   "name": "GeoJSON BART Stations",
-  "editorSettings": {
-    "layoutMode": "noodles-on-top",
-    "showOverlay": true
-  },
   "nodes": [
     {
-      "id": "/deck",
-      "type": "DeckRendererOp",
-      "data": {
-        "inputs": {},
-        "locked": false
-      },
-      "position": {
-        "x": 400,
-        "y": 0
+      "id": "deck",
+      "op": "deck",
+      "name": "deck",
+      "x": 400,
+      "y": 0,
+      "params": {
+        "mapStyle": "https://basemaps.cartocdn.com/gl/positron-gl-style/style.json",
+        "projection": "mercator",
+        "longitude": -122.169,
+        "latitude": 37.74,
+        "zoom": 11,
+        "pitch": 34,
+        "bearing": 0,
+        "display": "fixed",
+        "width": 1920,
+        "height": 1080,
+        "lod": 2,
+        "scaleMode": "fit",
+        "waitForData": true,
+        "codec": "avc",
+        "bitrateMbps": 10,
+        "bitrateMode": "constant",
+        "scaleControl": 0.3,
+        "framerate": 30,
+        "captureDelay": 50,
+        "rendersDirectory": "renders"
       }
     },
     {
-      "id": "/out",
-      "type": "OutOp",
-      "data": {
-        "inputs": {
-          "display": "fixed",
-          "width": 1920,
-          "height": 1080,
-          "lod": 2,
-          "waitForData": true,
-          "codec": "avc",
-          "bitrateMbps": 10,
-          "bitrateMode": "constant",
-          "scaleControl": 0.3,
-          "framerate": 30,
-          "captureDelay": 50
-        },
-        "locked": false
-      },
-      "position": {
-        "x": 696,
-        "y": 0
+      "id": "data-source",
+      "op": "geojson",
+      "name": "data-source",
+      "x": -395.9478357380689,
+      "y": -300.04661487236405,
+      "params": {
+        "url": "https://raw.githubusercontent.com/visgl/deck.gl-data/master/website/bart.geo.json"
       }
     },
     {
-      "id": "/data-source",
-      "type": "FileOp",
-      "data": {
-        "inputs": {
-          "url": "https://raw.githubusercontent.com/visgl/deck.gl-data/master/website/bart.geo.json"
-        },
-        "locked": false
-      },
-      "position": {
-        "x": -395.9478357380689,
-        "y": -300.04661487236405
+      "id": "fill-color",
+      "op": "color",
+      "name": "fill-color",
+      "x": -400,
+      "y": 17.466148723640398,
+      "params": {
+        "color": [
+          1,
+          1,
+          126
+        ]
       }
     },
     {
-      "id": "/geojson-layer",
-      "type": "GeoJsonLayerOp",
-      "data": {
-        "inputs": {
-          "pointType": "circle+text",
-          "getPointRadius": 4,
-          "stroked": false,
-          "getLineWidth": 100,
-          "lineWidthMinPixels": 4,
-          "extruded": true,
-          "getElevation": 30
+      "id": "geojson-layer",
+      "op": "polygon",
+      "name": "geojson-layer",
+      "x": 44,
+      "y": -300,
+      "params": {
+        "opacity": 1,
+        "blend": "normal",
+        "position": "geom",
+        "color": "",
+        "fillColor": {
+          "ref": "fill-color/color"
         },
-        "locked": false
-      },
-      "position": {
-        "x": 0,
-        "y": -300
+        "lineColorChannel": "line_color",
+        "filled": true,
+        "stroked": false,
+        "lineWidthScale": 100,
+        "lineWidthUnits": "meters",
+        "lineWidthMinPixels": 4,
+        "extruded": true,
+        "elevation": "",
+        "elevationScale": 30
       }
     },
     {
-      "id": "/fill-color",
-      "type": "ColorOp",
-      "data": {
-        "inputs": {
-          "color": "#01017e"
-        },
-        "locked": false
-      },
-      "position": {
-        "x": -400,
-        "y": 17.466148723640398
+      "id": "geojson-layer-lines",
+      "op": "path",
+      "name": "geojson-layer-lines",
+      "x": 44,
+      "y": -140,
+      "params": {
+        "opacity": 1,
+        "blend": "normal",
+        "position": "geom",
+        "color": "line_color",
+        "widthScale": 100,
+        "widthUnits": "meters",
+        "widthMinPixels": 4
       }
     },
     {
-      "id": "/line-color-accessor",
-      "type": "AccessorOp",
-      "data": {
-        "inputs": {
-          "expression": "d.properties.color || '#000'"
+      "id": "geojson-layer-points",
+      "op": "scatter",
+      "name": "geojson-layer-points",
+      "x": 44,
+      "y": 20,
+      "params": {
+        "opacity": 1,
+        "blend": "normal",
+        "position": "geom",
+        "color": "",
+        "fillColor": {
+          "ref": "fill-color/color"
         },
-        "locked": false
-      },
-      "position": {
-        "x": -400,
-        "y": 122.86903440621529
+        "radius": "",
+        "radiusScale": 4,
+        "radiusUnits": "meters"
       }
     },
     {
-      "id": "/text-accessor",
-      "type": "AccessorOp",
-      "data": {
-        "inputs": {
-          "expression": "d.properties.name"
-        },
-        "locked": false
-      },
-      "position": {
-        "x": -397.2985571587125,
-        "y": -85.09544950055495
+      "id": "geojson-layer-labels",
+      "op": "text",
+      "name": "geojson-layer-labels",
+      "x": 44,
+      "y": 100,
+      "params": {
+        "opacity": 1,
+        "blend": "normal",
+        "position": "geom",
+        "text": "name",
+        "size": 32,
+        "textColor": [
+          0,
+          0,
+          0
+        ],
+        "offsetY": 0
       }
     },
     {
-      "type": "MaplibreBasemapOp",
-      "id": "/maplibre-basemap",
-      "position": {
-        "x": -1.3507214206437084,
-        "y": 546.3063263041065
-      },
-      "data": {
-        "inputs": {
-          "mapStyle": "https://basemaps.cartocdn.com/gl/positron-gl-style/style.json",
-          "viewState": {
-            "latitude": 37.74,
-            "longitude": -122.169,
-            "zoom": 11,
-            "pitch": 34,
-            "bearing": 0
-          }
-        },
-        "locked": false
+      "id": "line-color",
+      "op": "attribute",
+      "name": "line-color",
+      "x": -176,
+      "y": -300.04661487236405,
+      "params": {
+        "name": "line_color",
+        "expression": "hex_color(coalesce(color, '#000'))"
       }
     },
     {
@@ -260,22 +211,73 @@
       "height": 150
     }
   ],
-  "timeline": {
-    "sheetsById": {
-      "Noodles": {
-        "staticOverrides": {
-          "byObject": {}
-        }
-      }
+  "edges": [
+    {
+      "id": "geojson-layer.out->deck.layers",
+      "source": "geojson-layer",
+      "sourcePort": "out",
+      "target": "deck",
+      "targetPort": "layers",
+      "index": 0
     },
-    "definitionVersion": "0.4.0",
-    "revisionHistory": [
-      "9BkDRYWmSFG43ctt",
-      "2fowPmUFZuTc-Tpb",
-      "gu9E8g8-RbexkhTI",
-      "EeNr7wIUZGeY0pqE",
-      "-AcuXX9WdPaXNlc4",
-      "hPcEOr80dLTuA80M"
-    ]
-  }
+    {
+      "id": "geojson-layer-lines.out->deck.layers.1",
+      "source": "geojson-layer-lines",
+      "sourcePort": "out",
+      "target": "deck",
+      "targetPort": "layers",
+      "index": 1
+    },
+    {
+      "id": "geojson-layer-points.out->deck.layers.2",
+      "source": "geojson-layer-points",
+      "sourcePort": "out",
+      "target": "deck",
+      "targetPort": "layers",
+      "index": 2
+    },
+    {
+      "id": "geojson-layer-labels.out->deck.layers.3",
+      "source": "geojson-layer-labels",
+      "sourcePort": "out",
+      "target": "deck",
+      "targetPort": "layers",
+      "index": 3
+    },
+    {
+      "id": "data-source.features->line-color.in",
+      "source": "data-source",
+      "sourcePort": "features",
+      "target": "line-color",
+      "targetPort": "in"
+    },
+    {
+      "id": "line-color.out->geojson-layer.in",
+      "source": "line-color",
+      "sourcePort": "out",
+      "target": "geojson-layer",
+      "targetPort": "in"
+    },
+    {
+      "id": "line-color.out->geojson-layer-lines.in",
+      "source": "line-color",
+      "sourcePort": "out",
+      "target": "geojson-layer-lines",
+      "targetPort": "in"
+    },
+    {
+      "id": "line-color.out->geojson-layer-points.in",
+      "source": "line-color",
+      "sourcePort": "out",
+      "target": "geojson-layer-points",
+      "targetPort": "in"
+    },
+    {
+      "id": "line-color.out->geojson-layer-labels.in",
+      "source": "line-color",
+      "sourcePort": "out",
+      "target": "geojson-layer-labels",
+      "targetPort": "in"
+    }
+  ]
 }

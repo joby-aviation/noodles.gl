@@ -1,167 +1,119 @@
 {
-  "version": 19,
+  "version": 1,
   "name": "US State Population",
-  "editorSettings": {
-    "layoutMode": "noodles-on-top",
-    "showOverlay": true
-  },
   "nodes": [
     {
-      "id": "/state-data",
-      "type": "FileOp",
-      "data": {
-        "inputs": {
-          "url": "@/data.csv",
-          "format": "csv"
-        },
-        "locked": false
-      },
-      "position": {
-        "x": -1000,
-        "y": 0
+      "id": "deck",
+      "op": "deck",
+      "name": "deck",
+      "x": 1000,
+      "y": 0,
+      "params": {
+        "mapStyle": "https://basemaps.cartocdn.com/gl/positron-nolabels-gl-style/style.json",
+        "projection": "mercator",
+        "longitude": -96,
+        "latitude": 38,
+        "zoom": 4.5,
+        "pitch": 0,
+        "bearing": 0,
+        "display": "fixed",
+        "width": 1920,
+        "height": 1080,
+        "lod": 2,
+        "scaleMode": "fit",
+        "waitForData": true,
+        "codec": "avc",
+        "bitrateMbps": 10,
+        "bitrateMode": "constant",
+        "scaleControl": 0.3,
+        "framerate": 30,
+        "captureDelay": 50,
+        "rendersDirectory": "renders"
       }
     },
     {
-      "id": "/population-choropleth",
-      "type": "ChoroplethLayerOp",
-      "data": {
-        "inputs": {
-          "geography": "us-states",
-          "joinKey": "state",
-          "geoKey": "abbrev",
-          "valueColumn": "population",
-          "colorScheme": "blues",
-          "opacity": 0.85,
-          "getLineColor": "#ffffff"
-        },
-        "locked": false
-      },
-      "position": {
-        "x": -500,
-        "y": -600
+      "id": "state-data",
+      "op": "file",
+      "name": "state-data",
+      "x": -1000,
+      "y": 0,
+      "params": {
+        "url": "@/data.csv",
+        "format": "csv"
       }
     },
     {
-      "id": "/state-join",
-      "type": "ChoroplethJoinOp",
-      "data": {
-        "inputs": {
-          "geography": "us-states",
-          "joinKey": "state",
-          "geoKey": "abbrev"
-        },
-        "locked": false
-      },
-      "position": {
-        "x": -500,
-        "y": 200
+      "id": "population-choropleth",
+      "op": "choropleth",
+      "name": "population-choropleth",
+      "x": -500,
+      "y": -600,
+      "params": {
+        "opacity": 0.85,
+        "geography": "us-states",
+        "joinKey": "state",
+        "geoKey": "abbrev",
+        "valueColumn": "population",
+        "colorScheme": "blues",
+        "stroked": true,
+        "lineColor": [
+          255,
+          255,
+          255
+        ],
+        "lineWidth": 1
       }
     },
     {
-      "id": "/state-centroids",
-      "type": "CodeOp",
-      "data": {
-        "inputs": {
-          "code": [
-            "// One label point per state, keeping the joined properties",
-            "return {",
-            "  type: 'FeatureCollection',",
-            "  features: d.features.map(f => turf.centroid(f, { properties: f.properties })),",
-            "}"
-          ]
-        },
-        "locked": false
-      },
-      "position": {
-        "x": 0,
-        "y": 200
+      "id": "state-join",
+      "op": "choropleth-join",
+      "name": "state-join",
+      "x": -500,
+      "y": 200,
+      "params": {
+        "geography": "us-states",
+        "joinKey": "state",
+        "geoKey": "abbrev"
       }
     },
     {
-      "id": "/label-text",
-      "type": "AccessorOp",
-      "data": {
-        "inputs": {
-          "expression": "`${d.properties.state} ${(d.properties.population / 1e6).toFixed(1)}M`"
-        },
-        "locked": false
-      },
-      "position": {
-        "x": 0,
-        "y": 650
+      "id": "state-centroids",
+      "op": "code",
+      "name": "state-centroids",
+      "x": 0,
+      "y": 200,
+      "params": {
+        "code": "// One label point per state, keeping the joined properties\nreturn {\n  type: 'FeatureCollection',\n  features: d.features.map(f => turf.centroid(f, { properties: f.properties })),\n}"
       }
     },
     {
-      "id": "/labels",
-      "type": "GeoJsonLayerOp",
-      "data": {
-        "inputs": {
-          "pointType": "text",
-          "getTextSize": 16,
-          "getTextColor": "#1a1a1a"
-        },
-        "locked": false
-      },
-      "position": {
-        "x": 500,
-        "y": 200
+      "id": "labels",
+      "op": "text",
+      "name": "labels",
+      "x": 500,
+      "y": 600,
+      "params": {
+        "opacity": 1,
+        "blend": "normal",
+        "position": "geom",
+        "text": "label",
+        "size": 16,
+        "textColor": [
+          26,
+          26,
+          26
+        ],
+        "offsetY": 0
       }
     },
     {
-      "id": "/maplibre-basemap",
-      "type": "MaplibreBasemapOp",
-      "data": {
-        "inputs": {
-          "mapStyle": "https://basemaps.cartocdn.com/gl/positron-nolabels-gl-style/style.json",
-          "viewState": {
-            "latitude": 38,
-            "longitude": -96,
-            "zoom": 4.5,
-            "pitch": 0,
-            "bearing": 0
-          }
-        },
-        "locked": false
-      },
-      "position": {
-        "x": 500,
-        "y": -600
-      }
-    },
-    {
-      "id": "/deck",
-      "type": "DeckRendererOp",
-      "data": {
-        "inputs": {},
-        "locked": false
-      },
-      "position": {
-        "x": 1000,
-        "y": 0
-      }
-    },
-    {
-      "id": "/out",
-      "type": "OutOp",
-      "data": {
-        "inputs": {
-          "display": "fixed",
-          "width": 1920,
-          "height": 1080,
-          "lod": 2,
-          "waitForData": true,
-          "codec": "avc",
-          "bitrateMbps": 10,
-          "bitrateMode": "constant",
-          "scaleControl": 0.3,
-          "framerate": 30,
-          "captureDelay": 50
-        },
-        "locked": false
-      },
-      "position": {
-        "x": 1400,
-        "y": 0
+      "id": "label-text",
+      "op": "sql",
+      "name": "label-text",
+      "x": 260,
+      "y": 200,
+      "params": {
+        "query": "SELECT *, state || ' ' || printf('%.1f', population / 1e6) || 'M' AS label FROM {{input0}}"
       }
     },
     {
@@ -231,83 +183,55 @@
   ],
   "edges": [
     {
-      "id": "/state-data.out.data->/population-choropleth.par.data",
-      "source": "/state-data",
-      "target": "/population-choropleth",
-      "sourceHandle": "out.data",
-      "targetHandle": "par.data"
+      "id": "state-data.out->population-choropleth.in",
+      "source": "state-data",
+      "sourcePort": "out",
+      "target": "population-choropleth",
+      "targetPort": "in"
     },
     {
-      "id": "/state-data.out.data->/state-join.par.data",
-      "source": "/state-data",
-      "target": "/state-join",
-      "sourceHandle": "out.data",
-      "targetHandle": "par.data"
+      "id": "state-data.out->state-join.in",
+      "source": "state-data",
+      "sourcePort": "out",
+      "target": "state-join",
+      "targetPort": "in"
     },
     {
-      "id": "/state-join.out.features->/state-centroids.par.data",
-      "source": "/state-join",
-      "target": "/state-centroids",
-      "sourceHandle": "out.features",
-      "targetHandle": "par.data"
+      "id": "state-join.out->state-centroids.in",
+      "source": "state-join",
+      "sourcePort": "out",
+      "target": "state-centroids",
+      "targetPort": "in"
     },
     {
-      "id": "/state-centroids.out.data->/labels.par.data",
-      "source": "/state-centroids",
-      "target": "/labels",
-      "sourceHandle": "out.data",
-      "targetHandle": "par.data"
+      "id": "state-centroids.out->label-text.in0",
+      "source": "state-centroids",
+      "sourcePort": "out",
+      "target": "label-text",
+      "targetPort": "in0"
     },
     {
-      "id": "/label-text.out.accessor->/labels.par.getText",
-      "source": "/label-text",
-      "target": "/labels",
-      "sourceHandle": "out.accessor",
-      "targetHandle": "par.getText"
+      "id": "label-text.out->labels.in",
+      "source": "label-text",
+      "sourcePort": "out",
+      "target": "labels",
+      "targetPort": "in"
     },
     {
-      "id": "/population-choropleth.out.layer->/deck.par.layers",
-      "source": "/population-choropleth",
-      "target": "/deck",
-      "sourceHandle": "out.layer",
-      "targetHandle": "par.layers"
+      "id": "population-choropleth.out->deck.layers.0",
+      "source": "population-choropleth",
+      "sourcePort": "out",
+      "target": "deck",
+      "targetPort": "layers",
+      "index": 0
     },
     {
-      "id": "/labels.out.layer->/deck.par.layers",
-      "source": "/labels",
-      "target": "/deck",
-      "sourceHandle": "out.layer",
-      "targetHandle": "par.layers"
-    },
-    {
-      "id": "/maplibre-basemap.out.maplibre->/deck.par.basemap",
-      "source": "/maplibre-basemap",
-      "target": "/deck",
-      "sourceHandle": "out.maplibre",
-      "targetHandle": "par.basemap"
-    },
-    {
-      "id": "/deck.out.vis->/out.par.vis",
-      "source": "/deck",
-      "target": "/out",
-      "sourceHandle": "out.vis",
-      "targetHandle": "par.vis"
+      "id": "labels.out->deck.layers.1",
+      "source": "labels",
+      "sourcePort": "out",
+      "target": "deck",
+      "targetPort": "layers",
+      "index": 1
     }
-  ],
-  "viewport": {
-    "x": 560,
-    "y": 420,
-    "zoom": 0.35
-  },
-  "timeline": {
-    "sheetsById": {
-      "Noodles": {
-        "staticOverrides": {
-          "byObject": {}
-        }
-      }
-    },
-    "definitionVersion": "0.4.0",
-    "revisionHistory": []
-  }
+  ]
 }

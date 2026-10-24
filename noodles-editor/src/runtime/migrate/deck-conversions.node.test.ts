@@ -16,7 +16,9 @@ import {
 beforeAll(() => registerDeckOperators())
 
 const example = (name: string) =>
-  JSON.parse(readFileSync(resolve(`src/examples/${name}/noodles.json`), 'utf8')) as NoodlesProject
+  JSON.parse(
+    readFileSync(resolve(`src/runtime/migrate/__fixtures__/${name}.json`), 'utf8')
+  ) as NoodlesProject
 const op = (id: string, type: string, inputs: Record<string, unknown> = {}): NoodlesNode => ({
   id,
   type,
