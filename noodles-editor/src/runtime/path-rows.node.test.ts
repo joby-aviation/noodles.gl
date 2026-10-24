@@ -77,7 +77,9 @@ describe('path rows', () => {
     expect(position.width).toBe(3)
     // A missing altitude is the ground
     expect([...position.data]).toEqual([0, 0, 0, 1, 1, 100, 2, 0, 0, 5, 5, 0, 6, 6, 0])
-    expect([...data.attributes.get('ts')!.data]).toEqual([10, 20, 30, 1, 2])
+    // Times are offsets from the earliest, which moves deck's clock by the same
+    expect(data.timeOrigin).toBe(1)
+    expect([...data.attributes.get('ts')!.data]).toEqual([9, 19, 29, 0, 1])
     // A per-row color repeats along its path
     const reds = data.attributes.values().find(a => a.width >= 3 && a !== position)!
     expect(Array.from({ length: 5 }, (_, i) => reds.data[i * reds.width])).toEqual([
@@ -244,5 +246,34 @@ describe('path rows', () => {
     expect([...own.rowOf]).toEqual([...wkb.rowOf])
     expect([...own.position.data]).toEqual([...wkb.position.data])
     expect(own.rowOf.length).toBe(5)
+  })
+
+  it('keeps epoch timestamps exact: f32 offsets from an origin, in both trips forms', async () => {
+    const t0 = 1_567_555_200
+    // Path rows: a list of times per trip
+    const paths = await draw(
+      doc(
+        `SELECT [[0, 0], [1, 1], [2, 2]]::DOUBLE[2][] AS path, [${t0}, ${t0 + 1.5}, ${t0 + 61.25}]::DOUBLE[] AS ts`,
+        { id: 'trips', op: 'trips', x: 0, y: 0, params: { position: 'path', timestamp: 'ts' } }
+      )
+    )
+    expect(paths.data.timeOrigin).toBe(t0)
+    expect([...paths.data.attributes.get('ts')!.data]).toEqual([0, 1.5, 61.25])
+    // Vertex rows: the timestamp column selected as DOUBLE, not FLOAT
+    const vertices = await draw(
+      doc(
+        `SELECT * FROM (VALUES (1, 0, 0.0, 0.0, ${t0 + 3}::DOUBLE), (1, 1, 1.0, 1.0, ${t0 + 4.5}::DOUBLE)) t(trip, k, x, y, t)`,
+        {
+          id: 'trips',
+          op: 'trips',
+          x: 0,
+          y: 0,
+          params: { position: '[x, y]', timestamp: 't', pathId: 'trip', order: 'k' },
+        }
+      )
+    )
+    expect(vertices.sql).toMatch(/CAST\("t" AS DOUBLE\)/)
+    expect(vertices.data.timeOrigin).toBe(t0 + 3)
+    expect([...vertices.data.attributes.get('t')!.data]).toEqual([0, 1.5])
   })
 })

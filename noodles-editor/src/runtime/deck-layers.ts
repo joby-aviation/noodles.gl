@@ -528,7 +528,8 @@ function buildLayer(input: ProgramLayerInput, binary: Binary): Layer | undefined
         ...common,
         data: binary as never,
         _pathType: 'open',
-        currentTime: num(p.currentTime, 0),
+        // The times are offsets from the layer's origin (`LayerData.timeOrigin`), so the clock is too
+        currentTime: num(p.currentTime, 0) - (input.data?.timeOrigin ?? 0),
         trailLength: num(p.trailLength, 180),
         fadeTrail: p.fadeTrail !== false,
         widthMinPixels: num(p.widthMinPixels, 2),

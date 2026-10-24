@@ -56,6 +56,12 @@ export interface AttributeDecl {
    */
   type?: 'str' | 'raw' | 'list';
   /**
+   * Selected as DOUBLE and read in f64 by the runtime: a trips layer's timestamps, which as
+   * epoch seconds are past f32's integers (it steps 128 s at 1.5e9). The runtime sends them
+   * as f32 offsets from an origin, and the layer's current time likewise.
+   */
+  precise?: boolean;
+  /**
    * GPU storage format, when it is not f32 per component. `rgba8` is one packed u32 per row
    * (see `packing.ts`); `width` stays the logical component count.
    */
@@ -426,8 +432,16 @@ function emit(
   /** The position channel's name when the SQL stage produces it as `hilo`. */
   const sqlPosition = positionFormat(analysis, ctx.caps, 'sql') ? analysis.channels.position : undefined;
   const isSqlPosition = (item: { name: string; width: number }) => item.name === sqlPosition && item.width >= 2;
+  /** A trips layer's timestamp attribute, kept in doubles. See `AttributeDecl.precise`. */
+  // A list of times (path rows) is read in doubles by the runtime's flattening instead.
+  const timeBinding = analysis.layer?.kind === 'trips'
+    ? analysis.layer.bindings.find((b) => b.channel === 'timestamp')?.attribute
+    : undefined;
+  const preciseName = timeBinding && !analysis.layer?.lists?.some((l) => l.column === timeBinding)
+    ? timeBinding : undefined;
+  const isPrecise = (item: { name: string; width: number }) => item.name === preciseName && item.width === 1;
   const sqlFormat = (item: { name: string; width: number }) =>
-    isSqlPosition(item) ? { format: 'hilo' as const } : {};
+    isSqlPosition(item) ? { format: 'hilo' as const } : isPrecise(item) ? { precise: true } : {};
 
   const aggregateIndex = order.findIndex((node) => node.kind === 'aggregate');
   const aggregateInSql = aggregateIndex >= 0 && aggregateIndex < assignment.sqlEnd;
@@ -625,7 +639,7 @@ function emit(
         .flatMap((item) => componentColumns(item.name, item.width))
         .filter((c) => analysis.sourceSchema.has(c));
       const star = shadowed.length ? `* EXCLUDE (${shadowed.map(quoteIdent).join(', ')})` : '*';
-      const pre = preAggSelect.flatMap((item) => selectItems(item, rowBind, isSqlPosition(item)));
+      const pre = preAggSelect.flatMap((item) => selectItems(item, rowBind, isSqlPosition(item) || isPrecise(item)));
       from = `(SELECT ${star}, ${pre.join(', ')} FROM ${relation}) AS "pre"`;
     }
     const inner = `SELECT ${[...groupItems, ...aggItems].join(', ')} FROM ${from}${where} GROUP BY ${groupItems.join(', ')}`;
@@ -643,7 +657,7 @@ function emit(
       const outer = [
         ...groupItems,
         ...aggs.map((a) => quoteIdent(a.name)),
-        ...postAggSelect.flatMap((item) => selectItems(item, rowBind, isSqlPosition(item))),
+        ...postAggSelect.flatMap((item) => selectItems(item, rowBind, isSqlPosition(item) || isPrecise(item))),
       ];
       sql = `SELECT ${outer.join(', ')} FROM (${inner}) AS "agg"`;
       notes.push('a SQL attribute follows the aggregate, so the query is wrapped in a subquery');
@@ -675,8 +689,8 @@ function emit(
         // A geometry is selected as it is: the runtime reads its bytes, and ST_AsWKB would
         // copy every vertex for nothing
         ? `${quoteIdent(c)} AS ${quoteIdent(c)}`
-        : `${castToFloat(quoteIdent(c))} AS ${quoteIdent(c)}`)),
-      ...preAggSelect.flatMap((item) => selectItems(item, rowBind, isSqlPosition(item))),
+        : `${(c === preciseName ? castToDouble : castToFloat)(quoteIdent(c))} AS ${quoteIdent(c)}`)),
+      ...preAggSelect.flatMap((item) => selectItems(item, rowBind, isSqlPosition(item) || isPrecise(item))),
     ];
     if (items.length === 0) items.push('1 AS "__unit"');
     sql = `SELECT ${items.join(', ')} FROM ${relation}${emitWhere(whereExprs, rowBind)}`;
@@ -691,7 +705,9 @@ function emit(
       });
     }
     for (const c of passthrough) {
-      arrowAttributes.push({ ...typed(c), width: 1, provenance: 'arrow', sourceColumns: [c] });
+      arrowAttributes.push({
+        ...typed(c), width: 1, provenance: 'arrow', sourceColumns: [c], ...(c === preciseName ? { precise: true } : {}),
+      });
     }
     for (const s of preAggSelect) {
       arrowAttributes.push({

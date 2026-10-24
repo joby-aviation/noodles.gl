@@ -21,14 +21,16 @@ import {
   type SqlEngine,
   withDerived,
 } from '@noodles.gl/planner'
-import type { Vector } from 'apache-arrow'
-import { alongPaths, flattenPaths, flattenPoints, perMark } from './path-rows'
+import type { Table, Vector } from 'apache-arrow'
+import { alongPaths, flattenPaths, flattenPoints, fromOrigin, perMark } from './path-rows'
 
 export interface QueriedLayer {
   rows: number
   uploads: Map<string, ColumnUpload>
   strings: Map<string, string[]>
   raw: Map<string, unknown[]>
+  /** Columns read in doubles (`AttributeDecl.precise`): a trips layer's timestamps. */
+  precise: Map<string, Float64Array>
   /** Path rows: the columns holding a path per row, as their Arrow vectors. */
   lists: Map<string, { vector: Vector; wkb: boolean }>
   /** Parameters published by the layer's stats queries. */
@@ -50,6 +52,8 @@ export interface LayerData {
    * that is not also a polygon start begins a hole. The deck adapter triangulates from these.
    */
   rings?: Uint32Array
+  /** A trips layer's times are offsets from this; deck's current time is moved by it too. */
+  timeOrigin?: number
   evalMs: number
   /** The generated CPU loop, for the inspector. */
   code: string
@@ -85,8 +89,11 @@ export async function queryLayer(
   const strings = new Map<string, string[]>()
   const raw = new Map<string, unknown[]>()
   const lists = new Map<string, { vector: Vector; wkb: boolean }>()
+  const precise = new Map<string, Float64Array>()
   for (const decl of plan.attributes) {
     if (decl.provenance !== 'arrow') continue
+    if (decl.precise)
+      precise.set(decl.name, readDoubles(table, decl.sourceColumns?.[0] ?? decl.name))
     if (decl.type === 'list') {
       const vector = table.getChild(decl.name)
       const field = table.schema.fields.find(f => f.name === decl.name)
@@ -116,6 +123,7 @@ export async function queryLayer(
     uploads,
     strings,
     raw,
+    precise,
     lists,
     stats,
     queryMs: performance.now() - started,
@@ -199,6 +207,14 @@ export function evaluateLayer(
     const along = new Map<string, { data: Float32Array; width: number }>()
     for (const [name, a] of attributes) along.set(name, alongPaths(a, paths))
     for (const [name, a] of paths.values) along.set(name, a)
+    let timeOrigin: number | undefined
+    const time = kind === 'trips' ? pathLists.find(l => l.channel === 'timestamp') : undefined
+    const times = time && paths.doubles.get(time.column)
+    if (time && times) {
+      const offsets = fromOrigin(times)
+      along.set(time.column, { data: offsets.data, width: 1 })
+      timeOrigin = offsets.origin
+    }
     return {
       rows: paths.vertices,
       attributes: along,
@@ -206,9 +222,24 @@ export function evaluateLayer(
       raw: new Map(),
       starts: paths.starts,
       rings: paths.rings,
+      timeOrigin,
       evalMs: evaluated.evalMs,
       code: evaluated.code,
     }
+  }
+
+  // A trips layer's times, from the doubles the query returned, as offsets from an origin
+  let timeOrigin: number | undefined
+  const timeName =
+    plan.layer?.kind === 'trips'
+      ? plan.layer.bindings.find(b => b.channel === 'timestamp')?.attribute
+      : undefined
+  const staged = new Set(stage.map(n => n.name))
+  const times = timeName && !staged.has(timeName) ? queried.precise.get(timeName) : undefined
+  if (timeName && times) {
+    const offsets = fromOrigin(keep ? Float64Array.from(keep, i => times[i]) : times)
+    attributes.set(timeName, { data: offsets.data, width: 1 })
+    timeOrigin = offsets.origin
   }
 
   const pathId = plan.layer?.pathId
@@ -225,6 +256,7 @@ export function evaluateLayer(
       ids && isPolygon
         ? ringStarts(ids, ringId ? queried.raw.get(ringId) : undefined, keep)
         : undefined,
+    timeOrigin,
     evalMs: evaluated.evalMs,
     code: evaluated.code,
   }
@@ -243,6 +275,23 @@ export function pick(src: Float32Array, width: number, keep: ArrayLike<number>):
   for (let j = 0; j < keep.length; j++) {
     const i = keep[j]
     for (let c = 0; c < width; c++) out[j * width + c] = src[i * width + c]
+  }
+  return out
+}
+
+/** A numeric column in doubles, nulls as NaN: what `AttributeDecl.precise` columns are read as. */
+function readDoubles(table: Table, name: string): Float64Array {
+  const vector = table.getChild(name)
+  const out = new Float64Array(table.numRows)
+  if (!vector) return out
+  let at = 0
+  for (const d of vector.data) {
+    const values = d.values as ArrayLike<number | bigint>
+    for (let i = 0; i < d.length; i++) {
+      const bitmap = d.nullCount > 0 && d.nullBitmap?.length ? d.nullBitmap : undefined
+      const j = d.offset + i
+      out[at++] = bitmap && !(bitmap[j >> 3] & (1 << (j & 7))) ? Number.NaN : Number(values[j])
+    }
   }
   return out
 }
