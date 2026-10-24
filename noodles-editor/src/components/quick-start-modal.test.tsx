@@ -10,7 +10,11 @@ import {
 
 const navigate = vi.fn()
 vi.mock('wouter', () => ({ useLocation: () => ['/', navigate] }))
-vi.mock('./projects-view', () => ({ ProjectsView: () => null, useRecentProjects: () => [] }))
+vi.mock('./projects-view', () => ({
+  ProjectsView: () => null,
+  prepareProjectOpen: () => Promise.resolve(),
+  useRecentProjects: () => [],
+}))
 
 function dropFile(name: string, contents: string) {
   const file = new File([contents], name, { type: 'text/csv' })

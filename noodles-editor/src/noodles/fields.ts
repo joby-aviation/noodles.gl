@@ -1678,7 +1678,7 @@ export class MapLibreLayerField extends Field<
       code: z.string(),
       renderingMode: z.enum(['2d', '3d']).optional(),
       beforeId: z.string().optional(),
-      params: z.record(z.unknown()).optional(),
+      params: z.record(z.string(), z.unknown()).optional(),
     })
   }
 }
@@ -1726,7 +1726,7 @@ export class VisualizationField extends Field<
             code: z.string(),
             renderingMode: z.enum(['2d', '3d']).optional(),
             beforeId: z.string().optional(),
-            params: z.record(z.unknown()).optional(),
+            params: z.record(z.string(), z.unknown()).optional(),
           })
         )
         .optional(),

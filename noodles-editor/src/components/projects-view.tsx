@@ -2,9 +2,16 @@ import * as Dialog from '@radix-ui/react-dialog'
 import { ChevronLeftIcon } from '@radix-ui/react-icons'
 import { useCallback, useEffect, useState } from 'react'
 import { useLocation } from 'wouter'
+import { useFileSystemStore } from '../noodles/filesystem-store'
 import type { CachedHandleEntry } from '../noodles/utils/directory-handle-cache'
 import { directoryHandleCache } from '../noodles/utils/directory-handle-cache'
-import { checkFileSystemSupport, getOPFSRoot, selectDirectory } from '../noodles/utils/filesystem'
+import {
+  checkFileSystemSupport,
+  getOPFSRoot,
+  queryPermission,
+  requestPermissionState,
+  selectDirectory,
+} from '../noodles/utils/filesystem'
 import { analytics } from '../utils/analytics'
 import { debugUI } from '../utils/debug'
 import s from './quick-start-modal.module.css'
@@ -14,6 +21,31 @@ export interface UserProject {
   path: string
   storageType: 'fileSystemAccess' | 'opfs'
   cachedAt?: number
+  handle?: FileSystemDirectoryHandle // The remembered folder, for local folder projects
+}
+
+// After a browser restart a remembered folder's permission is back to 'prompt', and the
+// project page can't ask for it without a user gesture. A click on the project is one, so
+// ask here before navigating. If the user says no, the project page explains what to do.
+export async function requestProjectAccess(handle?: FileSystemDirectoryHandle): Promise<void> {
+  if (!handle) return
+  if ((await queryPermission(handle, 'readwrite')) !== 'prompt') return
+  const permission = await requestPermissionState(handle, 'readwrite')
+  if (permission === 'granted') {
+    analytics.track('project_permission_granted', { source: 'project_list' })
+  } else {
+    analytics.track('project_permission_denied', { source: 'project_list', state: permission })
+  }
+}
+
+// Run in a project's click handler, before navigating to it
+export async function prepareProjectOpen(
+  project: Pick<UserProject, 'storageType' | 'handle'>
+): Promise<void> {
+  // The project page loads from the active storage type, which opening an example sets
+  // to 'memory'. Point it at where this project lives.
+  useFileSystemStore.getState().setActiveStorageType(project.storageType)
+  await requestProjectAccess(project.handle)
 }
 
 function formatDate(timestamp?: number): string | null {
@@ -52,6 +84,7 @@ export function ProjectsView({ onBack, onClose }: ProjectsViewProps) {
               path: `/projects/${entry.projectName}`,
               storageType: 'fileSystemAccess',
               cachedAt: entry.cachedAt,
+              handle: entry.handle,
             })
           }
         } catch (err) {
@@ -112,10 +145,11 @@ export function ProjectsView({ onBack, onClose }: ProjectsViewProps) {
   }, [navigate, onClose])
 
   const handleProjectClick = useCallback(
-    (path: string) => {
-      analytics.track('quick_start_project_selected', { path })
+    async (project: UserProject) => {
+      analytics.track('quick_start_project_selected', { path: project.path })
+      await prepareProjectOpen(project)
       onClose()
-      navigate(path)
+      navigate(project.path)
     },
     [navigate, onClose]
   )
@@ -166,7 +200,7 @@ export function ProjectsView({ onBack, onClose }: ProjectsViewProps) {
                 key={project.path}
                 type="button"
                 className={s.projectCard}
-                onClick={() => handleProjectClick(project.path)}
+                onClick={() => handleProjectClick(project)}
               >
                 <div className={s.projectInfo}>
                   <h4>{project.name}</h4>

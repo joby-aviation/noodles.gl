@@ -72,6 +72,7 @@ import {
   evaluateEnableExpression,
   getEnableExpressionDependencies,
 } from '../utils/enable-expression-evaluator'
+import { FieldEditScope } from '../utils/field-edit-analytics'
 import { setLockedWithHistory, shouldConfirmUnlock } from '../utils/lock-history'
 import { type MultiInputEdgeData, slotOffsetY } from '../utils/multi-input-utils'
 import type { NodeType } from '../utils/node-creation-utils'
@@ -201,8 +202,25 @@ export function nodePropsAreEqual(
   )
 }
 
+// Marks field edits made inside a node as node edits of this operator type (see
+// field-edit-analytics.tsx). Wraps the component before memo so memoization still applies.
+function withFieldEditScope<P extends { type: string }>(Component: ComponentType<P>) {
+  function NodeFieldEditScope(props: P) {
+    return (
+      <FieldEditScope source="node" operatorType={props.type}>
+        <Component {...props} />
+      </FieldEditScope>
+    )
+  }
+  return NodeFieldEditScope
+}
+
+function memoNode<P extends ReactFlowNodeProps>(Component: ComponentType<P>) {
+  return memo(withFieldEditScope(Component), nodePropsAreEqual)
+}
+
 // Memoized once - all node types in the registry share this single wrapper
-const MemoNodeComponent = memo(NodeComponent, nodePropsAreEqual)
+const MemoNodeComponent = memoNode(NodeComponent)
 
 const defaultNodeComponents: Record<string, ComponentType<ReactFlowNodeProps>> = {}
 for (const key of Object.keys(opTypes)) {
@@ -259,20 +277,20 @@ function UnknownOperatorComponent({
 
 export const nodeComponents = {
   ...defaultNodeComponents,
-  BrushableHistogramOp: memo(BrushableHistogramOpComponent, nodePropsAreEqual),
-  GeocoderOp: memo(GeocoderOpComponent, nodePropsAreEqual),
-  GeoEditorOp: memo(GeoEditorOpComponent, nodePropsAreEqual),
-  MapStyleConfiguratorOp: memo(MapStyleConfiguratorOpComponent, nodePropsAreEqual),
-  DirectionsOp: memo(DirectionsOpComponent, nodePropsAreEqual),
-  MouseOp: memo(MouseOpComponent, nodePropsAreEqual),
-  OutOp: memo(OutOpComponent, nodePropsAreEqual),
-  RampOp: memo(RampOpComponent, nodePropsAreEqual),
-  RerouteOp: memo(RerouteOpComponent, nodePropsAreEqual),
-  TableEditorOp: memo(TableEditorOpComponent, nodePropsAreEqual),
-  TimeOp: memo(TimeOpComponent, nodePropsAreEqual),
-  UnknownOperator: memo(UnknownOperatorComponent, nodePropsAreEqual),
-  ViewerOp: memo(ViewerOpComponent, nodePropsAreEqual),
-  ContainerOp: memo(ContainerOpComponent, nodePropsAreEqual),
+  BrushableHistogramOp: memoNode(BrushableHistogramOpComponent),
+  GeocoderOp: memoNode(GeocoderOpComponent),
+  GeoEditorOp: memoNode(GeoEditorOpComponent),
+  MapStyleConfiguratorOp: memoNode(MapStyleConfiguratorOpComponent),
+  DirectionsOp: memoNode(DirectionsOpComponent),
+  MouseOp: memoNode(MouseOpComponent),
+  OutOp: memoNode(OutOpComponent),
+  RampOp: memoNode(RampOpComponent),
+  RerouteOp: memoNode(RerouteOpComponent),
+  TableEditorOp: memoNode(TableEditorOpComponent),
+  TimeOp: memoNode(TimeOpComponent),
+  UnknownOperator: memoNode(UnknownOperatorComponent),
+  ViewerOp: memoNode(ViewerOpComponent),
+  ContainerOp: memoNode(ContainerOpComponent),
 } as const as ReactFlowNodeTypes
 
 export const edgeComponents = {
