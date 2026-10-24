@@ -31,6 +31,12 @@ See the [Project Files section](../AGENTS.md#project-files) for the shape. Key p
 - Examples open with one node selected so the parameter pane shows controls: the first layer
   wired into the deck's `layers`. To pick another root-level node, set
   `"meta": { "startNode": "<node id or name>" }`.
+- The file shape is published as a JSON Schema at
+  `https://noodles.gl/schema/noodles-project.schema.json` (generated from
+  `src/noodles/utils/project-schema.ts` by `npm run generate:schema`), pinned per document
+  version at `noodles-document.v<N>.schema.json`. `noodles-project.v19.schema.json` is the
+  older operator-graph format. The schema checks shape only; operators, parameters and ports
+  are left to `validate:projects`.
 
 ### Validating Changes
 

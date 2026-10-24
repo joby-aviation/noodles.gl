@@ -31,16 +31,19 @@ describe('generate-project-schema', () => {
     expect(() => currentVersion('')).toThrow('LATEST')
   })
 
-  it('writes a stable copy and a versioned copy', () => {
-    const files = schemaFiles(7)
+  it('writes the document schema, a pinned copy, and the operator-graph schema', () => {
+    const files = schemaFiles(7, 1)
     expect([...files.keys()]).toEqual([
       'noodles-project.schema.json',
+      'noodles-document.v1.schema.json',
       'noodles-project.v7.schema.json',
     ])
-    const [stable, versioned] = [...files.values()].map(contents => JSON.parse(contents))
+    const [stable, pinned, graph] = [...files.values()].map(contents => JSON.parse(contents))
     expect(stable.$id).toBe('https://noodles.gl/schema/noodles-project.schema.json')
-    expect(versioned.$id).toBe('https://noodles.gl/schema/noodles-project.v7.schema.json')
-    expect({ ...stable, $id: undefined }).toEqual({ ...versioned, $id: undefined })
+    expect(pinned.$id).toBe('https://noodles.gl/schema/noodles-document.v1.schema.json')
+    expect({ ...stable, $id: undefined }).toEqual({ ...pinned, $id: undefined })
+    expect(graph.$id).toBe('https://noodles.gl/schema/noodles-project.v7.schema.json')
+    expect(graph.properties.version.const).toBe(7)
   })
 
   it('reports missing and changed files', () => {
