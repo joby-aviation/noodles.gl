@@ -37,7 +37,8 @@ import type { Visualization } from '../visualizations'
 import { bindEngine, settleEngine, useEngineState, visCommitted } from './doc-engine'
 import { canPaste, copySelection, DocNetwork, pasteClipboard } from './doc-network'
 import { setParam } from './doc-ops'
-import { getUIStore, useUIStore } from './ui-store'
+import { getUIStore } from './ui-store'
+import { setEditorShown, useEditorShown } from './workspace-store'
 import '../noodles/layers.css'
 import { agentBench, externalControl } from '../noodles/globals'
 import { getKeysStore, type KeysConfig, keysProjectId, useKeysStore } from '../noodles/keys-store'
@@ -134,8 +135,7 @@ export function useDocNoodles(): Visualization {
   const [showOverlay, setShowOverlay] = useState(true)
   const showDebugInfo = useEditor(s => s.debug ?? false)
   const setShowDebugInfo = useCallback((debug: boolean) => docStore().set({ debug }), [])
-  const spreadsheetVisible = useUIStore(state => state.spreadsheetVisible)
-  const setSpreadsheetVisible = useUIStore(state => state.setSpreadsheetVisible)
+  const spreadsheetVisible = useEditorShown('spreadsheet')
   const reactFlowRef = useRef<HTMLDivElement>(null)
   const [showChatPanel, setShowChatPanel] = useState(false)
   const [showGitHistoryPanel, setShowGitHistoryPanel] = useState(false)
@@ -458,7 +458,7 @@ export function useDocNoodles(): Visualization {
     showDebugInfo,
     onChangeShowDebugInfo: setShowDebugInfo,
     spreadsheetVisible,
-    onChangeSpreadsheetVisible: setSpreadsheetVisible,
+    onChangeSpreadsheetVisible: (visible: boolean) => setEditorShown('spreadsheet', visible),
     projectName: projectName ?? doc.name,
     onSaveProject: files.onSaveProject,
     onSaveAs: files.onSaveAs,

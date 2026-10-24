@@ -4,21 +4,7 @@ import { useUIStore } from '../../../editor/ui-store'
 describe('UIStore — spreadsheet state', () => {
   beforeEach(() => {
     // Reset spreadsheet-related store state before each test
-    useUIStore.setState({
-      spreadsheetVisible: false,
-      pinnedSpreadsheetNodeId: null,
-    })
-  })
-
-  it('initializes spreadsheetVisible as false', () => {
-    expect(useUIStore.getState().spreadsheetVisible).toBe(false)
-  })
-
-  it('setSpreadsheetVisible updates state', () => {
-    useUIStore.getState().setSpreadsheetVisible(true)
-    expect(useUIStore.getState().spreadsheetVisible).toBe(true)
-    useUIStore.getState().setSpreadsheetVisible(false)
-    expect(useUIStore.getState().spreadsheetVisible).toBe(false)
+    useUIStore.setState({ pinnedSpreadsheetNodeId: null })
   })
 
   it('initializes pinnedSpreadsheetNodeId as null', () => {

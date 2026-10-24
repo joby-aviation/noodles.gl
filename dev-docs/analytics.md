@@ -113,6 +113,9 @@ Opening a saved project by its URL (`/projects/:name`, which is where Recent pro
 | `map_feature_clicked` | `operatorType, selected` | map-click-to-edit.tsx |
 | `panel_toggled` | `panel, visible` | layout.tsx, timeline-editor.tsx, top-menu-bar.tsx |
 | `map_mode_changed` | `mode` | layout.tsx, top-menu-bar.tsx |
+| `workspace_selected` | `workspace` | workspace-tabs.tsx |
+| `workspace_reset` | `workspace` | top-menu-bar.tsx |
+| `area_edited` | `action, editor` | layout.tsx: an area's editor changed (`editor`), or it was split or closed (`split`, `close`) |
 | `map_interacted` | `kind` | editor-analytics.ts (from timeline-editor.tsx) |
 | `chat_opened` | `source` | top-menu-bar.tsx, doc-noodles.tsx |
 | `chat_closed` | `source` | top-menu-bar.tsx, doc-noodles.tsx |

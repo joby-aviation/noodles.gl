@@ -920,8 +920,8 @@ export default function TimelineEditor() {
       >
         <Layout
           top={topBar}
-          left={nodeSidebar}
-          right={propertiesPanel}
+          layers={nodeSidebar}
+          properties={propertiesPanel}
           timeline={heightPx => (
             <TimelinePanel
               height={heightPx}
