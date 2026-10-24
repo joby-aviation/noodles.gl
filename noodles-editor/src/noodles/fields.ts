@@ -154,13 +154,7 @@ export abstract class Field<
   }
 
   // Wrap schema in additional functionality like optional, transform etc.
-  enhanceSchema({
-    optional,
-    transform,
-    showByDefault,
-    useDeepEquality,
-    maxDepth,
-  }: Partial<O>) {
+  enhanceSchema({ optional, transform, showByDefault, useDeepEquality, maxDepth }: Partial<O>) {
     let schema = this.schema
 
     // Set showByDefault (defaults to true if not specified)

@@ -209,7 +209,8 @@ describe('a plan carries the custom names all the way through', () => {
     const code = [physical.sql, ...physical.kernels.map((k) => k.code)].join('\n');
     // Word-boundary matches, so `Cd` inside a longer identifier does not count.
     for (const name of ['P', 'Cd', 'pscale', 'Alpha', '__mask']) {
-      expect(new RegExp(`\\b${name.replace('$', '\\$')}\\b`).test(code), name).toBe(false);
+      const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      expect(new RegExp(`\\b${escaped}\\b`).test(code), name).toBe(false);
     }
   });
 

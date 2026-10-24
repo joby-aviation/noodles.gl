@@ -67,9 +67,11 @@ export function columnTypeOf(duckType: string): ColumnType {
 export function pathColumnOf(duckType: string): PathColumnKind | undefined {
   const t = duckType.trim();
   if (/^GEOMETRY\b/i.test(t)) return 'geometry';
-  const m = /^(.*?)((?:\[\d*\])+)$/.exec(t);
-  if (!m || !NUMERIC.test(m[1])) return undefined;
-  const dims = m[2].match(/\[\d*\]/g) ?? [];
+  // The element type, then its dimensions: split at the first bracket rather than with a lazy
+  // group, which backtracks polynomially on long input
+  const at = t.indexOf('[');
+  if (at < 0 || !NUMERIC.test(t.slice(0, at)) || !/^(?:\[\d*\])+$/.test(t.slice(at))) return undefined;
+  const dims = t.slice(at).match(/\[\d*\]/g) ?? [];
   // The outer dimension is the list of vertices; a point is a fixed array or a list inside it
   if (dims.length === 2 && dims[1] === '[]') return 'points';
   if (dims.length === 1 && dims[0] === '[]') return 'numbers';
