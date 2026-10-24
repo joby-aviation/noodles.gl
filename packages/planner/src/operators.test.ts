@@ -132,6 +132,25 @@ describe('host operators', () => {
     expect(deck.inputs).toEqual(['dots']);
   });
 
+  it("reads a host operator's outputs, by wire or ch(), from what the host supplies", () => {
+    registerOperator({
+      type: 'GeoHostOp', label: 'Geo', category: 'host', description: 'test', inputs: [],
+      outputs: [{ name: 'location', type: 'value' }, { name: 'size', type: 'number' }], params: [],
+    });
+    const doc = scatterDoc({ radiusScale: { expr: "ch('geo/out.location.lat') * 2" } }, [
+      { id: 'geo', op: 'GeoHostOp', x: 0, y: 0, params: {} },
+    ]);
+    doc.edges.push({ id: 'e9', source: 'geo', sourcePort: 'size', target: 'dots', targetPort: 'par:opacity' });
+    const host = new Map<string, unknown>([['geo.out.location.lat', 20], ['geo.out.size', 0.5]]);
+    const external = { get: (key: string) => host.get(key) };
+    const lowered = lowerDocument(doc, { external });
+    const { slots } = parameterValues(lowered, { T: 0, F: 0 }, external);
+    expect(slots.get('dots.radiusScale')).toBe(40);
+    expect(slots.get('dots.opacity')).toBe(0.5);
+    // Without the host's values they are missing, not zero
+    expect(parameterValues(lowered, { T: 0, F: 0 }).slots.get('dots.opacity')).toBeNaN();
+  });
+
   it('lets value ports take anything, and a value feed a layer port', () => {
     expect(canConnect('table', 'value')).toBe(true);
     expect(canConnect('layer', 'value')).toBe(true);

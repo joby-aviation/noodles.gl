@@ -123,7 +123,11 @@ export interface OpDef {
   params: ParamDef[];
   lower?: (ctx: LowerCtx) => LowerResult;
   /** Scalar operators compute a number from their parameters and the clock. */
-  scalar?: (p: ScalarParams, clock: { T: number; F: number }) => number;
+  scalar?: (p: ScalarParams, clock: { T: number; F: number; MX?: number; MY?: number }) => number;
+  /** Scalar operators with several number outputs: one function per output port. */
+  scalarPorts?: Record<string, (p: ScalarParams, clock: { T: number; F: number; MX?: number; MY?: number }) => number>;
+  /** Reads the pointer (the clock's `MX`, `MY`), which the host then tracks. */
+  readsPointer?: boolean;
   /**
    * Number outputs that are statistics of the rows: computed in the layer's SQL, not by the
    * scalar program. A parameter wired from one binds the statistic, so it lives in the same
@@ -1377,6 +1381,13 @@ export const OPERATORS: OpDef[] = [
     inputs: [], outputs: [out('number')],
     params: [{ name: 'value', label: 'Value', kind: 'float', default: 0, min: -1000, max: 1000, step: 0.01 }],
     scalar: (p) => p.num('value'),
+  },
+  {
+    type: 'mouse', label: 'Mouse', category: 'number', readsPointer: true,
+    description: 'The pointer over the map, in pixels from its top left. Wire x or y into a parameter; expressions can read MX and MY too.',
+    inputs: [], outputs: [{ name: 'x', type: 'number' }, { name: 'y', type: 'number' }],
+    params: [],
+    scalarPorts: { x: (_p, clock) => clock.MX ?? 0, y: (_p, clock) => clock.MY ?? 0 },
   },
   {
     type: 'time', label: 'Time', category: 'number',
