@@ -426,19 +426,33 @@
 /* Single-row layout: dot · label · [input] · [diamond] */
 .propertyRow {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
   padding: 3px 0;
+}
+
+/* An input and its keyframe button. Shares the label's line when the label fits on one
+   line beside it; otherwise wraps under the label, right-aligned */
+.propertyControl {
+  display: flex;
+  flex: 1 1 0;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+  margin-left: auto;
 }
 
 /* Output rows have no +/- button — pad left to align dot with input dots */
 .outputRow {
-  padding-left: 24px;
+  padding-left: 22px;
 }
 
 .propertyLabel {
-  flex: 1;
-  min-width: 0;
+  /* Natural width, so a label never shares its line with an input it would have to wrap
+     around; never narrower than its longest word */
+  flex: 0 1 auto;
+  min-width: min-content;
   display: flex;
   align-items: center;
   gap: 4px;
@@ -454,7 +468,8 @@
   line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
-  overflow-wrap: anywhere;
+  /* Wrap at spaces only */
+  overflow-wrap: normal;
 }
 
 /* Labels with a description show it in a hover tooltip; the underline says there's one */
@@ -973,6 +988,8 @@
    taking their full content width first and leaving the label a few pixels */
 .editableFieldContent:has(input[type="text"], input[type="number"], textarea, select) {
   flex: 1 1 0;
+  /* Keep room for a short value when the label takes its natural width */
+  min-width: 40px;
 }
 
 /* Field components size inputs for canvas nodes (number inputs have a 7.5rem min-width).
@@ -1014,8 +1031,8 @@
   flex-basis: 100%;
   max-width: none;
   box-sizing: border-box;
-  /* align with the label: remove button (18px) + port (8px) + two 6px gaps */
-  padding-left: 38px;
+  /* align with the label: remove button (18px) + port (8px) + two 4px gaps */
+  padding-left: 34px;
 }
 
 /* hide the duplicate label rendered by field components; the panel renders its own label */
@@ -1042,8 +1059,8 @@
   display: flex;
   flex-direction: column;
   gap: 4px;
-  /* align with the parent label: hide button (18px) + port (8px) + two 6px gaps */
-  padding-left: 38px;
+  /* align with the parent label: hide button (18px) + port (8px) + two 4px gaps */
+  padding-left: 34px;
   margin-top: 4px;
 }
 

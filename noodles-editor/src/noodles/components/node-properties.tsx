@@ -967,16 +967,26 @@ export function NodeProperties({ nodeId }: { nodeId: string }) {
                         )}
                       </span>
                       {/* Value type, not connected: editable input + keyframe indicator */}
-                      {isValueField(input.field) && incomers.length === 0 && (
-                        <>
+                      {isValueField(input.field) &&
+                        incomers.length === 0 &&
+                        ((input.field.constructor as typeof Vec2Field).channelKeys ? (
+                          // Vec fields render per-channel indicators inside VectorFieldComponent
                           <FieldInputWithHighlight
                             opId={op.id}
                             fieldName={input.name}
                             field={input.field}
                             expandTimeline={expandTimeline}
                           />
-                          {/* Vec fields render per-channel indicators inside VectorFieldComponent */}
-                          {!(input.field.constructor as typeof Vec2Field).channelKeys && (
+                        ) : (
+                          // Input and keyframe button wrap under the label together when the
+                          // row is too narrow for both
+                          <div className={s.propertyControl}>
+                            <FieldInputWithHighlight
+                              opId={op.id}
+                              fieldName={input.name}
+                              field={input.field}
+                              expandTimeline={expandTimeline}
+                            />
                             <KeyframeIndicator
                               opId={op.id}
                               fieldName={input.name}
@@ -985,9 +995,8 @@ export function NodeProperties({ nodeId }: { nodeId: string }) {
                               size="small"
                               onKeyframeAdded={expandTimeline}
                             />
-                          )}
-                        </>
-                      )}
+                          </div>
+                        ))}
                     </div>
                     {/* Compound field: expand sub-fields inline */}
                     {input.field instanceof CompoundPropsField && (
