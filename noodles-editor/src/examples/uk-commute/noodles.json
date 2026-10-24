@@ -330,6 +330,70 @@
         },
         "locked": false
       }
+    },
+    {
+      "id": "/data-note",
+      "type": "CommentOp",
+      "position": {
+        "x": 0,
+        "y": 90
+      },
+      "data": {
+        "inputs": {
+          "text": "This loads UK commute flows: where people live and where they work."
+        },
+        "locked": false
+      },
+      "width": 300,
+      "height": 80
+    },
+    {
+      "id": "/color-note",
+      "type": "CommentOp",
+      "position": {
+        "x": 490,
+        "y": -40
+      },
+      "data": {
+        "inputs": {
+          "text": "These two nodes set the home and work colors. Click one to pick a new color."
+        },
+        "locked": false
+      },
+      "width": 300,
+      "height": 80
+    },
+    {
+      "id": "/arc-note",
+      "type": "CommentOp",
+      "position": {
+        "x": 856,
+        "y": -200
+      },
+      "data": {
+        "inputs": {
+          "text": "Each arc links a home (orange) to a workplace (purple). Click it and change getHeight."
+        },
+        "locked": false
+      },
+      "width": 320,
+      "height": 80
+    },
+    {
+      "id": "/try-next-note",
+      "type": "CommentOp",
+      "position": {
+        "x": 1200,
+        "y": -20
+      },
+      "data": {
+        "inputs": {
+          "text": "Try next:\n- Click residence-layer and change getRadius to resize the home dots.\n- Click the diamond next to bearing on maplibre-basemap, pick a later time in the Timeline, and change it again.\n- Press Export and pick Video (MP4) to save the animation."
+        },
+        "locked": false
+      },
+      "width": 340,
+      "height": 190
     }
   ],
   "timeline": {

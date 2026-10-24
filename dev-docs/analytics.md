@@ -78,10 +78,13 @@ VITE_GA_MEASUREMENT_ID=G-XXXXXXXXXX
 | `project_open_failed` | `storageType, error` or `storageType, reason, source` | menu.tsx, noodles.tsx, project-not-found-dialog.tsx |
 | `project_permission_granted` | `source` | projects-view.tsx, project-not-found-dialog.tsx |
 | `project_permission_denied` | `source, state` | projects-view.tsx, project-not-found-dialog.tsx |
+| `project_removed_from_list` | `storageType, source` | projects-view.tsx |
+| `project_folder_reconnected` | `source, folderNameChanged` | projects-view.tsx |
 
 Opening a saved project by its URL (`/projects/:name`, which is where Recent projects and the Projects tab go) reports `source`. The Open menu sends no `source`, and its failures send `error` (`load_error`, `migration_error`, `unknown`) instead of `reason`.
 
-- `source`: `url` (the project page loaded the project from storage), `allow_button` (the "Allow access" button on the project page), `choose_folder` (the "Choose folder" button on the project page) or `project_list` (a click in Recent projects or the Projects tab)
+- `source`: `url` (the project page loaded the project from storage), `allow_button` (the "Allow access" button on the project page), `choose_folder` (the "Choose folder" button on the project page), `project_list` (a click in Recent projects or the Projects tab) or `project_menu` ("Allow access" in a project's "..." menu)
+- `project_removed_from_list` and `project_folder_reconnected` come from a project's "..." menu in the Projects tab or Recent projects. Their `source` is `projects_tab` or `recent_projects`. Removing forgets the remembered folder; it never deletes files. `project_folder_reconnected` is "Choose folder…" pointing the project at a folder with a `noodles.json`; `folderNameChanged` is true when that folder has a different name, which renames the project in the list
 - `reason`: the storage error type in snake_case: `permission_prompt` (the browser forgot the folder's permission, usually after a restart, and needs a click to ask again), `permission_denied`, `not_found` (no folder is remembered for the project, or it has no `noodles.json`), `migration_error`, or another storage error such as `security_error` or `unknown`
 - `state`: what the browser returned when asked for access: `prompt` (the user dismissed the prompt) or `denied` (blocked)
 - A local folder's permission is only requested during a click. The project page reads it without asking, so a `permission_prompt` failure is followed by the "Allow access" button, not a browser prompt.
@@ -110,6 +113,7 @@ Opening a saved project by its URL (`/projects/:name`, which is where Recent pro
 | `panel_toggled` | `panel, visible` | layout.tsx, timeline-editor.tsx, top-menu-bar.tsx |
 | `map_mode_changed` | `mode` | layout.tsx, top-menu-bar.tsx |
 | `map_interacted` | `kind` | editor-analytics.ts (from timeline-editor.tsx) |
+| `map_feature_clicked` | `operatorType, selected` | map-click-to-edit.tsx |
 | `chat_opened` | `source` | top-menu-bar.tsx, noodles.tsx |
 | `chat_closed` | `source` | top-menu-bar.tsx, noodles.tsx |
 
@@ -118,6 +122,7 @@ Opening a saved project by its URL (`/projects/:name`, which is where Recent pro
 - `panel`: `sidebar`, `properties`, `timeline` or `spreadsheet`. The sidebar and properties panel are tracked when a resize makes them appear or disappear (dragging the separator, the sidebar chevron, Cmd+F); the timeline when its tab or collapse button is clicked; the spreadsheet from Editor > Show spreadsheet. The timeline opening by itself for an animated project is not counted.
 - `mode`: `docked`, `floating` or `underlay` (the map behind the node graph)
 - `map_interacted` fires once per page load for each `kind`: `pan`, `zoom` or `rotate` (rotate includes pitch). Only user gestures count: deck's controller interaction state, or MapLibre events that carry the input event that caused them. Camera keyframes and programmatic camera moves are not counted.
+- `map_feature_clicked` fires when a click on the map lands on a feature, after the layer's own `onClick` (if any) passed on it. `selected` is true when the editor found the node that drew the feature and selected it; `operatorType` is that node's type (`ScatterplotLayerOp`), or `unknown` for a layer no node drew. Drags, clicks on empty map, and clicks while a map tool is armed, during an export, or with `?externalControl=true` are not counted. No ids, coordinates or feature data are sent.
 - `chat_opened` `source`: `toolbar` (the top bar's Assistant button) or `quick_start` (the Quick Start dialog's AI path). `chat_closed` `source`: `toolbar` (the same button, labeled Hide while the assistant is open) or `panel` (the panel's own close button).
 
 ### Rendering and Export

@@ -376,6 +376,22 @@
       },
       "width": 300,
       "height": 80
+    },
+    {
+      "id": "/try-next-note",
+      "type": "CommentOp",
+      "position": {
+        "x": 1200,
+        "y": 10
+      },
+      "data": {
+        "inputs": {
+          "text": "Try next:\n- Press the space bar to play the camera move on the Timeline.\n- Click arc-layer and change getHeight to raise or flatten the arcs.\n- Press Export and pick Video (MP4) to save the animation."
+        },
+        "locked": false
+      },
+      "width": 340,
+      "height": 170
     }
   ],
   "timeline": {

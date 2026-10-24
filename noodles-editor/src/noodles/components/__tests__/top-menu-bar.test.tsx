@@ -2,7 +2,8 @@
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { ReactFlowProvider } from '@xyflow/react'
 import { createRef } from 'react'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { directoryHandleCache } from '../../utils/directory-handle-cache'
 import { TopMenuBar } from '../top-menu-bar'
 
 vi.mock('../tools/tool-shelf', () => ({ ToolShelf: () => null }))
@@ -59,5 +60,56 @@ describe('TopMenuBar Editor menu', () => {
     expect(item).toHaveAttribute('aria-checked', 'true')
     act(() => item.click())
     expect(onChange).toHaveBeenCalledWith(false)
+  })
+})
+
+const openSubmenu = (name: RegExp) => {
+  const item = screen.getByRole('menuitem', { name })
+  act(() => {
+    item.focus()
+    fireEvent.keyDown(item, { key: 'ArrowRight' })
+  })
+}
+
+describe('TopMenuBar File menu', () => {
+  // The recent list comes from IndexedDB, a real browser task the fake clock can't settle
+  beforeEach(async () => {
+    vi.useRealTimers()
+    await directoryHandleCache.clearCache()
+  })
+
+  afterEach(async () => {
+    cleanup()
+    await directoryHandleCache.clearCache()
+    vi.useFakeTimers({ now: new Date('2025-02-01T00:00:00Z') })
+  })
+
+  it('opens the projects list from Manage Projects', () => {
+    window.history.replaceState({}, '', '/examples/nyc-taxis')
+    renderMenuBar()
+    act(() => {
+      fireEvent.keyDown(screen.getByTitle('Menu'), { key: 'Enter' })
+    })
+    openSubmenu(/^File/)
+
+    act(() => screen.getByRole('menuitem', { name: 'Manage Projects...' }).click())
+    expect(window.location.pathname).toBe('/projects')
+  })
+
+  it('drops a project from Open Recent once it is removed from the list', async () => {
+    const handle = { kind: 'directory', name: 'alpha' } as FileSystemDirectoryHandle
+    await directoryHandleCache.cacheHandle('alpha', handle, 'alpha')
+    renderMenuBar({ onOpen: vi.fn() })
+    act(() => {
+      fireEvent.keyDown(screen.getByTitle('Menu'), { key: 'Enter' })
+    })
+    openSubmenu(/^File/)
+    openSubmenu(/^Open Recent/)
+    await vi.waitFor(() => screen.getByRole('menuitem', { name: 'alpha' }))
+
+    await act(() => directoryHandleCache.removeHandle('alpha'))
+
+    await vi.waitFor(() => screen.getByRole('menuitem', { name: 'No recent projects' }))
+    expect(screen.queryByRole('menuitem', { name: 'alpha' })).toBeNull()
   })
 })

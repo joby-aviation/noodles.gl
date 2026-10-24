@@ -11,6 +11,7 @@ import {
 const navigate = vi.fn()
 vi.mock('wouter', () => ({ useLocation: () => ['/', navigate] }))
 vi.mock('./projects-view', () => ({
+  ProjectActionsMenu: () => null,
   ProjectsView: () => null,
   prepareProjectOpen: () => Promise.resolve(),
   useRecentProjects: () => [],

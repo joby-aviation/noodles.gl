@@ -111,12 +111,15 @@ export function TopMenuBar({
   const activeOutOp = useActiveOutOp()
   const renderSettings = useRenderSettings()
 
-  // Load recent projects on mount
+  // Load recent projects on mount, and again when one is removed or its folder changes
   useEffect(() => {
-    directoryHandleCache
-      .getAllProjectNames()
-      .then(names => setRecentProjects(names))
-      .catch(err => debugUI('Failed to load recent projects:', err))
+    const loadRecent = () =>
+      directoryHandleCache
+        .getAllProjectNames()
+        .then(names => setRecentProjects(names))
+        .catch(err => debugUI('Failed to load recent projects:', err))
+    loadRecent()
+    return directoryHandleCache.subscribe(loadRecent)
   }, [])
 
   // Keyboard shortcuts
@@ -306,13 +309,6 @@ export function TopMenuBar({
                         </DropdownMenu.SubTrigger>
                         <DropdownMenu.Portal>
                           <DropdownMenu.SubContent className={s.dropdownContent} sideOffset={2}>
-                            <DropdownMenu.Item
-                              className={s.dropdownItem}
-                              onSelect={() => navigate('/projects')}
-                            >
-                              View Recent...
-                            </DropdownMenu.Item>
-                            <DropdownMenu.Separator className={s.dropdownSeparator} />
                             {recentProjects.length === 0 ? (
                               <DropdownMenu.Item className={s.dropdownItem} disabled>
                                 No recent projects
@@ -331,6 +327,12 @@ export function TopMenuBar({
                           </DropdownMenu.SubContent>
                         </DropdownMenu.Portal>
                       </DropdownMenu.Sub>
+                      <DropdownMenu.Item
+                        className={s.dropdownItem}
+                        onSelect={() => navigate('/projects')}
+                      >
+                        Manage Projects...
+                      </DropdownMenu.Item>
                       <DropdownMenu.Separator className={s.dropdownSeparator} />
                       <DropdownMenu.Item
                         className={s.dropdownItem}

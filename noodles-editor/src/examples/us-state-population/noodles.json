@@ -163,6 +163,70 @@
         "x": 1400,
         "y": 0
       }
+    },
+    {
+      "id": "/data-note",
+      "type": "CommentOp",
+      "position": {
+        "x": -1000,
+        "y": -110
+      },
+      "data": {
+        "inputs": {
+          "text": "This loads the 2020 population of each US state from a CSV file."
+        },
+        "locked": false
+      },
+      "width": 300,
+      "height": 80
+    },
+    {
+      "id": "/choropleth-note",
+      "type": "CommentOp",
+      "position": {
+        "x": -500,
+        "y": -720
+      },
+      "data": {
+        "inputs": {
+          "text": "This colors each state by its population. Click it and pick a different colorScheme."
+        },
+        "locked": false
+      },
+      "width": 340,
+      "height": 80
+    },
+    {
+      "id": "/labels-note",
+      "type": "CommentOp",
+      "position": {
+        "x": 500,
+        "y": 640
+      },
+      "data": {
+        "inputs": {
+          "text": "This writes each state's short name and population on the map, like CA 39.5M."
+        },
+        "locked": false
+      },
+      "width": 300,
+      "height": 80
+    },
+    {
+      "id": "/try-next-note",
+      "type": "CommentOp",
+      "position": {
+        "x": 1000,
+        "y": 180
+      },
+      "data": {
+        "inputs": {
+          "text": "Try next:\n- Click labels and change getTextSize to resize the labels.\n- Click the diamond next to opacity on population-choropleth, pick a later time in the Timeline, and change it again.\n- Press Export and pick Image (PNG) to save the map."
+        },
+        "locked": false
+      },
+      "width": 340,
+      "height": 190
     }
   ],
   "edges": [

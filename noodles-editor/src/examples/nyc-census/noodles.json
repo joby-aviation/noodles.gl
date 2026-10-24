@@ -230,6 +230,70 @@
         },
         "locked": false
       }
+    },
+    {
+      "id": "/data-note",
+      "type": "CommentOp",
+      "position": {
+        "x": 109,
+        "y": -230
+      },
+      "data": {
+        "inputs": {
+          "text": "This loads New York City census tracts, each with its population."
+        },
+        "locked": false
+      },
+      "width": 300,
+      "height": 80
+    },
+    {
+      "id": "/layer-note",
+      "type": "CommentOp",
+      "position": {
+        "x": 864,
+        "y": -215
+      },
+      "data": {
+        "inputs": {
+          "text": "This layer draws each tract, colored and raised by its population. Click it and change elevationScale."
+        },
+        "locked": false
+      },
+      "width": 320,
+      "height": 90
+    },
+    {
+      "id": "/height-note",
+      "type": "CommentOp",
+      "position": {
+        "x": 418,
+        "y": 750
+      },
+      "data": {
+        "inputs": {
+          "text": "This turns population into a height. Change outMax to make the tallest tracts taller."
+        },
+        "locked": false
+      },
+      "width": 333,
+      "height": 80
+    },
+    {
+      "id": "/try-next-note",
+      "type": "CommentOp",
+      "position": {
+        "x": 1500,
+        "y": 280
+      },
+      "data": {
+        "inputs": {
+          "text": "Try next:\n- Click population-color and pick a different colorScheme.\n- Click the diamond next to elevationScale on geojson-layer, pick a later time in the Timeline, and change it again.\n- Press Export and pick Video (MP4) to save the animation."
+        },
+        "locked": false
+      },
+      "width": 340,
+      "height": 190
     }
   ],
   "timeline": {

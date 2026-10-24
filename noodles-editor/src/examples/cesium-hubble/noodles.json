@@ -198,6 +198,38 @@
         },
         "locked": false
       }
+    },
+    {
+      "id": "/videos-note",
+      "type": "CommentOp",
+      "position": {
+        "x": -400,
+        "y": -80
+      },
+      "data": {
+        "inputs": {
+          "text": "This code puts street performance videos on spheres around Manhattan. Edit the videos list to change a clip or where it sits."
+        },
+        "locked": false
+      },
+      "width": 330,
+      "height": 90
+    },
+    {
+      "id": "/try-next-note",
+      "type": "CommentOp",
+      "position": {
+        "x": 800,
+        "y": 240
+      },
+      "data": {
+        "inputs": {
+          "text": "Try next:\n- Press the space bar to play the camera flight on the Timeline.\n- Click point-cloud and change opacity.\n- Press Export and pick Video (MP4) to save the flythrough."
+        },
+        "locked": false
+      },
+      "width": 340,
+      "height": 150
     }
   ],
   "timeline": {

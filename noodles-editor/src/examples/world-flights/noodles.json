@@ -468,6 +468,22 @@
       },
       "width": 300,
       "height": 80
+    },
+    {
+      "id": "/try-next-note",
+      "type": "CommentOp",
+      "position": {
+        "x": 1875,
+        "y": 380
+      },
+      "data": {
+        "inputs": {
+          "text": "Try next:\n- Press the space bar to play the flights on the Timeline.\n- Click color-ramp and pick a different colorScheme.\n- Press Export and pick Video (MP4) to save the animation."
+        },
+        "locked": false
+      },
+      "width": 340,
+      "height": 170
     }
   ],
   "timeline": {

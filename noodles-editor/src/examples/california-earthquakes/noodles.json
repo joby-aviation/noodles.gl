@@ -307,6 +307,22 @@
       },
       "width": 329,
       "height": 80
+    },
+    {
+      "id": "/try-next-note",
+      "type": "CommentOp",
+      "position": {
+        "x": 1200,
+        "y": 380
+      },
+      "data": {
+        "inputs": {
+          "text": "Try next:\n- Click magnitude-color and pick a different colorScheme.\n- Drop a CSV with latitude and longitude columns onto the canvas to map your own points.\n- Press Export and pick Image (PNG) to save the map."
+        },
+        "locked": false
+      },
+      "width": 340,
+      "height": 190
     }
   ],
   "timeline": {
