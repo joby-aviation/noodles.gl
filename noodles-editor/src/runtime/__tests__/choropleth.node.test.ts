@@ -44,8 +44,7 @@ beforeAll(async () => {
 }, 60_000)
 afterAll(() => vi.unstubAllGlobals())
 
-const ROWS =
-  "SELECT * FROM (VALUES ('CA', 39000000), ('TX', 29000000)) t(state, population)"
+const ROWS = "SELECT * FROM (VALUES ('CA', 39000000), ('TX', 29000000)) t(state, population)"
 
 async function draw(doc: EditorDoc) {
   const lowered = lowerDocument(doc)
@@ -119,7 +118,12 @@ describe('choropleths', () => {
     const { doc } = toEditorDoc(project)
     expect(doc.nodes.find(n => n.id === '/population-choropleth')).toMatchObject({
       op: 'choropleth',
-      params: { geography: 'us-states', joinKey: 'state', geoKey: 'abbrev', valueColumn: 'population' },
+      params: {
+        geography: 'us-states',
+        joinKey: 'state',
+        geoKey: 'abbrev',
+        valueColumn: 'population',
+      },
     })
     expect(doc.nodes.find(n => n.id === '/state-join')?.op).toBe('choropleth-join')
   })

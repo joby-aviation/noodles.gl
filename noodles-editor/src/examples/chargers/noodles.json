@@ -102,7 +102,7 @@
     },
     {
       "id": "charger-bounds",
-      "op": "BoundingBoxOp",
+      "op": "fit-bounds",
       "name": "charger-bounds",
       "x": -707.2197014646986,
       "y": -209.733438472903,

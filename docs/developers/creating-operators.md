@@ -61,10 +61,10 @@ The Add Node menu lists operators by category, in this order:
 | `rows` | `filter`, `range`, `region`, `attribute`, `wrangle`, `map-range`, `extent`, `js-function` |
 | `color` | `color-ramp`, `color` |
 | `layer` | `scatter`, `arc`, `path`, `trips`, `polygon`, `text`, `heatmap`, `hexagon`, `bitmap`, `tile-3d` |
-| `number` | `number`, `time`, `math`, `expression`, `bezier-curve`, `ramp` |
-| `output` | `deck`, views, widgets, extensions, `map-style` |
+| `number` | `number`, `time`, `mouse`, `math`, `expression`, `bezier-curve`, `ramp` |
+| `output` | `deck`, views, widgets, extensions, `map-style`, `fit-bounds`, `merge`, `layer-props` |
 | `structure` | `switch`, `subnet` |
-| `host` | Directions, Geocoder, Chart, BoundingBox, Merge, Mouse, TileLayer |
+| `host` | Directions, Geocoder, Chart, TileLayer, Custom MapLibre Layer |
 
 ## Code Operators
 

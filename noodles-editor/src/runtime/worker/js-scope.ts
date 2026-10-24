@@ -3,10 +3,10 @@
 
 import * as turf from '@turf/turf'
 import * as d3 from 'd3'
+import { choroplethJoin } from '../../noodles/utils/choropleth-boundaries'
 import * as arc from '../../utils/arc-geometry'
 import binarySearchClosest from '../../utils/binary-search-closest'
 import * as cells from '../../utils/cells'
-import { choroplethJoin } from '../../noodles/utils/choropleth-boundaries'
 import * as color from '../../utils/color'
 import * as cross from '../../utils/cross'
 import * as distance from '../../utils/distance'

@@ -26,7 +26,9 @@ async function rows(expressions: Record<string, string>) {
         op: 'sql',
         x: 0,
         y: 0,
-        params: { query: "SELECT TIMESTAMP '2026-04-30 12:00:00' AS ts, '2026-01-31T00:00:00' AS iso" },
+        params: {
+          query: "SELECT TIMESTAMP '2026-04-30 12:00:00' AS ts, '2026-01-31T00:00:00' AS iso",
+        },
       },
       ...attrs,
       // A relation at the end, which previews read
@@ -40,7 +42,13 @@ async function rows(expressions: Record<string, string>) {
         target: a.id,
         targetPort: 'in',
       })),
-      { id: 'last', source: attrs[attrs.length - 1].id, sourcePort: 'out', target: 'all', targetPort: 'in0' },
+      {
+        id: 'last',
+        source: attrs[attrs.length - 1].id,
+        sourcePort: 'out',
+        target: 'all',
+        targetPort: 'in0',
+      },
     ],
   }
   const lowered = lowerDocument(doc)

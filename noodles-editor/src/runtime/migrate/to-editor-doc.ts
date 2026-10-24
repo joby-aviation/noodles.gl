@@ -1303,8 +1303,10 @@ export function toEditorDoc(original: NoodlesProject): Migrated {
             }
           }
           referenced.add(target)
+          // A Mouse node's position is its x and y outputs
+          const port = node?.type === 'MouseOp' ? String(path).replace(/^position\./, '') : path
           return inOut === 'out'
-            ? `ch('${segment(target)}/out.${path}')`
+            ? `ch('${segment(target)}/out.${port}')`
             : `ch('${segment(target)}/${path}')`
         }
       )
@@ -2342,6 +2344,23 @@ export function toEditorDoc(original: NoodlesProject): Migrated {
         edge(src.id, 'out', n.id, `par:${field}`)
         continue
       }
+      // Rows a deck operator reads (a camera fit's) come from the planner node making them
+      if (PLANNER_SOURCES.has(src.type) || FEATURE_SOURCES.has(src.type)) {
+        const geo = FEATURE_SOURCES.has(src.type) || (src.type === 'FileOp' && isGeoJsonFile(src))
+        const rows = source(src.id, geo, handleField(e.sourceHandle))
+        if (geo && deck.def.type === 'fit-bounds') params.position = 'geom'
+        edge(rows, sourcePort.get(rows) ?? 'out', n.id, `par:${field}`)
+        continue
+      }
+      // A layer a deck operator takes (props added to it) is the planner layer it becomes
+      if (PLANNER_LAYERS.has(src.type) || src.type === 'SwitchOp') {
+        migrateLayer(src.id, handleField(e.sourceHandle), {
+          node: n.id,
+          port: `par:${field}`,
+          index: 0,
+        })
+        continue
+      }
       hostNode(src.id)
       edge(
         src.id,
@@ -2359,6 +2378,18 @@ export function toEditorDoc(original: NoodlesProject): Migrated {
     if (hostNodes.has(id)) return
     const n = byId.get(id)
     if (!n) throw new MigrationError(`Missing node ${id}`)
+    if (n.type === 'MouseOp') {
+      // The pointer is the clock's: a mouse node with x and y outputs
+      if (project.edges.some(e => e.source === id)) {
+        throw new MigrationError(
+          `${id}: a wired Mouse position is not converted; wire the mouse node's x or y`
+        )
+      }
+      hostNodes.add(id)
+      used.add(id)
+      nodes.push({ id, op: 'mouse', name: segment(id), ...position(n), params: {} })
+      return
+    }
     // A deck operator takes constants where its Noodles class took per-row accessors
     const deck = DECK_OP_FOR.get(n.type)
     if (deck) {
@@ -2405,25 +2436,14 @@ export function toEditorDoc(original: NoodlesProject): Migrated {
         continue
       }
       if (src.type === 'FileOp') {
-        // A host operator reads a file as FileOp parsed it (a GeoJSON object, say), so the
-        // file is a host FileOp; when planner layers read it too, that one is a second node.
-        const plannerReads = project.edges.some(
-          x => x.source === src.id && ACCESSOR_OPS.has(byId.get(x.target)?.type ?? '')
-        )
-        const fileId = plannerReads ? `${src.id}-json` : src.id
-        if (!hostNodes.has(fileId)) {
-          hostNodes.add(fileId)
-          used.add(src.id)
-          nodes.push({
-            id: fileId,
-            op: 'FileOp',
-            name: segment(fileId),
-            ...position(src),
-            y: position(src).y + (plannerReads ? 160 : 0),
-            params: { ...(src.data?.inputs ?? {}) } as Record<string, ParamValue>,
-          })
+        // A host operator reads the file's rows, or a GeoJSON file as a FeatureCollection,
+        // from the planner's file node
+        const geo = isGeoJsonFile(src)
+        const fileId = source(src.id, geo)
+        edge(fileId, sourcePort.get(fileId) ?? 'out', id, `par:${field}`)
+        if (!geo && inputs(src).format === 'json') {
+          warnings.push(`${id} reads ${src.id} as rows: a JSON object is one row`)
         }
-        edge(fileId, handleField(e.sourceHandle) || 'data', id, `par:${field}`)
         continue
       }
       if (PLANNER_SOURCES.has(src.type)) {

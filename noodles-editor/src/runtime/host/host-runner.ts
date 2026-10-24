@@ -7,6 +7,7 @@
 // one that read the timeline also re-runs when the time moves.
 
 import type { DocEdge, DocNode, EditorDoc } from '@noodles.gl/planner'
+import { OPERATOR_INDEX, outputKey, type RelShape } from '@noodles.gl/planner'
 import { applySerializedFieldValue, type Field, ListField } from '../../noodles/fields'
 import { type IOperator, type Operator, opTypes } from '../../noodles/operators'
 import { readsTimeline } from '../../noodles/utils/timeline-dependencies'
@@ -22,6 +23,15 @@ export interface HostInputs {
   slots: ReadonlyMap<string, unknown>
   /** Timeline seconds; time-dependent operators re-run when it changes. */
   time: number
+  /**
+   * One row of SQL over a planner node's rows (`select` is the column list, given the rows'
+   * shape), for a deck operator that needs a statistic rather than the rows.
+   */
+  aggregate?(
+    nodeId: string,
+    port: string,
+    select: (shape: RelShape) => string
+  ): Promise<Record<string, unknown> | undefined> | typeof PENDING
 }
 
 export interface HostReport {
@@ -91,6 +101,8 @@ export class HostRunner {
       if (!isHost.has(id)) this.drop(id)
     }
 
+    const opOf = new Map(doc.nodes.map(n => [n.id, n.op]))
+    const byOp = (id: string) => opOf.get(id)
     const keyed = new Set((doc.timeline?.tracks ?? []).map(t => t.target))
     const failed = new Set<string>()
     for (const node of order(hosts, doc.edges)) {
@@ -102,8 +114,9 @@ export class HostRunner {
       const edgeValue = (e: DocEdge) =>
         isHost.has(e.source)
           ? this.output(e.source, e.sourcePort)
-          : (inputs.slots.get(`${e.source}.${e.sourcePort}`) ??
-            inputs.planner(e.source, e.sourcePort))
+          : (inputs.slots.get(
+              outputKey(OPERATOR_INDEX.get(byOp(e.source) ?? ''), e.source, e.sourcePort)
+            ) ?? inputs.planner(e.source, e.sourcePort))
 
       if (entry.deck) {
         await this.runDeck(node, entry, entry.deck, into, edgeValue, keyed, inputs, failed, report)
@@ -197,15 +210,28 @@ export class HostRunner {
       report.pending.push(node.id)
       return
     }
-    const read = params.map(p => {
-      const edges = into(p.name)
-      if (edges.length === 0) {
-        const key = `${node.id}.${p.name}`
-        return keyed.has(key) ? inputs.slots.get(key) : (node.params[p.name] ?? p.default)
-      }
-      const values = edges.map(edgeValue)
-      return deck.lists?.includes(p.name) ? values : values[0]
-    })
+    const plain = (name: string) => node.params[name] ?? params.find(p => p.name === name)?.default
+    const read: unknown[] = await Promise.all(
+      params.map(p => {
+        const edges = into(p.name)
+        if (deck.aggregate?.param === p.name) {
+          const e = edges[0]
+          if (!e || !inputs.aggregate) return undefined
+          const values = Object.fromEntries(params.map(q => [q.name, plain(q.name)]))
+          return inputs.aggregate(e.source, e.sourcePort, shape =>
+            deck.aggregate!.select(values, shape)
+          )
+        }
+        if (edges.length === 0) {
+          const key = `${node.id}.${p.name}`
+          return keyed.has(key) ? inputs.slots.get(key) : plain(p.name)
+        }
+        const values = edges.map(edgeValue)
+        return deck.lists?.includes(p.name) ? values : values[0]
+      })
+    )
+    const surface = getRenderSurfaceSize()
+    if (deck.surface) read.push(`${surface.width}x${surface.height}`)
     if (read.some(v => v === PENDING || (Array.isArray(v) && v.includes(PENDING)))) {
       failed.add(node.id)
       report.pending.push(node.id)
@@ -217,8 +243,10 @@ export class HostRunner {
     }
     try {
       const values = Object.fromEntries(params.map((p, i) => [p.name, read[i]]))
-      const built = await deck.build(values, node.id)
-      const result = { [deck.def.outputs[0].name]: built }
+      const built = await deck.build(values, node.id, { surface })
+      const result = deck.ports
+        ? (built as Record<string, unknown>)
+        : { [deck.def.outputs[0].name]: built }
       entry.outputs = this.options.resolveOutputs
         ? await this.options.resolveOutputs(node.id, result)
         : result

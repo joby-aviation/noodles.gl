@@ -50,8 +50,11 @@ Every operator is an `OpDef` registered with the planner. There are three kinds:
 
 Host operators are what cannot compile: CodeOp when its code reads `op()`, the timeline or
 `this`; Geocoder and Directions (they call APIs with the user's key); Chart (draws into the
-page); BoundingBox (needs the canvas size); Merge and LayerProps (JS objects, not rows); Mouse;
-TileLayer and custom MapLibre layers. Their classes are the only ones left in
+page); TileLayer and custom MapLibre layers. A camera fit to rows (`fit-bounds`), merged
+objects (`merge`) and props added to a layer (`layer-props`) are deck operators; a deck operator
+can read one row of DuckDB statistics over a wired table (`DeckOp.aggregate`) and the render
+surface size. The pointer is the clock's `MX`, `MY`, which the `mouse` operator and parameter
+expressions read. Their classes are the only ones left in
 `src/noodles/operators.ts`, with the extension operators and the classes whose fields a
 parameter widget uses. `HostRunner` runs them in dependency order and memoizes them by input.
 

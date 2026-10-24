@@ -1,90 +1,18 @@
-import { extname } from 'node:path'
-import type {
-  ContourLayerProps,
-  GridLayerProps,
-  HeatmapLayerProps,
-  HexagonLayerProps,
-  ScreenGridLayerProps,
-} from '@deck.gl/aggregation-layers'
-import { type LayerExtension, type LayerProps, WebMercatorViewport } from '@deck.gl/core'
-import {
-  BrushingExtension,
-  ClipExtension,
-  CollisionFilterExtension,
-  DataFilterExtension,
-  FillStyleExtension,
-  MaskExtension,
-  PathStyleExtension,
-  _TerrainExtension as TerrainExtension,
-} from '@deck.gl/extensions'
-import type {
-  A5LayerProps,
-  GeohashLayerProps,
-  GreatCircleLayerProps,
-  H3ClusterLayerProps,
-  H3HexagonLayerProps,
-  MVTLayerProps,
-  QuadkeyLayerProps,
-  S2LayerProps,
-  TerrainLayerProps,
-  Tile3DLayerProps,
-  TileLayerProps,
-  TripsLayerProps,
-} from '@deck.gl/geo-layers'
-import type {
-  ArcLayerProps,
-  BitmapBoundingBox,
-  BitmapLayerProps,
-  ColumnLayerProps,
-  GeoJsonLayerProps,
-  GridCellLayerProps,
-  IconLayerProps,
-  LineLayerProps,
-  PathLayerProps,
-  PointCloudLayerProps,
-  PolygonLayerProps,
-  ScatterplotLayerProps,
-  SolidPolygonLayerProps,
-  TextLayerProps,
-} from '@deck.gl/layers'
-import type { ScenegraphLayerProps, SimpleMeshLayerProps } from '@deck.gl/mesh-layers'
-import type { Tileset3D } from '@loaders.gl/tiles'
-import { brightnessContrast, hueSaturation, vibrance } from '@luma.gl/effects'
-import { fitBounds } from '@math.gl/web-mercator'
+import type { LayerExtension, LayerProps } from '@deck.gl/core'
+import type { TerrainLayerProps, TileLayerProps } from '@deck.gl/geo-layers'
 import * as Plot from '@observablehq/plot'
 import * as turf from '@turf/turf'
 import * as d3 from 'd3'
-import {
-  csv,
-  csvParse,
-  type DSVRowArray,
-  color as d3Color,
-  hsl,
-  interpolate,
-  scaleLinear,
-  scaleOrdinal,
-  tsv,
-  tsvParse,
-} from 'd3'
 import * as deck from 'deck.gl'
-import { BehaviorSubject, combineLatest, Subject, type Subscription } from 'rxjs'
-import { distinctUntilChanged, filter, mergeMap, skip } from 'rxjs/operators'
+import { BehaviorSubject, Subject, type Subscription } from 'rxjs'
 import { Temporal } from 'temporal-polyfill'
-import z from 'zod/v4'
+import type z from 'zod/v4'
 
 import './utils/bigint-fix' // BigInt JSON polyfill for DuckDB
-import { getRenderSurfaceSize } from '../render/render-surface-size'
-import { getTransformScaleFactor } from '../render/transform-scale'
-import { duckDbInstance } from '../runtime/duckdb'
-import { subscribeToPosition } from '../timeline/timeline-store'
 import * as utils from '../utils'
 import { analytics } from '../utils/analytics'
-import { getArc } from '../utils/arc-geometry'
-import { colorToHex, hexToColor } from '../utils/color'
-// Side-effect import: registers the field expression evaluator so { $expr } payloads
-// applied in the Operator constructor evaluate immediately
-import { interpolateRamp, type RampInterpType } from '../utils/curves'
-import { debugDirty, debugDirtyTrace, debugExecute, debugParams, debugPull } from '../utils/debug'
+import { hexToColor } from '../utils/color'
+import { debugExecute, debugParams } from '../utils/debug'
 import { getDirections } from '../utils/directions'
 import { geocodeWithMapbox } from '../utils/geocoding'
 import {
@@ -93,16 +21,6 @@ import {
   type StyleConfiguratorData,
 } from '../utils/map-style-utils'
 import { CARTO_DARK } from '../utils/map-styles'
-import { osmToGeoJson } from '../utils/osm-to-geojson'
-import { mulberry32 } from '../utils/random'
-import { sqlIdentifier, sqlLiteral } from '../utils/sql'
-import {
-  categoricalSchemesFixed,
-  categoricalSchemesStepped,
-  continuousInterpolators,
-} from './color-schemes'
-import { FilterColorExtension } from './extensions/filter-color-extension'
-import { Mask3DExtension } from './extensions/mask-3d-extension'
 import {
   ArrayField,
   applyNodeUIMetadata,
@@ -110,59 +28,38 @@ import {
   BboxField,
   BezierCurveField,
   BooleanField,
-  CategoricalColorRampField,
   CodeField,
   ColorField,
-  ColorRampField,
   CompoundPropsField,
   captureNodeUIMetadata,
   DataField,
   DateField,
-  EffectField,
-  ExpressionField,
   ExtensionField,
   type Field,
-  type FieldReference,
   FileUrlField,
   FunctionField,
   fieldTypeToClass,
-  GeoJsonField,
   IN_NS,
-  type InOut,
   LayerField,
   ListField,
   MapLibreLayerField,
-  MapStyleField,
   mustacheRe,
   NumberField,
   OUT_NS,
   Point2DField,
-  Point3DField,
   StringField,
   StringLiteralField,
   selfParMustacheRe,
   UnknownField,
   Vec2Field,
-  Vec3Field,
-  ViewField,
-  type VisualizationDeckProps,
-  VisualizationField,
-  WidgetField,
 } from './fields'
-import { DEFAULT_LATITUDE, DEFAULT_LONGITUDE, safeMode } from './globals'
 import { getKeysStore } from './keys-store'
 import { type OpView, resolveOp } from './op-resolver'
-import { prepareTableDataForOutput, type TableSchema, validateTableData } from './table-schema'
-import type { ExtensionConstructorArgs, LayerPropsValue } from './types'
-import { deepEqual } from './utils/deep-equal'
+import type { LayerPropsValue } from './types'
 import type { ExtractProps } from './utils/extract-props'
-import { projectScheme } from './utils/filesystem'
 import type { OpId } from './utils/id-utils'
-import { isDirectChild } from './utils/path-utils'
-import { pick } from './utils/pick'
 import { getTimelineContext } from './utils/timeline-context'
 import { subscribeOpToTimeline, unsubscribeOpFromTimeline } from './utils/timeline-dependencies'
-import { validateViewState } from './utils/viewstate-helpers'
 
 // https://stackoverflow.com/questions/66044717/typescript-infer-type-of-abstract-methods-implementation
 export interface IOperator {
@@ -179,15 +76,6 @@ export interface CustomFieldDefinition {
   options?: Record<string, unknown> // Type-specific options (min, max, step, etc.)
   defaultValue?: unknown // Default value
   enableExpression?: string // JavaScript expression for conditional visibility (e.g., "par.mode === 'advanced'")
-}
-
-// Deserializers can throw on bad input, such as a date that isn't ISO
-function parseSavedOutput(field: Field, value: unknown) {
-  try {
-    return field.schema.safeParse((field.constructor as typeof Field).deserialize(value))
-  } catch {
-    return { success: false as const }
-  }
 }
 
 // An Operator is a collection of Fields, and a transform function responsible
@@ -667,203 +555,6 @@ export class BezierCurveOp extends Operator<BezierCurveOp> {
   }
 }
 
-export class FileOp extends Operator<FileOp> {
-  static displayName = 'File'
-  static description =
-    'Fetch a file from a URL or text. Supports csv, tsv, json, text, and binary formats'
-  asDownload = () => this.outputData
-
-  constructor(id: OpId, inputs?: unknown, locked?: boolean) {
-    super(id, inputs, locked)
-
-    const sub = this.inputs.format.subscribe(format => {
-      this.setFieldVisibility('autoType', format === 'csv' || format === 'tsv')
-    })
-    this.subs.push(sub)
-  }
-
-  createInputs() {
-    return {
-      format: new StringLiteralField('json', { values: ['json', 'csv', 'tsv', 'text', 'binary'] }),
-      url: new FileUrlField(),
-      text: new StringField(), // TODO: make this mutually exclusive with `url`
-      autoType: new BooleanField(true, { showByDefault: false }),
-      pulse: new NumberField(0, { min: 0, step: 1, showByDefault: false }),
-    }
-  }
-
-  createOutputs() {
-    return {
-      data: new DataField(),
-    }
-  }
-
-  // Helper method to read from project assets
-  private async readFromProjectAsset(
-    url: string,
-    binary = false
-  ): Promise<string | ArrayBuffer | null> {
-    if (!url?.startsWith(projectScheme)) {
-      return null
-    }
-
-    // Lazy imports to avoid circular dependency
-    const { readAsset, readAssetBinary } = await import('./storage')
-    const { useFileSystemStore } = await import('./filesystem-store')
-
-    // Get current project and storage type
-    const { currentProjectName, activeStorageType } = useFileSystemStore.getState()
-    if (!currentProjectName) {
-      throw new Error('No project loaded. Please save or load a project first.')
-    }
-
-    const fileName = url.substring(projectScheme.length)
-
-    // Use appropriate read function based on binary flag
-    if (binary) {
-      const result = await readAssetBinary(activeStorageType, currentProjectName, fileName)
-      if (!result.success) {
-        throw new Error(result.error.message)
-      }
-      return result.data
-    }
-    const result = await readAsset(activeStorageType, currentProjectName, fileName)
-    if (!result.success) {
-      throw new Error(result.error.message)
-    }
-    return result.data
-  }
-
-  // Helper method to fetch from URL
-  private async fetchFromUrl(
-    url: string,
-    format: 'json' | 'csv' | 'tsv' | 'text' | 'binary'
-  ): Promise<unknown> {
-    if (format === 'csv') {
-      const parseFn = this.inputs.autoType.value ? d3.autoType : null
-      return await csv(url, parseFn)
-    }
-    if (format === 'tsv') {
-      const parseFn = this.inputs.autoType.value ? d3.autoType : null
-      return await tsv(url, parseFn)
-    }
-
-    const resp = await fetch(url)
-
-    switch (format) {
-      case 'json':
-        return await resp.json()
-      case 'text':
-        return await resp.text()
-      case 'binary':
-        return await resp.arrayBuffer()
-      default:
-        throw new Error(`Unsupported format: ${format}`)
-    }
-  }
-
-  // Helper method to process data based on format
-  private processData(
-    data: string | ArrayBuffer | DSVRowArray<string> | unknown,
-    format: string,
-    autoType: boolean
-  ): ExtractProps<typeof this.outputs> {
-    if (format === 'csv' && typeof data === 'string') {
-      const parseFn = autoType ? d3.autoType : null
-      return { data: csvParse(data, parseFn) }
-    }
-    if (format === 'tsv' && typeof data === 'string') {
-      const parseFn = autoType ? d3.autoType : null
-      return { data: tsvParse(data, parseFn) }
-    }
-    if (format === 'json' && typeof data === 'string') {
-      return { data: JSON.parse(data) }
-    }
-    return { data }
-  }
-
-  // Helper method to process text input
-  private processText(
-    text: string,
-    format: string,
-    autoType: boolean
-  ): ExtractProps<typeof this.outputs> {
-    switch (format) {
-      case 'csv': {
-        const parseFn = autoType ? d3.autoType : null
-        return { data: csvParse(text, parseFn) }
-      }
-      case 'tsv': {
-        const parseFn = autoType ? d3.autoType : null
-        return { data: tsvParse(text, parseFn) }
-      }
-      case 'json':
-        return { data: JSON.parse(text) }
-      case 'text':
-        return { data: text }
-      case 'binary': {
-        // Convert text to Uint8Array for binary format
-        const encoder = new TextEncoder()
-        return { data: encoder.encode(text) }
-      }
-      default:
-        throw new Error(`Unsupported format: ${format}`)
-    }
-  }
-
-  // Helper method to get empty result based on format
-  private getEmptyResult(format: string): ExtractProps<typeof this.outputs> {
-    switch (format) {
-      case 'csv':
-      case 'tsv':
-        return { data: [] }
-      case 'json':
-        return { data: {} }
-      case 'text':
-        return { data: '' }
-      case 'binary':
-        return { data: new Uint8Array() }
-      default:
-        return { data: null }
-    }
-  }
-
-  async execute({
-    format,
-    url,
-    text,
-    autoType,
-  }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
-    try {
-      // Try reading from project asset first
-      if (url) {
-        const assetData = await this.readFromProjectAsset(url, format === 'binary')
-        if (assetData !== null) {
-          return this.processData(assetData, format, autoType)
-        }
-
-        // Not a project asset, fetch from URL
-        const data = await this.fetchFromUrl(
-          url,
-          format as 'json' | 'csv' | 'tsv' | 'text' | 'binary'
-        )
-        return this.processData(data, format, autoType)
-      }
-
-      // Handle text input
-      if (text) {
-        return this.processText(text, format, autoType)
-      }
-
-      // No input provided, return empty result
-      return this.getEmptyResult(format)
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error)
-      throw new Error(`Unable to read file "${url}": ${errorMessage}`)
-    }
-  }
-}
-
 export class ChartOp extends Operator<ChartOp> {
   static displayName = 'Chart'
   static description = 'Create charts using Observable Plot (bar, histogram, scatter)'
@@ -980,143 +671,6 @@ export class ChartOp extends Operator<ChartOp> {
       })
       return { chart: null }
     }
-  }
-}
-
-const GEOJSON_COORDINATE_GEOMETRIES = new Set([
-  'Point',
-  'MultiPoint',
-  'LineString',
-  'MultiLineString',
-  'Polygon',
-  'MultiPolygon',
-])
-
-const isPlainObject = (val: unknown): val is Record<string, unknown> =>
-  typeof val === 'object' && val !== null && !Array.isArray(val)
-
-// Checks the members each type requires, but not every position, so large inputs stay cheap
-function isGeoJsonGeometry(val: unknown): val is GeoJSON.Geometry {
-  if (!isPlainObject(val)) return false
-  if (val.type === 'GeometryCollection') {
-    return Array.isArray(val.geometries) && val.geometries.every(isGeoJsonGeometry)
-  }
-  return GEOJSON_COORDINATE_GEOMETRIES.has(val.type as string) && Array.isArray(val.coordinates)
-}
-
-function isGeoJsonFeature(val: unknown): val is GeoJSON.Feature {
-  return (
-    isPlainObject(val) &&
-    val.type === 'Feature' &&
-    (val.geometry === null || isGeoJsonGeometry(val.geometry))
-  )
-}
-
-function isGeoJson(val: unknown): val is GeoJSON.GeoJSON {
-  if (isPlainObject(val) && val.type === 'FeatureCollection') {
-    return Array.isArray(val.features) && val.features.every(isGeoJsonFeature)
-  }
-  return isGeoJsonFeature(val) || isGeoJsonGeometry(val)
-}
-
-const geoJsonSchema = z.custom<GeoJSON.GeoJSON>(isGeoJson)
-
-// Widen a field's schema to also accept `other`, keeping the union in the field's type.
-// The field keeps its class, so its handle and editor UI are unchanged.
-function orSchema<F extends { schema: z.ZodType }, O extends z.ZodType>(
-  field: F,
-  other: O
-): Field<z.ZodUnion<[F['schema'], O]>> {
-  const widened = field as unknown as Field<z.ZodUnion<[F['schema'], O]>>
-  widened.schema = z.union([field.schema, other])
-  return widened
-}
-
-// The southwest and northeast corners of a GeoJSON object's bounds. Empty when it has
-// no coordinates (turf returns Infinity bounds for an empty FeatureCollection).
-function geoJsonBoundsCorners(geojson: GeoJSON.GeoJSON): { lng: number; lat: number }[] {
-  const [west, south, east, north] = turf.bbox(geojson)
-  if (![west, south, east, north].every(Number.isFinite)) return []
-  return [
-    { lng: west, lat: south },
-    { lng: east, lat: north },
-  ]
-}
-
-export class BoundingBoxOp extends Operator<BoundingBoxOp> {
-  static displayName = 'BoundingBox'
-  static description =
-    'Calculate the geographic bounds of your points (with lat/lng keys) or GeoJSON and get a camera position (center, zoom) that fits them all in view.'
-  asDownload = () => this.outputData
-
-  // The fit depends on the render surface, not just inputs: the host runner reruns it when
-  // the surface resizes
-  static readsRenderSurface = true
-
-  createInputs() {
-    return {
-      // Points, or a GeoJSON FeatureCollection, Feature or Geometry (e.g. a GeoJson operator's output)
-      data: orSchema(new ArrayField(new Point2DField()), geoJsonSchema),
-      // TODO: could be a union, either a number or object with top, right, bottom, left
-      padding: new NumberField(0, { softMin: -1_000, softMax: 1_000 }),
-    }
-  }
-  createOutputs() {
-    return {
-      bounds: new ArrayField(new Point2DField([0, 0], { returnType: 'tuple' })),
-      longitude: new NumberField(),
-      latitude: new NumberField(),
-      zoom: new NumberField(),
-      viewState: new CompoundPropsField({
-        longitude: new NumberField(),
-        latitude: new NumberField(),
-        zoom: new NumberField(),
-      }),
-    }
-  }
-  execute({ data, padding }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
-    let east = -180
-    let west = 180
-    let north = -90
-    let south = 90
-    // Should this be a turf function? Do we need to cast data to GeoJSON first?
-    // Or allow the lat / lng keys to be configurable?
-    const points = Array.isArray(data) ? data : geoJsonBoundsCorners(data)
-    for (const d of points) {
-      if (d.lng < west) {
-        west = d.lng
-      }
-      if (d.lng > east) {
-        east = d.lng
-      }
-      if (d.lat < south) {
-        south = d.lat
-      }
-      if (d.lat > north) {
-        north = d.lat
-      }
-    }
-    const bounds = [
-      [west, south],
-      [east, north],
-    ] as [[number, number], [number, number]]
-
-    const { width, height } = getRenderSurfaceSize()
-
-    const { longitude, latitude, zoom } = fitBounds({
-      bounds,
-      width,
-      height,
-      padding,
-    })
-
-    const viewState = {
-      longitude,
-      latitude,
-      zoom,
-    }
-
-    return { bounds, longitude, latitude, zoom, viewState }
   }
 }
 
@@ -1254,162 +808,6 @@ export class DirectionsOp extends Operator<DirectionsOp> {
   }
 }
 
-function isTemporal(
-  value: unknown
-): value is
-  | Temporal.PlainDate
-  | Temporal.PlainDateTime
-  | Temporal.Instant
-  | Temporal.ZonedDateTime {
-  return (
-    value instanceof Temporal.PlainDate ||
-    value instanceof Temporal.PlainDateTime ||
-    value instanceof Temporal.Instant ||
-    value instanceof Temporal.ZonedDateTime
-  )
-}
-
-// Helper function to interpolate between two Temporal objects
-function interpolateTemporal(a: unknown, b: unknown, t: number): unknown {
-  // Convert both to epoch milliseconds for interpolation
-  let aMs: number
-  let bMs: number
-  let type: 'Instant' | 'ZonedDateTime' | 'PlainDateTime' | 'PlainDate'
-
-  if (a instanceof Temporal.Instant) {
-    aMs = a.epochMilliseconds
-    bMs = b.epochMilliseconds
-    type = 'Instant'
-  } else if (a instanceof Temporal.ZonedDateTime) {
-    aMs = a.epochMilliseconds
-    bMs = b.epochMilliseconds
-    type = 'ZonedDateTime'
-  } else if (a instanceof Temporal.PlainDateTime) {
-    // Convert to a reference Instant (using UTC as reference)
-    aMs = a.toZonedDateTime('UTC').epochMilliseconds
-    bMs = b.toZonedDateTime('UTC').epochMilliseconds
-    type = 'PlainDateTime'
-  } else if (a instanceof Temporal.PlainDate) {
-    // Convert to a reference Instant (start of day in UTC)
-    aMs = a.toZonedDateTime({
-      timeZone: 'UTC',
-      plainTime: Temporal.PlainTime.from('00:00'),
-    }).epochMilliseconds
-    bMs = b.toZonedDateTime({
-      timeZone: 'UTC',
-      plainTime: Temporal.PlainTime.from('00:00'),
-    }).epochMilliseconds
-    type = 'PlainDate'
-  } else {
-    throw new Error('Unsupported Temporal type for interpolation')
-  }
-
-  // Interpolate the milliseconds
-  const interpolatedMs = Math.round(aMs + (bMs - aMs) * t)
-
-  // Convert back to the appropriate Temporal type
-  if (type === 'Instant') {
-    return Temporal.Instant.fromEpochMilliseconds(interpolatedMs)
-  }
-  if (type === 'ZonedDateTime') {
-    const instant = Temporal.Instant.fromEpochMilliseconds(interpolatedMs)
-    return instant.toZonedDateTimeISO((a as Temporal.ZonedDateTime).timeZoneId)
-  }
-  if (type === 'PlainDateTime') {
-    const instant = Temporal.Instant.fromEpochMilliseconds(interpolatedMs)
-    return instant.toZonedDateTimeISO('UTC').toPlainDateTime()
-  }
-  // PlainDate
-  const instant = Temporal.Instant.fromEpochMilliseconds(interpolatedMs)
-  return instant.toZonedDateTimeISO('UTC').toPlainDate()
-}
-
-export class MergeOp extends Operator<MergeOp> {
-  static displayName = 'Merge'
-  static description = 'Merge multiple objects into one (think Object.assign)'
-  createInputs() {
-    return {
-      objects: new ListField(new DataField()),
-    }
-  }
-  createOutputs() {
-    return {
-      object: new DataField(),
-    }
-  }
-  execute({ objects }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
-    const object = Object.assign({}, ...objects)
-    return { object }
-  }
-}
-
-export class MouseOp extends Operator<MouseOp> {
-  static displayName = 'Mouse'
-  static description = 'Get the current mouse position on the screen'
-
-  private mousePosition$ = new BehaviorSubject({ x: 0, y: 0 })
-  private mouseListener?: (e: MouseEvent) => void
-  private containerElement?: Element
-
-  constructor(id: OpId, inputs?: unknown, locked?: boolean) {
-    super(id, inputs, locked)
-    // Initialize mouse position updates after outputs are created
-    this.initializeMouseUpdates()
-  }
-
-  createInputs() {
-    return {}
-  }
-
-  createOutputs() {
-    return {
-      position: new Vec2Field(),
-    }
-  }
-
-  private initializeMouseUpdates() {
-    // Subscribe output to the behavior subject
-    const sub = this.mousePosition$.subscribe(pos => {
-      this.outputs.position.next(pos)
-    })
-    this.subs.push(sub)
-  }
-
-  // Called by the component to inject the container element
-  setContainer(container: Element) {
-    // Clean up old listener if any
-    if (this.mouseListener && this.containerElement) {
-      window.removeEventListener('mousemove', this.mouseListener, false)
-    }
-
-    this.containerElement = container
-
-    this.mouseListener = (e: MouseEvent) => {
-      const rect = container.getBoundingClientRect()
-      const scale = getTransformScaleFactor(container)
-      this.mousePosition$.next({
-        x: (e.clientX - rect.left) / scale.x,
-        y: (e.clientY - rect.top) / scale.y,
-      })
-    }
-
-    window.addEventListener('mousemove', this.mouseListener, false)
-  }
-
-  dispose() {
-    if (this.mouseListener) {
-      window.removeEventListener('mousemove', this.mouseListener, false)
-    }
-    this.mousePosition$.complete()
-    super.dispose()
-  }
-
-  execute(_: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
-    // Output is driven by the BehaviorSubject, not by execute()
-    return null
-  }
-}
-
 export class CustomMapLibreLayerOp extends Operator<CustomMapLibreLayerOp> {
   static displayName = 'CustomMapLibreLayer'
   static description =
@@ -1516,90 +914,6 @@ export class MapStyleConfiguratorOp extends Operator<MapStyleConfiguratorOp> {
   }
 }
 
-function createBaseViewFields() {
-  return {
-    x: new NumberField(0, { showByDefault: false }),
-    y: new NumberField(0, { showByDefault: false }),
-    width: new StringField('100%'),
-    height: new StringField('100%'),
-    padding: new CompoundPropsField({
-      top: new NumberField(0, { min: 0 }),
-      right: new NumberField(0, { min: 0 }),
-      bottom: new NumberField(0, { min: 0 }),
-      left: new NumberField(0, { min: 0 }),
-    }),
-    clear: new BooleanField(false, { showByDefault: false }),
-    clearColor: new ColorField('#00000000', { transform: hexToColor, showByDefault: false }),
-    parameters: new CompoundPropsField({}, { showByDefault: false }),
-  }
-}
-
-function createGeoViewFields() {
-  return {
-    altitude: new NumberField(1.5, {
-      softMin: -100_000,
-      softMax: 100_000,
-      step: 0.1,
-      showByDefault: false,
-    }),
-    nearZMultiplier: new NumberField(0.1, {
-      min: 0,
-      softMax: 1_000,
-      step: 0.1,
-      showByDefault: false,
-    }),
-    farZMultiplier: new NumberField(1.01, { min: 0, softMax: 1_000, showByDefault: false }),
-  }
-}
-
-function createGeoViewStateFields() {
-  return {
-    latitude: new NumberField(DEFAULT_LATITUDE, { min: -90, max: 90, step: 0.001 }),
-    longitude: new NumberField(DEFAULT_LONGITUDE, { min: -180, max: 180, step: 0.001 }),
-  }
-}
-
-function createFrustumViewFields() {
-  return {
-    near: new NumberField(0.1, { min: 0, softMax: 1_000_000, step: 0.1, showByDefault: false }),
-    far: new NumberField(100000, { min: 0, softMax: 1_000_000, showByDefault: false }),
-  }
-}
-
-export class LayerPropsOp extends Operator<LayerPropsOp> {
-  static displayName = 'LayerProps'
-  static description =
-    'Add additional props to a layer (e.g., operation: "mask" for mask layers, beforeId for maplibre layer ordering)'
-  createInputs() {
-    return {
-      layer: new LayerField(),
-      operation: new StringField('', { optional: true }),
-      beforeId: new StringField('', { optional: true }),
-      additionalProps: new UnknownField({}, { optional: true }),
-    }
-  }
-  createOutputs() {
-    return {
-      layer: new LayerField(),
-    }
-  }
-  execute({
-    layer,
-    operation,
-    beforeId,
-    additionalProps,
-  }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
-    const mergedLayer = {
-      ...layer,
-      ...(operation ? { operation } : {}),
-      ...(beforeId ? { beforeId } : {}),
-      ...additionalProps,
-    }
-    return { layer: mergedLayer }
-  }
-}
-
-
 type LayerExtensionFieldReturnValue = null | {
   extension: LayerExtension
   props: Record<string, LayerPropsValue>
@@ -1632,15 +946,6 @@ function parseLayerProps<P extends LayerProps>({
 
   return result
 }
-
-const DEFAULT_COLOR_RANGE = [
-  [255, 255, 178],
-  [254, 217, 118],
-  [254, 178, 76],
-  [253, 141, 60],
-  [240, 59, 32],
-  [189, 0, 38],
-]
 
 export class BrushingExtensionOp extends Operator<BrushingExtensionOp> {
   static displayName = 'BrushingExtension'
@@ -2074,83 +1379,17 @@ export class FillStyleExtensionOp extends Operator<FillStyleExtensionOp> {
   }
 }
 
-type TimeSeriesDataPoint = {
-  time: number
-  [key: string]: number
-}
-
-// Interpolate time series data at a given time using linear interpolation
-function interpolateTimeSeries(
-  timeSeries: TimeSeriesDataPoint[],
-  currentTime: number
-): Record<string, number> {
-  if (!timeSeries || timeSeries.length === 0) {
-    return { time: currentTime }
-  }
-
-  // If only one data point, return it
-  if (timeSeries.length === 1) {
-    return { ...timeSeries[0] }
-  }
-
-  // If currentTime is before first point, return first point
-  if (currentTime <= timeSeries[0].time) {
-    return { ...timeSeries[0] }
-  }
-
-  // If currentTime is after last point, return last point
-  if (currentTime >= timeSeries[timeSeries.length - 1].time) {
-    return { ...timeSeries[timeSeries.length - 1] }
-  }
-
-  // Binary search to find the two points to interpolate between
-  let left = 0
-  let right = timeSeries.length - 1
-
-  while (left < right - 1) {
-    const mid = Math.floor((left + right) / 2)
-    if (timeSeries[mid].time <= currentTime) {
-      left = mid
-    } else {
-      right = mid
-    }
-  }
-
-  const before = timeSeries[left]
-  const after = timeSeries[right]
-
-  // Calculate interpolation factor (0 to 1)
-  const timeDelta = after.time - before.time
-  const factor = timeDelta === 0 ? 0 : (currentTime - before.time) / timeDelta
-
-  // Interpolate all numeric fields. before and after always share the same
-  // keys within a timeSeries, so iterating before's keys is sufficient.
-  const result: Record<string, number> = {}
-  for (const key of Object.keys(before)) {
-    const beforeVal = before[key] ?? 0
-    const afterVal = after[key] ?? 0
-    result[key] = beforeVal + (afterVal - beforeVal) * factor
-  }
-
-  return result
-}
-
 export const opTypes = {
   BezierCurveOp,
-  BoundingBoxOp,
   BrushingExtensionOp,
   ChartOp,
   ClipExtensionOp,
   CodeOp,
   CustomMapLibreLayerOp,
   DirectionsOp,
-  FileOp,
   FillStyleExtensionOp,
   GeocoderOp,
-  LayerPropsOp,
   MapStyleConfiguratorOp,
-  MergeOp,
-  MouseOp,
   PathStyleExtensionOp,
   TerrainLayerOp,
   TileLayerOp,
