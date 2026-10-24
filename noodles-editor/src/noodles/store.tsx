@@ -122,6 +122,10 @@ interface UIStoreState {
   // the user edits a value or selects something else
   starterHintNodeId: string | null
   setStarterHintNodeId: (id: string | null) => void
+  // A node selected from the map: the graph pans to it if needed and pulses it. `seq`
+  // grows with each request, so clicking the same feature twice pulses twice.
+  mapPickFocus: { nodeId: string; seq: number } | null
+  focusNodeFromMap: (nodeId: string) => void
   sidebarSearchFocusTrigger: number
   triggerSidebarSearch: () => void
   settingsDialogOpen: boolean
@@ -165,6 +169,9 @@ export const useUIStore = create<UIStoreState>(set => ({
   setInspectedReferenceEdge: edge => set({ inspectedReferenceEdge: edge }),
   starterHintNodeId: null,
   setStarterHintNodeId: id => set({ starterHintNodeId: id }),
+  mapPickFocus: null,
+  focusNodeFromMap: nodeId =>
+    set(state => ({ mapPickFocus: { nodeId, seq: (state.mapPickFocus?.seq ?? 0) + 1 } })),
   sidebarSearchFocusTrigger: 0,
   triggerSidebarSearch: () =>
     set(state => ({ sidebarSearchFocusTrigger: state.sidebarSearchFocusTrigger + 1 })),
