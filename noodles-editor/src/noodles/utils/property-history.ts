@@ -104,6 +104,16 @@ export function getLastCommittedBeforeState(): string | null {
   return _lastCommittedBeforeState
 }
 
+function serializeScopedField(field: object | undefined): string | undefined {
+  const serialize = (field as { serialize?: () => unknown } | undefined)?.serialize
+  if (typeof serialize !== 'function') return undefined
+  try {
+    return JSON.stringify(serialize.call(field))
+  } catch {
+    return undefined
+  }
+}
+
 // React hook that provides captureStart/commitChange for use in field components.
 // Call captureStart() at the beginning of a user interaction (focus, drag start).
 // Call commitChange(description) when the interaction ends (blur, drag end, close).
@@ -115,15 +125,26 @@ export function usePropertyHistory() {
   const scopeRef = useRef(scope)
   scopeRef.current = scope
 
+  // The scoped field's own value at captureStart, so a commit only counts as an edit of
+  // that field when it changed. Other inputs can change while it is focused (keyframe
+  // playback, upstream connections) and still make the whole snapshot differ.
+  const fieldBeforeRef = useRef<string | undefined>(undefined)
+
   const captureStart = useCallback(() => {
     beforeRef.current = captureOperatorInputs()
+    fieldBeforeRef.current = serializeScopedField(scopeRef.current?.field)
   }, [])
 
   const commitChange = useCallback((description: string) => {
     if (beforeRef.current) {
       const changed = firePropertyMutation(description, beforeRef.current)
       beforeRef.current = null
-      if (changed) trackFieldEdit(scopeRef.current)
+      const scope = scopeRef.current
+      // Node widgets without a field (ramp stops, histogram brush) fall back to the snapshot
+      const fieldChanged =
+        !scope?.field || serializeScopedField(scope.field) !== fieldBeforeRef.current
+      fieldBeforeRef.current = undefined
+      if (changed && fieldChanged) trackFieldEdit(scope)
     }
   }, [])
 

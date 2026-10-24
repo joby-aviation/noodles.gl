@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { analytics } from '../../utils/analytics'
 import { FieldComponent } from '../components/field-components'
 import { NumberField } from '../fields'
-import { BooleanOp } from '../operators'
+import { BooleanOp, NumberOp, StringOp } from '../operators'
 import { clearOps, setOp } from '../store'
 import {
   FIELD_EDIT_IDLE_MS,
@@ -157,5 +157,63 @@ describe('field_value_changed from field components', () => {
     fireEvent.click(screen.getByRole('checkbox'))
     act(() => vi.advanceTimersByTime(FIELD_EDIT_IDLE_MS))
     expect(track).not.toHaveBeenCalled()
+  })
+})
+
+describe('field_value_changed from a focused text field', () => {
+  let text: StringOp
+  let other: NumberOp
+
+  beforeEach(() => {
+    vi.useFakeTimers()
+    track.mockClear()
+    text = new StringOp('/label')
+    other = new NumberOp('/animated')
+    setOp(text.id, text)
+    setOp(other.id, other)
+    registerPropertyMutationCallback(vi.fn())
+    render(
+      <ReactFlowProvider>
+        <FieldEditScope source="properties_panel" operatorType="StringOp">
+          <FieldComponent id="val" field={text.inputs.val} disabled={false} />
+        </FieldEditScope>
+      </ReactFlowProvider>
+    )
+  })
+
+  afterEach(() => {
+    cleanup()
+    flushFieldEdits()
+    clearOps()
+    registerPropertyMutationCallback(undefined)
+    vi.useRealTimers()
+  })
+
+  it('does not track a blur when only another input changed while focused', () => {
+    const textbox = screen.getByRole('textbox')
+    fireEvent.focus(textbox)
+    // Keyframe playback moves another operator's input while the text field has focus
+    act(() => other.inputs.val.setValue(42))
+    fireEvent.blur(textbox)
+
+    act(() => vi.advanceTimersByTime(FIELD_EDIT_IDLE_MS))
+    flushFieldEdits()
+    expect(track).not.toHaveBeenCalled()
+  })
+
+  it('tracks one edit when the focused field itself changed', () => {
+    const textbox = screen.getByRole('textbox')
+    fireEvent.focus(textbox)
+    act(() => other.inputs.val.setValue(42))
+    fireEvent.change(textbox, { target: { value: 'hello' } })
+    fireEvent.blur(textbox)
+
+    act(() => vi.advanceTimersByTime(FIELD_EDIT_IDLE_MS))
+    expect(track.mock.calls).toEqual([
+      [
+        'field_value_changed',
+        { fieldType: 'string', operatorType: 'StringOp', source: 'properties_panel' },
+      ],
+    ])
   })
 })
