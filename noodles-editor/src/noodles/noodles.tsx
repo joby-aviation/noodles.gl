@@ -14,8 +14,6 @@ import {
   Controls,
   ReactFlow,
   type ReactFlowInstance,
-  useEdgesState,
-  useNodesState,
   useReactFlow,
   useStoreApi,
 } from '@xyflow/react'
@@ -25,6 +23,7 @@ import * as deck from 'deck.gl'
 import type { JSZipObject } from 'jszip'
 import { PrimeReactProvider } from 'primereact/api'
 import {
+  type SetStateAction,
   Suspense,
   useCallback,
   useEffect,
@@ -111,6 +110,7 @@ import {
   getOpStore,
   getUIStore,
   useEdgeConnectionStore,
+  useGraphStore,
   useNestingStore,
   useUIStore,
 } from './store'
@@ -274,8 +274,23 @@ export function getNoodles(): Visualization {
     return timelineStore.toTimelineJSON() as unknown as Record<string, unknown>
   }, [timelineStore.toTimelineJSON])
 
-  const [nodes, setNodes, onNodesChangeBase] = useNodesState<AnyNodeJSON>([])
-  const [edges, setEdges, onEdgesChangeBase] = useEdgesState<ReactFlowEdge<unknown>>([])
+  // Nodes, edges and operators live in the graph store. setNodes/setEdges keep the
+  // React state-setter shape, but updaters read the store's latest state, so several
+  // updates in one tick compose instead of overwriting each other.
+  const nodes = useGraphStore(state => state.nodes) as AnyNodeJSON[]
+  const edges = useGraphStore(state => state.edges)
+  const onNodesChangeBase = useGraphStore(state => state.applyNodeChanges)
+  const onEdgesChangeBase = useGraphStore(state => state.applyEdgeChanges)
+  const setNodes = useCallback((update: SetStateAction<AnyNodeJSON[]>) => {
+    useGraphStore.setState(state => ({
+      nodes: typeof update === 'function' ? update(state.nodes as AnyNodeJSON[]) : update,
+    }))
+  }, [])
+  const setEdges = useCallback((update: SetStateAction<ReactFlowEdge[]>) => {
+    useGraphStore.setState(state => ({
+      edges: typeof update === 'function' ? update(state.edges) : update,
+    }))
+  }, [])
   const referenceEdges = useSyncExternalStore(
     referenceDependencyModel.subscribe,
     referenceDependencyModel.getSnapshot,
@@ -288,6 +303,17 @@ export function getNoodles(): Visualization {
   const [defaultViewport, setDefaultViewport] = useState({ x: 0, y: 0, zoom: 1 })
 
   useEffect(() => () => referenceDependencyModel.reset(), [])
+
+  // The graph store outlives this component. Start each editor session empty, as React
+  // state did, so the previous project's graph never shows (or saves) under the next one.
+  const isMountedRef = useRef(true)
+  useEffect(() => {
+    isMountedRef.current = true
+    return () => {
+      isMountedRef.current = false
+      useGraphStore.setState({ nodes: [], edges: [] })
+    }
+  }, [])
 
   useEffect(() => {
     const inspectedEdge = getUIStore().inspectedReferenceEdge
@@ -449,7 +475,10 @@ export function getNoodles(): Visualization {
 
   // `transformGraph` needs all nodes to build the opMap and resolve connections
   // Use useEffect instead of useMemo to avoid setState during render
-  const [operators, setOperators] = useState<Operator<IOperator>[]>([])
+  // Map identity only changes when an operator is added or removed, so position and
+  // selection updates don't rebind the timeline
+  const operatorsMap = useGraphStore(state => state.operators)
+  const operators = useMemo(() => Array.from(operatorsMap.values()), [operatorsMap])
   // Set to true in loadProjectFile so the effect below skips the redundant re-run triggered
   // by setNodes/setEdges — the graph was already built synchronously during load
   const isProjectLoadRef = useRef(false)
@@ -459,7 +488,6 @@ export function getNoodles(): Visualization {
     // loadProjectFile already called transformGraph directly, so skip this triggered re-run
     if (isProjectLoadRef.current) return
     const result = transformGraph({ nodes, edges })
-    setOperators(result.operators)
     // Show error dialog if there are graph errors
     if (result.errors.length > 0) {
       setGraphErrors(
@@ -1023,6 +1051,8 @@ export function getNoodles(): Visualization {
       targetRoutePrefix?: string,
       outputCache?: OutputCache
     ) => {
+      // A load that resolves after the editor unmounted must not refill the shared store
+      if (!isMountedRef.current) return
       const { nodes, edges, viewport, timeline, editorSettings, apiKeys } = project
 
       // Prevent the storage-loading useEffect from reloading when the URL changes below
@@ -1071,7 +1101,6 @@ export function getNoodles(): Visualization {
 
       // Build the operator graph synchronously — operators are ready before any re-render
       const result = transformGraph({ nodes, edges, outputCache })
-      setOperators(result.operators)
       // Show error dialog if there are graph or timeline errors
       const allErrors = [
         ...timelineErrors,

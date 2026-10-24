@@ -8,7 +8,7 @@ import {
   type IField,
   type NodeUIMetadata,
 } from '../fields'
-import { dismissStarterHint, getAllOps, getOpStore } from '../store'
+import { dismissStarterHint, getAllOps, getGraphStore } from '../store'
 import { trackFieldEdit, useFieldEditScope } from './field-edit-analytics'
 import type { OpId } from './id-utils'
 
@@ -69,7 +69,7 @@ export function applyOperatorInputs(snapshot: string): void {
     debugHistory('Failed to parse operator inputs snapshot')
     return
   }
-  const store = getOpStore()
+  const store = getGraphStore()
   const uiState = data[UI_STATE_KEY] as Record<string, NodeUIMetadata> | undefined
   for (const [id, inputs] of Object.entries(data)) {
     if (id === UI_STATE_KEY) continue

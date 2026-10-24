@@ -14,6 +14,9 @@ const offscreenNode = {
 }
 
 vi.mock('@xyflow/react', () => ({
+  // The graph store (loaded through ../../store) imports these
+  applyEdgeChanges: (_changes: unknown, edges: unknown) => edges,
+  applyNodeChanges: (_changes: unknown, nodes: unknown) => nodes,
   useNodesInitialized: () => true,
   useReactFlow: () => ({
     getInternalNode: () => offscreenNode,
