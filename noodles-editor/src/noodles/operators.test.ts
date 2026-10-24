@@ -75,8 +75,122 @@ describe('BoundingBoxOp', () => {
     expect(val.viewState).toEqual({
       latitude: 3.000457402301878,
       longitude: 2.0000000000000027,
-      zoom: 7.185340053829005,
+      zoom: 9.566616522774169,
     })
+  })
+
+  const pointsViewState = () =>
+    new BoundingBoxOp('/bbox-points').execute({
+      data: [
+        { lng: 1, lat: 2 },
+        { lng: 3, lat: 4 },
+      ],
+      padding: 0,
+    }).viewState
+
+  it('accepts a FeatureCollection on its data input', () => {
+    const operator = new BoundingBoxOp('/bbox-0')
+    const featureCollection = turf.featureCollection([turf.point([1, 2]), turf.point([3, 4])])
+    operator.inputs.data.setValue(featureCollection)
+    expect(operator.inputs.data.value).toEqual(featureCollection)
+
+    const val = operator.execute({ data: operator.inputs.data.value, padding: 0 })
+    expect(val.bounds).toEqual([
+      [1, 2],
+      [3, 4],
+    ])
+    expect(val.viewState).toEqual(pointsViewState())
+  })
+
+  it('still parses a list of points on its data input', () => {
+    const operator = new BoundingBoxOp('/bbox-0')
+    operator.inputs.data.setValue([[1, 2], { longitude: 3, latitude: 4 }])
+    expect(operator.inputs.data.value).toEqual([
+      { lng: 1, lat: 2 },
+      { lng: 3, lat: 4 },
+    ])
+  })
+
+  it.each([
+    ['an object without a GeoJSON type', { foo: 'bar' }],
+    ['a Point without coordinates', { type: 'Point' }],
+    ['a Polygon with non-array coordinates', { type: 'Polygon', coordinates: 'nope' }],
+    ['a GeometryCollection without geometries', { type: 'GeometryCollection' }],
+    [
+      'a GeometryCollection with an incomplete geometry',
+      { type: 'GeometryCollection', geometries: [{ type: 'LineString' }] },
+    ],
+    ['a Feature without a geometry', { type: 'Feature', properties: {} }],
+    [
+      'a Feature with an incomplete geometry',
+      { type: 'Feature', properties: {}, geometry: { type: 'Point' } },
+    ],
+    ['a FeatureCollection without features', { type: 'FeatureCollection' }],
+    [
+      'a FeatureCollection with a non-Feature member',
+      { type: 'FeatureCollection', features: [{ type: 'Point', coordinates: [1, 2] }] },
+    ],
+  ])('rejects %s', (_name, value) => {
+    const operator = new BoundingBoxOp('/bbox-0')
+    // Deliberately invalid input, so it can't match the field's type
+    operator.inputs.data.setValue(value as unknown as GeoJSON.GeoJSON)
+    expect(operator.inputs.data.value).toEqual([])
+  })
+
+  it('accepts a Feature with a null geometry', () => {
+    const operator = new BoundingBoxOp('/bbox-0')
+    // GeoJSON allows a null geometry, but @types/geojson's default Feature type doesn't
+    const feature = {
+      type: 'Feature',
+      properties: {},
+      geometry: null,
+    } as unknown as GeoJSON.Feature
+    operator.inputs.data.setValue(feature)
+    expect(operator.inputs.data.value).toEqual(feature)
+  })
+
+  it('finds the bounding box of a single Feature', () => {
+    const operator = new BoundingBoxOp('/bbox-0')
+    const val = operator.execute({
+      data: turf.lineString([
+        [1, 2],
+        [2, 3],
+        [3, 4],
+      ]),
+      padding: 0,
+    })
+    expect(val.viewState).toEqual(pointsViewState())
+  })
+
+
+  it('finds the bounding box of a bare Geometry', () => {
+    const operator = new BoundingBoxOp('/bbox-0')
+    const val = operator.execute({
+      data: {
+        type: 'Polygon',
+        coordinates: [
+          [
+            [1, 2],
+            [3, 2],
+            [3, 4],
+            [1, 4],
+            [1, 2],
+          ],
+        ],
+      },
+      padding: 0,
+    })
+    expect(val.viewState).toEqual(pointsViewState())
+  })
+
+  it('treats an empty FeatureCollection like an empty point list', () => {
+    const operator = new BoundingBoxOp('/bbox-0')
+    const empty = operator.execute({ data: [], padding: 0 })
+    const val = operator.execute({
+      data: { type: 'FeatureCollection', features: [] },
+      padding: 0,
+    })
+    expect(val).toEqual(empty)
   })
 })
 

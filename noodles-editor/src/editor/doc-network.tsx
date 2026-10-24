@@ -16,6 +16,7 @@ import {
   useReactFlow,
 } from '@xyflow/react'
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { StarterNodeFocus } from '../noodles/components/starter-node-focus'
 import { useEngineState } from './doc-engine'
 import ns from './doc-network.module.css'
 import { DocNodeComponent } from './doc-node'
@@ -94,6 +95,7 @@ export function DocNetwork({ children }: { children?: ReactNode }) {
   const doc = useEditor(s => s.doc)
   const network = useEditor(s => s.network)
   const selection = useEditor(s => s.selection)
+  const loadId = useEditor(s => s.loadId)
   const flow = useReactFlow()
   const [menu, setMenu] = useState<Menu>()
   const [nodes, setNodes] = useState<Node[]>([])
@@ -396,6 +398,7 @@ export function DocNetwork({ children }: { children?: ReactNode }) {
       >
         <Background />
         <Controls position="bottom-right" showInteractive={false} />
+        <StarterNodeFocus loadId={loadId} />
         {children}
       </ReactFlow>
       {menu?.kind === 'add' && (

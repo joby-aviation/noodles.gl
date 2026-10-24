@@ -12,7 +12,7 @@ import {
   type OpDef,
 } from '@noodles.gl/planner'
 import cx from 'classnames'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import s from './doc-editor.module.css'
 import { type EngineState, useEngineState } from './doc-engine'
 import { headerOf } from './doc-node'
@@ -20,6 +20,10 @@ import { renameNode, unpromote } from './doc-ops'
 import { docStore, useEditor } from './doc-store'
 import { PANE_EDITORS, PaneEditorFor } from './pane-editors'
 import { ParamRow, shown, useNodeFields } from './param-row'
+import { dismissStarterHint, getUIStore, useUIStore } from './ui-store'
+
+export const STARTER_HINT_TEXT =
+  'Change a value to edit the map. Click any node to see its settings.'
 
 const NAME = /^[A-Za-z_][A-Za-z0-9_-]*$/
 
@@ -27,6 +31,16 @@ export function DocProperties() {
   const selection = useEditor(st => st.selection)
   const doc = useEditor(st => st.doc)
   const node = selection.length > 0 ? doc.nodes.find(n => n.id === selection[0]) : undefined
+  // The starter hint goes away once the user selects something else
+  const starterHintNodeId = useUIStore(st => st.starterHintNodeId)
+  const previous = useRef(node?.id)
+  useEffect(() => {
+    const was = previous.current
+    previous.current = node?.id
+    if (starterHintNodeId && was === starterHintNodeId && node?.id !== was) {
+      getUIStore().setStarterHintNodeId(null)
+    }
+  }, [node?.id, starterHintNodeId])
   if (!node) return <DocumentInfo doc={doc} />
   return <NodeParams key={node.id} node={node} doc={doc} multi={selection.length > 1} />
 }
@@ -65,6 +79,7 @@ function NodeParams({ node, doc, multi }: { node: DocNode; doc: EditorDoc; multi
   const op = OPERATOR_INDEX.get(node.op)
   const engine = useEngineState()
   const fields = useNodeFields(node)
+  const showStarterHint = useUIStore(st => st.starterHintNodeId === node.id)
   // The relation, the layer's query and its timings: for debugging the planner, not for users
   const debug = useEditor(st => st.debug)
   // Folders are sections of one long pane, as Houdini's are when expanded; each can fold away
@@ -100,7 +115,7 @@ function NodeParams({ node, doc, multi }: { node: DocNode; doc: EditorDoc; multi
     })
 
   return (
-    <div className={s.pane}>
+    <div className={s.pane} onChange={dismissStarterHint} onInput={dismissStarterHint}>
       <div className={s.paneHead}>
         <div className={s.paneRow}>
           <span className={cx(s.chip, headerOf(node.op))}>{op.label}</span>
@@ -140,6 +155,11 @@ function NodeParams({ node, doc, multi }: { node: DocNode; doc: EditorDoc; multi
         </div>
         {op.description && <div className={s.paneDesc}>{op.description}</div>}
       </div>
+      {showStarterHint && (
+        <div className={s.starterHint} role="status">
+          {STARTER_HINT_TEXT}
+        </div>
+      )}
       {errors.map(e => (
         <div className={s.error} key={e}>
           {e}

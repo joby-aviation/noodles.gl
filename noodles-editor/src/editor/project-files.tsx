@@ -4,7 +4,10 @@
 
 import { type ReactNode, useCallback, useEffect, useState } from 'react'
 import { ExampleNotFoundDialog } from '../noodles/components/example-not-found-dialog'
-import { ProjectNotFoundDialog } from '../noodles/components/project-not-found-dialog'
+import {
+  ProjectNotFoundDialog,
+  type ProjectOpenProblem,
+} from '../noodles/components/project-not-found-dialog'
 import { RenameDialog } from '../noodles/components/rename-dialog'
 import { SaveAsDialog } from '../noodles/components/save-as-dialog'
 import { StorageErrorHandler } from '../noodles/components/storage-error-handler'
@@ -32,6 +35,12 @@ import { docStore } from './doc-store'
 
 export type NotFound = 'project' | 'example' | null
 
+// Why a project didn't open: missing, or a remembered folder whose permission the browser reset
+export interface OpenProblem {
+  reason: ProjectOpenProblem
+  directoryHandle?: FileSystemDirectoryHandle
+}
+
 interface ProjectFilesOptions {
   projectName: string | null
   storageType: StorageType
@@ -56,7 +65,12 @@ export function useProjectFiles({
 }: ProjectFilesOptions) {
   const { currentDirectory, setCurrentDirectory, setActiveStorageType, setError } =
     useFileSystemStore()
-  const [notFound, setNotFound] = useState<NotFound>(null)
+  const [notFound, setNotFoundKind] = useState<NotFound>(null)
+  const [problem, setProblem] = useState<OpenProblem | null>(null)
+  const setNotFound = useCallback((kind: NotFound, why: OpenProblem | null = null) => {
+    setNotFoundKind(kind)
+    setProblem(why)
+  }, [])
   const [renaming, setRenaming] = useState(false)
   const [saveAs, setSaveAs] = useState<{
     target: FileSystemDirectoryHandle
@@ -205,6 +219,8 @@ export function useProjectFiles({
       <ProjectNotFoundDialog
         projectName={projectName ?? ''}
         open={notFound === 'project'}
+        reason={problem?.reason}
+        directoryHandle={problem?.directoryHandle}
         onProjectLoaded={(project, name) => {
           setNotFound(null)
           navigate(`/projects/${name}`)

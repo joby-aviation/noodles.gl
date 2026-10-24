@@ -5,8 +5,8 @@
 // dragging, from the panel's resize transition), never from code that changes the same
 // state on its own, such as opening the timeline for an animated project.
 
+import type { MapMode } from '../../editor/ui-store'
 import { analytics } from '../../utils/analytics'
-import type { MapMode } from '../store'
 
 export type ToggledPanel = 'sidebar' | 'properties' | 'timeline' | 'spreadsheet'
 

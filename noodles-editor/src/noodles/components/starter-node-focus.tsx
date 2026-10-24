@@ -1,12 +1,6 @@
-import {
-  type FitViewOptions,
-  useNodesInitialized,
-  useReactFlow,
-  useStore,
-  useStoreApi,
-} from '@xyflow/react'
-import { useEffect, useRef, useState } from 'react'
-import { useUIStore } from '../store'
+import { useNodesInitialized, useReactFlow, useStore } from '@xyflow/react'
+import { useEffect, useRef } from 'react'
+import { useUIStore } from '../../editor/ui-store'
 import { panViewportToShow } from '../utils/starter-node'
 import s from './starter-node-focus.module.css'
 

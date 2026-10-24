@@ -8,6 +8,8 @@ The Properties Panel appears on the right side of the editor when you select a n
 
 With nothing selected, the panel shows the project's name.
 
+When you open an example, its main map layer is already selected, so the panel starts with controls you can change.
+
 ## Parameters
 
 ### Editing Values

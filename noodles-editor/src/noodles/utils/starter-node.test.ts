@@ -1,131 +1,104 @@
+import type { DocEdge, DocNode, EditorDoc } from '@noodles.gl/planner'
 import { beforeEach, describe, expect, it } from 'vitest'
 import {
   claimStarterSelection,
   findStarterNodeId,
   panViewportToShow,
   resetStarterSelectionForTests,
-  type StarterNodeProject,
 } from './starter-node'
 
-const isLayerType = (type: string) => type.endsWith('LayerOp')
+const LAYERS = new Set(['scatter', 'arc', 'hexagon', 'grid'])
+const isLayerOp = (op: string) => LAYERS.has(op)
 
-const node = (id: string, type: string) => ({ id, type })
-const edge = (source: string, target: string, targetHandle: string) => ({
+const node = (id: string, op: string, extra: Partial<DocNode> = {}): DocNode => ({
+  id,
+  op,
+  name: id,
+  x: 0,
+  y: 0,
+  params: {},
+  ...extra,
+})
+let n = 0
+const edge = (source: string, target: string, targetPort: string, index?: number): DocEdge => ({
+  id: `e${n++}`,
   source,
+  sourcePort: 'out',
   target,
-  targetHandle,
+  targetPort,
+  ...(index !== undefined && { index }),
+})
+const doc = (nodes: DocNode[], edges: DocEdge[], meta?: EditorDoc['meta']) => ({
+  nodes,
+  edges,
+  meta,
 })
 
 describe('findStarterNodeId', () => {
-  it('picks the first layer wired into the renderer, in edge order', () => {
-    const project: StarterNodeProject = {
-      nodes: [
-        node('/basemap', 'MaplibreBasemapOp'),
-        node('/arc-layer', 'ArcLayerOp'),
-        node('/pickup-layer', 'ScatterplotLayerOp'),
-        node('/deck', 'DeckRendererOp'),
-      ],
-      edges: [
-        edge('/basemap', '/deck', 'par.basemap'),
-        edge('/pickup-layer', '/deck', 'par.layers'),
-        edge('/arc-layer', '/deck', 'par.layers'),
-      ],
-    }
-    expect(findStarterNodeId(project, isLayerType)).toBe('/pickup-layer')
+  it("picks the first layer wired into the deck, in the deck's layer order", () => {
+    const project = doc(
+      [node('arcs', 'arc'), node('pickups', 'scatter'), node('deck', 'deck')],
+      [edge('arcs', 'deck', 'layers', 1), edge('pickups', 'deck', 'layers', 0)]
+    )
+    expect(findStarterNodeId(project, isLayerOp)).toBe('pickups')
   })
 
   it('looks upstream through operators that pass layers along', () => {
-    const project: StarterNodeProject = {
-      nodes: [
-        node('/data', 'FileOp'),
-        node('/hexagon-layer', 'HexagonLayerOp'),
-        node('/grid-layer', 'GridLayerOp'),
-        node('/switch', 'SwitchOp'),
-        node('/deck', 'DeckRendererOp'),
+    const project = doc(
+      [
+        node('data', 'file'),
+        node('hexes', 'hexagon'),
+        node('grid', 'grid'),
+        node('switch', 'switch'),
+        node('deck', 'deck'),
       ],
-      edges: [
-        edge('/switch', '/deck', 'par.layers'),
-        edge('/hexagon-layer', '/switch', 'par.values'),
-        edge('/grid-layer', '/switch', 'par.values'),
-        edge('/data', '/hexagon-layer', 'par.data'),
-      ],
-    }
-    expect(findStarterNodeId(project, isLayerType)).toBe('/hexagon-layer')
+      [
+        edge('switch', 'deck', 'layers'),
+        edge('hexes', 'switch', 'in', 0),
+        edge('grid', 'switch', 'in', 1),
+        edge('data', 'hexes', 'in'),
+      ]
+    )
+    expect(findStarterNodeId(project, isLayerOp)).toBe('hexes')
   })
 
-  it('prefers a layer wired straight in over one behind another operator', () => {
-    const project: StarterNodeProject = {
-      nodes: [
-        node('/hidden-layer', 'ScatterplotLayerOp'),
-        node('/switch', 'SwitchOp'),
-        node('/direct-layer', 'PathLayerOp'),
-        node('/deck', 'DeckRendererOp'),
+  it('skips layers inside subnets, since the graph opens at the root', () => {
+    const project = doc(
+      [
+        node('group', 'subnet'),
+        node('inner', 'scatter', { parent: 'group' }),
+        node('outer', 'scatter'),
+        node('deck', 'deck'),
       ],
-      edges: [
-        edge('/switch', '/deck', 'par.layers'),
-        edge('/direct-layer', '/deck', 'par.layers'),
-        edge('/hidden-layer', '/switch', 'par.values'),
-      ],
-    }
-    expect(findStarterNodeId(project, isLayerType)).toBe('/direct-layer')
+      [edge('group', 'deck', 'layers', 0), edge('outer', 'deck', 'layers', 1)]
+    )
+    expect(findStarterNodeId(project, isLayerOp)).toBe('outer')
   })
 
-  it('skips layers inside containers, since the graph opens at the root', () => {
-    const project: StarterNodeProject = {
-      nodes: [
-        node('/group', 'ContainerOp'),
-        node('/group/inner-layer', 'ScatterplotLayerOp'),
-        node('/deck', 'DeckRendererOp'),
-      ],
-      edges: [
-        edge('/group', '/deck', 'par.layers'),
-        edge('/group/inner-layer', '/group', 'par.in'),
-      ],
-    }
-    expect(findStarterNodeId(project, isLayerType)).toBeNull()
-  })
-
-  it('returns null without a renderer or without layers', () => {
-    expect(
-      findStarterNodeId({ nodes: [node('/layer', 'ScatterplotLayerOp')], edges: [] }, isLayerType)
-    ).toBeNull()
-    expect(
-      findStarterNodeId({ nodes: [node('/deck', 'DeckRendererOp')], edges: [] }, isLayerType)
-    ).toBeNull()
+  it('returns null without a deck or without layers', () => {
+    expect(findStarterNodeId(doc([node('a', 'scatter')], []), isLayerOp)).toBeNull()
+    expect(findStarterNodeId(doc([node('deck', 'deck')], []), isLayerOp)).toBeNull()
   })
 
   it('does not loop forever on a cycle', () => {
-    const project: StarterNodeProject = {
-      nodes: [node('/a', 'CodeOp'), node('/b', 'CodeOp'), node('/deck', 'DeckRendererOp')],
-      edges: [
-        edge('/a', '/deck', 'par.layers'),
-        edge('/b', '/a', 'par.data'),
-        edge('/a', '/b', 'par.data'),
-      ],
-    }
-    expect(findStarterNodeId(project, isLayerType)).toBeNull()
+    const project = doc(
+      [node('a', 'code'), node('b', 'code'), node('deck', 'deck')],
+      [edge('a', 'deck', 'layers'), edge('b', 'a', 'in'), edge('a', 'b', 'in')]
+    )
+    expect(findStarterNodeId(project, isLayerOp)).toBeNull()
   })
 
-  it('uses editorSettings.startNode when it names a root node', () => {
-    const project: StarterNodeProject = {
-      nodes: [
-        node('/first-layer', 'ScatterplotLayerOp'),
-        node('/controls', 'NumberOp'),
-        node('/deck', 'DeckRendererOp'),
-      ],
-      edges: [edge('/first-layer', '/deck', 'par.layers')],
-      editorSettings: { startNode: '/controls' },
-    }
-    expect(findStarterNodeId(project, isLayerType)).toBe('/controls')
-  })
-
-  it('falls back to the heuristic when startNode is missing from the graph', () => {
-    const project: StarterNodeProject = {
-      nodes: [node('/first-layer', 'ScatterplotLayerOp'), node('/deck', 'DeckRendererOp')],
-      edges: [edge('/first-layer', '/deck', 'par.layers')],
-      editorSettings: { startNode: '/renamed' },
-    }
-    expect(findStarterNodeId(project, isLayerType)).toBe('/first-layer')
+  it('uses meta.startNode when it names a root node, by id or name', () => {
+    const nodes = [
+      node('first', 'scatter'),
+      node('n2', 'number', { name: 'controls' }),
+      node('deck', 'deck'),
+    ]
+    const edges = [edge('first', 'deck', 'layers')]
+    expect(findStarterNodeId(doc(nodes, edges, { startNode: 'n2' }), isLayerOp)).toBe('n2')
+    expect(findStarterNodeId(doc(nodes, edges, { startNode: 'controls' }), isLayerOp)).toBe('n2')
+    // A start node that is not in the graph falls back to the deck's first layer
+    expect(findStarterNodeId(doc(nodes, edges, { startNode: 'gone' }), isLayerOp)).toBe('first')
   })
 })
 
