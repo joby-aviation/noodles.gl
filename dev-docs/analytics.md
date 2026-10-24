@@ -78,10 +78,13 @@ VITE_GA_MEASUREMENT_ID=G-XXXXXXXXXX
 | `project_open_failed` | `storageType, error` or `storageType, reason, source` | menu.tsx, noodles.tsx, project-not-found-dialog.tsx |
 | `project_permission_granted` | `source` | projects-view.tsx, project-not-found-dialog.tsx |
 | `project_permission_denied` | `source, state` | projects-view.tsx, project-not-found-dialog.tsx |
+| `project_removed_from_list` | `storageType, source` | projects-view.tsx |
+| `project_folder_reconnected` | `source, folderNameChanged` | projects-view.tsx |
 
 Opening a saved project by its URL (`/projects/:name`, which is where Recent projects and the Projects tab go) reports `source`. The Open menu sends no `source`, and its failures send `error` (`load_error`, `migration_error`, `unknown`) instead of `reason`.
 
-- `source`: `url` (the project page loaded the project from storage), `allow_button` (the "Allow access" button on the project page), `choose_folder` (the "Choose folder" button on the project page) or `project_list` (a click in Recent projects or the Projects tab)
+- `source`: `url` (the project page loaded the project from storage), `allow_button` (the "Allow access" button on the project page), `choose_folder` (the "Choose folder" button on the project page), `project_list` (a click in Recent projects or the Projects tab) or `project_menu` ("Allow access" in a project's "..." menu)
+- `project_removed_from_list` and `project_folder_reconnected` come from a project's "..." menu in the Projects tab or Recent projects. Their `source` is `projects_tab` or `recent_projects`. Removing forgets the remembered folder; it never deletes files. `project_folder_reconnected` is "Choose folder…" pointing the project at a folder with a `noodles.json`; `folderNameChanged` is true when that folder has a different name, which renames the project in the list
 - `reason`: the storage error type in snake_case: `permission_prompt` (the browser forgot the folder's permission, usually after a restart, and needs a click to ask again), `permission_denied`, `not_found` (no folder is remembered for the project, or it has no `noodles.json`), `migration_error`, or another storage error such as `security_error` or `unknown`
 - `state`: what the browser returned when asked for access: `prompt` (the user dismissed the prompt) or `denied` (blocked)
 - A local folder's permission is only requested during a click. The project page reads it without asking, so a `permission_prompt` failure is followed by the "Allow access" button, not a browser prompt.

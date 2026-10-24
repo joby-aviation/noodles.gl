@@ -18,7 +18,12 @@ import {
 } from '../noodles/components/tools/import-pipelines'
 import { analytics } from '../utils/analytics'
 import { CURATED_EXAMPLES, ExamplesView } from './examples-view'
-import { ProjectsView, prepareProjectOpen, useRecentProjects } from './projects-view'
+import {
+  ProjectActionsMenu,
+  ProjectsView,
+  prepareProjectOpen,
+  useRecentProjects,
+} from './projects-view'
 import s from './quick-start-modal.module.css'
 
 export type ModalView = 'home' | 'projects' | 'examples'
@@ -107,6 +112,8 @@ export function QuickStartModal({
   const [detection, setDetection] = useState<CoordinateDetection | null>()
   const [llmQuestion, setLlmQuestion] = useState('')
   const [error, setError] = useState<string | null>(null)
+  // A problem from a recent project's actions menu
+  const [projectError, setProjectError] = useState<string | null>(null)
 
   // View state managed locally, initialized from prop
   const [view, setView] = useState<ModalView>(initialView)
@@ -462,22 +469,34 @@ export function QuickStartModal({
           </div>
           <div className={s.examplesGrid}>
             {recentProjects.map(project => (
-              <button
-                key={project.projectName}
-                type="button"
-                className={s.exampleCard}
-                onClick={() =>
-                  handleProjectClick(`/projects/${project.projectName}`, project.handle)
-                }
-              >
-                <i className={`pi pi-folder ${s.exampleIcon}`} />
-                <div className={s.exampleInfo}>
-                  <h4>{project.projectName}</h4>
-                  {project.cachedAt && <p>{formatDate(project.cachedAt)}</p>}
-                </div>
-              </button>
+              <div key={project.projectName} className={s.cardWithMenu}>
+                <button
+                  type="button"
+                  className={s.exampleCard}
+                  onClick={() =>
+                    handleProjectClick(`/projects/${project.projectName}`, project.handle)
+                  }
+                >
+                  <i className={`pi pi-folder ${s.exampleIcon}`} />
+                  <div className={s.exampleInfo}>
+                    <h4>{project.projectName}</h4>
+                    {project.cachedAt && <p>{formatDate(project.cachedAt)}</p>}
+                  </div>
+                </button>
+                <ProjectActionsMenu
+                  projectName={project.projectName}
+                  handle={project.handle}
+                  source="recent_projects"
+                  onError={setProjectError}
+                />
+              </div>
             ))}
           </div>
+          {projectError && (
+            <div role="alert" className={s.error}>
+              {projectError}
+            </div>
+          )}
         </div>
       )}
 
