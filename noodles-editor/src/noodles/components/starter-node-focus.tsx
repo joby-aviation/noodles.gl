@@ -1,6 +1,6 @@
 import { useNodesInitialized, useReactFlow, useStore } from '@xyflow/react'
 import { useEffect, useRef } from 'react'
-import { useUIStore } from '../store'
+import { useUIStore } from '../../editor/ui-store'
 import { panViewportToShow } from '../utils/starter-node'
 import s from './starter-node-focus.module.css'
 

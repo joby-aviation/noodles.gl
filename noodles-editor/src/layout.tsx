@@ -3,8 +3,13 @@ import type { PropsWithChildren, ReactNode } from 'react'
 import { useEffect, useState } from 'react'
 import { Group, Panel, Separator, useDefaultLayout, usePanelRef } from 'react-resizable-panels'
 import { DockablePane } from './components/dockable-pane'
-import { useUIStore } from './editor/ui-store'
+import { type MapMode, useUIStore } from './editor/ui-store'
 import s from './layout.module.css'
+import {
+  createPanelVisibilityTracker,
+  trackMapModeChanged,
+  trackPanelToggled,
+} from './noodles/utils/editor-analytics'
 
 // Percentage-based splits (sidebar/main/properties, map/noodles) are persisted by
 // useDefaultLayout under 'react-resizable-panels:<group id>' keys. The timeline and

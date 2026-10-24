@@ -2,7 +2,7 @@
 // and hands the editor layout its network, properties panel and visualization. It replaces
 // the operator-graph editor (`noodles/noodles.tsx`), which is deleted once nothing reads it.
 
-import type { EditorDoc } from '@noodles.gl/planner'
+import { type EditorDoc, OPERATOR_INDEX } from '@noodles.gl/planner'
 import { PrimeReactProvider } from 'primereact/api'
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useParams } from 'wouter'
@@ -15,7 +15,12 @@ import { SidebarTabs } from '../noodles/components/sidebar-tabs'
 import { CanvasDropImport } from '../noodles/components/tools/canvas-drop-import'
 import { useActiveStorageType, useFileSystemStore } from '../noodles/filesystem-store'
 import newProjectJSON from '../noodles/new.json'
-import { copyExampleAssetsToMemory, load, readAssetBinary } from '../noodles/storage'
+import {
+  copyExampleAssetsToMemory,
+  load,
+  openFailureReason,
+  readAssetBinary,
+} from '../noodles/storage'
 import { createProjectFromSQL, takeCreateFromSQLRequest } from '../noodles/utils/create-from-sql'
 import { shouldAutosave, supportsVersioning, useGitSettings } from '../noodles/utils/git-settings'
 import { memoryProjectStore } from '../noodles/utils/memory-project-store'
@@ -32,8 +37,11 @@ import type { Visualization } from '../visualizations'
 import { bindEngine, settleEngine, useEngineState, visCommitted } from './doc-engine'
 import { canPaste, copySelection, DocNetwork, pasteClipboard } from './doc-network'
 import { setParam } from './doc-ops'
-import { useUIStore } from './ui-store'
+import { getUIStore, useUIStore } from './ui-store'
 import '../noodles/layers.css'
+import { agentBench, externalControl } from '../noodles/globals'
+import { trackChatClosed, trackChatOpened } from '../noodles/utils/editor-analytics'
+import { claimStarterSelection, findStarterNodeId } from '../noodles/utils/starter-node'
 import { DocProperties } from './doc-properties'
 import { docStore, useEditor } from './doc-store'
 import { bindTimeline, resetTimelinePanel } from './doc-timeline'
@@ -64,8 +72,31 @@ async function readProjectAsset(name: string): Promise<Uint8Array> {
 /** Open a document. The timeline panel follows it through `bindTimeline`. */
 function openDoc(doc: EditorDoc) {
   resetTimelinePanel()
+  getUIStore().setStarterHintNodeId(null)
   docStore().load(doc)
   expandTimelineIfAnimated(doc)
+}
+
+// A layer: a planner layer, or a host operator that draws one
+const isLayerOp = (op: string) => {
+  const def = OPERATOR_INDEX.get(op)
+  return (
+    def?.category === 'layer' ||
+    (def?.category === 'host' && def.outputs.some(o => o.type === 'layer'))
+  )
+}
+
+// Examples open with one layer selected, so the parameter pane starts with controls
+function selectStarterNode(exampleId: string) {
+  const agentControlled = externalControl || agentBench
+  if (!claimStarterSelection({ exampleId, fromBundledExample: true, agentControlled })) return
+  const { doc } = docStore().get()
+  const id = findStarterNodeId(doc, isLayerOp)
+  const starter = id ? doc.nodes.find(n => n.id === id) : undefined
+  if (!starter) return
+  docStore().set({ selection: [starter.id], network: undefined })
+  getUIStore().setStarterHintNodeId(starter.id)
+  analytics.track('starter_node_selected', { operatorType: starter.op })
 }
 
 async function openJson(json: unknown, name?: string): Promise<void> {
@@ -160,17 +191,32 @@ export function useDocNoodles(): Visualization {
           setCurrentDirectory(null, projectName)
           setActiveStorageType('memory')
           await openJson(json, projectName)
+          selectStarterNode(projectName)
           return
         }
         const result = await load(storageType, projectName)
-        if (!result.success && result.error.type === 'not-found') {
-          files.setNotFound('project')
-          return
+        if (!result.success) {
+          const { type, directoryHandle } = result.error
+          analytics.track('project_open_failed', {
+            storageType,
+            reason: openFailureReason(type),
+            source: 'url',
+          })
+          if (type === 'not-found') {
+            files.setNotFound('project', { reason: 'not-found' })
+            return
+          }
+          if ((type === 'permission-prompt' || type === 'permission-denied') && directoryHandle) {
+            // A remembered folder whose permission the browser reset, e.g. after a restart
+            files.setNotFound('project', { reason: type, directoryHandle })
+            return
+          }
+          throw new Error(result.error.message)
         }
-        if (!result.success) throw new Error(result.error.message)
         setCurrentDirectory(result.data.directoryHandle, projectName)
         setActiveStorageType(storageType)
         await openJson(result.data.projectData, projectName)
+        analytics.track('project_opened', { storageType, source: 'url' })
       } catch (error) {
         setError({
           type: 'unknown',
@@ -251,6 +297,7 @@ export function useDocNoodles(): Visualization {
     if (action.type === 'llm' && action.question) {
       setChatInitialMessage(action.question)
       setShowChatPanel(true)
+      trackChatOpened('quick_start')
       analytics.track('quick_start_llm_action_handled')
     } else if (action.type === 'file' && action.file) {
       if (action.mode === 'map') {
@@ -262,6 +309,7 @@ export function useDocNoodles(): Visualization {
         `I just uploaded a file called "${action.file.name}". Please help me create a visualization from this data. First, I'll need to import it using the Data Importer (click the upload icon in the toolbar). Can you guide me through the process?`
       )
       setShowChatPanel(true)
+      trackChatOpened('quick_start')
       analytics.track('quick_start_file_action_handled', { mode: 'chat' })
     }
   }, [loadId])
@@ -347,7 +395,10 @@ export function useDocNoodles(): Visualization {
   const chatPanel = (
     <Suspense fallback={null}>
       <ChatPanel
-        onClose={() => setShowChatPanel(false)}
+        onClose={() => {
+          trackChatClosed('panel')
+          setShowChatPanel(false)
+        }}
         isVisible={showChatPanel}
         initialMessage={chatInitialMessage}
       />

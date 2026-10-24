@@ -642,3 +642,15 @@
 .paneButton:hover {
   border-color: var(--color-accent, #6b8cff);
 }
+
+/* Shown under the header for the node an example selects when it opens */
+.starterHint {
+  margin: 0 6px 12px;
+  padding: 6px 8px;
+  border-left: 2px solid var(--color-primary, #3b82f6);
+  border-radius: 3px;
+  background: rgba(59, 130, 246, 0.1);
+  color: var(--color-text-secondary);
+  font-size: 12px;
+  line-height: 1.4;
+}

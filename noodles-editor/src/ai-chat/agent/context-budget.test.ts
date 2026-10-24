@@ -39,11 +39,11 @@ const TARGETS: Target[] = [
 // Measured token counts. When the test fails, it prints the new values; copy them
 // here, and say in the PR what moved them.
 const BASELINE: Record<string, Record<Measured, number>> = {
-  'webllm 4k (today)': { system: 2157, tools: 555, headroom: 616, headroomAfterInspect: 393 },
-  'chrome 6k (fallback)': { system: 2157, tools: 555, headroom: 2432, headroomAfterInspect: 2022 },
-  'webllm 16k': { system: 2157, tools: 555, headroom: 12904, headroomAfterInspect: 11781 },
-  'webllm 32k': { system: 2157, tools: 555, headroom: 29288, headroomAfterInspect: 26422 },
-  'anthropic 200k': { system: 2157, tools: 573, headroom: 189078, headroomAfterInspect: 186212 },
+  'webllm 4k (today)': { system: 1716, tools: 643, headroom: 969, headroomAfterInspect: 727 },
+  'chrome 6k (fallback)': { system: 1716, tools: 643, headroom: 2785, headroomAfterInspect: 2317 },
+  'webllm 16k': { system: 1716, tools: 643, headroom: 13257, headroomAfterInspect: 12449 },
+  'webllm 32k': { system: 1716, tools: 643, headroom: 29641, headroomAfterInspect: 27069 },
+  'anthropic 200k': { system: 1716, tools: 661, headroom: 189431, headroomAfterInspect: 186859 },
 }
 
 // About one default tool's schema. An operator name or a small doc edit in an

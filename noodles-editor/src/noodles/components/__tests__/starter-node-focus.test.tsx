@@ -2,9 +2,8 @@
 // MapPickFocus pans to and pulses a node picked on the map
 import { act, cleanup, render } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { useUIStore } from '../../store'
-import { MAP_PICK_PULSE_MS, MapPickFocus, StarterNodeFocus } from '../starter-node-focus'
-import s from '../starter-node-focus.module.css'
+import { useUIStore } from '../../../editor/ui-store'
+import { StarterNodeFocus } from '../starter-node-focus'
 
 const setViewport = vi.fn()
 // Far outside a 1000x500 pane at zoom 1, so every check pans

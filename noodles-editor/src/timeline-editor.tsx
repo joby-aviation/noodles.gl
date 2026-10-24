@@ -27,6 +27,11 @@ import { TopMenuBar } from './noodles/components/top-menu-bar'
 import { ExportActionsProvider } from './noodles/contexts/export-actions-context'
 import { useActiveStorageType, useCurrentDirectory } from './noodles/filesystem-store'
 import { fnWithSource } from './noodles/operators'
+import {
+  trackDeckInteraction,
+  trackMapLibreGesture,
+  trackPanelToggled,
+} from './noodles/utils/editor-analytics'
 import { DEFAULT_RENDER_SETTINGS, type RenderSettings } from './noodles/utils/serialization'
 import { PREVIEW_FRAME_DELAY, useDeckDrawLoop } from './render/draw-loop'
 import { FrameCounter } from './render/frame-stats'

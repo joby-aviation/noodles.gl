@@ -53,6 +53,10 @@ interface UIStoreState {
   setPinnedSpreadsheetNodeId: (id: string | null) => void
   mapMode: MapMode
   setMapMode: (mode: MapMode) => void
+  // Node an example selected on open; its parameter pane shows a short hint until the user
+  // edits a value or selects something else
+  starterHintNodeId: string | null
+  setStarterHintNodeId: (id: string | null) => void
 }
 
 // docked: map in its own panel above the node graph
@@ -98,6 +102,13 @@ export const useUIStore = create<UIStoreState>(set => ({
     set({ mapMode: mode })
     localStorage.setItem('noodles-map-mode', mode)
   },
+  starterHintNodeId: null,
+  setStarterHintNodeId: id => set({ starterHintNodeId: id }),
 }))
 
 export const getUIStore = () => useUIStore.getState()
+
+// Hides the hint shown for an example's starter node; called on the first edit
+export const dismissStarterHint = () => {
+  if (getUIStore().starterHintNodeId) getUIStore().setStarterHintNodeId(null)
+}

@@ -29,8 +29,10 @@ import {
   StringLiteralField,
 } from '../noodles/fields'
 import { type IOperator, type Operator, opTypes } from '../noodles/operators'
+import { trackFieldEdit } from '../noodles/utils/field-edit-analytics'
 import { setParam } from './doc-ops'
 import type { DocStore } from './doc-store'
+import { dismissStarterHint } from './ui-store'
 
 type AnyField = Field
 type OperatorClass = new (id: string, data?: unknown, locked?: boolean) => Operator<IOperator>
@@ -211,6 +213,8 @@ export class NodeFields {
     const id = this.node.id
     const time = this.store.get().time
     this.store.edit(doc => setParam(doc, id, name, value, time), `p:${id}.${name}`)
+    trackFieldEdit({ source: 'properties_panel', operatorType: this.node.op, field: binding.field })
+    dismissStarterHint()
   }
 
   dispose(): void {

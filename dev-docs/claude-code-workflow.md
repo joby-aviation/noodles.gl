@@ -25,15 +25,20 @@ See the [Project Files section](../AGENTS.md#project-files) for the shape. Key p
   `index`) for layers into the deck, and `par:<name>` to drive a parameter.
 - `params` hold literals, `{ "expr": "..." }` or `{ "ref": "node/param" }`. Leave out
   parameters that keep their default.
-- The examples in `src/examples/` are still operator-graph files (`noodles.json` schema 19).
-  They are migrated and converted when they load; edit them as operator graphs, or open one,
-  save it, and work on the document it becomes.
+- The examples in `src/examples/` are documents. Older operator-graph files (`noodles.json`
+  schema 1 to 19) still open: they are migrated and converted when they load. The operator
+  graphs the examples were are kept as conversion fixtures in `src/runtime/migrate/__fixtures__/`.
+- Examples open with one node selected so the parameter pane shows controls: the first layer
+  wired into the deck's `layers`. To pick another root-level node, set
+  `"meta": { "startNode": "<node id or name>" }`.
 
 ### Validating Changes
 
 Load the project in the browser at `http://localhost:5173/examples/<project-name>` (or open
-the file) and check the nodes for error badges. `npm run validate:examples` checks the
-examples' JSON and edges structurally. The headless check is
+the file) and check the nodes for error badges. `npm run validate:projects -- path/to/noodles.json`
+(from the repo root) checks a document's operators, parameters, ports, wire types and
+references against the operator registry; `npm run validate:examples` checks every example.
+The same check is the `validate_project` tool of the noodles MCP server. The headless check is
 `npm test -- src/runtime/migrate/examples.node.test.ts` from `noodles-editor/`, which converts,
 lowers and runs every example.
 

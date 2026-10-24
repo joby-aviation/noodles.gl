@@ -2750,7 +2750,8 @@ export function toEditorDoc(original: NoodlesProject): Migrated {
       }
       case 'ChoroplethLayerOp': {
         // A choropleth draws with normal blending only
-        if (params.blend !== 'normal') warnings.push(`${layer.id}: custom blending is not converted; using normal`)
+        if (params.blend !== 'normal')
+          warnings.push(`${layer.id}: custom blending is not converted; using normal`)
         delete params.blend
         Object.assign(params, choroplethParams(layer))
         params.valueColumn = String(i.valueColumn ?? '')
@@ -3484,6 +3485,7 @@ export function toEditorDoc(original: NoodlesProject): Migrated {
     n.name = name
   }
   const converted: EditorDoc = { version: 1, name: project.name ?? 'Untitled', nodes, edges }
+  const startNode = (project.editorSettings as { startNode?: unknown } | undefined)?.startNode
   intoSubnets(converted, containers, warnings)
 
   return {
@@ -3495,6 +3497,8 @@ export function toEditorDoc(original: NoodlesProject): Migrated {
         ...(project.viewport ? { viewport: project.viewport } : {}),
         ...(project.editorSettings ? { editorSettings: project.editorSettings } : {}),
         ...(project.apiKeys ? { apiKeys: project.apiKeys } : {}),
+        // The node an example selects when it opens; node ids are the old paths
+        ...(startNode && nodes.some(n => n.id === startNode) ? { startNode } : {}),
       },
     },
     warnings,
