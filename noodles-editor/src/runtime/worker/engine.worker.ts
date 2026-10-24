@@ -2,8 +2,7 @@
 // JS scalar UDFs) the only place functions can be registered with DuckDB. Requests that
 // arrive while DuckDB starts wait for it.
 
-import ehModule from '@duckdb/duckdb-wasm/dist/duckdb-eh.wasm?url'
-import mvpModule from '@duckdb/duckdb-wasm/dist/duckdb-mvp.wasm?url'
+import { getJsDelivrBundles } from '@duckdb/duckdb-wasm'
 import { targetCaps } from '@noodles.gl/planner'
 import * as duckdb from 'duckdb-browser-blocking'
 import { registerNoodlesRamps } from '../ramps'
@@ -16,13 +15,28 @@ const scope = self as unknown as {
   onmessage: ((event: MessageEvent<Envelope>) => void) | null
 }
 
+// DuckDB's WebAssembly, over 30 MB a build: from the jsDelivr CDN where the host limits file
+// sizes (Cloudflare Pages, 25 MiB), bundled otherwise. Vite drops the branch it doesn't take.
+async function wasmModules(): Promise<{ mvp: string; eh: string }> {
+  if (import.meta.env.VITE_USE_CDN_DUCKDB === 'true') {
+    const cdn = getJsDelivrBundles()
+    return { mvp: cdn.mvp.mainModule, eh: cdn.eh?.mainModule ?? cdn.mvp.mainModule }
+  }
+  const [mvp, eh] = await Promise.all([
+    import('@duckdb/duckdb-wasm/dist/duckdb-mvp.wasm?url').then(m => m.default),
+    import('@duckdb/duckdb-wasm/dist/duckdb-eh.wasm?url').then(m => m.default),
+  ])
+  return { mvp, eh }
+}
+
 async function start(): Promise<EngineHost> {
   // The planner evaluates ramps here, so it needs the editor's
   registerNoodlesRamps()
+  const modules = await wasmModules()
   const db = (await duckdb.createDuckDB(
     {
-      mvp: { mainModule: mvpModule, mainWorker: '' },
-      eh: { mainModule: ehModule, mainWorker: '' },
+      mvp: { mainModule: modules.mvp, mainWorker: '' },
+      eh: { mainModule: modules.eh, mainWorker: '' },
     },
     new duckdb.ConsoleLogger(duckdb.LogLevel.WARNING),
     duckdb.BROWSER_RUNTIME
