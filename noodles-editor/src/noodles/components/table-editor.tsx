@@ -18,7 +18,7 @@ import { ColorSwatch } from './color-swatch'
 import { DraggableNumberInput } from './draggable-number-input'
 import { GeocodingDialog } from './geocoding-dialog'
 import { type SchemaChangeMetadata, SchemaEditorDialog } from './schema-editor-dialog'
-import { TableCellKeyframe } from './table-cell-keyframe'
+import { type CellKeys, TableCellKeyframe } from './table-cell-keyframe'
 import s from './table-editor.module.css'
 
 // Cell editor components for each column type
@@ -736,7 +736,7 @@ interface EditableCellProps {
         deleteRow: (rowIndex: number) => void
         schema: TableSchema
         activeEdit: ActiveEdit
-        opId?: string
+        cellKeys?: CellKeys
       }
     }
   }
@@ -820,11 +820,11 @@ function EditableCell({ getValue, row, column, table }: EditableCellProps) {
       {renderedValue}
     </button>
   )
-  const opId = table.options.meta?.opId
-  if (!opId) return cellButton
+  const keys = table.options.meta?.cellKeys
+  if (!keys) return cellButton
 
   return (
-    <TableCellKeyframe opId={opId} rowIndex={row.index} column={column.id} value={currentValue}>
+    <TableCellKeyframe keys={keys} rowIndex={row.index} column={column.id} value={currentValue}>
       {cellButton}
     </TableCellKeyframe>
   )
@@ -837,9 +837,17 @@ interface TableEditorProps {
   schema: TableSchema
   onDataChange: (data: unknown[], description?: string) => void
   onSchemaChange: (schema: TableSchema, data?: unknown[]) => void
+  // A keyframe diamond on each cell that can be animated
+  cellKeys?: CellKeys
 }
 
-export function TableEditor({ op, data, schema, onDataChange, onSchemaChange }: TableEditorProps) {
+export function TableEditor({
+  data,
+  schema,
+  onDataChange,
+  onSchemaChange,
+  cellKeys,
+}: TableEditorProps) {
   const [tableData, setTableData] = useState(() => validateTableData(data, schema))
   const activeEdit = useActiveEdit()
   const previousDataRef = useRef(data)
@@ -966,7 +974,7 @@ export function TableEditor({ op, data, schema, onDataChange, onSchemaChange }: 
       },
       schema,
       activeEdit,
-      opId: op?.id,
+      cellKeys,
     },
   })
 

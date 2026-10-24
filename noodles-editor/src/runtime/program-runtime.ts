@@ -492,9 +492,13 @@ export class ProgramRuntime {
     }
     if (!relation)
       return { columns: [], rows: [], total: 0, note: info?.error ?? 'this node has no rows' }
-    // A list read as a vector shows as the list, not as its component columns too
-    const star = (hidden: string[]) =>
-      hidden.length ? `* EXCLUDE (${hidden.map(quoteIdent).join(', ')})` : '*'
+    // A list read as a vector shows as the list, not as its component columns too; a table's
+    // row numbers, which its keyframed cells are matched by, are not its data
+    const rowNumbers = relation?.shape.columns.some(c => c.name === '__row') ? ['__row'] : []
+    const star = (vectorParts: string[]) => {
+      const hidden = [...vectorParts, ...rowNumbers]
+      return hidden.length ? `* EXCLUDE (${hidden.map(quoteIdent).join(', ')})` : '*'
+    }
     const all = star(listComponentColumns(relation.shape))
     if (relation.id === nodeId) {
       return this.read(

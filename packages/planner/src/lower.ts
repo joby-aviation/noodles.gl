@@ -360,6 +360,16 @@ export function lowerDocument(doc: EditorDoc, options: LowerOptions = {}): Lower
       }
     }
   }
+  // Keyframed parts of a parameter (`rows.3.population`, a table cell): their tracks evaluate
+  // like any parameter's, and the operator binds them where it uses that part.
+  for (const [target, track] of tracks) {
+    if (sources.has(target) || !track.keyframes.length) continue;
+    const node = nodes.find((n) => target.startsWith(`${n.id}.`));
+    const rest = node ? target.slice(node.id.length + 1) : '';
+    const param = rest.split('.')[0];
+    if (!node || rest === param || !OPERATOR_INDEX.get(node.op)?.params.some((d) => d.name === param)) continue;
+    sources.set(target, { kind: 'track', track, fallback: { kind: 'literal', value: 0 } });
+  }
   const scalars = new ScalarProgram(sources);
   const initial = scalars.evaluate({ T: 0, F: 0 }, options.external).values;
 
@@ -479,6 +489,17 @@ export function lowerDocument(doc: EditorDoc, options: LowerOptions = {}): Lower
         const binding = bindingOf(d);
         if (binding === 'structural') return String(literal(param));
         return `{{${registerParam(slotKey(id, param), d, `${nameOf(node)} ${d.label}`, binding)}}}`;
+      },
+      bindTracked(param) {
+        defOf(param);
+        const prefix = slotKey(id, `${param}.`);
+        return [...tracks.keys()]
+          .filter((k) => k.startsWith(prefix) && sources.has(k))
+          .sort()
+          .map((k) => {
+            const part = k.slice(prefix.length);
+            return { part, placeholder: `{{${registerParam(k, undefined, `${nameOf(node)} ${param} ${part}`, 'value')}}}` };
+          });
       },
       bindColor(param) {
         const d = defOf(param);

@@ -24,7 +24,7 @@ import {
 } from '@noodles.gl/planner'
 import { hsl } from 'd3'
 import { collapseToSubnet } from '../../editor/doc-ops'
-import { migrateTimelineData } from '../../timeline/migrate-timeline'
+import { migrateTimelineData, objectNameToFieldPath } from '../../timeline/migrate-timeline'
 import type { TimelineData } from '../../timeline/types'
 import { colorToHex, hexToColor } from '../../utils/color'
 import { DECK_OP_FOR, type DeckOp } from '../deck-ops'
@@ -3571,7 +3571,10 @@ export function toEditorDoc(original: NoodlesProject): Migrated {
 }
 
 /** Where a Noodles field's keyframes go: the planner parameter that took its value. */
-function trackTarget(fieldPath: string, nodes: DocNode[]): string | undefined {
+function trackTarget(path: string, nodes: DocNode[]): string | undefined {
+  // The native timeline's own form, `table / data / 1 / count`, as a field path
+  const fieldPath =
+    path.includes(' / ') && !path.includes('.par.') ? objectNameToFieldPath(path) : path
   const at = fieldPath.indexOf('.par.')
   if (at < 0) return undefined
   const id = fieldPath.slice(0, at)
@@ -3590,6 +3593,9 @@ function trackTarget(fieldPath: string, nodes: DocNode[]): string | undefined {
   }
   if (!node) return undefined
   if (node.op === 'number' && field === 'val') return `${id}.value`
+  // A TableEditor cell, `data.<row>.<column>`, is a cell of the table's rows
+  const cell = /^data\.(\d+)\.(.+)$/.exec(field)
+  if (node.op === 'table' && cell) return `${id}.rows.${cell[1]}.${cell[2]}`
   return field in node.params ? `${id}.${field}` : undefined
 }
 
@@ -3599,7 +3605,11 @@ function convertTimeline(raw: unknown, nodes: DocNode[], warnings: string[]): Ti
   const tracks: Track[] = []
   for (const track of Object.values(native.tracks)) {
     const target = trackTarget(track.fieldPath, nodes)
-    const numeric = track.keyframes.every(k => typeof k.value === 'number')
+    // A table cell may hold text, which holds from key to key
+    const cell = !!target && /\.rows\.\d+\./.test(target)
+    const numeric = track.keyframes.every(
+      k => typeof k.value === 'number' || (cell && typeof k.value === 'string')
+    )
     if (!target || !numeric) {
       warnings.push(`timeline: keyframes on ${track.fieldPath} are not converted`)
       continue
@@ -3609,8 +3619,8 @@ function convertTimeline(raw: unknown, nodes: DocNode[], warnings: string[]): Ti
       keyframes: track.keyframes.map(k => ({
         id: k.id,
         time: k.position,
-        value: k.value as number,
-        interpolation: k.interpolation,
+        value: k.value as number | string,
+        interpolation: typeof k.value === 'string' ? 'hold' : k.interpolation,
         ...(k.handles ? { handles: { left: k.handles.left, right: k.handles.right } } : {}),
       })),
     })

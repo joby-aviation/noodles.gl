@@ -8,14 +8,16 @@ import { type ComponentType, useEffect, useRef, useState } from 'react'
 import { GeoEditorDialog } from '../noodles/components/geo-editor-dialog'
 import { MapStyleConfiguratorDialog } from '../noodles/components/map-style-configurator'
 import RampEditor, { type RampStop } from '../noodles/components/ramp-editor'
+import { type CellKeys, keyframeable } from '../noodles/components/table-cell-keyframe'
 import { TableEditor } from '../noodles/components/table-editor'
 import { inferSchema, type TableSchema } from '../noodles/table-schema'
 import { DEFAULT_STOPS } from '../runtime/value-ops'
 import type { RampInterpType } from '../utils/curves'
 import type { StyleConfiguratorData } from '../utils/map-style-utils'
 import s from './doc-editor.module.css'
-import { setParam } from './doc-ops'
-import { docStore } from './doc-store'
+import { useEngineState } from './doc-engine'
+import { removeKey, setKey, setParam } from './doc-ops'
+import { docStore, useEditor } from './doc-store'
 import { HistogramEditor } from './histogram-editor'
 
 interface PaneEditor {
@@ -155,16 +157,74 @@ function RampStopsEditor({ node }: { node: DocNode }) {
   )
 }
 
+// A cell's track: `<node>.rows.<row>.<column>`
+export const cellTarget = (nodeId: string, row: number, column: string) =>
+  `${nodeId}.rows.${row}.${column}`
+
 function RowsEditor({ node }: { node: DocNode }) {
   const rows = parse<unknown[]>(param(node, 'rows'), [])
-  const data = Array.isArray(rows) ? rows : []
-  const schema = parse<TableSchema | null>(param(node, 'schema'), null) ?? inferSchema(data)
+  const typed = Array.isArray(rows) ? rows : []
+  const schema = parse<TableSchema | null>(param(node, 'schema'), null) ?? inferSchema(typed)
   const writeRows = (next: unknown[]) => JSON.stringify(next, null, 2)
+  const tracks = useEditor(st => st.doc.timeline?.tracks)
+  const time = useEditor(st => st.time)
+  const slots = useEngineState().slots
+
+  const trackOf = (row: number, column: string) =>
+    tracks?.find(t => t.target === cellTarget(node.id, row, column))
+  // An animated cell shows its value at the playhead
+  const data = typed.map((r, i) => {
+    if (!r || typeof r !== 'object') return r
+    const shown = { ...(r as Record<string, unknown>) }
+    for (const column of Object.keys(shown)) {
+      const v = trackOf(i, column) ? slots.get(cellTarget(node.id, i, column)) : undefined
+      if (v !== undefined && keyframeable(v)) shown[column] = v
+    }
+    return shown
+  })
+
+  const cellKeys: CellKeys = {
+    animated: (row, column) => !!trackOf(row, column),
+    keyed: (row, column) =>
+      !!trackOf(row, column)?.keyframes.some(k => Math.abs(k.time - time) < 1e-3),
+    toggle: (row, column, value) =>
+      docStore().edit(d => {
+        const target = cellTarget(node.id, row, column)
+        const keyed = d.timeline?.tracks
+          .find(t => t.target === target)
+          ?.keyframes.some(k => Math.abs(k.time - time) < 1e-3)
+        if (keyed) removeKey(d, target, time)
+        else setKey(d, target, time, value)
+      }),
+  }
+
+  // An edit to an animated cell sets a keyframe at the playhead, as editing a keyframed
+  // parameter does; the typed rows keep their value
+  const onDataChange = (next: unknown[]) =>
+    docStore().edit(d => {
+      const kept = next.map((r, i) => {
+        if (!r || typeof r !== 'object') return r
+        const row = { ...(r as Record<string, unknown>) }
+        const before = data[i] as Record<string, unknown> | undefined
+        for (const column of Object.keys(row)) {
+          if (!trackOf(i, column)) continue
+          if (before && row[column] !== before[column] && keyframeable(row[column])) {
+            setKey(d, cellTarget(node.id, i, column), time, row[column])
+          }
+          const original = (typed[i] as Record<string, unknown> | undefined)?.[column]
+          if (original !== undefined) row[column] = original
+        }
+        return row
+      })
+      setParam(d, node.id, 'rows', writeRows(kept))
+    })
+
   return (
     <TableEditor
       data={data}
       schema={schema}
-      onDataChange={next => set(node, 'rows', writeRows(next))}
+      onDataChange={onDataChange}
+      cellKeys={cellKeys}
       onSchemaChange={(next, nextRows) =>
         docStore().edit(d => {
           setParam(d, node.id, 'schema', JSON.stringify(next))

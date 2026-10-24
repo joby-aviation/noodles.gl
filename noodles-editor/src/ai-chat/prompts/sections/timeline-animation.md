@@ -7,6 +7,7 @@ Any number parameter can be keyframed: its value at each moment comes from the t
 - `get_timeline` returns the length, frame rate, playhead, and each keyframed parameter as `target: "node.param"` with its keyframes.
 - `set_keyframe` adds or updates one: `{ "target": "dots.opacity", "time": 2, "value": 0.5 }`. Interpolation is `bezier` (smooth, the default), `linear` or `hold` (a step). A keyframe already at that time is updated.
 - `delete_keyframe` removes one: `{ "target": "dots.opacity", "time": 2 }` or by `keyframeId`.
+- A `table` node's cells keyframe one by one: the target is `node.rows.<row>.<column>`, rows from 0, e.g. `{ "target": "cities.rows.0.population", "time": 2, "value": 750 }`. A text cell takes a text value, which holds until the next key.
 - `set_playback_position` moves the playhead to inspect a moment: `{ "position": 1.5 }`.
 
 A fly-over is keyframes on the deck's camera: `deck.longitude`, `deck.latitude`, `deck.zoom`, `deck.pitch`, `deck.bearing`, two or more each.

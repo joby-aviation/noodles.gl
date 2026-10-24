@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { useTimelineStore } from '../timeline/timeline-store'
 import { setKey } from './doc-ops'
 import { DocStore } from './doc-store'
-import { bindTimeline, resetTimelinePanel } from './doc-timeline'
+import { bindTimeline, resetTimelinePanel, trackLabel } from './doc-timeline'
 
 const doc = (): EditorDoc => ({
   version: 1,
@@ -56,5 +56,23 @@ describe('bindTimeline', () => {
     unbind = bindTimeline(store)
     store.edit(d => setKey(d, '/dots.radiusScale', 1, 5))
     expect(useTimelineStore.getState().tracks.has('dots / radiusScale')).toBe(true)
+  })
+})
+
+describe('trackLabel', () => {
+  const doc = {
+    version: 1 as const,
+    name: 'l',
+    nodes: [{ id: 'n1', op: 'table', name: 'cities', x: 0, y: 0, params: {} }],
+    edges: [],
+  }
+
+  it('names a table cell by its column and 1-based row', () => {
+    expect(trackLabel(doc, 'n1.rows.0.population')).toBe('cities / population (row 1)')
+    expect(trackLabel(doc, 'n1.rows.2.properties.name')).toBe('cities / properties.name (row 3)')
+  })
+
+  it('names any other track by its parameter', () => {
+    expect(trackLabel(doc, 'n1.opacity')).toBe('cities / opacity')
   })
 })
