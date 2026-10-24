@@ -5475,7 +5475,7 @@ export class OrbitViewOp extends Operator<OrbitViewOp> {
       ...createBaseViewFields(),
       orthographic: new BooleanField(false, { showByDefault: false }),
       orbitAxis: new StringLiteralField('Z', {
-        values: ['X', 'Y', 'Z'],
+        values: ['Y', 'Z'],
         showByDefault: false,
       }),
       ...createFrustumViewFields(),

@@ -50,7 +50,7 @@
       "id": "/maplibre-basemap.out.maplibre->/deck.par.basemap"
     }
   ],
-  "version": 19,
+  "version": 20,
   "name": "Simple Mesh Layer BART Stations",
   "editorSettings": {
     "layoutMode": "noodles-on-top",

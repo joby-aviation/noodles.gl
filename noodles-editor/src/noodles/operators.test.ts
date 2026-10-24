@@ -1781,6 +1781,16 @@ describe('FirstPersonViewOp', () => {
 })
 
 describe('OrbitViewOp', () => {
+  it('offers only the orbit axes deck.gl supports', () => {
+    const operator = new OrbitViewOp('/orbit-0')
+    const { orbitAxis } = operator.inputs
+
+    orbitAxis.setValue('X')
+    expect(orbitAxis.value).toBe('Z')
+    orbitAxis.setValue('Y')
+    expect(orbitAxis.value).toBe('Y')
+  })
+
   it('accepts zoom outside 0..1', () => {
     const operator = new OrbitViewOp('/orbit-0')
     const { viewState } = operator.inputs
