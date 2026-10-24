@@ -50,31 +50,14 @@ vi.mock('../layout', async () => {
   }
 })
 
-vi.mock('../noodles/hooks/use-render-settings', () => ({
-  useRenderSettings: () => harness.settings,
-}))
-
-// TimelineEditor only needs these symbols while rendering this empty scene. Keeping
-// the full operator registry out of the test also avoids eagerly starting DuckDB.
-vi.mock('../noodles/operators', () => ({
-  ContainerOp: class ContainerOp {},
-  DeckRendererOp: class DeckRendererOp {},
-  GraphInputOp: class GraphInputOp {},
-  GraphOutputOp: class GraphOutputOp {},
-  MaplibreBasemapOp: class MaplibreBasemapOp {},
-  MapViewStateOp: class MapViewStateOp {},
-  RerouteOp: class RerouteOp {},
-  fnWithSource: () => () => ({}),
-  opTypes: {},
-}))
-
-vi.mock('../noodles/hooks/use-active-outop', () => ({ useActiveOutOp: () => null }))
-
-vi.mock('../noodles/noodles', () => ({
-  getNoodles: () => ({
+// The document editor's visualization: this scene's props and render settings, with no
+// document, so the engine never starts
+vi.mock('../editor/doc-noodles', () => ({
+  useDocNoodles: () => ({
     projectName: 'render-output-integration',
     deckProps: harness.visualization.deckProps,
     mapProps: harness.visualization.mapProps,
+    renderSettings: harness.settings,
     selectedNodeIds: [],
     onSaveProject: async () => {},
     onNewProject: async () => {},
