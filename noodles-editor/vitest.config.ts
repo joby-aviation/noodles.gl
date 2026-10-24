@@ -25,7 +25,7 @@ export default defineConfig({
         extends: true,
         test: {
           name: 'browser',
-          exclude: [...configDefaults.exclude, 'scripts/**', '**/*.node.test.ts'],
+          exclude: [...configDefaults.exclude, 'scripts/**', 'bench/**', '**/*.node.test.ts'],
           setupFiles: ['src/setupTests.ts'],
           browser: {
             provider: playwright({
@@ -43,15 +43,16 @@ export default defineConfig({
           },
         },
       },
-      // CLI scripts need real Node APIs (child processes, the file system). Runtime tests run
-      // real SQL through duckdb-wasm's Node build: no browser, and no node polyfills, which
-      // would replace the `node:module` the Node build loads through.
+      // CLI scripts and the agent bench need real Node APIs (child processes, the file system,
+      // the Bedrock SDK). Runtime tests run real SQL through duckdb-wasm's Node build: no
+      // browser, and no node polyfills, which would replace the `node:module` the Node build
+      // loads through.
       {
         resolve: { alias: plannerAlias },
         test: {
           name: 'node',
           environment: 'node',
-          include: ['scripts/**/*.test.ts', 'src/**/*.node.test.ts'],
+          include: ['scripts/**/*.test.ts', 'bench/**/*.test.ts', 'src/**/*.node.test.ts'],
           // These run real DuckDB queries over real example files: seconds each, more when the
           // machine is busy
           testTimeout: 30_000,

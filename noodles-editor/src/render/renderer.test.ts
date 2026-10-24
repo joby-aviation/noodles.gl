@@ -502,10 +502,12 @@ describe('useRenderer and settle', () => {
         return
       }
       expect(capture?.status).toBe('done')
-      // The warm-up frame, then frames 0, 1 and 2: each settles before it is drawn.
-      expect(events).toEqual(
-        [0, 0, 0.1, 0.2].flatMap(t => [`settle ${t}`, `settled ${t}`, 'redraw'])
-      )
+      // The warm-up frame, then frames 0, 1 and 2: each settles before it is drawn, and the
+      // frame reader repaints it once more as it reads it
+      expect(events).toEqual([
+        ...['settle 0', 'settled 0', 'redraw'],
+        ...[0, 0.1, 0.2].flatMap(t => [`settle ${t}`, `settled ${t}`, 'redraw', 'redraw']),
+      ])
     } finally {
       clearInterval(paint)
       canvas.remove()
