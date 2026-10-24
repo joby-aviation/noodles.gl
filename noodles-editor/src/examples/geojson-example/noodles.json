@@ -194,6 +194,70 @@
         },
         "locked": false
       }
+    },
+    {
+      "id": "/data-note",
+      "type": "CommentOp",
+      "position": {
+        "x": -396,
+        "y": -420
+      },
+      "data": {
+        "inputs": {
+          "text": "This loads BART train lines and stations in the San Francisco Bay Area from a GeoJSON file."
+        },
+        "locked": false
+      },
+      "width": 300,
+      "height": 90
+    },
+    {
+      "id": "/layer-note",
+      "type": "CommentOp",
+      "position": {
+        "x": 0,
+        "y": -420
+      },
+      "data": {
+        "inputs": {
+          "text": "One layer draws the stations, their names, and the train lines. Click it and change lineWidthMinPixels."
+        },
+        "locked": false
+      },
+      "width": 320,
+      "height": 90
+    },
+    {
+      "id": "/line-color-note",
+      "type": "CommentOp",
+      "position": {
+        "x": -400,
+        "y": 235
+      },
+      "data": {
+        "inputs": {
+          "text": "This colors each train line with the color stored in its data."
+        },
+        "locked": false
+      },
+      "width": 314,
+      "height": 80
+    },
+    {
+      "id": "/try-next-note",
+      "type": "CommentOp",
+      "position": {
+        "x": 696,
+        "y": 120
+      },
+      "data": {
+        "inputs": {
+          "text": "Try next:\n- Click fill-color and pick a new color.\n- Drop your own GeoJSON file onto the canvas to map it.\n- Press Export and pick Image (PNG) to save the map."
+        },
+        "locked": false
+      },
+      "width": 340,
+      "height": 150
     }
   ],
   "timeline": {
