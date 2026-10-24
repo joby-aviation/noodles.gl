@@ -154,7 +154,6 @@ import { getKeysStore } from './keys-store'
 import { type OpView, resolveOp } from './op-resolver'
 import { prepareTableDataForOutput, type TableSchema, validateTableData } from './table-schema'
 import type { ExtensionConstructorArgs, LayerPropsValue } from './types'
-import { composeAccessor, isAccessor } from './utils/accessor-helpers'
 import { deepEqual } from './utils/deep-equal'
 import type { ExtractProps } from './utils/extract-props'
 import { projectScheme } from './utils/filesystem'
@@ -651,7 +650,7 @@ export class BezierCurveOp extends Operator<BezierCurveOp> {
   static description = 'Bezier curve for mapping input values using an interactive graph editor'
   createInputs() {
     return {
-      factor: new NumberField(0.5, { min: 0, max: 1, step: 0.01, accessor: true }),
+      factor: new NumberField(0.5, { min: 0, max: 1, step: 0.01 }),
       curve: new BezierCurveField(),
     }
   }
@@ -665,9 +664,7 @@ export class BezierCurveOp extends Operator<BezierCurveOp> {
     curve: _curve,
   }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     const curveField = this.inputs.curve as BezierCurveField
-    // Use composeAccessor helper to handle both static values and accessor functions
-    const value = composeAccessor(factor, (f: number) => curveField.evaluate(f))
-    return { value } as ExtractProps<typeof this.outputs>
+    return { value: curveField.evaluate(factor) } as ExtractProps<typeof this.outputs>
   }
 }
 
@@ -1361,19 +1358,6 @@ export class MergeOp extends Operator<MergeOp> {
     }
   }
   execute({ objects }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
-    // Check if any objects are accessor functions
-    const hasAccessors = objects.some(isAccessor)
-
-    if (hasAccessors) {
-      // Return an accessor function that evaluates all objects and merges them
-      const result = (...args: unknown[]) => {
-        const evaluatedObjects = objects.map(item => (isAccessor(item) ? item(...args) : item))
-        return Object.assign({}, ...evaluatedObjects)
-      }
-      return { object: result }
-    }
-
-    // Static evaluation
     const object = Object.assign({}, ...objects)
     return { object }
   }
@@ -1635,18 +1619,6 @@ export class LayerPropsOp extends Operator<LayerPropsOp> {
   }
 }
 
-function gatherTriggers(
-  inputs: Record<string, Field<z.ZodType>>,
-  props: ExtractProps<typeof inputs>
-) {
-  const triggers = {} as Record<string, ((...args: unknown[]) => unknown)[]>
-  for (const [key, field] of Object.entries(inputs)) {
-    if (field.accessor && props[key]) {
-      triggers[key] = [props[key]]
-    }
-  }
-  return triggers
-}
 
 type LayerExtensionFieldReturnValue = null | {
   extension: LayerExtension
@@ -1701,7 +1673,7 @@ export class BrushingExtensionOp extends Operator<BrushingExtensionOp> {
       brushingTarget: new StringLiteralField('source', {
         values: ['source', 'target', 'source_target', 'custom'],
       }),
-      getBrushingTarget: new Point2DField([0, 0], { returnType: 'tuple', accessor: true }),
+      getBrushingTarget: new Point2DField([0, 0], { returnType: 'tuple' }),
     }
   }
   createOutputs() {
@@ -1729,8 +1701,8 @@ export class PathStyleExtensionOp extends Operator<PathStyleExtensionOp> {
       dashMode: new StringLiteralField('segment', ['segment', 'path']),
       dashJustified: new BooleanField(false),
       dashUnits: new StringLiteralField('widths', ['widths', 'pixels', 'meters', 'common']),
-      getDashArray: new Vec2Field([4, 4], { returnType: 'tuple', accessor: true }),
-      getOffset: new NumberField(0, { softMin: -10_000, softMax: 10_000, accessor: true }),
+      getDashArray: new Vec2Field([4, 4], { returnType: 'tuple' }),
+      getOffset: new NumberField(0, { softMin: -10_000, softMax: 10_000 }),
       dashGapPickable: new BooleanField(false),
     }
   }
@@ -1997,7 +1969,6 @@ export class TerrainLayerOp extends Operator<TerrainLayerOp> {
       ...parseLayerProps<TerrainLayerProps>(props),
       type: 'TerrainLayer' as const,
       id: this.id,
-      updateTriggers: gatherTriggers(this.inputs, props),
     }
     return { layer }
   }
@@ -2045,7 +2016,6 @@ export class TileLayerOp extends Operator<TileLayerOp> {
       ...parseLayerProps<TileLayerProps>(props),
       type: 'TileLayer' as const,
       id: this.id,
-      updateTriggers: gatherTriggers(this.inputs, props),
     }
     return { layer }
   }
@@ -2093,11 +2063,10 @@ export class FillStyleExtensionOp extends Operator<FillStyleExtensionOp> {
       fillPatternSizeUnits: new StringLiteralField('meters', ['pixels', 'meters', 'common']),
       fillPatternAtlas: new StringField('', { optional: true }),
       fillPatternMapping: new UnknownField(null, { optional: true }),
-      getFillPattern: new UnknownField(null, { accessor: true }),
-      getFillPatternScale: new NumberField(1, { accessor: true }),
-      getFillPatternOffset: new Vec2Field([0, 0], { returnType: 'tuple', accessor: true }),
+      getFillPattern: new UnknownField(null),
+      getFillPatternScale: new NumberField(1),
+      getFillPatternOffset: new Vec2Field([0, 0], { returnType: 'tuple' }),
       getFillPatternBackgroundColor: new ColorField('#00000000', {
-        accessor: true,
         transform: hexToColor,
         showByDefault: false,
       }),

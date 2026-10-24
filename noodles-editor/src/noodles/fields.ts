@@ -25,7 +25,6 @@ export interface IField<
   schema: S
   value: z.output<S>
   defaultValue?: z.output<S>
-  accessor?: boolean
   op?: Operator<IOperator>
   setValue(value: z.input<S>): void
   serialize(): z.infer<S>
@@ -34,7 +33,6 @@ export interface IField<
 type BaseFieldOptions = {
   optional?: boolean
   transform?: (val: unknown, ...args: unknown[]) => unknown
-  accessor?: boolean
   showByDefault?: boolean // Defaults to true. Set to false to hide field by default in UI.
   label?: string // Friendly name for the UI. Defaults to a humanized field name.
   description?: string // One-line explanation of what the field does, shown in the UI.
@@ -104,10 +102,6 @@ export abstract class Field<
   // A Zod schema for the field
   schema!: S
 
-  // Can the field be used as an accessor? This is used to determine if the field can be used
-  // as a callback function. For example, `getPosition`, `getLineColor`, `getFillColor` etc.
-  accessor = false
-
   // Should this field be shown by default in the UI? Defaults to true.
   showByDefault = true
 
@@ -166,9 +160,8 @@ export abstract class Field<
     }
   }
 
-  // Wrap schema in additional functionality like optional, transform, accessor etc.
+  // Wrap schema in additional functionality like optional, transform etc.
   enhanceSchema({
-    accessor,
     optional,
     transform,
     showByDefault,
@@ -197,30 +190,7 @@ export abstract class Field<
       this.maxDepth = maxDepth
     }
 
-    if (accessor) {
-      this.accessor = true
-      schema = schema.or(
-        z
-          .function()
-          .input(
-            z.union([
-              z.tuple([]),
-              z.tuple([z.unknown()]),
-              z.tuple([z.unknown(), z.unknown()]),
-              z.tuple([z.unknown(), z.unknown(), z.unknown()]),
-            ])
-          )
-          .output(z.unknown())
-      )
-
-      if (transform) {
-        schema = schema.transform((val: unknown) => {
-          return typeof val === 'function'
-            ? (...args: unknown[]) => transform(val(...args))
-            : transform(val)
-        }) as unknown as S
-      }
-    } else if (transform) {
+    if (transform) {
       schema = schema.transform(transform) as unknown as S
     }
 

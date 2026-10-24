@@ -19,7 +19,7 @@ function detectionNotice({ detection }: FileImportResult): Notice | null {
   if (detection.kind === 'none') {
     return {
       tone: 'info',
-      text: `${describeDetection(detection)}. Edit the position Accessor to place the rows.`,
+      text: `${describeDetection(detection)}. Edit the layer's position to place the rows.`,
     }
   }
   return { tone: 'info', text: describeDetection(detection) }

@@ -114,8 +114,9 @@ export const inputComponents = {
   widget: EmptyFieldComponent,
 } as const as Record<string, InputComponent>
 
-// Guard on accessor callbacks in `setValue`/`useState` for when fields are disconnected
-function guardAccessorFallback<V>(value: V): V | (() => V) {
+// React takes a function given to `useState` or `setValue` as an updater; a field whose value is
+// a function (a compiled code field's) is wrapped so it is stored, not called
+function guardFunctionValue<V>(value: V): V | (() => V) {
   return typeof value === 'function' ? () => value : value
 }
 
@@ -454,7 +455,7 @@ export function VectorFieldComponent({
 }) {
   const [value, setValue] = useState<
     { [key: string]: number } | [number, number] | [number, number, number]
-  >(guardAccessorFallback(field.value))
+  >(guardFunctionValue(field.value))
   const [geocodingOpen, setGeocodingOpen] = useState(false)
   const { captureStart, commitChange } = usePropertyHistory()
 
@@ -605,7 +606,7 @@ export function CodeFieldComponent({
   field: CodeField
   disabled: boolean
 }) {
-  const [value, setValue] = useState(guardAccessorFallback(field.value))
+  const [value, setValue] = useState(guardFunctionValue(field.value))
   const editorRef = useRef<Parameters<OnMount>[0] | null>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const { captureStart, commitChange } = usePropertyHistory()
@@ -728,7 +729,7 @@ export function FileUrlFieldComponent({
   field: FileUrlField
   disabled: boolean
 }) {
-  const [value, setValue] = useState(guardAccessorFallback(field.value))
+  const [value, setValue] = useState(guardFunctionValue(field.value))
   const { captureStart, commitChange } = usePropertyHistory()
 
   useEffect(() => {
@@ -952,7 +953,7 @@ export function MapStyleFieldComponent({
   field: MapStyleField
   disabled: boolean
 }) {
-  const [value, setValue] = useState(guardAccessorFallback(field.value))
+  const [value, setValue] = useState(guardFunctionValue(field.value))
   const { captureStart, commitChange } = usePropertyHistory()
 
   useEffect(() => {
@@ -1165,7 +1166,7 @@ export function NumberFieldComponent({
   field: NumberField
   disabled: boolean
 }) {
-  const [value, setValue] = useState<number>(guardAccessorFallback(field.value))
+  const [value, setValue] = useState<number>(guardFunctionValue(field.value))
   const [stepOverride, setStepOverride] = useState(field.stepOverride)
   const { captureStart, commitChange } = usePropertyHistory()
 
@@ -1223,7 +1224,7 @@ export function BooleanFieldComponent({
   field: BooleanField
   disabled: boolean
 }) {
-  const [value, setValue] = useState<boolean>(guardAccessorFallback(field.value))
+  const [value, setValue] = useState<boolean>(guardFunctionValue(field.value))
   const { captureStart, commitChange } = usePropertyHistory()
 
   useEffect(() => {
@@ -1271,7 +1272,7 @@ export function DateFieldComponent({
   field: DateField
   disabled: boolean
 }) {
-  const [value, setValue] = useState(guardAccessorFallback(field.value))
+  const [value, setValue] = useState(guardFunctionValue(field.value))
   const { captureStart, commitChange } = usePropertyHistory()
 
   useEffect(() => {
@@ -1325,7 +1326,7 @@ export function ColorFieldComponent({
   field: ColorField
   disabled: boolean
 }) {
-  const [value, setValue] = useState(guardAccessorFallback(field.value))
+  const [value, setValue] = useState(guardFunctionValue(field.value))
   const { captureStart, commitChange } = usePropertyHistory()
 
   useEffect(() => {
@@ -2201,7 +2202,7 @@ export function BboxFieldComponent({
   const [value, setValue] = useState<{
     southwest: { lng: number; lat: number }
     northeast: { lng: number; lat: number }
-  }>(normalizeBboxValue(guardAccessorFallback(field.value)))
+  }>(normalizeBboxValue(guardFunctionValue(field.value)))
   const [geocodingOpen, setGeocodingOpen] = useState(false)
   const [geocodingCorner, setGeocodingCorner] = useState<'southwest' | 'northeast'>('southwest')
   const { captureStart, commitChange } = usePropertyHistory()

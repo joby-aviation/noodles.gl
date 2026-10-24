@@ -16,7 +16,7 @@ export interface Bounds {
   north: number
 }
 
-// A numeric column worth sizing points by, with its range so the accessor can normalize
+// A numeric column worth sizing points by, with its range so the size expression can normalize
 export interface SizeColumn {
   column: string
   min: number
