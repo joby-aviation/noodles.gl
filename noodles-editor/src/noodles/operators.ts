@@ -5239,7 +5239,6 @@ export class ScaleWidgetOp extends Operator<ScaleWidgetOp> {
       placement: new StringLiteralField('bottom-left', {
         values: ['top-left', 'top-right', 'bottom-left', 'bottom-right'],
       }),
-      label: new StringField('Scale'),
       viewId: new StringField('', { optional: true }),
     }
   }
@@ -5252,14 +5251,12 @@ export class ScaleWidgetOp extends Operator<ScaleWidgetOp> {
 
   execute({
     placement,
-    label,
     viewId,
   }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     const widget = {
       id: this.id,
       type: '_ScaleWidget',
       placement,
-      label,
       ...(viewId && viewId !== '' ? { viewId } : {}),
     }
     return { widget }

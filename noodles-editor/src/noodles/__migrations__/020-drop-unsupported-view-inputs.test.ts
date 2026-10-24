@@ -77,6 +77,17 @@ describe('020-drop-unsupported-view-inputs', () => {
     ])
   })
 
+  it('removes ScaleWidgetOp label values', async () => {
+    const project = {
+      ...baseProject,
+      nodes: [node('/scale', 'ScaleWidgetOp', { label: 'Distance', placement: 'top-left' })],
+    }
+
+    const migrated = await up(project)
+
+    expect(migrated.nodes[0].data.inputs).toEqual({ placement: 'top-left' })
+  })
+
   it('returns the same project when nothing needs migrating', async () => {
     const project = { ...baseProject, nodes: [node('/orbit', 'OrbitViewOp', {})] }
     expect(await up(project)).toBe(project)

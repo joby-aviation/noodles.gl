@@ -6,9 +6,11 @@ import type { NoodlesProjectJSON } from '../utils/serialization'
 //
 // Inputs deck.gl never read are removed, along with their saved values and incoming edges:
 // - MapViewOp altitude: deck.gl derives altitude from fovy, which always has a value
+// - ScaleWidgetOp label: deck.gl's _ScaleWidget draws only the distance
 
 const REMOVED_INPUTS: Record<string, string[]> = {
   MapViewOp: ['altitude'],
+  ScaleWidgetOp: ['label'],
 }
 
 type ProjectNode = NoodlesProjectJSON['nodes'][number]

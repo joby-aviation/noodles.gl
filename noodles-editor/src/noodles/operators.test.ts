@@ -4090,22 +4090,28 @@ describe('ScaleWidgetOp', () => {
       id: '/scale-widget-0',
       type: '_ScaleWidget',
       placement: 'bottom-left',
-      label: 'Scale',
     })
   })
 
   it('accepts custom scale widget properties', async () => {
     const op = new ScaleWidgetOp('/scale-widget-0')
     op.inputs.placement.setValue('top-right')
-    op.inputs.label.setValue('Distance')
     op.inputs.viewId.setValue('map-view')
     await op.pull()
 
     expect(op.outputData.widget).toMatchObject({
       placement: 'top-right',
-      label: 'Distance',
       viewId: 'map-view',
     })
+  })
+
+  it('has no label input, since deck.gl never draws the label', () => {
+    const op = new ScaleWidgetOp('/scale-widget-0')
+    expect(op.inputs).not.toHaveProperty('label')
+
+    const root = document.createElement('div')
+    new deckWidgets._ScaleWidget({ label: 'Distance' }).onRenderHTML(root)
+    expect(root.textContent).not.toContain('Distance')
   })
 
   it('excludes an empty viewId', async () => {

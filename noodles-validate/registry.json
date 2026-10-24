@@ -5502,10 +5502,6 @@
           "type": "StringLiteralField",
           "default": "bottom-left"
         },
-        "label": {
-          "type": "StringField",
-          "default": "Scale"
-        },
         "viewId": {
           "type": "StringField",
           "default": ""
