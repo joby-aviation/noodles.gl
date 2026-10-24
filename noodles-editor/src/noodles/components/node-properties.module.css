@@ -185,8 +185,8 @@
 
 /* Section */
 .section {
-  margin-top: 12px;
-  margin-bottom: 12px;
+  margin-top: 8px;
+  margin-bottom: 16px;
 }
 
 .sectionHeader {
@@ -405,7 +405,7 @@
 /* Property list */
 .propertyList {
   display: flex;
-  gap: 8px;
+  gap: 2px;
   flex-direction: column;
   margin-left: 0;
 }
@@ -414,8 +414,8 @@
   display: flex;
   flex-direction: column;
   font-size: 12px;
-  border-radius: 4px;
-  padding: 2px 6px;
+  border-radius: 6px;
+  padding: 4px 6px;
   transition: background 0.1s;
 }
 
@@ -445,10 +445,77 @@
 }
 
 .propertyLabelText {
+  min-width: 0;
+  color: var(--color-text-primary);
+  line-height: 1.3;
+  /* friendly labels have spaces, so wrap to a second line before truncating */
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
+
+/* One-line explanation under the label, aligned with the label text:
+   hide button (18px) + port (8px) + two 6px gaps */
+.propertyDescription {
+  padding: 0 0 2px 38px;
+  margin-top: -1px;
+  font-size: 11px;
+  line-height: 1.35;
+  color: rgba(255, 255, 255, 0.45);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  min-width: 0;
+}
+
+/* Show the full description while the row is hovered or being edited */
+.property:hover .propertyDescription,
+.property:focus-within .propertyDescription {
+  white-space: normal;
+}
+
+/* Fields hidden by default, collapsed under "More settings" */
+.hiddenFieldsToggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  margin-top: 6px;
+  padding: 6px;
+  border: none;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 0;
+  background: none;
+  color: var(--color-text-secondary);
+  font-size: 11px;
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+}
+
+.hiddenFieldsToggle:hover {
+  color: var(--color-text-primary);
+}
+
+.hiddenFieldsChevron {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  transition: transform 0.15s;
+}
+
+.hiddenFieldsChevronOpen {
+  transform: rotate(90deg);
+}
+
+.hiddenFieldsCount {
+  padding: 0 5px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.08);
+  font-size: 10px;
+  line-height: 16px;
 }
 
 .connectedIcon {
@@ -987,7 +1054,8 @@
   display: flex;
   flex-direction: column;
   gap: 4px;
-  padding-left: 12px;
+  /* align with the parent label: hide button (18px) + port (8px) + two 6px gaps */
+  padding-left: 38px;
   margin-top: 4px;
 }
 

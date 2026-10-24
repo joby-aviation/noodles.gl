@@ -68,6 +68,7 @@ import { getFriendlyErrorMessage } from '../operators'
 import { checkAssetExists, getAssetFileHandle, writeAsset } from '../storage'
 import { getOp, useEdgeConnectionStore } from '../store'
 import { type ExpressionContext, getExpressionContext } from '../utils/expression-context'
+import { getFieldDocs } from '../utils/field-docs'
 import { FieldEditScope } from '../utils/field-edit-analytics'
 import { projectScheme } from '../utils/filesystem'
 import type { OpId } from '../utils/id-utils'
@@ -406,9 +407,7 @@ export function TextFieldComponent({
 
   return (
     <div className={cx(s.fieldWrapper, 'nokey')}>
-      <label className={s.fieldLabel} htmlFor={id}>
-        {id}
-      </label>
+      <FieldLabel id={id} field={field} />
       <div className={s.fieldInputWrapper}>{input}</div>
     </div>
   )
@@ -550,9 +549,7 @@ export function ExpressionFieldComponent({
 
   return (
     <div className={cx(s.fieldWrapper, 'nokey')}>
-      <label className={s.fieldLabel} htmlFor={id}>
-        {id}
-      </label>
+      <FieldLabel id={id} field={field} />
       <div className={cx(s.fieldInputWrapper, s.expressionFieldWrapper)}>
         <input
           ref={inputRef}
@@ -709,9 +706,7 @@ export function ExpressionInputBase({
 
   return (
     <div className={s.fieldWrapper}>
-      <label className={s.fieldLabel} htmlFor={id}>
-        {id}
-      </label>
+      <FieldLabel id={id} field={field} />
       <div className={cx(s.fieldInputWrapper, s.expressionFieldWrapper)}>
         <input
           ref={inputRef}
@@ -895,9 +890,7 @@ export function VectorFieldComponent({
 
   return (
     <div className={cx(s.fieldWrapper, 'nokey')}>
-      <label className={s.fieldLabel} htmlFor={id}>
-        {id}
-      </label>
+      <FieldLabel id={id} field={field} />
       <div id={id} className={cx(s.fieldInputWrapper, s.fieldInputWrapperVector)}>
         {keys.map((key, i) => {
           const objectKey = field.returnType === 'tuple' ? i : key
@@ -1245,9 +1238,7 @@ export function FileUrlFieldComponent({
   return (
     <>
       <div className={cx(s.fieldWrapper, 'nokey')}>
-        <label className={s.fieldLabel} htmlFor={id}>
-          {id}
-        </label>
+        <FieldLabel id={id} field={field} />
         <div className={cx('p-inputgroup', s.fieldFileInputGroup)}>
           <InputText
             id={id}
@@ -1443,9 +1434,7 @@ export function MapStyleFieldComponent({
   return (
     <>
       <div className={cx(s.fieldWrapper, 'nokey')}>
-        <label className={s.fieldLabel} htmlFor={id}>
-          {id}
-        </label>
+        <FieldLabel id={id} field={field} />
         <div className={cx('p-inputgroup', s.fieldFileInputGroup)}>
           <InputText
             id={id}
@@ -1551,9 +1540,7 @@ export function NumberFieldComponent({
 
   return (
     <div className={cx(s.fieldWrapper, 'nokey')}>
-      <label className={s.fieldLabel} htmlFor={id}>
-        {id}
-      </label>
+      <FieldLabel id={id} field={field} />
       <DraggableNumberInput
         id={id}
         value={value}
@@ -1605,9 +1592,7 @@ export function BooleanFieldComponent({
 
   return (
     <div className={cx(s.fieldWrapper, 'nokey')}>
-      <label className={s.fieldLabel} htmlFor={id}>
-        {id}
-      </label>
+      <FieldLabel id={id} field={field} />
       <div className={s.fieldInputWrapper}>
         <input
           id={id}
@@ -1658,9 +1643,7 @@ export function DateFieldComponent({
 
   return (
     <div className={cx(s.fieldWrapper, 'nokey')}>
-      <label className={s.fieldLabel} htmlFor={id}>
-        {id}
-      </label>
+      <FieldLabel id={id} field={field} />
       <div className={s.fieldInputWrapper}>
         <input
           id={id}
@@ -1705,9 +1688,7 @@ export function ColorFieldComponent({
 
   return (
     <div className={cx(s.fieldWrapper, 'nokey')}>
-      <label className={s.fieldLabel} htmlFor={id}>
-        {id}
-      </label>
+      <FieldLabel id={id} field={field} />
       <div className={s.fieldInputWrapper}>
         <ColorSwatch
           value={value}
@@ -1885,9 +1866,7 @@ export function ColorRampComponent({
   // Fallback: read-only canvas (existing behavior)
   return (
     <div className={cx(s.fieldWrapper, 'nokey')}>
-      <label className={s.fieldLabel} htmlFor={id}>
-        {id}
-      </label>
+      <FieldLabel id={id} field={field} />
       <canvas
         id={id}
         aria-label={`${id} color ramp`}
@@ -1917,8 +1896,9 @@ export function CompoundFieldComponent({
         type="button"
         onClick={() => setExpanded(e => !e)}
         aria-expanded={expanded}
+        title={id}
       >
-        {id}
+        {getFieldDocs(id, field, field.op).label}
         <span className={cx(s.compoundPropsExpander, expanded && s.compoundPropsExpanderExpanded)}>
           ►
         </span>
@@ -1942,10 +1922,33 @@ export function CompoundFieldComponent({
   )
 }
 
-export function EmptyFieldComponent({ id }: { id: OpId; field: Field<IField> }) {
+// Node row label: the field's friendly name, with its key (the name used in edges,
+// references and expressions) as the tooltip
+export function FieldLabel({
+  id,
+  field,
+  as = 'label',
+}: {
+  id: OpId
+  field: Field<IField>
+  as?: 'label' | 'div'
+}) {
+  const { label } = getFieldDocs(id, field, field.op)
+  return as === 'label' ? (
+    <label className={s.fieldLabel} htmlFor={id} title={id}>
+      {label}
+    </label>
+  ) : (
+    <div className={s.fieldLabel} title={id}>
+      {label}
+    </div>
+  )
+}
+
+export function EmptyFieldComponent({ id, field }: { id: OpId; field: Field<IField> }) {
   return (
     <div className={cx(s.fieldWrapper, 'nokey')}>
-      <div className={s.fieldLabel}>{id}</div>
+      <FieldLabel id={id} field={field} as="div" />
     </div>
   )
 }
@@ -2244,9 +2247,7 @@ export function BezierCurveFieldComponent({
 
   return (
     <div className={cx(s.fieldWrapper, 'nokey')} ref={containerRef}>
-      <label className={s.fieldLabel} htmlFor={id}>
-        {id}
-      </label>
+      <FieldLabel id={id} field={field} />
       <div className={s.bezierCurveEditor}>
         <svg
           ref={svgRef}
@@ -2974,9 +2975,7 @@ export function BboxFieldComponent({
 
   return (
     <div className={cx(s.fieldWrapper, 'nokey')}>
-      <label className={s.fieldLabel} htmlFor={id}>
-        {id}
-      </label>
+      <FieldLabel id={id} field={field} />
       <div id={id} className={s.fieldCompoundWrapper}>
         <div className={s.fieldGroupLabel}>Southwest</div>
         <div className={cx(s.fieldInputWrapper, s.fieldInputWrapperVector)}>

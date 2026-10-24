@@ -1,5 +1,6 @@
 import * as Dialog from '@radix-ui/react-dialog'
 import {
+  ChevronRightIcon,
   Cross2Icon,
   EyeNoneIcon,
   EyeOpenIcon,
@@ -44,6 +45,7 @@ import {
 } from '../store'
 import type { ConnectionPlan } from '../utils/auto-connect'
 import { appendUniqueEdges } from '../utils/edge-integrity'
+import { getFieldDocs } from '../utils/field-docs'
 import { FieldEditScope } from '../utils/field-edit-analytics'
 import { edgeId } from '../utils/id-utils'
 import {
@@ -450,7 +452,9 @@ function CompoundSubFields({
         }
         return (
           <div key={subName} className={s.compoundSubField}>
-            <span className={s.compoundSubFieldLabel}>{subName}</span>
+            <span className={s.compoundSubFieldLabel} title={subName}>
+              {getFieldDocs(subName, subField).label}
+            </span>
             <FieldInputWithHighlight
               opId={opId}
               fieldName={fieldName}
@@ -502,6 +506,7 @@ export function NodeProperties({ nodeId }: { nodeId: string }) {
   const [isTruncated, setIsTruncated] = useState(false)
   const [isResetDialogOpen, setIsResetDialogOpen] = useState(false)
   const [pendingHideField, setPendingHideField] = useState<string | null>(null)
+  const [showHiddenFields, setShowHiddenFields] = useState(false)
   const [contextMenu, setContextMenu] = useState<{
     x: number
     y: number
@@ -612,6 +617,7 @@ export function NodeProperties({ nodeId }: { nodeId: string }) {
       mustacheRef: `{{${op.id}.${IN_NS}.${name}}}`,
       handleClass: handleClass(input),
       field: input,
+      docs: getFieldDocs(name, input, op),
     }
   })
 
@@ -624,6 +630,7 @@ export function NodeProperties({ nodeId }: { nodeId: string }) {
       mustacheRef: `{{${op.id}.${OUT_NS}.${name}}}`,
       handleClass: handleClass(output),
       field: output,
+      docs: getFieldDocs(name, output, op),
     }
   })
 
@@ -929,7 +936,7 @@ export function NodeProperties({ nodeId }: { nodeId: string }) {
                       <div className={cx(s.port, input.handleClass)} />
                       <span className={s.propertyLabel}>
                         <span className={s.propertyLabelText} title={input.name}>
-                          {input.name}
+                          {input.docs.label}
                         </span>
                         {incomers.length > 0 && (
                           <Tooltip text="Field is connected" position="right">
@@ -962,6 +969,9 @@ export function NodeProperties({ nodeId }: { nodeId: string }) {
                         </>
                       )}
                     </div>
+                    {input.docs.description && (
+                      <div className={s.propertyDescription}>{input.docs.description}</div>
+                    )}
                     {/* Compound field: expand sub-fields inline */}
                     {input.field instanceof CompoundPropsField && (
                       <CompoundSubFields
@@ -998,7 +1008,33 @@ export function NodeProperties({ nodeId }: { nodeId: string }) {
                 )
               }
 
-              return <>{inputs.map(input => renderInput(input))}</>
+              const shownInputs = inputs.filter(input => op.isFieldVisible(input.name))
+              const hiddenInputs = inputs.filter(input => !op.isFieldVisible(input.name))
+
+              return (
+                <>
+                  {shownInputs.map(input => renderInput(input))}
+                  {hiddenInputs.length > 0 && (
+                    <>
+                      <button
+                        type="button"
+                        className={s.hiddenFieldsToggle}
+                        aria-expanded={showHiddenFields}
+                        onClick={() => setShowHiddenFields(!showHiddenFields)}
+                      >
+                        <ChevronRightIcon
+                          className={cx(s.hiddenFieldsChevron, {
+                            [s.hiddenFieldsChevronOpen]: showHiddenFields,
+                          })}
+                        />
+                        More settings
+                        <span className={s.hiddenFieldsCount}>{hiddenInputs.length}</span>
+                      </button>
+                      {showHiddenFields && hiddenInputs.map(input => renderInput(input))}
+                    </>
+                  )}
+                </>
+              )
             })()}
           </ErrorBoundary>
         </div>
@@ -1034,8 +1070,17 @@ export function NodeProperties({ nodeId }: { nodeId: string }) {
             >
               <div className={cx(s.propertyRow, s.outputRow)}>
                 <div className={cx(s.port, output.handleClass)} />
-                <span className={s.propertyLabel}>{output.name}</span>
+                <span className={s.propertyLabel}>
+                  <span className={s.propertyLabelText} title={output.name}>
+                    {output.docs.label}
+                  </span>
+                </span>
               </div>
+              {output.docs.description && (
+                <div className={cx(s.propertyDescription, s.outputDescription)}>
+                  {output.docs.description}
+                </div>
+              )}
             </div>
           ))}
         </div>
