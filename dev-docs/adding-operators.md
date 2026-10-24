@@ -119,6 +119,7 @@ Migrations live in `src/noodles/__migrations__/NNN-kebab-name.ts` with a co-loca
 1. Use the next number after the highest on main, with no gaps or duplicates
 2. Put the new basename (no extension) on the single line of `__migrations__/LATEST`. Two open migration PRs both change that line, so the second one gets a merge conflict and must rebase and renumber
 3. Bump the example projects to the new version (`npm run migrate-projects`)
+4. Regenerate the project JSON Schema (`npm run generate:schema`) and commit the new `website/static/schema/` files. CI runs `npm run generate:schema -- --check`, which fails until you do
 
 `utils/migration-numbering.test.ts` checks the numbering and `LATEST`, and `migrate-schema.ts` throws at load if two migrations share a number.
 
