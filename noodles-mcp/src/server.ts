@@ -76,8 +76,7 @@ export function createServer({ repoRoot, cwd }: Context): McpServer {
   server.registerTool(
     'get_operator_schema',
     {
-      description:
-        'Get the ports and parameters of an operator type (e.g. file, scatter, deck)',
+      description: 'Get the ports and parameters of an operator type (e.g. file, scatter, deck)',
       inputSchema: { type: z.string().describe('Operator type name') },
       annotations: readOnly,
     },

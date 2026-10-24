@@ -1789,7 +1789,7 @@ export function toEditorDoc(original: NoodlesProject): Migrated {
     if (from && FOLDED.has(from.type)) {
       return { kind: 'const', value: folded(nodeId, field, from, handleField(e.sourceHandle)) }
     }
-    return resolveOutput(src, e.source, widthOf(field))
+    return resolveOutput(src, e.source, widthOf(field), handleField(e.sourceHandle))
   }
 
   /**
@@ -1818,10 +1818,13 @@ export function toEditorDoc(original: NoodlesProject): Migrated {
     edge(src, sourcePort.get(src) ?? 'out', id, 'in')
   }
 
+  // Attributes date operators made, already epoch seconds
+  const epochAttributes = new Set<string>()
+
   /** JS functions made for accessors, by accessor id: one node each, shared by every chain. */
   const jsFunctions = new Map<string, string>()
 
-  const resolveOutput = (src: string, id: string, width = 1): Value => {
+  const resolveOutput = (src: string, id: string, width = 1, port = ''): Value => {
     const n = byId.get(id)
     if (!n) throw new MigrationError(`Missing node ${id}`)
     const chain = chainOf(src)
@@ -1852,6 +1855,16 @@ export function toEditorDoc(original: NoodlesProject): Migrated {
       return { kind: 'row' as const, expr: name }
     }
     const rowReads = (...vs: Value[]) => vs.flatMap(v => (v.kind === 'row' ? [v.expr] : []))
+    // A date as epoch seconds: a column through epoch(), unless a date operator made it; a
+    // constant, as the number
+    const dateExpr = (v: Value, what: string): string => {
+      if (v.kind === 'row') return epochAttributes.has(v.expr) ? v.expr : `epoch(${v.expr})`
+      if (v.kind === 'const') {
+        const seconds = epochOf(v.value)
+        if (seconds !== undefined) return lit(seconds)
+      }
+      throw new MigrationError(`${id}: ${what} is not a date`)
+    }
     const exprOf = (v: Value, what: string): string => {
       if (v.kind === 'row') return v.expr
       if (v.kind === 'const' && typeof v.value === 'number') return lit(v.value)
@@ -1972,6 +1985,54 @@ export function toEditorDoc(original: NoodlesProject): Migrated {
           'color-ramp',
           { input: index, ramp: `categorical-${scheme}`, min: 0, max: 1, name: attribute },
           [index]
+        )
+      }
+      case 'DateMathOp': {
+        // Dates are epoch seconds in expressions: a date column or ISO text through epoch()
+        const op = String(i.operator ?? 'add')
+        const unit = sqlString(String(i.unit ?? 'days'))
+        const a = dateExpr(resolve(src, id, 'date', i.date), 'date')
+        const b = () => dateExpr(resolve(src, id, 'dateB', i.dateB), 'dateB')
+        const amount = () => exprOf(resolve(src, id, 'amount', i.amount ?? 1), 'amount')
+        const t = () => exprOf(resolve(src, id, 't', i.t ?? 0), 't')
+        const exprs: Record<string, () => string> = {
+          add: () => `date_add(${a}, ${amount()}, ${unit})`,
+          subtract: () => `date_add(${a}, -(${amount()}), ${unit})`,
+          difference: () => `date_diff(${a}, ${b()}, ${unit})`,
+          isBefore: () => `${a} < ${b()}`,
+          isAfter: () => `${a} > ${b()}`,
+          equals: () => `${a} == ${b()}`,
+          interpolate: () => `${a} + (${b()} - ${a}) * clamp(${t()}, 0.0, 1.0)`,
+        }
+        if (!exprs[op]) throw new MigrationError(`${id}: Date Math '${op}' is not converted`)
+        const value = add('attribute', { name: attribute, expression: exprs[op]() }, [])
+        if (['add', 'subtract', 'interpolate'].includes(op)) epochAttributes.add(attribute)
+        return value
+      }
+      case 'DatePartsOp': {
+        // One attribute per part read, named for it
+        const part = port || 'year'
+        const key = `${id}.${part}`
+        const done = chain.get(key)
+        if (done) return { kind: 'row', expr: done.attribute }
+        const date = dateExpr(resolve(src, id, 'date', i.date), 'date')
+        const name = `${attribute}_${part}`
+        return add(
+          'attribute',
+          { name, expression: `date_part(${date}, ${sqlString(part)})` },
+          [],
+          key,
+          name,
+          name
+        )
+      }
+      case 'DateFormatOp': {
+        const date = dateExpr(resolve(src, id, 'date', i.date), 'date')
+        const pattern = sqlString(String(i.pattern ?? 'YYYY-MM-DD HH:mm:ss'))
+        return add(
+          'attribute',
+          { name: attribute, expression: `date_format(${date}, ${pattern})` },
+          []
         )
       }
       case 'MathOp': {
@@ -3627,4 +3688,19 @@ function convertTimeline(raw: unknown, nodes: DocNode[], warnings: string[]): Ti
   }
   if (tracks.length === 0) return undefined
   return { length: native.sequence.length, fps: native.sequence.fps, tracks }
+}
+
+// A constant date as epoch seconds: a number, ISO text, or a DateTime's { datetime } (read as
+// UTC, as expressions read a timestamp column)
+function epochOf(value: unknown): number | undefined {
+  if (typeof value === 'number') return Number.isFinite(value) ? value : undefined
+  const text =
+    typeof value === 'string'
+      ? value
+      : value && typeof value === 'object' && 'datetime' in value
+        ? String((value as { datetime: unknown }).datetime)
+        : undefined
+  if (!text) return undefined
+  const ms = Date.parse(/[zZ]|[+-]\d\d:?\d\d$/.test(text) ? text : `${text}Z`)
+  return Number.isFinite(ms) ? ms / 1000 : undefined
 }

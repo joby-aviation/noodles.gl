@@ -84,7 +84,10 @@ describe('noodles-mcp', () => {
     })
 
     it('accepts a display name', async () => {
-      assert.equal((await data('get_operator_schema', { type: 'Scatterplot Layer' })).type, 'scatter')
+      assert.equal(
+        (await data('get_operator_schema', { type: 'Scatterplot Layer' })).type,
+        'scatter'
+      )
     })
 
     it('points at list_operators when no type is close', async () => {

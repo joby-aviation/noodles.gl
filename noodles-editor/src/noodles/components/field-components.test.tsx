@@ -25,7 +25,6 @@ import {
   CompoundFieldComponent,
   DateFieldComponent,
   EmptyFieldComponent,
-  FieldComponent,
   NumberFieldComponent,
   TextFieldComponent,
   VectorFieldComponent,
