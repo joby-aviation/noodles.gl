@@ -61,7 +61,7 @@ const rowParts = (container: HTMLElement, name: string) => {
   const inputs = Array.from(
     row.querySelectorAll<HTMLElement>('input:not([type="checkbox"]), select')
   )
-  return { label, inputs }
+  return { label, row, inputs }
 }
 
 describe('NodeProperties row layout', () => {
@@ -84,12 +84,13 @@ describe('NodeProperties row layout', () => {
   })
 
   it.each([DEFAULT_WIDTH, MIN_WIDTH])(
-    'keeps labels readable and inputs off the label at %ipx',
+    'keeps labels readable and inputs between the label and the row edge at %ipx',
     width => {
       const { container } = renderAtWidth(width)
       for (const name of FIELDS) {
-        const { label, inputs } = rowParts(container, name)
+        const { label, row, inputs } = rowParts(container, name)
         const labelRect = label.getBoundingClientRect()
+        const rowRect = row.getBoundingClientRect()
         // Room for a few characters before the ellipsis
         expect(labelRect.width, name).toBeGreaterThan(30)
         expect(inputs.length, name).toBeGreaterThan(0)
@@ -97,6 +98,7 @@ describe('NodeProperties row layout', () => {
           const inputRect = input.getBoundingClientRect()
           const sameLine = inputRect.top < labelRect.bottom
           if (sameLine) expect(inputRect.left, name).toBeGreaterThanOrEqual(labelRect.right)
+          expect(inputRect.right, name).toBeLessThanOrEqual(rowRect.right)
           expect(inputRect.width, name).toBeGreaterThan(20)
         }
       }
