@@ -4,8 +4,9 @@
 import * as turf from '@turf/turf'
 import * as d3 from 'd3'
 import * as arc from '../../utils/arc-geometry'
-import * as closest from '../../utils/binary-search-closest'
+import binarySearchClosest from '../../utils/binary-search-closest'
 import * as cells from '../../utils/cells'
+import { choroplethJoin } from '../../noodles/utils/choropleth-boundaries'
 import * as color from '../../utils/color'
 import * as cross from '../../utils/cross'
 import * as distance from '../../utils/distance'
@@ -21,7 +22,6 @@ import * as wkt from '../../utils/wkt'
 const utils = {
   ...arc,
   ...cells,
-  ...closest,
   ...color,
   ...cross,
   ...distance,
@@ -32,6 +32,8 @@ const utils = {
   ...osm,
   ...random,
   ...wkt,
+  binarySearchClosest,
+  choroplethJoin,
 }
 
 export const JS_SCOPE: Record<string, unknown> = { utils, d3, turf }

@@ -116,6 +116,35 @@ function gridSql(ctx: LowerCtx): string {
     : `SELECT ST_MakeEnvelope(x0 + i * dx, y0 + j * dy, x0 + (i + 1) * dx, y0 + (j + 1) * dy) AS geom FROM ${each}`;
 }
 
+
+// --- choropleths ------------------------------------------------------------------------------
+
+const CHOROPLETH_PARAMS: ParamDef[] = [
+  { name: 'geography', label: 'Boundaries', kind: 'menu', default: 'us-states', options: [
+    { value: 'us-states', label: 'US states' }, { value: 'world-countries', label: 'World countries' },
+    { value: 'ca-provinces', label: 'Canadian provinces' },
+  ] },
+  { name: 'joinKey', label: 'Join key', kind: 'column', default: 'name', of: 'in', help: 'The column naming each row\'s place.' },
+  { name: 'geoKey', label: 'Key is', kind: 'menu', default: 'auto', options: [
+    { value: 'auto', label: 'Detect' }, { value: 'name', label: 'Name' }, { value: 'abbrev', label: 'Abbreviation / code' },
+    { value: 'fips', label: 'FIPS code (US)' }, { value: 'iso2', label: 'ISO alpha-2' }, { value: 'iso3', label: 'ISO alpha-3' },
+  ] },
+];
+
+// Ramps the editor registers (its d3 continuous schemes)
+const CHOROPLETH_RAMPS = [
+  'viridis', 'magma', 'inferno', 'plasma', 'cividis', 'turbo', 'spectral', 'blues', 'greens', 'reds', 'oranges',
+  'purples', 'greys', 'OrangeRed', 'RedYellowBlue', 'RedBlue', 'BlueGreen', 'GreenBlue',
+].map((value) => ({ value, label: value[0].toUpperCase() + value.slice(1).replace(/([A-Z])/g, ' $1') }));
+
+const safeName = (id: string) => id.replace(/[^A-Za-z0-9_]/g, '_').replace(/^(\d)/, '_$1');
+
+/** The join as engine code: the boundaries fetched, the rows matched to them by key. */
+function choroplethJoinNode(ctx: LowerCtx, id: string): GraphNode {
+  const options = JSON.stringify({ geography: ctx.str('geography'), joinKey: ctx.str('joinKey'), geoKey: ctx.str('geoKey') });
+  return { id, type: 'js', input: ctx.input('in'), code: `return await utils.choroplethJoin(d, ${options})` };
+}
+
 export const GIS_OPERATORS: OpDef[] = [
   // --- features from parameters ---------------------------------------------------------
   {
@@ -482,6 +511,65 @@ export const GIS_OPERATORS: OpDef[] = [
     },
   },
 
+  {
+    type: 'choropleth-join', label: 'Choropleth Join', category: 'geometry',
+    description: "Rows joined onto boundaries by a key: US states, world countries or Canadian provinces. A row per boundary with its geometry, its name and codes (`name`, `abbrev`, `fips`, `iso2`, `iso3`) and the matching row's columns; a boundary no row matches keeps only its own. The key's kind (a name, an abbreviation, a FIPS or ISO code) is detected from the values when left on Auto. Runs in the engine; the boundaries are fetched once.",
+    inputs: [table('in', 'data')], outputs: [out()],
+    params: [...CHOROPLETH_PARAMS],
+    lower: (ctx) => ({
+      nodes: [choroplethJoinNode(ctx, ctx.id)],
+      outputs: { out: ctx.id },
+    }),
+  },
+  {
+    type: 'choropleth', label: 'Choropleth Layer', category: 'layer',
+    description: "Rows joined onto boundaries (as Choropleth Join does) and filled by a color ramp over a column, its domain the column's minimum to maximum; a boundary with no value is gray.",
+    inputs: [table('in', 'data')], outputs: [{ name: 'out', type: 'layer' }],
+    params: [
+      ...CHOROPLETH_PARAMS,
+      { name: 'valueColumn', label: 'Value', kind: 'column', default: 'value', of: 'in', columnType: 'num', folder: 'Channels' },
+      { name: 'colorScheme', label: 'Ramp', kind: 'menu', default: 'viridis', options: CHOROPLETH_RAMPS, folder: 'Style' },
+      { name: 'stroked', label: 'Outline', kind: 'toggle', default: true, folder: 'Style' },
+      { name: 'lineColor', label: 'Outline color', kind: 'color', default: [0, 0, 0], folder: 'Style' },
+      { name: 'lineWidth', label: 'Outline width (px)', kind: 'float', default: 1, min: 0, max: 20, step: 0.5, bind: 'prop', folder: 'Style' },
+      { name: 'opacity', label: 'Opacity', kind: 'float', default: 0.85, min: 0, max: 1, step: 0.01, bind: 'prop', folder: 'Style' },
+    ],
+    lower(ctx) {
+      const join = `${ctx.id}#join`;
+      const value = q(ctx.str('valueColumn') || 'value');
+      // The value's place between the column's minimum and maximum, and whether it has one
+      const scaled = `${ctx.id}#scaled`;
+      const query = [
+        'SELECT *,',
+        `  coalesce((CAST(${value} AS DOUBLE) - min(${value}) OVER ()) / nullif(max(${value}) OVER () - min(${value}) OVER (), 0), 0.0) AS __choropleth_t,`,
+        `  CASE WHEN ${value} IS NULL THEN 0.0 ELSE 1.0 END AS __choropleth_has`,
+        'FROM {{input0}}',
+      ].join('\n');
+      const colors = `${ctx.id}#color`;
+      const name = `${safeName(ctx.id)}_color`;
+      return {
+        nodes: [
+          choroplethJoinNode(ctx, join),
+          { id: scaled, type: 'sql', inputs: [join], query },
+          {
+            id: colors, type: 'wrangle', input: scaled,
+            body: `@${name} = __choropleth_has > 0.5 ? ramp(__choropleth_t) : [0.706, 0.706, 0.706];`,
+            ramp: ctx.str('colorScheme') as never,
+          },
+          {
+            id: ctx.id, type: 'layer', kind: 'polygon', input: colors,
+            channels: { position: 'geom', color: name },
+            props: {
+              filled: true, stroked: ctx.bool('stroked'), lineColor: ctx.bindColor('lineColor'),
+              lineWidthScale: ctx.bind('lineWidth'), lineWidthUnits: 'pixels', lineWidthMinPixels: 0,
+              opacity: ctx.bind('opacity'),
+            },
+          },
+        ],
+        outputs: { out: ctx.id },
+      };
+    },
+  },
   {
     type: 'cluster', label: 'Cluster', category: 'geometry',
     description: 'Points labeled with a `cluster` number by k-means (turf.clustersKmeans) or by density (turf.clustersDbscan, with `dbscan` noise/core/edge). Runs turf in the engine.',

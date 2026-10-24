@@ -95,6 +95,8 @@ export const OP_CATALOG: Record<string, OpPlan> = {
 
   // --- color -----------------------------------------------------------------------------
   CategoricalColorRampOp: rows(['color-ramp']),
+  ChoroplethJoinOp: planner(['choropleth-join']),
+  ChoroplethLayerOp: planner(['choropleth']),
   ColorOp: planner(['color']),
   ColorRampOp: rows(['color-ramp']),
   CombineRGBAOp: { becomes: 'folded' },
