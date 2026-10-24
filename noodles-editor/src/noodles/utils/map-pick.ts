@@ -1,10 +1,9 @@
-// Maps a feature picked on the map back to the operator that drew it, for click-to-edit.
+// Maps a feature picked on the map back to the node that drew it, for click-to-edit.
 //
-// Layer operators set the deck.gl layer `id` to their own path (`/scatter`, or
-// `/group/scatter` inside a container). Composite layers (GeoJsonLayer, TripsLayer, ...)
-// draw through sublayers whose ids add a suffix (`/scatter-points-circle`), and deck
-// reports both the top-level layer (`info.layer`) and the one that drew the pixel
-// (`info.sourceLayer`), each with a `parent` chain.
+// The engine ids a node's deck layer `<node>:<kind>` (`<node>` for a layer deck loads itself).
+// Composite layers (TextLayer, TripsLayer, ...) draw through sublayers whose ids add a suffix
+// (`<node>:text-characters`), and deck reports both the top-level layer (`info.layer`) and the
+// one that drew the pixel (`info.sourceLayer`), each with a `parent` chain.
 
 export type PickedLayer = { id: string; parent?: PickedLayer | null }
 
@@ -33,11 +32,10 @@ function layerChain(info: PickedInfo): string[] {
   return ids.reverse()
 }
 
-// Returns the id of the layer operator whose layer drew the picked feature, or null when
-// the pick is empty or no layer operator has that exact id (a code-built layer with its
-// own id, an id replaced through LayerProps, the editor's selection overlay). Ids are never
-// guessed from prefixes: a layer named `/custom-copy` is not `/custom`'s. `isLayerOperator`
-// must reject non-layer operators, so a data node that shares an id is never selected.
+// Returns the id of the outermost picked layer `isLayerOperator` accepts, or null when the
+// pick is empty or it accepts none (a code-built layer with its own id, an id replaced
+// through Layer Props). `isLayerOperator` must reject ids no layer node drew, so a data node
+// that shares an id is never selected.
 export function findPickedOperatorId(
   info: PickedInfo | null | undefined,
   isLayerOperator: LayerOperatorLookup

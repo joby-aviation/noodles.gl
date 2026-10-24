@@ -16,7 +16,11 @@ import {
   useReactFlow,
 } from '@xyflow/react'
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { StarterNodeFocus } from '../noodles/components/starter-node-focus'
+import {
+  MapPickFocus,
+  mapPickPulseClass,
+  StarterNodeFocus,
+} from '../noodles/components/starter-node-focus'
 import { DocCommentComponent } from './doc-comment'
 import { useEngineState } from './doc-engine'
 import ns from './doc-network.module.css'
@@ -34,6 +38,7 @@ import {
   validConnection,
 } from './doc-ops'
 import { docStore, useEditor } from './doc-store'
+import { useUIStore } from './ui-store'
 import { AddNodeMenu, ContextMenu, type MenuItem } from './menus'
 
 const nodeTypes = { doc: DocNodeComponent, comment: DocCommentComponent }
@@ -103,6 +108,7 @@ export function DocNetwork({ children }: { children?: ReactNode }) {
   const nodesRef = useRef(nodes)
   nodesRef.current = nodes
   const mouse = useRef({ x: 200, y: 200 })
+  const pulsing = useUIStore(state => state.pulsingNodeId)
 
   // The document's nodes in this network, reusing the object React Flow already has for any
   // node whose position and selection did not change; a node being dragged keeps its position
@@ -115,6 +121,7 @@ export function DocNetwork({ children }: { children?: ReactNode }) {
           const old = byId.get(n.id)
           const position = old?.dragging || old?.resizing ? old.position : { x: n.x, y: n.y }
           const selected = selection.includes(n.id)
+          const className = pulsing === n.id ? mapPickPulseClass : undefined
           // A comment's size is its own; while it is being resized React Flow's is newer
           const size =
             n.op === 'comment' && !old?.resizing
@@ -125,6 +132,7 @@ export function DocNetwork({ children }: { children?: ReactNode }) {
             old.position.x === position.x &&
             old.position.y === position.y &&
             old.selected === selected &&
+            old.className === className &&
             (!size || (old.width === size.width && old.height === size.height))
           )
             return old
@@ -133,13 +141,14 @@ export function DocNetwork({ children }: { children?: ReactNode }) {
             ...(old ?? { id: n.id, type, data: NO_DATA }),
             position,
             selected,
+            className,
             ...size,
             // Behind the nodes it explains
             ...(type === 'comment' ? { zIndex: -1 } : {}),
           }
         })
     })
-  }, [doc.nodes, network, selection])
+  }, [doc.nodes, network, selection, pulsing])
 
   const lowered = useEngineState().lowered
   const edges: Edge[] = useMemo(() => {
@@ -439,6 +448,7 @@ export function DocNetwork({ children }: { children?: ReactNode }) {
         <Background />
         <Controls position="bottom-right" showInteractive={false} />
         <StarterNodeFocus loadId={loadId} />
+        <MapPickFocus />
         {children}
       </ReactFlow>
       {menu?.kind === 'add' && (

@@ -28,6 +28,7 @@ import { useMapToolStore } from './noodles/components/tools/map-tool-store'
 import { TopMenuBar } from './noodles/components/top-menu-bar'
 import { ExportActionsProvider } from './noodles/contexts/export-actions-context'
 import { useActiveStorageType, useCurrentDirectory } from './noodles/filesystem-store'
+import { agentBench, externalControl } from './noodles/globals'
 import { fnWithSource } from './noodles/operators'
 import {
   trackDeckInteraction,

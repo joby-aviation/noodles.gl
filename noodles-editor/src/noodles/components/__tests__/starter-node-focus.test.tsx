@@ -3,7 +3,7 @@
 import { act, cleanup, render } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useUIStore } from '../../../editor/ui-store'
-import { StarterNodeFocus } from '../starter-node-focus'
+import { MAP_PICK_PULSE_MS, MapPickFocus, StarterNodeFocus } from '../starter-node-focus'
 
 const setViewport = vi.fn()
 const fitView = vi.fn(() => Promise.resolve(true))
@@ -11,25 +11,13 @@ let measured = true
 // Far outside a 1000x500 pane at zoom 1, so every check pans
 const flush = () => act(() => vi.advanceTimersByTimeAsync(20))
 
-// The React Flow container MapPickFocus looks the node's element up in
-const flowDom = document.createElement('div')
-
 const offscreenNode = {
   measured: { width: 100, height: 50 },
   internals: { positionAbsolute: { x: 5000, y: 5000 } },
 }
 
 vi.mock('@xyflow/react', () => ({
-  // The graph store (loaded through ../../store) imports these
-  applyEdgeChanges: (_changes: unknown, edges: unknown) => edges,
-  applyNodeChanges: (_changes: unknown, nodes: unknown) => nodes,
-  useNodesInitialized: () => measured,
-  useStoreApi: () => ({
-    getState: () => ({
-      nodeLookup: new Map([['/scatterplot-layer', offscreenNode]]),
-      nodesInitialized: measured,
-    }),
-  }),
+  useNodesInitialized: () => true,
   useReactFlow: () => ({
     fitView,
     getInternalNode: () => offscreenNode,
@@ -41,7 +29,6 @@ vi.mock('@xyflow/react', () => ({
       width: number
       height: number
       nodeLookup: Map<string, typeof offscreenNode>
-      domNode: HTMLElement
     }) => unknown
   ) =>
     selector({
@@ -51,7 +38,6 @@ vi.mock('@xyflow/react', () => ({
         ['/scatterplot-layer', offscreenNode],
         ['/group/arcs', offscreenNode],
       ]),
-      domNode: flowDom,
     }),
 }))
 
@@ -130,17 +116,16 @@ describe('MapPickFocus', () => {
     vi.stubGlobal('requestAnimationFrame', (cb: FrameRequestCallback) => setTimeout(() => cb(0), 0))
     vi.stubGlobal('cancelAnimationFrame', (id: number) => clearTimeout(id))
     setViewport.mockClear()
-    flowDom.innerHTML = '<div class="react-flow__node" data-id="/group/arcs"></div>'
-    useUIStore.setState({ mapPickFocus: null })
+    useUIStore.setState({ mapPickFocus: null, pulsingNodeId: null })
   })
 
   afterEach(() => {
     cleanup()
     vi.unstubAllGlobals()
-    useUIStore.setState({ mapPickFocus: null })
+    useUIStore.setState({ mapPickFocus: null, pulsingNodeId: null })
   })
 
-  const element = () => flowDom.querySelector('[data-id="/group/arcs"]')!
+  const pulsing = () => useUIStore.getState().pulsingNodeId
 
   it('pans to a picked node and pulses it for a second', async () => {
     render(<MapPickFocus />)
@@ -150,10 +135,10 @@ describe('MapPickFocus', () => {
     act(() => useUIStore.getState().focusNodeFromMap('/group/arcs'))
     await flush()
     expect(setViewport).toHaveBeenCalledTimes(1)
-    expect(element().classList.contains(s.mapPickPulse)).toBe(true)
+    expect(pulsing()).toBe('/group/arcs')
 
     await act(() => vi.advanceTimersByTimeAsync(MAP_PICK_PULSE_MS))
-    expect(element().classList.contains(s.mapPickPulse)).toBe(false)
+    expect(pulsing()).toBeNull()
   })
 
   it('pulses again when the same node is picked twice', async () => {
@@ -161,11 +146,11 @@ describe('MapPickFocus', () => {
     act(() => useUIStore.getState().focusNodeFromMap('/group/arcs'))
     await flush()
     await act(() => vi.advanceTimersByTimeAsync(MAP_PICK_PULSE_MS))
-    expect(element().classList.contains(s.mapPickPulse)).toBe(false)
+    expect(pulsing()).toBeNull()
 
     act(() => useUIStore.getState().focusNodeFromMap('/group/arcs'))
     await flush()
-    expect(element().classList.contains(s.mapPickPulse)).toBe(true)
+    expect(pulsing()).toBe('/group/arcs')
     expect(setViewport).toHaveBeenCalledTimes(2)
   })
 })
