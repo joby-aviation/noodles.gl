@@ -32,6 +32,7 @@ const cache = vi.hoisted(() => {
   return {
     entries,
     getAllCachedHandles: async () => [...entries.values()],
+    getCachedHandle: async (projectName: string) => entries.get(projectName) ?? null,
     cacheHandle: async (projectName: string, handle: FileSystemDirectoryHandle, path: string) => {
       entries.set(projectName, { projectName, handle, path, cachedAt: 1 })
       notify()
@@ -200,6 +201,42 @@ describe('ProjectsView project actions', () => {
     expect(analytics.track).not.toHaveBeenCalled()
   })
 
+  it('reports a failed save after access is allowed', async () => {
+    remember('alpha')
+    vi.mocked(queryPermission).mockResolvedValue('prompt')
+    vi.mocked(requestPermissionState).mockResolvedValue('granted')
+    const cacheHandle = vi
+      .spyOn(cache, 'cacheHandle')
+      .mockRejectedValueOnce(new Error('QuotaExceededError'))
+    await renderView()
+
+    await chooseMenuItem('alpha', 'Allow access')
+
+    expect(screen.getByRole('alert').textContent).toBe('Couldn\'t update access to "alpha".')
+    cacheHandle.mockRestore()
+  })
+
+  it('shows the newest refresh when an older one finishes last', async () => {
+    remember('alpha')
+    remember('beta')
+    await renderView()
+
+    // The refresh after removing alpha waits on beta's access; the one after removing beta doesn't
+    let finishOlder: (state: PermissionState) => void = () => {}
+    vi.mocked(queryPermission).mockReturnValueOnce(
+      new Promise(resolve => {
+        finishOlder = resolve
+      })
+    )
+    await act(() => removeProjectFromList('alpha', 'projects_tab'))
+    await act(() => removeProjectFromList('beta', 'projects_tab'))
+    await flush()
+    finishOlder('granted')
+    await flush()
+
+    expect(screen.queryByRole('heading', { name: 'beta' })).toBeNull()
+  })
+
   it('does nothing when the folder picker is cancelled', async () => {
     remember('alpha')
     vi.mocked(selectDirectory).mockRejectedValue(new DOMException('Cancelled', 'AbortError'))
@@ -227,6 +264,19 @@ describe('project list actions', () => {
 
     const sent = JSON.stringify(vi.mocked(analytics.track).mock.calls)
     expect(sent).not.toContain('secret')
+  })
+
+  it('refuses a folder named like another saved project', async () => {
+    remember('alpha')
+    remember('beta')
+    const message = await reconnectProjectFolder('alpha', folder('beta'), 'recent_projects')
+
+    expect(message).toBe(
+      'Another saved project is already named "beta". Remove it from the list first, or choose a different folder.'
+    )
+    expect(cache.entries.get('alpha')?.handle.name).toBe('alpha')
+    expect(cache.entries.get('beta')?.handle).not.toBe(folder('beta'))
+    expect(analytics.track).not.toHaveBeenCalled()
   })
 
   it('keeps the project name when the chosen folder has the same name', async () => {

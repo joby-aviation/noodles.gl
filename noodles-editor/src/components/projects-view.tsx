@@ -2,7 +2,7 @@ import * as Dialog from '@radix-ui/react-dialog'
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
 import { ChevronLeftIcon, DotsHorizontalIcon } from '@radix-ui/react-icons'
 import cx from 'classnames'
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useLocation } from 'wouter'
 import { useFileSystemStore } from '../noodles/filesystem-store'
 import type { CachedHandleEntry } from '../noodles/utils/directory-handle-cache'
@@ -80,6 +80,10 @@ export async function reconnectProjectFolder(
   if (!(await fileExists(folder, 'noodles.json'))) {
     return `The folder "${folder.name}" has no noodles.json file. Choose the folder that holds the project.`
   }
+  // Saving under the new name would replace that project's entry, so ask the user to sort it out
+  if (folder.name !== projectName && (await directoryHandleCache.getCachedHandle(folder.name))) {
+    return `Another saved project is already named "${folder.name}". Remove it from the list first, or choose a different folder.`
+  }
   await directoryHandleCache.renameProject(projectName, folder.name, folder)
   analytics.track('project_folder_reconnected', {
     source,
@@ -115,14 +119,19 @@ export function ProjectActionsMenu({
 
   const onAllowAccess = useCallback(async () => {
     onError(null)
-    const result = await requestProjectAccess(handle, 'project_menu')
-    if (result === 'granted') {
-      // Saving the entry again refreshes the lists that show its access
-      await directoryHandleCache.cacheHandle(projectName, handle, handle.name)
-    } else {
-      onError(
-        `Your browser didn't allow access to "${handle.name}". Use "Choose folder" to pick it again.`
-      )
+    try {
+      const result = await requestProjectAccess(handle, 'project_menu')
+      if (result === 'granted') {
+        // Saving the entry again refreshes the lists that show its access
+        await directoryHandleCache.cacheHandle(projectName, handle, handle.name)
+      } else {
+        onError(
+          `Your browser didn't allow access to "${handle.name}". Use "Choose folder" to pick it again.`
+        )
+      }
+    } catch (error) {
+      debugUI('Failed to allow access to a project folder', error)
+      onError(`Couldn't update access to "${handle.name}".`)
     }
   }, [projectName, handle, onError])
 
@@ -203,8 +212,11 @@ export function ProjectsView({ onBack, onClose }: ProjectsViewProps) {
   const [projectsLoading, setProjectsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const fileSystemSupport = checkFileSystemSupport()
+  // Refreshes can overlap, and an older one can finish last. Only the newest one is shown.
+  const latestLoad = useRef(0)
 
   const loadAllProjects = useCallback(async () => {
+    const load = ++latestLoad.current
     const result: UserProject[] = []
 
     // Load fileSystemAccess handles from IndexedDB cache
@@ -253,6 +265,7 @@ export function ProjectsView({ onBack, onClose }: ProjectsViewProps) {
       }
     }
 
+    if (load !== latestLoad.current) return
     setAllProjects(result)
     setProjectsLoading(false)
   }, [fileSystemSupport.fileSystemAccess, fileSystemSupport.opfs])
