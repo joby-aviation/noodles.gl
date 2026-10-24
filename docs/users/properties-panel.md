@@ -4,7 +4,7 @@ Edit a node's parameters, drive them from other parameters, and keyframe them in
 
 ## Overview
 
-The Properties Panel appears on the right side of the editor when you select a node on the canvas. At the top are the node's operator type, its name (click to rename), its path, its **B** (bypass) and **D** (display) flags, and a description of the operator. Below are its parameters, grouped into folders such as Channels, Style and Export. Click a folder's heading to fold it away.
+The Properties Panel shows the node you select on the canvas, in the Layers list or on the map. In the default workspace it sits on the left, under Layers; see [Workspaces and Areas](./getting-started.md#workspaces-and-areas) to move it. At the top are the node's operator type, its name (click to rename), its path, its **B** (bypass) and **D** (display) flags, and a description of the operator. Below are its parameters, grouped into folders such as Channels, Style and Export. Click a folder's heading to fold it away.
 
 With nothing selected, the panel shows the project's name.
 

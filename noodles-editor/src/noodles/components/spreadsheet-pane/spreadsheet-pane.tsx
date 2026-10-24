@@ -4,8 +4,7 @@ import { useUIStore } from '../../../editor/ui-store'
 import s from './spreadsheet-pane.module.css'
 import { SpreadsheetViewer } from './spreadsheet-viewer'
 
-// Rendered inside a resizable Panel in Layout, which also gates visibility
-// on the spreadsheetVisible UI store flag
+// The workspace's Spreadsheet editor: shown when an area of the active workspace shows it
 export function SpreadsheetPane({ selectedNodeIds }: { selectedNodeIds: string[] }) {
   const pinnedNodeId = useUIStore(state => state.pinnedSpreadsheetNodeId)
   const setPinnedNodeId = useUIStore(state => state.setPinnedSpreadsheetNodeId)
