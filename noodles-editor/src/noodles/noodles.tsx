@@ -73,7 +73,10 @@ import { PropertyPanel } from './components/node-properties'
 import { NodeTreeSidebar } from './components/node-tree-sidebar'
 import { edgeComponents, nodeComponents } from './components/op-components'
 import { ParameterEditorDialog } from './components/parameter-editor-dialog'
-import { ProjectNotFoundDialog } from './components/project-not-found-dialog'
+import {
+  ProjectNotFoundDialog,
+  type ProjectOpenProblem,
+} from './components/project-not-found-dialog'
 import { RenameDialog } from './components/rename-dialog'
 import { SaveAsDialog } from './components/save-as-dialog'
 import { SidebarTabs } from './components/sidebar-tabs'
@@ -96,6 +99,7 @@ import {
   copyPublicFolderData,
   hasDataDirectory,
   load,
+  openFailureReason,
   readMemoryOutputCache,
   save,
 } from './storage'
@@ -117,6 +121,7 @@ import { DeckProjectAssetResolver } from './utils/deck-project-asset-resolver'
 import { instantiateDeckView } from './utils/deck-view'
 import { directoryHandleCache } from './utils/directory-handle-cache'
 import { insertUniqueEdge } from './utils/edge-integrity'
+import { trackChatClosed, trackChatOpened } from './utils/editor-analytics'
 import {
   fileExists,
   requestPermission,
@@ -225,7 +230,10 @@ export function getNoodles(): Visualization {
   const isNewProjectRoute = projectName === 'new'
   const isProjectsRoute = routePrefix === '/projects' && !isNewProjectRoute
 
-  const [showProjectNotFoundDialog, setShowProjectNotFoundDialog] = useState(false)
+  const [projectOpenProblem, setProjectOpenProblem] = useState<{
+    reason: ProjectOpenProblem
+    directoryHandle?: FileSystemDirectoryHandle
+  } | null>(null)
   const [showSaveAsDialog, setShowSaveAsDialog] = useState(false)
   const [showRenameDialog, setShowRenameDialog] = useState(false)
   const [saveAsOptions, setSaveAsOptions] = useState<{
@@ -1233,15 +1241,32 @@ export function getNoodles(): Visualization {
             setCurrentDirectory(result.data.directoryHandle, projectName)
             setActiveStorageType(storageType)
             loadProjectFile(project, projectName, undefined, result.data.outputCache)
+            analytics.track('project_opened', { storageType, source: 'url' })
           } else {
-            // Project not found in storage - show dialog
-            if (result.error.type === 'not-found') {
-              setShowProjectNotFoundDialog(true)
+            const { type, directoryHandle } = result.error
+            analytics.track('project_open_failed', {
+              storageType,
+              reason: openFailureReason(type),
+              source: 'url',
+            })
+            if (type === 'not-found') {
+              setProjectOpenProblem({ reason: 'not-found' })
+            } else if (
+              (type === 'permission-prompt' || type === 'permission-denied') &&
+              directoryHandle
+            ) {
+              // A remembered folder whose permission the browser reset, e.g. after a restart
+              setProjectOpenProblem({ reason: type, directoryHandle })
             } else {
               setError(result.error)
             }
           }
         } catch (error) {
+          analytics.track('project_open_failed', {
+            storageType,
+            reason: 'migration_error',
+            source: 'url',
+          })
           setError({
             type: 'unknown',
             message: 'Error loading project',
@@ -1272,6 +1297,7 @@ export function getNoodles(): Visualization {
     if (plan.chatMessage) {
       setChatInitialMessage(plan.chatMessage)
       setShowChatPanel(true)
+      trackChatOpened('quick_start')
     }
     analytics.track(plan.event, plan.mode ? { mode: plan.mode } : undefined)
   }, [nodes.length])
@@ -1995,15 +2021,17 @@ export function getNoodles(): Visualization {
         )}
         <ProjectNotFoundDialog
           projectName={projectName || ''}
-          open={showProjectNotFoundDialog}
+          open={projectOpenProblem !== null}
+          reason={projectOpenProblem?.reason}
+          directoryHandle={projectOpenProblem?.directoryHandle}
           onProjectLoaded={(project, name, outputCache) => {
             // Always navigate to /projects since this is a user project
             loadProjectFile(project, name, '/projects', outputCache)
-            setShowProjectNotFoundDialog(false)
+            setProjectOpenProblem(null)
           }}
           onNewProject={onNewProject}
           onImport={onImport}
-          onClose={() => setShowProjectNotFoundDialog(false)}
+          onClose={() => setProjectOpenProblem(null)}
         />
         <SaveAsDialog
           open={showSaveAsDialog}
@@ -2241,6 +2269,7 @@ export function getNoodles(): Visualization {
         project={{ nodes, edges }}
         projectKey={projectLoadId}
         onClose={() => {
+          trackChatClosed('panel')
           setShowChatPanel(false)
           setChatInitialMessage(undefined)
         }}

@@ -491,3 +491,39 @@ describe('ChatPanel onboarding with a quick start request', () => {
     expect(track).toHaveBeenCalledWith('assistant_onboarding_shown', { hasPendingRequest: false })
   })
 })
+
+describe('ChatPanel onboarding coding agent prompts', () => {
+  beforeEach(() => {
+    vi.spyOn(globalContextManager, 'waitForReady').mockResolvedValue({} as ContextLoader)
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  it('copies a prompt carrying the draft as it stands, edits included', async () => {
+    const writeText = vi.fn(async (_text: string) => {})
+    vi.stubGlobal('navigator', { ...navigator, clipboard: { writeText } })
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => new Response('', { status: 404 }))
+    )
+    render(
+      <ReactFlowProvider>
+        <ChatPanel
+          project={{ nodes: [], edges: [] } as NoodlesProject}
+          onClose={() => {}}
+          isVisible
+          initialMessage="Map the bike stations"
+        />
+      </ReactFlowProvider>
+    )
+    await act(() => vi.advanceTimersByTimeAsync(0))
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Claude Code' }))
+    })
+
+    expect(writeText.mock.calls[0][0]).toContain('> Map the bike stations')
+  })
+})

@@ -14,12 +14,10 @@ Closes #
 <!-- UI change? A screenshot is required. Drag a Before/After image, GIF or screen recording into this box (or use `gh pr create --attach`) and add a short caption on what to look for. Remove the section for non-visual changes. -->
 #### Screenshots
 
-<!-- Optional: for user-facing behavior, add a test runbook with a noodles.json reviewers can load (see dev-docs/testing-guide.md#test-runbooks-for-prs). Keep it collapsed. -->
-<!--
+<!-- User-facing behavior change? A test runbook is required: steps with expected results and a noodles.json reviewers can load (see dev-docs/testing-guide.md#test-runbooks-for-prs). Remove the block for changes with no user-facing behavior. -->
 <details>
 <summary>Test runbook</summary>
 
 </details>
--->
 
 <!-- Work left for a follow up? Add "#### TODO". -->

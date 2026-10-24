@@ -6,11 +6,16 @@ import { ReactFlowProvider, useStoreApi } from '@xyflow/react'
 import { createElement, useRef } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useTimelineStore } from '../../timeline/timeline-store'
+import { analytics } from '../../utils/analytics'
 import { MathOp, NumberOp } from '../operators'
 import { clearOps, deleteOp, getOp, setOp } from '../store'
 import type { GraphRef } from '../types'
 import { registerLockChangeCallback, setLockedWithHistory } from './lock-history'
 import { useUndoRedo } from './use-undo-redo'
+
+vi.mock('../../utils/analytics', () => ({
+  analytics: { track: vi.fn() },
+}))
 
 // Wrapper providing the ReactFlow context required by useUndoRedo
 const wrapper = ({ children }: { children: React.ReactNode }) =>
@@ -524,5 +529,58 @@ describe('useUndoRedo — graph mutations', () => {
     await act(() => vi.advanceTimersByTimeAsync(0))
 
     expect(result.current.undoRedo.history).toHaveLength(0)
+  })
+})
+
+describe('useUndoRedo — addition analytics', () => {
+  beforeEach(() => {
+    vi.useFakeTimers()
+    vi.mocked(analytics.track).mockClear()
+  })
+  afterEach(() => vi.useRealTimers())
+
+  it('tracks a node or edge added by the user but not one restored by undo or redo', async () => {
+    const { result } = renderHook(() => useTestHook(), { wrapper })
+    const { storeApi } = result.current
+    // Keep the store's nodes/edges in step with the changes, as the editor's handlers do
+    await act(async () => {
+      storeApi.setState({
+        onNodesChange: changes => {
+          for (const c of changes) {
+            const { nodes } = storeApi.getState()
+            if (c.type === 'add') storeApi.setState({ nodes: [...nodes, c.item] })
+            if (c.type === 'remove') storeApi.setState({ nodes: nodes.filter(n => n.id !== c.id) })
+          }
+        },
+        onEdgesChange: changes => {
+          for (const c of changes) {
+            const { edges } = storeApi.getState()
+            if (c.type === 'add') storeApi.setState({ edges: [...edges, c.item] })
+            if (c.type === 'remove') storeApi.setState({ edges: edges.filter(e => e.id !== c.id) })
+          }
+        },
+      })
+    })
+    const track = vi.mocked(analytics.track)
+    const node = { id: '/n', type: 'NumberOp', position: { x: 0, y: 0 }, data: {} }
+    const edge = { id: 'e', source: '/n', target: '/n' }
+
+    act(() => storeApi.getState().onNodesChange?.([{ type: 'add', item: node }]))
+    await act(() => vi.advanceTimersByTimeAsync(0))
+    act(() => storeApi.getState().onEdgesChange?.([{ type: 'add', item: edge }]))
+    await act(() => vi.advanceTimersByTimeAsync(0))
+    expect(track.mock.calls).toEqual([
+      ['node_added', { nodeType: 'NumberOp' }],
+      ['edge_added', { count: 1 }],
+    ])
+
+    // Undo the edge, then the node; redo both. Each restore replays 'add' changes.
+    for (const step of ['undo', 'undo', 'redo', 'redo'] as const) {
+      act(() => result.current.undoRedo[step]())
+      await act(() => vi.advanceTimersByTimeAsync(0))
+    }
+    expect(storeApi.getState().nodes.map(n => n.id)).toEqual(['/n'])
+    expect(storeApi.getState().edges.map(e => e.id)).toEqual(['e'])
+    expect(track).toHaveBeenCalledTimes(2)
   })
 })

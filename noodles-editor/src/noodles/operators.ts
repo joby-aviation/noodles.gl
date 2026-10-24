@@ -2722,6 +2722,18 @@ export class ChartOp extends Operator<ChartOp> {
   static displayName = 'Chart'
   static description = 'Create charts using Observable Plot (bar, histogram, scatter)'
 
+  // Subscribe here, not in createInputs: chartType emits on subscribe, and this.inputs
+  // doesn't exist until createInputs returns
+  constructor(id: OpId, inputs?: unknown, locked?: boolean) {
+    super(id, inputs, locked)
+
+    const sub = this.inputs.chartType.subscribe(type => {
+      // Hide yField for histogram (only needs x-axis)
+      this.setFieldVisibility('yField', type !== 'histogram')
+    })
+    this.subs.push(sub)
+  }
+
   createInputs() {
     const data = new DataField()
     const chartType = new StringLiteralField('bar', { values: ['bar', 'histogram', 'scatter'] })
@@ -2735,12 +2747,6 @@ export class ChartOp extends Operator<ChartOp> {
         xField.updateChoices(keys)
         yField.updateChoices(keys)
       }
-    })
-
-    // Field visibility based on chart type
-    chartType.subscribe(type => {
-      // Hide yField for histogram (only needs x-axis)
-      this.setFieldVisibility('yField', type !== 'histogram')
     })
 
     return {

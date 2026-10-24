@@ -14,6 +14,12 @@ import { useRenderSettings } from '../hooks/use-render-settings'
 import { ContainerOp } from '../operators'
 import { getOpStore, type MapMode, useNestingStore, useUIStore } from '../store'
 import { directoryHandleCache } from '../utils/directory-handle-cache'
+import {
+  trackChatClosed,
+  trackChatOpened,
+  trackMapModeChanged,
+  trackPanelToggled,
+} from '../utils/editor-analytics'
 import { shouldBlockKeyboardShortcut } from '../utils/input-detection'
 import { getParentPath, splitPath } from '../utils/path-utils'
 import { Breadcrumbs } from './breadcrumbs'
@@ -459,7 +465,10 @@ export function TopMenuBar({
                       <DropdownMenu.CheckboxItem
                         className={s.dropdownItem}
                         checked={spreadsheetVisible}
-                        onCheckedChange={onChangeSpreadsheetVisible}
+                        onCheckedChange={visible => {
+                          trackPanelToggled('spreadsheet', visible)
+                          onChangeSpreadsheetVisible?.(visible)
+                        }}
                       >
                         <DropdownMenu.ItemIndicator className={s.itemIndicator}>
                           <i className="pi pi-check" style={{ fontSize: '12px' }} />
@@ -490,7 +499,10 @@ export function TopMenuBar({
                           <DropdownMenu.SubContent className={s.dropdownContent} sideOffset={2}>
                             <DropdownMenu.RadioGroup
                               value={mapMode}
-                              onValueChange={value => setMapMode(value as MapMode)}
+                              onValueChange={value => {
+                                if (value !== mapMode) trackMapModeChanged(value as MapMode)
+                                setMapMode(value as MapMode)
+                              }}
                             >
                               <DropdownMenu.RadioItem className={s.dropdownItem} value="docked">
                                 <DropdownMenu.ItemIndicator className={s.itemIndicator}>
@@ -606,7 +618,11 @@ export function TopMenuBar({
           {onChangeShowChatPanel && (
             <button
               type="button"
-              onClick={() => onChangeShowChatPanel(!showChatPanel)}
+              onClick={() => {
+                if (showChatPanel) trackChatClosed('toolbar')
+                else trackChatOpened('toolbar')
+                onChangeShowChatPanel(!showChatPanel)
+              }}
               className={s.assistantButton}
               title="Toggle Noodles AI Assistant"
             >

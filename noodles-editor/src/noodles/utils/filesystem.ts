@@ -130,17 +130,37 @@ export async function directoryExists(
   }
 }
 
+// Read a folder's permission without asking. Safe to call without a user gesture.
+export async function queryPermission(
+  directoryHandle: FileSystemDirectoryHandle,
+  mode: 'read' | 'readwrite' = 'readwrite'
+): Promise<PermissionState> {
+  try {
+    return await directoryHandle.queryPermission({ mode })
+  } catch (_error) {
+    return 'denied'
+  }
+}
+
+// Ask for access to a folder if it isn't granted yet. Browsers only show the prompt
+// during a user gesture (a click); without one this resolves to 'prompt'.
+export async function requestPermissionState(
+  directoryHandle: FileSystemDirectoryHandle,
+  mode: 'read' | 'readwrite' = 'readwrite'
+): Promise<PermissionState> {
+  const permission = await queryPermission(directoryHandle, mode)
+  if (permission === 'granted') return permission
+  try {
+    return await directoryHandle.requestPermission({ mode })
+  } catch (_error) {
+    // SecurityError: no user activation, so the browser didn't ask
+    return 'prompt'
+  }
+}
+
 export async function requestPermission(
   directoryHandle: FileSystemDirectoryHandle,
   mode: 'read' | 'readwrite' = 'readwrite'
 ): Promise<boolean> {
-  try {
-    const permission = await directoryHandle.queryPermission({ mode })
-    if (permission === 'granted') return true
-
-    const requestResult = await directoryHandle.requestPermission({ mode })
-    return requestResult === 'granted'
-  } catch (_error) {
-    return false
-  }
+  return (await requestPermissionState(directoryHandle, mode)) === 'granted'
 }

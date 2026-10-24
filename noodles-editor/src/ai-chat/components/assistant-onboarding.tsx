@@ -1,11 +1,9 @@
 import { useState } from 'react'
-// The website's "Use with your AI agent" section copies the same prompts
-import agentPrompt from '../../../../website/static/agent-prompt.txt?raw'
-import claudeCodePrompt from '../../../../website/static/claude-code-prompt.txt?raw'
 import type { OpenRouterConnect } from '../../noodles/use-openrouter-connect'
 import { analytics } from '../../utils/analytics'
 import { useAgentModelStore } from '../agent/model-store'
 import { formatGb, WEBLLM_MODELS } from '../agent/providers/webllm'
+import { buildAgentPrompt, type CodingAgent } from './agent-prompts'
 import styles from './assistant-onboarding.module.css'
 
 // Quality first: it is the default and the only one that reliably makes edits.
@@ -23,6 +21,9 @@ interface AssistantOnboardingProps {
   webgpuReady: boolean
   openProviderSettings: () => void
   onClose: () => void
+  // The unsent draft, usually the quick start request. The panel shows it above
+  // this; here it goes into the coding agent prompts in place of the generic task.
+  request?: string
 }
 
 export function AssistantOnboarding({
@@ -30,10 +31,12 @@ export function AssistantOnboarding({
   webgpuReady,
   openProviderSettings,
   onClose,
+  request: draft,
 }: AssistantOnboardingProps) {
+  const request = draft?.trim() || undefined
   const setModel = useAgentModelStore(state => state.setModel)
   const [promptCopy, setPromptCopy] = useState<{
-    agent: 'claude_code' | 'other'
+    agent: CodingAgent
     status: 'copied' | 'failed'
   } | null>(null)
 
@@ -44,11 +47,15 @@ export function AssistantOnboarding({
     analytics.track('webllm_model_selected', { model, source: 'assistant_onboarding' })
   }
 
-  const copyPrompt = async (agent: 'claude_code' | 'other') => {
+  const copyPrompt = async (agent: CodingAgent) => {
     try {
-      await navigator.clipboard.writeText(agent === 'claude_code' ? claudeCodePrompt : agentPrompt)
+      await navigator.clipboard.writeText(buildAgentPrompt(agent, request))
       setPromptCopy({ agent, status: 'copied' })
-      analytics.track('agent_prompt_copied', { agent, source: 'assistant_onboarding' })
+      analytics.track('agent_prompt_copied', {
+        agent,
+        source: 'assistant_onboarding',
+        withRequest: Boolean(request),
+      })
     } catch {
       setPromptCopy({ agent, status: 'failed' })
     }
@@ -144,14 +151,29 @@ export function AssistantOnboarding({
             {promptCopy.agent === 'claude_code' ? 'Claude Code' : 'your agent'}
           </p>
         )}
-        {promptCopy?.status === 'failed' && (
-          <p className={styles.errorText}>
-            Your browser blocked the copy. The prompt is at{' '}
-            <a href={failedHref} target="_blank" rel="noreferrer">
-              {failedHref.replace('https://', '')}
-            </a>
-          </p>
-        )}
+        {/* The published prompt has no request in it, so with one the text
+            itself is the fallback */}
+        {promptCopy?.status === 'failed' &&
+          (request ? (
+            <>
+              <p className={styles.errorText}>Your browser blocked the copy. Copy it from here:</p>
+              <textarea
+                className={styles.promptText}
+                readOnly
+                rows={4}
+                value={buildAgentPrompt(promptCopy.agent, request)}
+                onFocus={e => e.currentTarget.select()}
+                aria-label="Coding agent prompt"
+              />
+            </>
+          ) : (
+            <p className={styles.errorText}>
+              Your browser blocked the copy. The prompt is at{' '}
+              <a href={failedHref} target="_blank" rel="noreferrer">
+                {failedHref.replace('https://', '')}
+              </a>
+            </p>
+          ))}
       </div>
 
       <div className={styles.closeContainer}>

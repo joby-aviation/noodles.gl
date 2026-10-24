@@ -714,6 +714,7 @@ export const ChatPanel: FC<ChatPanelProps> = ({
             webgpuReady={webgpuReady}
             openProviderSettings={openProviderSettings}
             onClose={closeOnboarding}
+            request={pendingRequest ?? undefined}
           />
         </div>
       </div>

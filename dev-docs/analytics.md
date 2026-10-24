@@ -74,8 +74,18 @@ VITE_GA_MEASUREMENT_ID=G-XXXXXXXXXX
 | `project_saved` | `storageType, isFirstSave` | menu.tsx |
 | `project_save_failed` | `storageType, error` | menu.tsx |
 | `project_exported` | `storageType` | menu.tsx |
-| `project_opened` | `storageType` | menu.tsx |
-| `project_open_failed` | `storageType, error` | menu.tsx |
+| `project_opened` | `storageType, source` | menu.tsx, noodles.tsx, project-not-found-dialog.tsx |
+| `project_open_failed` | `storageType, error` or `storageType, reason, source` | menu.tsx, noodles.tsx, project-not-found-dialog.tsx |
+| `project_permission_granted` | `source` | projects-view.tsx, project-not-found-dialog.tsx |
+| `project_permission_denied` | `source, state` | projects-view.tsx, project-not-found-dialog.tsx |
+
+Opening a saved project by its URL (`/projects/:name`, which is where Recent projects and the Projects tab go) reports `source`. The Open menu sends no `source`, and its failures send `error` (`load_error`, `migration_error`, `unknown`) instead of `reason`.
+
+- `source`: `url` (the project page loaded the project from storage), `allow_button` (the "Allow access" button on the project page), `choose_folder` (the "Choose folder" button on the project page) or `project_list` (a click in Recent projects or the Projects tab)
+- `reason`: the storage error type in snake_case: `permission_prompt` (the browser forgot the folder's permission, usually after a restart, and needs a click to ask again), `permission_denied`, `not_found` (no folder is remembered for the project, or it has no `noodles.json`), `migration_error`, or another storage error such as `security_error` or `unknown`
+- `state`: what the browser returned when asked for access: `prompt` (the user dismissed the prompt) or `denied` (blocked)
+- A local folder's permission is only requested during a click. The project page reads it without asking, so a `permission_prompt` failure is followed by the "Allow access" button, not a browser prompt.
+- Project and folder names are never sent
 
 ### Node Operations
 
@@ -89,6 +99,24 @@ VITE_GA_MEASUREMENT_ID=G-XXXXXXXXXX
 | `ai_modification_proposal_resolved` | `provider, outcome, modificationCount` | chat-panel.tsx |
 
 - `outcome`: `accepted`, `rejected`, or `failed` (accepted, but the editor refused the batch)
+
+### Editor Interactions
+
+| Event | Properties | Location |
+|-------|-----------|----------|
+| `field_value_changed` | `fieldType, operatorType, source` | field-edit-analytics.tsx (from property-history.ts commitChange) |
+| `panel_toggled` | `panel, visible` | layout.tsx, timeline-editor.tsx, top-menu-bar.tsx |
+| `map_mode_changed` | `mode` | layout.tsx, top-menu-bar.tsx |
+| `map_interacted` | `kind` | editor-analytics.ts (from timeline-editor.tsx) |
+| `chat_opened` | `source` | top-menu-bar.tsx, noodles.tsx |
+| `chat_closed` | `source` | top-menu-bar.tsx, noodles.tsx |
+
+- `field_value_changed` counts edits the user commits in a field's control, at the same point an undo step is recorded, and only when a value changed. Project loads, keyframe playback, upstream connections, undo/redo and AI modifications set values without a commit, so they are not counted. Commits to the same field less than 1 second apart are one edit and send one event after a second of quiet, so dragging a slider or typing sends one event, not one per frame or keystroke.
+- `fieldType`: the field's type (`number`, `color`, `boolean`, `string-literal`, `code`, ...), or `custom` for a node's own controls such as histogram brushes. `operatorType`: the node type (`ScatterplotLayerOp`). `source`: `node` or `properties_panel`. The value, field name, node id and code are never sent.
+- `panel`: `sidebar`, `properties`, `timeline` or `spreadsheet`. The sidebar and properties panel are tracked when a resize makes them appear or disappear (dragging the separator, the sidebar chevron, Cmd+F); the timeline when its tab or collapse button is clicked; the spreadsheet from Editor > Show spreadsheet. The timeline opening by itself for an animated project is not counted.
+- `mode`: `docked`, `floating` or `underlay` (the map behind the node graph)
+- `map_interacted` fires once per page load for each `kind`: `pan`, `zoom` or `rotate` (rotate includes pitch). Only user gestures count: deck's controller interaction state, or MapLibre events that carry the input event that caused them. Camera keyframes and programmatic camera moves are not counted.
+- `chat_opened` `source`: `toolbar` (the top bar's Assistant button) or `quick_start` (the Quick Start dialog's AI path). `chat_closed` `source`: `toolbar` (the same button, labeled Hide while the assistant is open) or `panel` (the panel's own close button).
 
 ### Rendering and Export
 
@@ -135,7 +163,7 @@ When a CSV or JSON table is imported, the editor looks for coordinate columns so
 | `analytics_consent_granted` | - | analytics.ts (setConsent) |
 | `analytics_consent_denied` | - | analytics.ts (setConsent) |
 | `analytics_enabled_in_settings` | - | settings-dialog.tsx |
-| `agent_prompt_copied` | `agent` (`claude_code`, `other`), `source` (`assistant_onboarding`) | assistant-onboarding.tsx |
+| `agent_prompt_copied` | `agent` (`claude_code`, `other`), `source` (`assistant_onboarding`), `withRequest` (whether the prompt carried the user's question; never its text) | assistant-onboarding.tsx |
 | `webllm_model_selected` | `model` (a public WebLLM model id), `source` (`assistant_onboarding`, absent from Settings) | assistant-onboarding.tsx, settings-dialog.tsx |
 
 The website's "Use with your AI agent" section sends `agent_prompt_copied` too, with `agent` and `location: 'landing'`, through the site's own PostHog and GA tags (`website/src/components/AgentQuickStart`). Before October 2026 both sent `claude_code_prompt_copied`. The prompt text itself is never sent.
@@ -215,10 +243,6 @@ These properties are automatically removed:
 
 ```typescript
 import { analytics } from '../utils/analytics'
-
-// Panel toggle
-analytics.track('ai_panel_opened')
-analytics.track('ai_panel_closed')
 
 // Message sent
 analytics.track('ai_message_sent', {
