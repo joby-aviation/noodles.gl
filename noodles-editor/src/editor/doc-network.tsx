@@ -421,14 +421,8 @@ export function DocNetwork({ children }: { children?: ReactNode }) {
   const onKeyDown = (e: React.KeyboardEvent) => {
     if ((e.target as HTMLElement).closest('input, textarea, select, [contenteditable]')) return
     const meta = e.metaKey || e.ctrlKey
-    if (meta && e.key.toLowerCase() === 'z') {
-      e.preventDefault()
-      if (e.shiftKey) docStore().redo()
-      else docStore().undo()
-    } else if (meta && e.key.toLowerCase() === 'y') {
-      e.preventDefault()
-      docStore().redo()
-    } else if (meta && e.key.toLowerCase() === 'c') {
+    // Undo and redo are the document's, bound in doc-noodles wherever focus is
+    if (meta && e.key.toLowerCase() === 'c') {
       if (copySelection()) e.preventDefault()
     } else if (meta && e.key.toLowerCase() === 'v') {
       e.preventDefault()

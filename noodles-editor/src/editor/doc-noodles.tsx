@@ -48,6 +48,7 @@ import { DocProperties } from './doc-properties'
 import { docStore, useEditor } from './doc-store'
 import { bindTimeline, resetTimelinePanel } from './doc-timeline'
 import type { CopyControlsRef, UndoRedoHandlerRef } from './edit-menu'
+import { historyShortcut } from './edit-menu'
 import { loadDoc } from './load-doc'
 import { useProjectFiles } from './project-files'
 import { DOC_DECK, renderSettingsOf } from './render-settings'
@@ -353,10 +354,17 @@ export function useDocNoodles(): Visualization {
   }, [gitSettings, storageType, dirty, routePrefix, onSaveProject])
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      const meta = e.metaKey || e.ctrlKey
+      const key = e.key.toLowerCase()
       // mod+shift+h toggles the version history
-      if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === 'h') {
+      if (meta && e.shiftKey && key === 'h') {
         e.preventDefault()
         if (supportsVersioning(storageType)) setShowGitHistoryPanel(prev => !prev)
+      }
+      const step = historyShortcut(e)
+      if (step) {
+        e.preventDefault()
+        docStore()[step]()
       }
     }
     document.addEventListener('keydown', onKey)
