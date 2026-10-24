@@ -2,6 +2,8 @@
 
 Operators are the nodes of a project. Most take a table on `in`, change it, and pass it on from `out`; layers draw a table, and the deck node shows the layers. Press `Tab` in the network editor to add one. Each is listed here by its menu label and its type (the `op` in a project file).
 
+This page covers the ones you'll use most. The [Operator Reference](../reference/operators.md) lists every operator with its ports and parameters.
+
 ## Data
 
 - **File** (`file`): Read a CSV, JSON or Parquet file by URL, or `@/name.csv` from the project's data directory

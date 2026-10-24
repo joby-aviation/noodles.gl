@@ -6,6 +6,7 @@ import type { OpDef, ParamDef, PortSpec } from '@noodles.gl/planner'
 import { OPERATORS } from '@noodles.gl/planner'
 import { OP_CATALOG } from '../runtime/migrate/op-catalog'
 import { CONVERTED_SCHEMA } from '../runtime/migrate/to-editor-doc'
+import { CATEGORY_ORDER } from './categories'
 
 const port = (p: PortSpec) => ({
   type: p.type,
@@ -24,11 +25,32 @@ function stableDefault(p: ParamDef): unknown {
   }
 }
 
+// JSON writes Infinity and NaN as null, which would publish a wrong default
+const nonFinite = (value: unknown): boolean =>
+  typeof value === 'number'
+    ? !Number.isFinite(value)
+    : !!value && typeof value === 'object' && Object.values(value).some(nonFinite)
+
+// A value as JS text, Infinity and NaN included
+export function jsText(value: unknown): string {
+  if (typeof value === 'number' && !Number.isFinite(value)) return String(value)
+  if (Array.isArray(value)) return `[${value.map(jsText).join(',')}]`
+  if (value && typeof value === 'object') {
+    const entries = Object.entries(value).filter(
+      ([, v]) => v !== undefined && typeof v !== 'function'
+    )
+    return `{${entries.map(([k, v]) => `${JSON.stringify(k)}:${jsText(v)}`).join(',')}}`
+  }
+  return JSON.stringify(value) ?? 'null'
+}
+
 const param = (p: ParamDef) => {
   const fallback = stableDefault(p)
   return {
     kind: p.kind,
-    ...(fallback !== undefined && { default: fallback }),
+    ...(nonFinite(p.default)
+      ? { defaultText: jsText(p.default) }
+      : fallback !== undefined && { default: fallback }),
     ...(p.options && { options: p.options.map(o => o.value) }),
     ...(p.portType && { portType: p.portType }),
   }
@@ -58,5 +80,12 @@ export function operatorRegistry() {
       .map(([type, plan]) => [type, plan.ops])
   )
   // Operator-graph files up to this schema version convert when they open
-  return { documentVersion: 1, convertsFrom: CONVERTED_SCHEMA, operators, formerly }
+  return {
+    documentVersion: 1,
+    convertsFrom: CONVERTED_SCHEMA,
+    // The Add Node menu's order
+    categories: [...CATEGORY_ORDER],
+    operators,
+    formerly,
+  }
 }

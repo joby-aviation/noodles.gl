@@ -10,35 +10,36 @@ Define a custom MapLibre GL layer with WebGL rendering. The code must return an 
 
 <!-- gen:begin syntax -->
 ```json
-{
-  "id": "/custom-map-libre-layer",
-  "type": "CustomMapLibreLayerOp",
-  "position": { "x": 0, "y": 0 },
-  "data": { "inputs": {} }
-}
+{ "id": "n1", "op": "CustomMapLibreLayerOp", "name": "custom-map-libre-layer", "x": 0, "y": 0, "params": {} }
 ```
 
-Expressions and code read its fields as `op('/custom-map-libre-layer').par.id` (an input) and `op('/custom-map-libre-layer').out.layer` (an output). Edges name the same fields as handles: `par.id`, `out.layer`.
+One out of it starts at `"sourcePort": "layer"`.
 <!-- gen:end syntax -->
 
 ## Inputs
 
 <!-- gen:begin inputs -->
-| Name | Type | Default |
-|------|------|---------|
-| `id` | `StringField` | `"custom-layer"` |
-| `code` | `CodeField` | `""` |
-| `renderingMode` | `StringLiteralField` | `"3d"` |
-| `beforeId` | `StringField` | `""` |
-| `params` | `UnknownField` | `{}` |
+This operator has no input ports.
 <!-- gen:end inputs -->
+
+## Parameters
+
+<!-- gen:begin params -->
+| Parameter | Kind | Default | Choices |
+|-----------|------|---------|---------|
+| `id` | `field` | `"custom-layer"` |  |
+| `code` | `field` | `[""]` |  |
+| `renderingMode` | `field` | `"3d"` |  |
+| `beforeId` | `field` | `""` |  |
+| `params` | `field` | `{}` |  |
+<!-- gen:end params -->
 
 ## Outputs
 
 <!-- gen:begin outputs -->
-| Name | Type |
+| Port | Type |
 |------|------|
-| `layer` | `MapLibreLayerField` |
+| `layer` | `value` |
 <!-- gen:end outputs -->
 
 <!-- Add hand-written "## Remarks" and "## Examples" sections here. See the operator reference index for what goes in them. -->
@@ -46,8 +47,9 @@ Expressions and code read its fields as `op('/custom-map-libre-layer').par.id` (
 ## Details
 
 <!-- gen:begin details -->
-- **Category:** [View](../operators.md#view)
-- **Type name:** `CustomMapLibreLayerOp`
+- **Category:** [Host operators](../operators.md#host)
+- **Operator:** `CustomMapLibreLayerOp`
+- **Runs:** on the page, not in the engine: it cannot be compiled to SQL or an expression
 <!-- gen:end details -->
 
 <!-- gen:begin history -->
