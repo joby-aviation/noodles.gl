@@ -87,12 +87,17 @@ export function applyOperatorInputs(snapshot: string): void {
   }
 }
 
-// Records a property mutation to the undo/redo history. Captures the "after" state
-// and calls the registered callback with both before and after. Skips if state is unchanged.
-// Returns whether a mutation was recorded. Mirrors fireTimelineMutation() in timeline-store.ts.
-export function firePropertyMutation(description: string, before: string | null): boolean {
+// Records a property mutation to the undo/redo history. Captures the "after" state unless
+// one is passed and calls the registered callback with both before and after. Skips if state
+// is unchanged. Returns whether a mutation was recorded. Mirrors fireTimelineMutation() in
+// timeline-store.ts.
+export function firePropertyMutation(
+  description: string,
+  before: string | null,
+  afterState?: string | null
+): boolean {
   if (!_propertyMutationCallback || before === null) return false
-  const after = captureOperatorInputs()
+  const after = afterState === undefined ? captureOperatorInputs() : afterState
   if (after === null || before === after) return false
   _lastCommittedBeforeState = before
   debugHistorySnapshot('Firing property mutation: %s', description)
@@ -114,10 +119,54 @@ function serializeScopedField(field: object | undefined): string | undefined {
   }
 }
 
+interface OperatorInput {
+  op: { id: OpId; inputs: object }
+  name: string
+}
+
+function containsField(parent: object, field: object): boolean {
+  if (parent === field) return true
+  const children = (parent as { fields?: unknown }).fields
+  return (
+    typeof children === 'object' &&
+    children !== null &&
+    Object.values(children).some(child => containsField(child, field))
+  )
+}
+
+// The operator input a field belongs to: the field itself, or the compound input holding it
+function findOperatorInput(field: object | undefined): OperatorInput | undefined {
+  const op = (field as { op?: OperatorInput['op'] } | undefined)?.op
+  if (!field || !op) return undefined
+  for (const [name, input] of Object.entries(op.inputs as Record<string, object>)) {
+    if (containsField(input, field)) return { op, name }
+  }
+  return undefined
+}
+
+// One input and its operator's UI state, in the snapshot format applyOperatorInputs reads
+function captureInputState({ op, name }: OperatorInput): string | null {
+  const field = (op.inputs as Record<string, IField>)[name]
+  const state: Record<string, unknown> = { [op.id]: { [name]: field.serialize() } }
+  const ui = captureNodeUIMetadata(op.inputs as Record<string, unknown>)
+  if (ui) state[UI_STATE_KEY] = { [op.id]: ui }
+  try {
+    return JSON.stringify(state)
+  } catch {
+    debugHistory('Failed to serialize %s.%s for property history', op.id, name)
+    return null
+  }
+}
+
 // React hook that provides captureStart/commitChange for use in field components.
 // Call captureStart() at the beginning of a user interaction (focus, drag start).
 // Call commitChange(description) when the interaction ends (blur, drag end, close).
 // A commit that changed something inside a FieldEditScope also counts as a user field edit.
+//
+// Other inputs can change while a field is focused (keyframe playback, upstream
+// connections), so when the scope names a field, the undo step holds only that field's
+// operator input. Node widgets without a field (ramp stops, histogram brush) edit several
+// inputs at once and record the whole snapshot.
 export function usePropertyHistory() {
   const beforeRef = useRef<string | null>(null)
   // Read through a ref so commitChange keeps a stable identity (the code editor binds it once)
@@ -125,27 +174,34 @@ export function usePropertyHistory() {
   const scopeRef = useRef(scope)
   scopeRef.current = scope
 
-  // The scoped field's own value at captureStart, so a commit only counts as an edit of
-  // that field when it changed. Other inputs can change while it is focused (keyframe
-  // playback, upstream connections) and still make the whole snapshot differ.
+  // The scoped field's operator input, and the field's own value at captureStart
+  const inputRef = useRef<OperatorInput | undefined>(undefined)
   const fieldBeforeRef = useRef<string | undefined>(undefined)
 
   const captureStart = useCallback(() => {
-    beforeRef.current = captureOperatorInputs()
-    fieldBeforeRef.current = serializeScopedField(scopeRef.current?.field)
+    const field = scopeRef.current?.field
+    inputRef.current = findOperatorInput(field)
+    beforeRef.current = inputRef.current
+      ? captureInputState(inputRef.current)
+      : captureOperatorInputs()
+    fieldBeforeRef.current = serializeScopedField(field)
   }, [])
 
   const commitChange = useCallback((description: string) => {
-    if (beforeRef.current) {
-      const changed = firePropertyMutation(description, beforeRef.current)
-      beforeRef.current = null
-      const scope = scopeRef.current
-      // Node widgets without a field (ramp stops, histogram brush) fall back to the snapshot
-      const fieldChanged =
-        !scope?.field || serializeScopedField(scope.field) !== fieldBeforeRef.current
-      fieldBeforeRef.current = undefined
-      if (changed && fieldChanged) trackFieldEdit(scope)
-    }
+    const before = beforeRef.current
+    if (!before) return
+    const input = inputRef.current
+    const field = scopeRef.current?.field
+    const fieldChanged = !field || serializeScopedField(field) !== fieldBeforeRef.current
+    beforeRef.current = null
+    inputRef.current = undefined
+    fieldBeforeRef.current = undefined
+
+    let changed = false
+    if (input) changed = firePropertyMutation(description, before, captureInputState(input))
+    // A scoped field outside any operator input can't be isolated; record only its own edits
+    else if (fieldChanged) changed = firePropertyMutation(description, before)
+    if (changed && fieldChanged) trackFieldEdit(scopeRef.current)
   }, [])
 
   return { captureStart, commitChange }
