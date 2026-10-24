@@ -6889,6 +6889,15 @@
     "DataFilterExtensionOp": [
       "filter"
     ],
+    "DateFormatOp": [
+      "attribute"
+    ],
+    "DateMathOp": [
+      "attribute"
+    ],
+    "DatePartsOp": [
+      "attribute"
+    ],
     "DBScanClusterOp": [
       "cluster"
     ],

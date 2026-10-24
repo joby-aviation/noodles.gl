@@ -52,14 +52,8 @@
       "type": "BoundsOp",
       "data": {
         "inputs": {
-          "southwest": [
-            -74.05,
-            40.68
-          ],
-          "northeast": [
-            -73.9,
-            40.82
-          ]
+          "southwest": [-74.05, 40.68],
+          "northeast": [-73.9, 40.82]
         },
         "locked": false
       },

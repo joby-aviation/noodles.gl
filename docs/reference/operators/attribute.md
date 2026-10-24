@@ -73,5 +73,5 @@ A size from a magnitude column, scaled by a slider:
 <!-- gen:begin history -->
 ## Older projects
 
-Projects saved before documents used operator classes. These convert to `attribute` when they open: `AccessorOp`.
+Projects saved before documents used operator classes. These convert to `attribute` when they open: `AccessorOp`, `DateFormatOp`, `DateMathOp`, `DatePartsOp`.
 <!-- gen:end history -->

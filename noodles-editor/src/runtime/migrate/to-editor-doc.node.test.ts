@@ -139,7 +139,13 @@ describe('toEditorDoc', () => {
       })
     )
     const hubble = toEditorDoc(example('cesium-hubble'))
-    expect(hubble.doc.nodes.map(n => n.op).sort()).toEqual(['CodeOp', 'comment', 'comment', 'deck', 'tile-3d'])
+    expect(hubble.doc.nodes.map(n => n.op).sort()).toEqual([
+      'CodeOp',
+      'comment',
+      'comment',
+      'deck',
+      'tile-3d',
+    ])
     // The basemap's camera keyframes drive the deck's camera.
     expect(hubble.doc.timeline?.tracks.map(t => t.target)).toEqual(
       ['longitude', 'latitude', 'zoom', 'pitch', 'bearing'].map(k => `/renderer.${k}`)
