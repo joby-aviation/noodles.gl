@@ -1,6 +1,7 @@
 import { useReactFlow } from '@xyflow/react'
 import { useCallback } from 'react'
 import { docStore } from '../../editor/doc-store'
+import { getRenderSurfaceSize } from '../../render/render-surface-size'
 import { analytics } from '../../utils/analytics'
 import { debugUI } from '../../utils/debug'
 import {
@@ -23,25 +24,6 @@ import { projectScheme } from '../utils/filesystem'
 // Shared import behaviour for the Import Data dialog and for dropping a file onto
 // the canvas: copy the file into the project, scaffold a pipeline for its format,
 // then select and frame the source node so it is clear what to edit next.
-
-// The size of the map the camera is fitted to: the map on screen, else the deck's render size
-function mapSize() {
-  const container =
-    document.querySelector('.deckgl-container') || document.querySelector('.maplibregl-map')
-  if (container?.clientWidth && container.clientHeight) {
-    return { width: container.clientWidth, height: container.clientHeight }
-  }
-  const deck = docStore()
-    .get()
-    .doc.nodes.find(n => n.op === 'deck')
-  const width = Number(deck?.params.width)
-  const height = Number(deck?.params.height)
-  if (width && height) {
-    const scale = Number(deck?.params.lod) || 1
-    return { width: width * scale, height: height * scale }
-  }
-  return { width: window.innerWidth, height: window.innerHeight }
-}
 
 export interface FileImportResult {
   format: DetectedFormat
@@ -71,7 +53,8 @@ export function useFileImport({ getBasePosition, onImported }: UseFileImportOpti
         format,
         basePosition,
         detection,
-        mapSize: mapSize(),
+        // Fit to the surface the renderer draws to, as BoundingBoxOp does
+        mapSize: getRenderSurfaceSize(),
       })
       store.edit(d => {
         d.nodes.push(...built.nodes)

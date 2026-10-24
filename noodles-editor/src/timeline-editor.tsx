@@ -3,9 +3,20 @@ import { MapLibreOverlay, type MapLibreOverlayProps } from '@deck.gl/maplibre'
 import { DeckGL } from '@deck.gl/react'
 import { ReactFlowProvider } from '@xyflow/react'
 import type { CustomLayerInterface, Map as MapLibre } from 'maplibre-gl'
-import { forwardRef, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import {
+  forwardRef,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
 import ReactMapGL, { type MapProps, useControl } from 'react-map-gl/maplibre'
+import { cameraControlOf, cameraGesture, writeCamera } from './editor/camera-control'
 import { useDocNoodles } from './editor/doc-noodles'
+import { docStore, useEditor } from './editor/doc-store'
+import { useUIStore } from './editor/ui-store'
 import { Layout } from './layout'
 import { ErrorBoundary } from './noodles/components/error-boundary'
 import { useMapClickToEdit } from './noodles/components/map-click-to-edit'
@@ -16,9 +27,9 @@ import { TopMenuBar } from './noodles/components/top-menu-bar'
 import { ExportActionsProvider } from './noodles/contexts/export-actions-context'
 import { useActiveStorageType, useCurrentDirectory } from './noodles/filesystem-store'
 import { fnWithSource } from './noodles/operators'
-import { useUIStore } from './editor/ui-store'
 import { DEFAULT_RENDER_SETTINGS, type RenderSettings } from './noodles/utils/serialization'
-import { useDeckDrawLoop } from './render/draw-loop'
+import { PREVIEW_FRAME_DELAY, useDeckDrawLoop } from './render/draw-loop'
+import { FrameCounter } from './render/frame-stats'
 import type { RenderSource } from './render/render-analytics'
 import { resetRenderProgress, setRenderProgress } from './render/render-progress-store'
 import {
@@ -138,8 +149,15 @@ export default function TimelineEditor() {
   }, [])
 
   const noodles = useDocNoodles()
-  const { flowGraph, nodeSidebar, propertiesPanel, chatPanel, selectedNodeIds, ...visualization } =
-    noodles
+  const {
+    flowGraph,
+    nodeSidebar,
+    propertiesPanel,
+    chatPanel,
+    gitHistoryPanel,
+    selectedNodeIds,
+    ...visualization
+  } = noodles
 
   const setTimelineExpanded = useUIStore(state => state.setTimelineExpanded)
 
@@ -182,19 +200,15 @@ export default function TimelineEditor() {
   isRenderingRef.current = isRendering
 
   const isPlaying = useTimelineStore(state => state.playing)
-  const cameraControl = useCameraControlState(selectedNodeIds ?? [], {
-    edges: edges ?? [],
-    isRendering,
-    isPlaying,
-  })
-  const cameraHistoryRef = useRef(
-    createCameraGestureHistory(captureOperatorInputs, before =>
-      firePropertyMutation('Move map camera', before)
-    )
+  const doc = useEditor(state => state.doc)
+  const cameraControl = useMemo(
+    () => cameraControlOf(doc, selectedNodeIds ?? [], { isRendering, isPlaying }),
+    [doc, selectedNodeIds, isRendering, isPlaying]
   )
+  const cameraHistoryRef = useRef(cameraGesture())
 
   // Starting playback or an export, or changing the selection, can turn camera control off
-  // mid-drag. Close the gesture then so the next drag takes a fresh history snapshot.
+  // mid-drag. Close the gesture then so the next drag is an undo step of its own.
   useEffect(() => {
     if (!cameraControl.enabled) cameraHistoryRef.current.finish()
   }, [cameraControl.enabled])
@@ -206,11 +220,15 @@ export default function TimelineEditor() {
 
   const updateSelectedCamera = useCallback(
     (viewState: unknown) => {
-      if (!cameraControl.enabled || !cameraControl.op) return
-      beginCameraGesture()
-      updateCameraInputs(cameraControl.op, viewState)
+      const id = cameraControl.nodeId
+      if (!cameraControl.enabled || !id) return
+      const store = docStore()
+      store.edit(
+        d => writeCamera(d, id, viewState, store.get().time),
+        cameraHistoryRef.current.tag()
+      )
     },
-    [beginCameraGesture, cameraControl]
+    [cameraControl]
   )
 
   const finishCameraGesture = useCallback(() => {

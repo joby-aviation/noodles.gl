@@ -7,6 +7,8 @@ import s from './export-button.module.css'
 interface ExportButtonProps {
   // The deck node whose render settings the export uses; null when the project has none
   deckName: string | null
+  // The render settings export a transparent WebM instead of an MP4
+  transparentVideo?: boolean
   isRendering: boolean
   // Both take the analytics source; the renderer tracks the export
   takeScreenshot?: (source?: RenderSource) => Promise<void>
@@ -17,6 +19,7 @@ interface ExportButtonProps {
 // or the Out node's properties. Same actions as the menu's Take Screenshot and Start Render.
 export function ExportButton({
   deckName,
+  transparentVideo = false,
   isRendering,
   takeScreenshot,
   startRender,

@@ -32,7 +32,9 @@ describe('the operator catalog', () => {
 
   it('leaves only host operators, or ones a later step converts, in the examples', () => {
     const left: string[] = []
-    for (const name of readdirSync('src/examples').filter(n => !n.startsWith('.'))) {
+    for (const name of readdirSync('src/examples', { withFileTypes: true })
+      .filter(e => e.isDirectory() && !e.name.startsWith('.'))
+      .map(e => e.name)) {
       const project = JSON.parse(
         readFileSync(resolve(`src/examples/${name}/noodles.json`), 'utf8')
       ) as NoodlesProject

@@ -38,7 +38,8 @@ export type Visualization = {
   onChangeSpreadsheetVisible?: (visible: boolean) => void
   selectedNodeIds?: string[]
   // Every value edge in the project (all containers), for tracing what drives the view
-  edges?: GraphEdge[]
+  /** The version history panel, while it is open (mod+shift+h). */
+  gitHistoryPanel?: React.ReactNode
   // Noodles props for creating menu in timeline-editor
   projectName?: string
   versionedProjectName?: string | null

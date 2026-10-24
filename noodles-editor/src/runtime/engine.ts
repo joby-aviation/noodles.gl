@@ -323,6 +323,11 @@ export class Engine {
     return this.doc?.nodes.find(n => n.op === 'deck' && !n.flags?.bypass)
   }
 
+  /** Run the document again as it is: something outside it a host operator reads changed. */
+  refresh(): Promise<void> {
+    return this.update()
+  }
+
   private update(): Promise<void> {
     if (!this.lowered) return Promise.resolve()
     const all = (async () => {

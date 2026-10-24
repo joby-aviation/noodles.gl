@@ -47,7 +47,7 @@ async function scatter(
   { out = 'data', position = '[d.lng, d.lat]' } = {}
 ) {
   const project: NoodlesProject = {
-    version: 18,
+    version: 19,
     nodes: [
       ...nodes,
       op('/where', 'AccessorOp', { expression: position }),
@@ -241,7 +241,7 @@ describe('rows from parameters', () => {
     const fetch = vi.fn(async () => new Response(JSON.stringify(osm)))
     vi.stubGlobal('fetch', fetch)
     const project: NoodlesProject = {
-      version: 18,
+      version: 19,
       nodes: [
         op('/bounds', 'BoundsOp', { southwest: [-74.05, 40.68], northeast: [-73.9, 40.82] }),
         op('/parks', 'OverpassOp'),
@@ -274,7 +274,7 @@ describe('rows from parameters', () => {
 
   it('reads GeoParquet and shapefiles as features', () => {
     const project = (source: NoodlesNode): NoodlesProject => ({
-      version: 18,
+      version: 19,
       nodes: [source, op('/layer', 'GeoJsonLayerOp'), op('/deck', 'DeckRendererOp')],
       edges: [
         wire(source.id, 'featureCollection', '/layer', 'data'),

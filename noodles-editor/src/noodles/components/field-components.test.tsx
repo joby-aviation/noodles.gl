@@ -1,7 +1,8 @@
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { ReactFlowProvider } from '@xyflow/react'
 import { Temporal } from 'temporal-polyfill'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { hexToColor } from '../../utils/color'
 import {
   BezierCurveField,
   BooleanField,
@@ -137,47 +138,44 @@ describe('NumberFieldComponent', () => {
   })
 
   it('derives the Number operator step from its current decimal precision', () => {
-    const op = new NumberOp('/number', { val: 0.25 })
-    render(<NumberFieldComponent id="val" field={op.inputs.val} disabled={false} />)
+    const val = new NumberField(0.25, { step: 1, deriveStepFromValue: true })
+    render(<NumberFieldComponent id="val" field={val} disabled={false} />)
 
     expect(screen.getByRole('spinbutton')).toHaveAttribute('step', '0.01')
   })
 
   it('increments a decimal Number operator by its derived precision', () => {
-    const op = new NumberOp('/number', { val: 0.25 })
-    render(<NumberFieldComponent id="val" field={op.inputs.val} disabled={false} />)
+    const val = new NumberField(0.25, { step: 1, deriveStepFromValue: true })
+    render(<NumberFieldComponent id="val" field={val} disabled={false} />)
     const input = screen.getByRole('spinbutton') as HTMLInputElement
 
     fireEvent.focus(input)
     input.stepUp()
     fireEvent.input(input)
 
-    expect(op.inputs.val.value).toBe(0.26)
+    expect(val.value).toBe(0.26)
     expect(input).toHaveAttribute('step', '0.01')
   })
 
   it('reacts to a restored explicit step override', () => {
-    const op = new NumberOp('/number', { val: 0.25 })
-    render(<NumberFieldComponent id="val" field={op.inputs.val} disabled={false} />)
+    const val = new NumberField(0.25, { step: 1, deriveStepFromValue: true })
+    render(<NumberFieldComponent id="val" field={val} disabled={false} />)
 
-    act(() => op.inputs.val.setStepOverride(0.001))
+    act(() => val.setStepOverride(0.001))
 
     expect(screen.getByRole('spinbutton')).toHaveAttribute('step', '0.001')
   })
 
   it('persists the precision selected while scrubbing', () => {
-    const op = new NumberOp('/number', { val: 0.25 })
-    setOp(op.id, op)
-    const { container } = render(
-      <NumberFieldComponent id="val" field={op.inputs.val} disabled={false} />
-    )
+    const val = new NumberField(0.25, { step: 1, deriveStepFromValue: true })
+    const { container } = render(<NumberFieldComponent id="val" field={val} disabled={false} />)
     const wrapper = container.querySelector('[role="group"]') as HTMLElement
 
     fireEvent.mouseDown(wrapper, { clientX: 100, clientY: 100 })
     fireEvent.mouseMove(document, { clientX: 100, clientY: 120 })
     fireEvent.mouseMove(document, { clientX: 120, clientY: 120 })
 
-    expect(op.inputs.val.stepOverride).toBe(0.001)
+    expect(val.stepOverride).toBe(0.001)
     fireEvent.mouseUp(document)
   })
 })
@@ -977,10 +975,14 @@ describe('ColorFieldComponent', () => {
     expect(label).toHaveAttribute('title', 'fillColor')
   })
 
-  // BitmapLayerOp's transparentColor and tintColor are optional and default to no value.
-  // Showing one in the properties panel used to throw "value is not iterable".
+  // An optional color with no default (the bitmap layer's tint, say) has no value. Showing
+  // one in the properties panel used to throw "value is not iterable".
   it('renders an optional color with no value set', () => {
-    const field = new BitmapLayerOp('/bitmap-layer').inputs.tintColor
+    const field = new ColorField(null, {
+      optional: true,
+      transform: hexToColor,
+      showByDefault: false,
+    })
     expect(field.value ?? null).toBeNull()
 
     render(<ColorFieldComponent id="tintColor" field={field} disabled={false} />)

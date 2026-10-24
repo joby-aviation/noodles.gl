@@ -7,6 +7,7 @@ import { PrimeReactProvider } from 'primereact/api'
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useParams } from 'wouter'
 import { getPendingQuickStartAction } from '../components/quick-start-modal'
+import { CreateFromSQLDialog } from '../noodles/components/create-from-sql-dialog'
 import { ErrorBoundary } from '../noodles/components/error-boundary'
 import { LayerPanel } from '../noodles/components/layer-panel'
 import { NodeTreeSidebar } from '../noodles/components/node-tree-sidebar'
@@ -15,13 +16,15 @@ import { CanvasDropImport } from '../noodles/components/tools/canvas-drop-import
 import { useActiveStorageType, useFileSystemStore } from '../noodles/filesystem-store'
 import newProjectJSON from '../noodles/new.json'
 import { copyExampleAssetsToMemory, load, readAssetBinary } from '../noodles/storage'
+import { createProjectFromSQL, takeCreateFromSQLRequest } from '../noodles/utils/create-from-sql'
+import { shouldAutosave, supportsVersioning, useGitSettings } from '../noodles/utils/git-settings'
 import { memoryProjectStore } from '../noodles/utils/memory-project-store'
 import {
-  DEFAULT_RENDER_SETTINGS,
   type NoodlesProjectJSON,
   type RenderSettings,
   saveProjectLocally,
 } from '../noodles/utils/serialization'
+import { expandTimelineIfAnimated } from '../noodles/utils/timeline-panel'
 import { TimelineProvider } from '../timeline/timeline-context'
 import { useTimelineStore } from '../timeline/timeline-store'
 import { analytics } from '../utils/analytics'
@@ -37,17 +40,18 @@ import { bindTimeline, resetTimelinePanel } from './doc-timeline'
 import type { CopyControlsRef, UndoRedoHandlerRef } from './edit-menu'
 import { loadDoc } from './load-doc'
 import { useProjectFiles } from './project-files'
+import { DOC_DECK, renderSettingsOf } from './render-settings'
 
 const ChatPanel = lazy(() => import('../ai-chat/chat-panel').then(m => ({ default: m.ChatPanel })))
+const GitHistoryPanel = lazy(() =>
+  import('../noodles/components/git-history-panel').then(m => ({ default: m.GitHistoryPanel }))
+)
 
 const exampleProjectUrls = import.meta.glob('../examples/**/noodles.json', {
   eager: true,
   query: '?url',
   import: 'default',
 }) as Record<string, string>
-
-/** The planner operator that is a document's output: its deck, basemap and export settings. */
-const DOC_DECK = 'deck'
 
 /** Project assets the way file nodes read them: from whichever storage is active now. */
 async function readProjectAsset(name: string): Promise<Uint8Array> {
@@ -57,34 +61,11 @@ async function readProjectAsset(name: string): Promise<Uint8Array> {
   return new Uint8Array(result.data)
 }
 
-/** The deck node's export parameters as the renderer's settings. */
-function renderSettingsOf(doc: EditorDoc): RenderSettings {
-  const p = doc.nodes.find(n => n.op === DOC_DECK)?.params ?? {}
-  const d = DEFAULT_RENDER_SETTINGS
-  const pick = <T,>(key: string, fallback: T): T => (p[key] ?? fallback) as T
-  return {
-    display: pick('display', d.display),
-    resolution: {
-      width: pick('width', d.resolution.width),
-      height: pick('height', d.resolution.height),
-    },
-    lod: pick('lod', d.lod),
-    scaleMode: pick('scaleMode', d.scaleMode),
-    waitForData: pick('waitForData', d.waitForData),
-    codec: pick('codec', d.codec),
-    bitrateMbps: pick('bitrateMbps', d.bitrateMbps),
-    bitrateMode: pick('bitrateMode', d.bitrateMode),
-    scaleControl: pick('scaleControl', d.scaleControl),
-    framerate: pick('framerate', d.framerate),
-    captureDelay: pick('captureDelay', d.captureDelay),
-    rendersDirectory: pick('rendersDirectory', d.rendersDirectory),
-  }
-}
-
 /** Open a document. The timeline panel follows it through `bindTimeline`. */
 function openDoc(doc: EditorDoc) {
   resetTimelinePanel()
   docStore().load(doc)
+  expandTimelineIfAnimated(doc)
 }
 
 async function openJson(json: unknown, name?: string): Promise<void> {
@@ -112,6 +93,8 @@ export function useDocNoodles(): Visualization {
   const setSpreadsheetVisible = useUIStore(state => state.setSpreadsheetVisible)
   const reactFlowRef = useRef<HTMLDivElement>(null)
   const [showChatPanel, setShowChatPanel] = useState(false)
+  const [showGitHistoryPanel, setShowGitHistoryPanel] = useState(false)
+  const currentDirectory = useFileSystemStore(st => st.currentDirectory)
 
   // The assistant's context bundles load the first time the chat opens
   const contextLoadStarted = useRef(false)
@@ -122,6 +105,17 @@ export function useDocNoodles(): Visualization {
       m.globalContextManager.startLoading().catch(error => console.warn('[assistant]', error))
     )
   }, [showChatPanel])
+
+  // A ?createFromSQL= link shows its query and makes the project only on confirm: DuckDB can
+  // fetch remote URLs, so the query never runs unseen. Read before the project-loading
+  // effects, whose navigate() drops the query string.
+  const [pendingCreateFromSQL, setPendingCreateFromSQL] = useState<string | null>(null)
+  useEffect(() => {
+    const request = takeCreateFromSQLRequest()
+    if (!request) return
+    if ('sql' in request) setPendingCreateFromSQL(request.sql)
+    else alert(`Invalid SQL query: ${request.error}`)
+  }, [])
 
   // The engine runs whatever document the store holds, at the timeline's playhead.
   useEffect(() => bindEngine(docStore(), readProjectAsset), [])
@@ -202,6 +196,19 @@ export function useDocNoodles(): Visualization {
     navigate('/projects/new')
   }, [navigate])
 
+  const onConfirmCreateFromSQL = useCallback(
+    (sql: string) => {
+      setPendingCreateFromSQL(null)
+      memoryProjectStore.setProjectJson(
+        'new',
+        createProjectFromSQL({ sql }) as unknown as NoodlesProjectJSON
+      )
+      analytics.track('project_created', { method: 'createFromSQL' })
+      navigate('/projects/new')
+    },
+    [navigate]
+  )
+
   const onImport = useCallback(async () => {
     const input = document.createElement('input')
     input.type = 'file'
@@ -259,6 +266,37 @@ export function useDocNoodles(): Visualization {
     }
   }, [loadId])
 
+  // Version history: every save commits a snapshot (storage.ts); autosave saves after a pause
+  // when the project's settings ask for it. Reading the settings through the hook re-runs this
+  // when version control or autosave is turned off, which cancels a pending save.
+  const gitSettings = useGitSettings(projectName ?? null)
+  const onSaveProject = files.onSaveProject
+  useEffect(() => {
+    const isExamplesRoute = routePrefix === '/examples'
+    if (
+      !shouldAutosave({
+        settings: gitSettings,
+        storageType,
+        hasUnsavedChanges: dirty,
+        isExamplesRoute,
+      })
+    )
+      return
+    const timeoutId = setTimeout(() => void onSaveProject(), gitSettings.autoCommitDelay)
+    return () => clearTimeout(timeoutId)
+  }, [gitSettings, storageType, dirty, routePrefix, onSaveProject])
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      // mod+shift+h toggles the version history
+      if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === 'h') {
+        e.preventDefault()
+        if (supportsVersioning(storageType)) setShowGitHistoryPanel(prev => !prev)
+      }
+    }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [storageType])
+
   const undoRedoRef = useRef<UndoRedoHandlerRef>({
     undo: () => docStore().undo(),
     redo: () => docStore().redo(),
@@ -296,6 +334,11 @@ export function useDocNoodles(): Visualization {
             />
           </DocNetwork>
           {files.dialogs}
+          <CreateFromSQLDialog
+            sql={pendingCreateFromSQL}
+            onConfirm={onConfirmCreateFromSQL}
+            onClose={() => setPendingCreateFromSQL(null)}
+          />
         </TimelineProvider>
       </PrimeReactProvider>
     </div>
@@ -311,9 +354,22 @@ export function useDocNoodles(): Visualization {
     </Suspense>
   )
 
+  const gitHistoryPanel = showGitHistoryPanel && (
+    <Suspense fallback={null}>
+      <GitHistoryPanel
+        projectDirectory={currentDirectory}
+        projectName={projectName ?? doc.name}
+        onClose={() => setShowGitHistoryPanel(false)}
+      />
+    </Suspense>
+  )
+
   return {
     flowGraph,
     chatPanel,
+    gitHistoryPanel,
+    // The project whose version control settings the settings dialog edits
+    versionedProjectName: supportsVersioning(storageType) ? (projectName ?? null) : null,
     showChatPanel,
     onChangeShowChatPanel: setShowChatPanel,
     selectedNodeIds: selection,

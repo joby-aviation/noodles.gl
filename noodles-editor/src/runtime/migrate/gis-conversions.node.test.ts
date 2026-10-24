@@ -70,7 +70,7 @@ function project(
   out = 'featureCollection'
 ) {
   return {
-    version: 18,
+    version: 19,
     nodes: [
       ...nodes,
       op('/layer', 'GeoJsonLayerOp'),

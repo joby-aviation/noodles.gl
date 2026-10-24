@@ -1,4 +1,4 @@
-// noodles.json (schema 18) -> the planner's EditorDoc.
+// noodles.json (schema 19) -> the planner's EditorDoc.
 //
 // Noodles graphs pass JS rows between operators, and a layer's per-row values arrive as accessor
 // functions built by AccessorOp, MapRange, ColorRamp and Math. The planner passes tables, and a
@@ -67,7 +67,10 @@ export interface Migrated {
 export class MigrationError extends Error {}
 
 // ---------------------------------------------------------------------------
-// Noodles defaults (schema 18), for the inputs this conversion reads
+/** The operator-graph schema this conversion reads: the latest migration's. */
+export const CONVERTED_SCHEMA = 19
+
+// Noodles defaults (schema 19), for the inputs this conversion reads
 // ---------------------------------------------------------------------------
 
 export const DEFAULTS: Record<string, Record<string, unknown>> = {
@@ -971,9 +974,9 @@ function layOutChain(nodes: DocNode[], src: string, chain: DocNode[], layers: st
 }
 
 export function toEditorDoc(original: NoodlesProject): Migrated {
-  if (original.version !== 18) {
+  if (original.version !== CONVERTED_SCHEMA) {
     throw new MigrationError(
-      `Expected a schema 18 project; migrate it first (got ${original.version})`
+      `Expected a schema ${CONVERTED_SCHEMA} project; migrate it first (got ${original.version})`
     )
   }
   const { project, containers } = withoutContainers(withoutReroutes(original))
@@ -3287,7 +3290,21 @@ export function toEditorDoc(original: NoodlesProject): Migrated {
   }
 
   for (const n of project.nodes) {
-    if (!used.has(n.id)) warnings.push(`${n.id}: dropped ${n.type}; nothing drawn reads it`)
+    if (used.has(n.id)) continue
+    if (!OP_CATALOG[n.type] && n.type !== 'group') {
+      // An operator this build does not know (removed, or from a newer one): kept as it was,
+      // its inputs as parameters, so the project still has it once the type exists again
+      nodes.push({
+        id: n.id,
+        op: n.type,
+        name: segment(n.id),
+        ...position(n),
+        params: { ...(inputs(n) as Record<string, ParamValue>) },
+      })
+      warnings.push(`${n.id}: ${n.type} is not a known operator; kept as it was`)
+      continue
+    }
+    warnings.push(`${n.id}: dropped ${n.type}; nothing drawn reads it`)
   }
   const timeline = project.timeline ? convertTimeline(project.timeline, nodes, warnings) : undefined
   const converted: EditorDoc = { version: 1, name: project.name ?? 'Untitled', nodes, edges }

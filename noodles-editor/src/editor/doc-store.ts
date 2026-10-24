@@ -33,6 +33,12 @@ export interface EditorState {
 
 type Listener = () => void
 
+/** A document and the history depth it had: see `DocStore.mark`. */
+export interface DocMark {
+  doc: EditorDoc
+  depth: number
+}
+
 const COALESCE_MS = 500
 const HISTORY = 200
 
@@ -97,6 +103,31 @@ export class DocStore {
       loadId: s.loadId + 1,
       dirty: false,
     }))
+  }
+
+  /**
+   * A point to come back to: the assistant's edits of a run are a proposal from here, kept
+   * as one undo step (`squash`) or thrown away (`revert`).
+   */
+  mark(): DocMark {
+    return { doc: this.state.doc, depth: this.undoStack.length }
+  }
+
+  /** Every edit since `m` as one undo step. */
+  squash(m: DocMark): void {
+    if (this.state.doc === m.doc) return
+    this.undoStack.length = Math.min(this.undoStack.length, m.depth)
+    this.undoStack.push(m.doc)
+    this.redoStack = []
+    this.lastTag = undefined
+  }
+
+  /** Back to the document at `m`, with the history since dropped. */
+  revert(m: DocMark): void {
+    this.undoStack.length = Math.min(this.undoStack.length, m.depth)
+    this.redoStack = []
+    this.lastTag = undefined
+    this.set({ doc: m.doc, dirty: true })
   }
 
   canUndo = () => this.undoStack.length > 0

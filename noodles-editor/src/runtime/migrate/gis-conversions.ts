@@ -14,7 +14,7 @@ export interface GisConversion {
   op: string
   // Noodles GeoJSON input → planner port
   inputs: Record<string, string>
-  // Noodles inputs, schema 18 defaults, for those `params` reads
+  // Noodles inputs, schema 19 defaults, for those `params` reads
   defaults: Inputs
   params: (i: Inputs) => Record<string, ParamValue>
   // Noodles number inputs a NumberOp may drive → planner parameter

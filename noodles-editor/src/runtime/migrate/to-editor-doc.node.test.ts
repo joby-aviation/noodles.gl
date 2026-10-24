@@ -10,7 +10,12 @@ import { beforeAll, describe, expect, it } from 'vitest'
 import { type NodeDuck, openNodeDuck } from '../__tests__/duckdb-node'
 import { ProgramRuntime } from '../program-runtime'
 import { registerNoodlesRamps } from '../ramps'
-import { type NoodlesProject, toEditorDoc, translateAccessor } from './to-editor-doc'
+import {
+  CONVERTED_SCHEMA,
+  type NoodlesProject,
+  toEditorDoc,
+  translateAccessor,
+} from './to-editor-doc'
 
 const example = (name: string) =>
   JSON.parse(readFileSync(resolve(`src/examples/${name}/noodles.json`), 'utf8')) as NoodlesProject
@@ -82,15 +87,15 @@ describe('toEditorDoc', () => {
     const layer = runtime.layers().find(l => l.id === '/scatterplot-layer')
     expect(layer?.data?.rows).toBeGreaterThan(0)
     expect(layer?.props.radiusUnits).toBe('meters')
-    // Radius is Magnitude × 1000 metres, per row.
+    // Radius is √Magnitude × 1700 metres, per row: the sqrt MathOp feeds the multiply
     const radius = layer?.data?.attributes.get('multiply')
-    expect(radius?.data[0]).toBeGreaterThan(1000)
+    expect(radius?.data[0]).toBeGreaterThan(1700)
     // Dragging the MapRange minimum rebinds; it never recompiles.
     const name = lowered.slotParams['/map-range.inMin'][0]
     const compiles = runtime.counters.compiles
     await runtime.setValues({ ...parameterValues(lowered, { T: 0, F: 0 }).values, [name]: 3 })
     expect(runtime.counters.compiles).toBe(compiles)
-    expect(warnings).toContain('/sqrt: dropped MathOp; nothing drawn reads it')
+    expect(warnings.filter(w => w.includes('/sqrt'))).toEqual([])
   })
 
   it('converts uk-commute without running it (its data is remote)', () => {
@@ -461,5 +466,51 @@ describe('toEditorDoc with time', () => {
       [2, 300],
       [11, 0],
     ])
+  })
+})
+
+describe('toEditorDoc with an operator this build does not know', () => {
+  it('keeps it as it was, so the project opens and saves it back', () => {
+    const { doc, warnings } = toEditorDoc({
+      version: 19,
+      timeline: {},
+      nodes: [
+        {
+          id: '/mystery',
+          type: 'NoSuchOp',
+          data: { inputs: { a: 1, b: 'x' } },
+          position: { x: 5, y: 6 },
+        },
+        { id: '/deck', type: 'DeckRendererOp', data: {}, position: { x: 0, y: 0 } },
+        { id: '/out', type: 'OutOp', data: {}, position: { x: 0, y: 0 } },
+      ],
+      edges: [
+        {
+          id: 'e',
+          source: '/deck',
+          target: '/out',
+          sourceHandle: 'out.vis',
+          targetHandle: 'par.vis',
+        },
+      ],
+    } as never)
+    expect(doc.nodes.find(n => n.id === '/mystery')).toMatchObject({
+      op: 'NoSuchOp',
+      name: 'mystery',
+      x: 5,
+      y: 6,
+      params: { a: 1, b: 'x' },
+    })
+    expect(warnings).toContain('/mystery: NoSuchOp is not a known operator; kept as it was')
+    // The rest of the document still lowers
+    const lowered = lowerDocument(doc)
+    expect(lowered.errors.filter(e => e.nodeId !== '/mystery')).toEqual([])
+  })
+})
+
+describe('the schema conversion reads', () => {
+  it('is the latest migration: a new migration must update the conversion too', async () => {
+    const { NOODLES_VERSION } = await import('../../noodles/utils/migrate-schema')
+    expect(CONVERTED_SCHEMA).toBe(NOODLES_VERSION)
   })
 })

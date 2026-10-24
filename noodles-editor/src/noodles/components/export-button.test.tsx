@@ -50,7 +50,7 @@ describe('ExportButton', () => {
   it('names the WebM format when the render settings keep transparency', () => {
     render(
       <ExportButton
-        activeOutOpId="/out"
+        deckName="deck"
         transparentVideo
         isRendering={false}
         takeScreenshot={vi.fn()}
