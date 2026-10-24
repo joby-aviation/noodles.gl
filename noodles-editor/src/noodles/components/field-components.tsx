@@ -82,6 +82,7 @@ import { formatReference, parseReference, type ReferenceFormat } from '../utils/
 import { ColorSwatch } from './color-swatch'
 import { DraggableNumberInput } from './draggable-number-input'
 import { ExpressionEditorOverlay } from './ExpressionEditorOverlay'
+import { FieldTooltip } from './field-tooltip'
 import { GeocodingDialog } from './geocoding-dialog'
 import menuStyles from './menu.module.css'
 import { MultiInputHandle } from './multi-input-handle'
@@ -1889,20 +1890,25 @@ export function CompoundFieldComponent({
   disabled: boolean
 }) {
   const [expanded, setExpanded] = useState(true)
+  const docs = getFieldDocs(id, field, field.op)
   return (
     <div className={cx(s.fieldWrapper, 'nokey')}>
-      <button
-        className={s.fieldLabel}
-        type="button"
-        onClick={() => setExpanded(e => !e)}
-        aria-expanded={expanded}
-        title={id}
-      >
-        {getFieldDocs(id, field, field.op).label}
-        <span className={cx(s.compoundPropsExpander, expanded && s.compoundPropsExpanderExpanded)}>
-          ►
-        </span>
-      </button>
+      <FieldTooltip fieldKey={id} description={docs.description}>
+        <button
+          className={s.fieldLabel}
+          type="button"
+          onClick={() => setExpanded(e => !e)}
+          aria-expanded={expanded}
+          data-field-key={id}
+        >
+          {docs.label}
+          <span
+            className={cx(s.compoundPropsExpander, expanded && s.compoundPropsExpanderExpanded)}
+          >
+            ►
+          </span>
+        </button>
+      </FieldTooltip>
       {expanded ? (
         <div id={id} className={s.fieldCompoundWrapper}>
           {Object.entries(field.fields).map(([key, subField]) => (
@@ -1922,8 +1928,8 @@ export function CompoundFieldComponent({
   )
 }
 
-// Node row label: the field's friendly name, with its key (the name used in edges,
-// references and expressions) as the tooltip
+// Node row label: the field's friendly name. Hovering shows its description and its key
+// (the name used in edges, references and expressions)
 export function FieldLabel({
   id,
   field,
@@ -1933,15 +1939,19 @@ export function FieldLabel({
   field: Field<IField>
   as?: 'label' | 'div'
 }) {
-  const { label } = getFieldDocs(id, field, field.op)
-  return as === 'label' ? (
-    <label className={s.fieldLabel} htmlFor={id} title={id}>
-      {label}
-    </label>
-  ) : (
-    <div className={s.fieldLabel} title={id}>
-      {label}
-    </div>
+  const { label, description } = getFieldDocs(id, field, field.op)
+  return (
+    <FieldTooltip fieldKey={id} description={description}>
+      {as === 'label' ? (
+        <label className={s.fieldLabel} htmlFor={id} data-field-key={id}>
+          {label}
+        </label>
+      ) : (
+        <div className={s.fieldLabel} data-field-key={id}>
+          {label}
+        </div>
+      )}
+    </FieldTooltip>
   )
 }
 

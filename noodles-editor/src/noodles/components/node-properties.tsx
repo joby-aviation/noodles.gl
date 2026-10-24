@@ -70,6 +70,7 @@ import {
   toggleFieldExpression,
   VectorFieldComponent,
 } from './field-components'
+import { FieldTooltip } from './field-tooltip'
 import menuStyles from './menu.module.css'
 import s from './node-properties.module.css'
 import {
@@ -450,11 +451,19 @@ function CompoundSubFields({
         } catch {
           currentValue = subField.value as KeyframeValue
         }
+        const subDocs = getFieldDocs(subName, subField, field.op)
         return (
           <div key={subName} className={s.compoundSubField}>
-            <span className={s.compoundSubFieldLabel} title={subName}>
-              {getFieldDocs(subName, subField).label}
-            </span>
+            <FieldTooltip fieldKey={subName} description={subDocs.description} side="left">
+              <span
+                className={cx(s.compoundSubFieldLabel, {
+                  [s.hasDescription]: subDocs.description,
+                })}
+                data-field-key={subName}
+              >
+                {subDocs.label}
+              </span>
+            </FieldTooltip>
             <FieldInputWithHighlight
               opId={opId}
               fieldName={fieldName}
@@ -935,9 +944,20 @@ export function NodeProperties({ nodeId }: { nodeId: string }) {
                       )}
                       <div className={cx(s.port, input.handleClass)} />
                       <span className={s.propertyLabel}>
-                        <span className={s.propertyLabelText} title={input.name}>
-                          {input.docs.label}
-                        </span>
+                        <FieldTooltip
+                          fieldKey={input.name}
+                          description={input.docs.description}
+                          side="left"
+                        >
+                          <span
+                            className={cx(s.propertyLabelText, {
+                              [s.hasDescription]: input.docs.description,
+                            })}
+                            data-field-key={input.name}
+                          >
+                            {input.docs.label}
+                          </span>
+                        </FieldTooltip>
                         {incomers.length > 0 && (
                           <Tooltip text="Field is connected" position="right">
                             <span className={s.connectedIcon}>
@@ -969,9 +989,6 @@ export function NodeProperties({ nodeId }: { nodeId: string }) {
                         </>
                       )}
                     </div>
-                    {input.docs.description && (
-                      <div className={s.propertyDescription}>{input.docs.description}</div>
-                    )}
                     {/* Compound field: expand sub-fields inline */}
                     {input.field instanceof CompoundPropsField && (
                       <CompoundSubFields
@@ -1071,16 +1088,22 @@ export function NodeProperties({ nodeId }: { nodeId: string }) {
               <div className={cx(s.propertyRow, s.outputRow)}>
                 <div className={cx(s.port, output.handleClass)} />
                 <span className={s.propertyLabel}>
-                  <span className={s.propertyLabelText} title={output.name}>
-                    {output.docs.label}
-                  </span>
+                  <FieldTooltip
+                    fieldKey={output.name}
+                    description={output.docs.description}
+                    side="left"
+                  >
+                    <span
+                      className={cx(s.propertyLabelText, {
+                        [s.hasDescription]: output.docs.description,
+                      })}
+                      data-field-key={output.name}
+                    >
+                      {output.docs.label}
+                    </span>
+                  </FieldTooltip>
                 </span>
               </div>
-              {output.docs.description && (
-                <div className={cx(s.propertyDescription, s.outputDescription)}>
-                  {output.docs.description}
-                </div>
-              )}
             </div>
           ))}
         </div>

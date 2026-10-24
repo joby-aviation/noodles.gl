@@ -457,23 +457,11 @@
   overflow-wrap: anywhere;
 }
 
-/* One-line explanation under the label, aligned with the label text:
-   hide button (18px) + port (8px) + two 6px gaps */
-.propertyDescription {
-  padding: 0 0 2px 38px;
-  margin-top: -1px;
-  font-size: 11px;
-  line-height: 1.35;
-  color: rgba(255, 255, 255, 0.45);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-/* Show the full description while the row is hovered or being edited */
-.property:hover .propertyDescription,
-.property:focus-within .propertyDescription {
-  white-space: normal;
+/* Labels with a description show it in a hover tooltip; the underline says there's one */
+.hasDescription {
+  text-decoration: underline dotted rgba(255, 255, 255, 0.3);
+  text-underline-offset: 3px;
+  cursor: help;
 }
 
 /* Fields hidden by default, collapsed under "More settings" */
