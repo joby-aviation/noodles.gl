@@ -8,7 +8,7 @@ import {
   type IField,
   type NodeUIMetadata,
 } from '../fields'
-import { getAllOps, getOpStore } from '../store'
+import { dismissStarterHint, getAllOps, getOpStore } from '../store'
 import { trackFieldEdit, useFieldEditScope } from './field-edit-analytics'
 import type { OpId } from './id-utils'
 
@@ -96,9 +96,12 @@ export function firePropertyMutation(
   before: string | null,
   afterState?: string | null
 ): boolean {
-  if (!_propertyMutationCallback || before === null) return false
+  if (before === null) return false
   const after = afterState === undefined ? captureOperatorInputs() : afterState
   if (after === null || before === after) return false
+  // Covers edits that never fire a DOM input event, such as dragging a number field
+  dismissStarterHint()
+  if (!_propertyMutationCallback) return false
   _lastCommittedBeforeState = before
   debugHistorySnapshot('Firing property mutation: %s', description)
   _propertyMutationCallback(description, before, after)

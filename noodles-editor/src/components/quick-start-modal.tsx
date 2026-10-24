@@ -18,7 +18,7 @@ import {
 } from '../noodles/components/tools/import-pipelines'
 import { analytics } from '../utils/analytics'
 import { CURATED_EXAMPLES, ExamplesView } from './examples-view'
-import { ProjectsView, useRecentProjects } from './projects-view'
+import { ProjectsView, prepareProjectOpen, useRecentProjects } from './projects-view'
 import s from './quick-start-modal.module.css'
 
 export type ModalView = 'home' | 'projects' | 'examples'
@@ -276,8 +276,10 @@ export function QuickStartModal({
   )
 
   const handleProjectClick = useCallback(
-    (path: string) => {
+    async (path: string, handle: FileSystemDirectoryHandle) => {
       analytics.track('quick_start_project_selected', { path })
+      // Recent projects are all remembered local folders
+      await prepareProjectOpen({ storageType: 'fileSystemAccess', handle })
       onOpenChange(false)
       navigate(path)
     },
@@ -464,7 +466,9 @@ export function QuickStartModal({
                 key={project.projectName}
                 type="button"
                 className={s.exampleCard}
-                onClick={() => handleProjectClick(`/projects/${project.projectName}`)}
+                onClick={() =>
+                  handleProjectClick(`/projects/${project.projectName}`, project.handle)
+                }
               >
                 <i className={`pi pi-folder ${s.exampleIcon}`} />
                 <div className={s.exampleInfo}>

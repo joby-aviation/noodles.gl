@@ -31,6 +31,8 @@ export type EditorSettings = {
   showOverlay?: boolean
   autoLayout?: Partial<AutoLayoutSettings>
   showDebugInfo?: boolean
+  // Examples only: node selected when the example first opens (see utils/starter-node.ts)
+  startNode?: string
 }
 
 export type { RenderSettings } from './render-settings-constants'

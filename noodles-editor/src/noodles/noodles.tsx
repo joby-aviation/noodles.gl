@@ -74,10 +74,14 @@ import { PropertyPanel } from './components/node-properties'
 import { NodeTreeSidebar } from './components/node-tree-sidebar'
 import { edgeComponents, nodeComponents } from './components/op-components'
 import { ParameterEditorDialog } from './components/parameter-editor-dialog'
-import { ProjectNotFoundDialog } from './components/project-not-found-dialog'
+import {
+  ProjectNotFoundDialog,
+  type ProjectOpenProblem,
+} from './components/project-not-found-dialog'
 import { RenameDialog } from './components/rename-dialog'
 import { SaveAsDialog } from './components/save-as-dialog'
 import { SidebarTabs } from './components/sidebar-tabs'
+import { StarterNodeFocus } from './components/starter-node-focus'
 import { StorageErrorHandler } from './components/storage-error-handler'
 import { CanvasDropImport } from './components/tools/canvas-drop-import'
 import { UndoRedoHandler, type UndoRedoHandlerRef } from './components/UndoRedoHandler'
@@ -88,7 +92,7 @@ import { useKeyboardShortcut } from './hooks/use-keyboard-shortcut'
 import { useNodeDropOnEdge } from './hooks/use-node-drop-on-edge'
 import { useProjectModifications } from './hooks/use-project-modifications'
 import type { DeckRendererOp, IOperator, Operator, OutOp } from './operators'
-import { instantiateExtension } from './operators'
+import { instantiateExtension, opTypes } from './operators'
 import { referenceDependencyModel } from './reference-dependencies'
 import {
   copyDataDirectory,
@@ -97,6 +101,7 @@ import {
   copyPublicFolderData,
   hasDataDirectory,
   load,
+  openFailureReason,
   readMemoryOutputCache,
   save,
 } from './storage'
@@ -151,6 +156,7 @@ import {
   serializeNodes,
 } from './utils/serialization'
 import { EdgeSpatialIndex } from './utils/spatial-index'
+import { claimStarterSelection, findStarterNodeId } from './utils/starter-node'
 import { expandTimelineIfAnimated } from './utils/timeline-panel'
 import { calculateViewerPosition } from './utils/viewer-position'
 
@@ -189,6 +195,9 @@ const defaultEdgeOptions: DefaultEdgeOptions = {
   animated: false,
 }
 
+const isLayerType = (type: string) =>
+  (opTypes[type as keyof typeof opTypes]?.displayName ?? '').endsWith('Layer')
+
 // Syncs edge data from React Flow store to centralized EdgeConnectionStore for O(1) lookups
 function EdgeConnectionSynchronizer() {
   const store = useStoreApi()
@@ -226,7 +235,10 @@ export function getNoodles(): Visualization {
   const isNewProjectRoute = projectName === 'new'
   const isProjectsRoute = routePrefix === '/projects' && !isNewProjectRoute
 
-  const [showProjectNotFoundDialog, setShowProjectNotFoundDialog] = useState(false)
+  const [projectOpenProblem, setProjectOpenProblem] = useState<{
+    reason: ProjectOpenProblem
+    directoryHandle?: FileSystemDirectoryHandle
+  } | null>(null)
   const [showSaveAsDialog, setShowSaveAsDialog] = useState(false)
   const [showRenameDialog, setShowRenameDialog] = useState(false)
   const [saveAsOptions, setSaveAsOptions] = useState<{
@@ -1020,6 +1032,7 @@ export function getNoodles(): Visualization {
 
       currentProjectRef.current = project
       setProjectLoadId(id => id + 1)
+      getUIStore().setStarterHintNodeId(null)
 
       // Install embedded keys before constructing operators. Key-dependent operators
       // may inspect credentials while their fields and listeners are initialized.
@@ -1109,6 +1122,27 @@ export function getNoodles(): Visualization {
   // Assign to ref for undo/redo system
   loadProjectFileRef.current = loadProjectFile
 
+  // Examples open with one layer selected, so the properties panel starts with controls
+  const selectStarterNode = useCallback(
+    (project: NoodlesProjectJSON) => {
+      const starterId = findStarterNodeId(project, isLayerType)
+      const starter = starterId ? project.nodes.find(node => node.id === starterId) : undefined
+      if (!starter) return
+      setNodes(nodes =>
+        nodes.map(node =>
+          node.id === starter.id
+            ? { ...node, selected: true }
+            : node.selected
+              ? { ...node, selected: false }
+              : node
+        )
+      )
+      getUIStore().setStarterHintNodeId(starter.id)
+      analytics.track('starter_node_selected', { operatorType: starter.type })
+    },
+    [setNodes]
+  )
+
   // Keyboard shortcuts are now handled by UndoRedoHandler component
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: loadProjectFile would cause infinite loop
@@ -1187,6 +1221,15 @@ export function getNoodles(): Visualization {
             setCurrentDirectory(null, projectName)
             setActiveStorageType('memory')
             loadProjectFile(project, projectName, undefined, outputCache)
+            if (
+              claimStarterSelection({
+                exampleId: projectName,
+                fromBundledExample: true,
+                agentControlled: externalControl || agentBench,
+              })
+            ) {
+              selectStarterNode(project)
+            }
             return
           } catch (error) {
             debugApp('Failed to load example project:', error)
@@ -1205,15 +1248,32 @@ export function getNoodles(): Visualization {
             setCurrentDirectory(result.data.directoryHandle, projectName)
             setActiveStorageType(storageType)
             loadProjectFile(project, projectName, undefined, result.data.outputCache)
+            analytics.track('project_opened', { storageType, source: 'url' })
           } else {
-            // Project not found in storage - show dialog
-            if (result.error.type === 'not-found') {
-              setShowProjectNotFoundDialog(true)
+            const { type, directoryHandle } = result.error
+            analytics.track('project_open_failed', {
+              storageType,
+              reason: openFailureReason(type),
+              source: 'url',
+            })
+            if (type === 'not-found') {
+              setProjectOpenProblem({ reason: 'not-found' })
+            } else if (
+              (type === 'permission-prompt' || type === 'permission-denied') &&
+              directoryHandle
+            ) {
+              // A remembered folder whose permission the browser reset, e.g. after a restart
+              setProjectOpenProblem({ reason: type, directoryHandle })
             } else {
               setError(result.error)
             }
           }
         } catch (error) {
+          analytics.track('project_open_failed', {
+            storageType,
+            reason: 'migration_error',
+            source: 'url',
+          })
           setError({
             type: 'unknown',
             message: 'Error loading project',
@@ -1285,6 +1345,8 @@ export function getNoodles(): Visualization {
 
     // Only include autoLayout if different from defaults
     const autoLayoutChanged = autoLayout.enabled !== DEFAULT_AUTO_LAYOUT.enabled
+    // Kept so saving an example from the editor doesn't drop its starter node
+    const startNode = currentProjectRef.current?.editorSettings?.startNode
 
     return {
       version: NOODLES_VERSION,
@@ -1296,6 +1358,7 @@ export function getNoodles(): Visualization {
         showOverlay,
         ...(autoLayoutChanged ? { autoLayout } : {}),
         showDebugInfo,
+        ...(startNode ? { startNode } : {}),
       },
       ...(projectKeys ? { apiKeys: projectKeys } : {}),
     }
@@ -1920,6 +1983,7 @@ export function getNoodles(): Visualization {
                 edgeTypes={edgeComponents}
               >
                 <ReactFlowInstanceCapture />
+                <StarterNodeFocus loadId={projectLoadId} />
                 <EdgeConnectionSynchronizer />
                 <CanvasDropImport
                   pendingFile={pendingImportFile}
@@ -1968,15 +2032,17 @@ export function getNoodles(): Visualization {
         )}
         <ProjectNotFoundDialog
           projectName={projectName || ''}
-          open={showProjectNotFoundDialog}
+          open={projectOpenProblem !== null}
+          reason={projectOpenProblem?.reason}
+          directoryHandle={projectOpenProblem?.directoryHandle}
           onProjectLoaded={(project, name, outputCache) => {
             // Always navigate to /projects since this is a user project
             loadProjectFile(project, name, '/projects', outputCache)
-            setShowProjectNotFoundDialog(false)
+            setProjectOpenProblem(null)
           }}
           onNewProject={onNewProject}
           onImport={onImport}
-          onClose={() => setShowProjectNotFoundDialog(false)}
+          onClose={() => setProjectOpenProblem(null)}
         />
         <SaveAsDialog
           open={showSaveAsDialog}
