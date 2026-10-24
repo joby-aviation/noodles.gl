@@ -454,6 +454,68 @@ describe('useRenderer', () => {
   })
 })
 
+describe('useRenderer and settle', () => {
+  it('draws each frame only after the visualization settled at its time', async () => {
+    vi.useRealTimers()
+    const canvas = document.createElement('canvas')
+    canvas.width = 64
+    canvas.height = 64
+    document.body.appendChild(canvas)
+    const ctx = canvas.getContext('2d')!
+    let frame = 0
+    const paint = setInterval(() => {
+      ctx.fillStyle = `rgb(${(frame++ * 40) % 255}, 0, 0)`
+      ctx.fillRect(0, 0, 64, 64)
+    }, 5)
+    const events: string[] = []
+    try {
+      const settle = vi.fn(async (time: number) => {
+        events.push(`settle ${time}`)
+        await new Promise(resolve => setTimeout(resolve, 5))
+        events.push(`settled ${time}`)
+      })
+      const redraw = vi.fn(() => {
+        events.push('redraw')
+        queueMicrotask(() => result.current.captureFrame())
+      })
+      const { result } = renderHook(() =>
+        useRenderer({ fps: 30, bitrate: 1_000_000, bitrateMode: 'constant', redraw, settle })
+      )
+      let capture: CaptureResult | undefined
+      await act(async () => {
+        capture = await result.current.startCapture({
+          canvas,
+          width: 64,
+          height: 64,
+          codec: 'vp9',
+          fps: 10,
+          startFrame: 0,
+          endFrame: 2,
+          target: 'buffer',
+          source: 'agent',
+        })
+      })
+      if (
+        capture?.status === 'error' &&
+        capture.error.message.startsWith('This browser cannot encode')
+      ) {
+        return
+      }
+      expect(capture?.status).toBe('done')
+      // The warm-up frame, then frames 0, 1 and 2: each settles before it is drawn, and the
+      // frame reader repaints it once more as it reads it
+      expect(events).toEqual([
+        ...['settle 0', 'settled 0', 'redraw'],
+        ...[0, 0.1, 0.2].flatMap(t => [`settle ${t}`, `settled ${t}`, 'redraw', 'redraw']),
+      ])
+    } finally {
+      clearInterval(paint)
+      canvas.remove()
+      vi.useFakeTimers()
+    }
+  })
+})
+
 describe('useRenderer analytics on failure', () => {
   beforeEach(() => {
     track.mockClear()

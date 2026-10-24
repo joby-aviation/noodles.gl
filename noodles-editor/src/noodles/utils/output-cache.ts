@@ -1,6 +1,4 @@
 import { debugSerialize } from '../../utils/debug'
-import type { IOperator, Operator } from '../operators'
-import type { useOperatorStore } from '../store'
 import { directoryExists, readFileFromDirectory, writeFileToDirectory } from './filesystem'
 
 // A locked operator's last outputs live in the project's cache folder, one file per operator,
@@ -80,50 +78,6 @@ function isJsonSafe(value: unknown, ancestors = new Set<unknown>()): boolean {
       )
   ancestors.delete(value)
   return safe
-}
-
-// Returns undefined when any output would not survive JSON; that operator executes on load
-function serializeLockedOutputs(op: Operator<IOperator>): Record<string, unknown> | undefined {
-  if (!op.locked.value || !op.hasOutput) return undefined
-  const outputs: Record<string, unknown> = {}
-  for (const [name, field] of Object.entries(op.outputs)) {
-    const serialized = field.serialize()
-    // An undefined output is left out of the file and restored as undefined
-    if (serialized !== undefined && !isJsonSafe(serialized)) return undefined
-    outputs[name] = serialized
-  }
-  return outputs
-}
-
-// Compact JSON: these files are machine-owned and can hold whole tables or routes
-export function serializeOutputCache(
-  store: ReturnType<typeof useOperatorStore.getState>,
-  nodes: CacheNode[]
-): OutputCacheFiles {
-  const files: OutputCacheFiles = new Map()
-  for (const node of nodes) {
-    const op = store.getOp(node.id)
-    if (!op || !node.type) continue
-    const outputs = serializeLockedOutputs(op)
-    if (!outputs) continue
-    const fileName = opIdToCacheFileName(node.id)
-    if (fileName.length > MAX_FILE_NAME_LENGTH) {
-      debugSerialize('%s: id too long for a cache file name, will execute on load', node.id)
-      continue
-    }
-    const file: OutputCacheFile = {
-      version: OUTPUT_CACHE_VERSION,
-      id: node.id,
-      type: node.type,
-      outputs,
-    }
-    try {
-      files.set(fileName, `${JSON.stringify(file)}\n`)
-    } catch (error) {
-      debugSerialize('%s: outputs too large to cache, will execute on load: %O', node.id, error)
-    }
-  }
-  return files
 }
 
 async function hasContents(directory: FileSystemDirectoryHandle, name: string, contents: string) {

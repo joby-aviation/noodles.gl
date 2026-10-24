@@ -1,5 +1,6 @@
 // Runtime examples loader - lazy loads example projects on-demand
 
+import { OPERATOR_INDEX } from '@noodles.gl/planner'
 import hiddenExamples from '../examples/hidden.json'
 import type { ExamplesIndex } from './types'
 
@@ -117,13 +118,12 @@ export async function getExample(id: string) {
     tags: [],
   }
 
-  // Infer additional metadata from project structure
-  const projectData = project as { nodes?: Array<{ type: string }> }
-  const nodeTypes = new Set(projectData.nodes?.map(n => n.type) || [])
-  const layerTypes = Array.from(nodeTypes).filter(t => t.includes('Layer'))
-  const dataSourceTypes = Array.from(nodeTypes).filter(
-    t => t.includes('File') || t.includes('JSON') || t.includes('DuckDb')
-  )
+  // Infer additional metadata from the document: its operators by category
+  const projectData = project as { nodes?: Array<{ op: string }> }
+  const ops = [...new Set(projectData.nodes?.map(n => n.op) ?? [])]
+  const category = (op: string) => OPERATOR_INDEX.get(op)?.category
+  const layerTypes = ops.filter(op => category(op) === 'layer')
+  const dataSourceTypes = ops.filter(op => category(op) === 'data')
 
   return {
     id: meta.id,

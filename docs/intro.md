@@ -44,7 +44,7 @@ The result: data-driven stories you can export as video, publish as interactive 
 - **Cinematic route animations** — fly a camera along a path while trip data trails behind, with smooth easing and timed reveals
 - **Temporal data stories** — scrub through years of earthquake activity, urban growth, or flight patterns with a single timeline
 - **Live data dashboards** — wire a DuckDB SQL query to a map layer; the visualization updates reactively when inputs change
-- **Publication renders** — export at any resolution (4K video, 300dpi stills) with 40+ GPU-accelerated layer types
+- **Publication renders** — export at any resolution (4K video, 300dpi stills) with 30+ GPU-accelerated layer types, including GeoJSON and H3, S2 and A5 cells
 - **Repeatable workflows** — every project is a portable JSON file you can version-control, share, and re-run on new data
 
 ## Who it's for

@@ -177,11 +177,9 @@ export interface Artifact {
 export function artifacts(result: BenchResult): Artifact[] {
   const json = (value: unknown) => JSON.stringify(value, null, 2).split('\n')
   return [
-    ...(result.initialProject
-      ? [{ name: 'start-project.json', lines: json(result.initialProject) }]
-      : []),
-    { name: 'project.json', lines: JSON.stringify(result.finalProject, null, 2).split('\n') },
-    { name: 'ops.json', lines: JSON.stringify(result.finalOps, null, 2).split('\n') },
+    ...(result.initialDoc ? [{ name: 'start-doc.json', lines: json(result.initialDoc) }] : []),
+    { name: 'doc.json', lines: json(result.finalDoc) },
+    { name: 'params.json', lines: json(result.finalParams) },
   ]
 }
 

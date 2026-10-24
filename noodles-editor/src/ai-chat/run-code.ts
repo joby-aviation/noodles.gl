@@ -15,10 +15,10 @@
 //   reaching further than that (the store is in scope), which is why the tool
 //   description points structural edits at apply_modifications instead.
 
+import { docStore } from '../editor/doc-store'
 import { safeMode } from '../noodles/globals'
-import { fnWithSource, freeExports, type IOperator, type Operator } from '../noodles/operators'
-import { getOp } from '../noodles/store'
-import { captureOperatorInputs, firePropertyMutation } from '../noodles/utils/property-history'
+import { type OpView, resolveOp } from '../noodles/op-resolver'
+import { fnWithSource, freeExports } from '../noodles/operators'
 import { getTimelineContext } from '../noodles/utils/timeline-context'
 import type { ToolResult } from './types'
 
@@ -78,7 +78,7 @@ export async function runCode(params: RunCodeParams): Promise<ToolResult> {
   }
 
   const timeline = getTimelineContext()
-  const before = captureOperatorInputs()
+  const before = docStore().get().doc
   const logs: string[] = []
   const restore = captureConsole(logs)
   const started = performance.now()
@@ -126,12 +126,7 @@ export async function runCode(params: RunCodeParams): Promise<ToolResult> {
   return success(raw, logs, started, before)
 }
 
-function success(
-  value: unknown,
-  logs: string[],
-  started: number,
-  before: string | null
-): ToolResult {
+function success(value: unknown, logs: string[], started: number, before: unknown): ToolResult {
   return {
     success: true,
     data: {
@@ -143,12 +138,7 @@ function success(
   }
 }
 
-function failure(
-  error: unknown,
-  logs: string[],
-  started: number,
-  before: string | null
-): ToolResult {
+function failure(error: unknown, logs: string[], started: number, before: unknown): ToolResult {
   return {
     success: false,
     error: message(error),
@@ -161,19 +151,14 @@ function failure(
   }
 }
 
-// One undo entry per call that actually changed a field value, and none at all for
-// pure computation. Only covers field values: adding or deleting operators goes
-// through apply_modifications, which the UI applies with its own history.
-function commitMutations(before: string | null): { changedFieldValues?: true } {
-  if (before === null) return {}
-  const after = captureOperatorInputs()
-  if (after === null || after === before) return {}
-  firePropertyMutation('Run code', before)
-  return { changedFieldValues: true }
+// Assigning `op('/x').par.y` edits the document, one undo step per run (op-view.ts
+// coalesces the assignments). This reports whether any did.
+function commitMutations(before: unknown): { changedFieldValues?: true } {
+  return docStore().get().doc === before ? {} : { changedFieldValues: true }
 }
 
-function requireOp(path: string): Operator<IOperator> {
-  const op = getOp(path)
+function requireOp(path: string): OpView {
+  const op = resolveOp(path)
   if (!op) throw new Error(`Operator '${path}' not found`)
   return op
 }
@@ -321,5 +306,5 @@ export function describe(value: unknown, depth: number, ancestors: unknown[]): u
 }
 
 function isOperator(value: object): value is { id: string } {
-  return 'id' in value && 'inputs' in value && 'outputs' in value && typeof value.id === 'string'
+  return 'id' in value && 'par' in value && 'out' in value && typeof value.id === 'string'
 }

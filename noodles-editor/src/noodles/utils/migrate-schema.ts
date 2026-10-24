@@ -1,6 +1,5 @@
 import { basename } from 'node:path'
 import type { InOut } from '../fields'
-import type { OpType } from '../operators'
 import { edgeId } from './migration-utils'
 import { parseHandleId } from './path-utils'
 import type { NoodlesProjectJSON } from './serialization'
@@ -94,7 +93,8 @@ export function renameHandle({
   newHandle,
   project,
 }: {
-  type: OpType
+  // A Noodles operator type in a schema 1–18 project
+  type: string
   inOut: InOut
   oldHandle: string
   newHandle: string
@@ -175,7 +175,8 @@ export function changeDefaultValue({
   defaultValue,
 }: {
   project: NoodlesProjectJSON
-  type: OpType
+  // A Noodles operator type in a schema 1–18 project
+  type: string
   handle: string
   defaultValue: unknown
 }) {

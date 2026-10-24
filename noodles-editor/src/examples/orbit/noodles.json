@@ -1,192 +1,126 @@
 {
-  "edges": [
-    {
-      "id": "/deck.out.vis->/out.par.vis",
-      "source": "/deck",
-      "target": "/out",
-      "sourceHandle": "out.vis",
-      "targetHandle": "par.vis"
-    },
-    {
-      "source": "/camera",
-      "sourceHandle": "out.view",
-      "target": "/deck",
-      "targetHandle": "par.views",
-      "id": "/camera.out.view->/deck.par.views"
-    },
-    {
-      "source": "/scene",
-      "sourceHandle": "out.layer",
-      "target": "/deck",
-      "targetHandle": "par.layers",
-      "id": "/scene.out.layer->/deck.par.layers"
-    },
-    {
-      "source": "/dummy-data",
-      "sourceHandle": "out.data",
-      "target": "/scene",
-      "targetHandle": "par.data",
-      "id": "/dummy-data.out.data->/scene.par.data"
-    }
-  ],
-  "viewport": {
-    "x": 1368.6650642622628,
-    "y": 546.6972278664407,
-    "zoom": 0.981085979917294
-  },
-  "version": 19,
+  "version": 1,
   "name": "Orbit View 3D Scene",
-  "editorSettings": {
-    "layoutMode": "noodles-on-top",
-    "showOverlay": true
-  },
   "nodes": [
     {
-      "id": "/deck",
-      "type": "DeckRendererOp",
-      "data": {
-        "inputs": {
-          "basemap": null
-        },
-        "locked": false
-      },
-      "position": {
-        "x": 0,
-        "y": 0
+      "id": "deck",
+      "op": "deck",
+      "name": "deck",
+      "x": 0,
+      "y": 0,
+      "params": {
+        "basemap": "none",
+        "display": "fixed",
+        "width": 1920,
+        "height": 1080,
+        "lod": 2,
+        "scaleMode": "fit",
+        "waitForData": true,
+        "codec": "avc",
+        "bitrateMbps": 10,
+        "bitrateMode": "constant",
+        "scaleControl": 0.3,
+        "framerate": 30,
+        "captureDelay": 50,
+        "rendersDirectory": "renders"
       }
     },
     {
-      "id": "/out",
-      "type": "OutOp",
-      "data": {
-        "inputs": {
-          "display": "fixed",
-          "width": 1920,
-          "height": 1080,
-          "lod": 2,
-          "waitForData": true,
-          "codec": "avc",
-          "bitrateMbps": 10,
-          "bitrateMode": "constant",
-          "scaleControl": 0.3,
-          "framerate": 30,
-          "captureDelay": 50
-        },
-        "locked": false
-      },
-      "position": {
-        "x": 390,
-        "y": 0
+      "id": "dummy-data",
+      "op": "generate",
+      "name": "dummy-data",
+      "x": -1013.8408708542686,
+      "y": -139.4872739249836,
+      "params": {
+        "count": 1,
+        "name": "i"
       }
     },
     {
-      "id": "/camera",
-      "type": "OrbitViewOp",
-      "position": {
-        "x": -565.1875,
-        "y": 169.25
-      },
-      "data": {
-        "inputs": {
-          "clear": true,
-          "clearColor": "#2997ffff",
-          "fovy": 50
-        },
-        "locked": false
+      "id": "scene",
+      "op": "scenegraph",
+      "name": "scene",
+      "x": -539.9180707890639,
+      "y": -285.7888584218722,
+      "params": {
+        "opacity": 1,
+        "blend": "normal",
+        "position": "[0.0, 0.0, 0.0]",
+        "color": "",
+        "modelColor": [
+          255,
+          255,
+          255
+        ],
+        "orientation": "",
+        "scale": "",
+        "translation": "",
+        "scenegraph": "https://raw.githubusercontent.com/visgl/deck.gl-data/master/examples/scenegraph-layer/airplane.glb",
+        "sizeScale": 1,
+        "sizeMinPixels": 10,
+        "sizeMaxPixels": 100
       }
     },
     {
-      "id": "/scene",
-      "type": "ScenegraphLayerOp",
-      "position": {
-        "x": -539.9180707890639,
-        "y": -285.7888584218722
-      },
-      "data": {
-        "inputs": {
-          "sizeMinPixels": 10,
-          "getColor": "#ffffffff"
-        },
-        "locked": false
+      "id": "camera",
+      "op": "orbit-view",
+      "name": "camera",
+      "x": -565.1875,
+      "y": 169.25,
+      "params": {
+        "clear": true,
+        "clearColor": "#2997ffff",
+        "fovy": 50
       }
     },
     {
-      "id": "/dummy-data",
-      "type": "ExpressionOp",
-      "position": {
-        "x": -1013.8408708542686,
-        "y": -139.4872739249836
-      },
-      "data": {
-        "inputs": {
-          "expression": "[null]"
-        },
-        "locked": false
+      "id": "model-note",
+      "op": "comment",
+      "name": "model-note",
+      "x": -540,
+      "y": -405,
+      "params": {
+        "text": "This draws a 3D airplane model on a plain background, with no map. Put a link to another .glb model in Model URL (glTF) on scene to swap it.",
+        "width": 340,
+        "height": 90
       }
     },
     {
-      "id": "/model-note",
-      "type": "CommentOp",
-      "position": {
-        "x": -540,
-        "y": -430
-      },
-      "data": {
-        "inputs": {
-          "text": "This draws a 3D airplane model on a plain background, with no map. Put a link to another .glb model in scenegraph to swap it."
-        },
-        "locked": false
-      },
-      "width": 340,
-      "height": 90
-    },
-    {
-      "id": "/try-next-note",
-      "type": "CommentOp",
-      "position": {
-        "x": 0,
-        "y": 180
-      },
-      "data": {
-        "inputs": {
-          "text": "Try next:\n- Click camera and change clearColor to set the background.\n- Click scene and change getColor to tint the model.\n- Press Export and pick Image (PNG) to save it."
-        },
-        "locked": false
-      },
-      "width": 340,
-      "height": 150
+      "id": "try-next-note",
+      "op": "comment",
+      "name": "try-next-note",
+      "x": 0,
+      "y": 120,
+      "params": {
+        "text": "Try next:\n- Click camera and change Clear Color to set the background.\n- Click scene and change Color to tint the model.\n- Press Export and pick Image (PNG) to save it.",
+        "width": 340,
+        "height": 150
+      }
     }
   ],
-  "timeline": {
-    "sheetsById": {
-      "Noodles": {
-        "staticOverrides": {
-          "byObject": {
-            "scene": {
-              "getColor": {
-                "r": 1,
-                "g": 1,
-                "b": 1,
-                "a": 1
-              }
-            },
-            "camera": {
-              "clearColor": {
-                "r": 0.1607843137254902,
-                "g": 0.592156862745098,
-                "b": 1,
-                "a": 1
-              }
-            }
-          }
-        }
-      }
+  "edges": [
+    {
+      "id": "scene.out->deck.layers",
+      "source": "scene",
+      "sourcePort": "out",
+      "target": "deck",
+      "targetPort": "layers",
+      "index": 0
     },
-    "definitionVersion": "0.4.0",
-    "revisionHistory": [
-      "JtY15U_d_cPZoRLu",
-      "9EsczZKTvYsUK8uR",
-      "R6gN92Yj6dfyRehM"
-    ]
-  }
+    {
+      "id": "camera.view->deck.views",
+      "source": "camera",
+      "sourcePort": "view",
+      "target": "deck",
+      "targetPort": "views",
+      "index": 0
+    },
+    {
+      "id": "dummy-data.out->scene.in",
+      "source": "dummy-data",
+      "sourcePort": "out",
+      "target": "scene",
+      "targetPort": "in"
+    }
+  ]
 }

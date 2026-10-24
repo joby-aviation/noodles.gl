@@ -1,6 +1,6 @@
 import { renderHook } from '@testing-library/react'
-import type { Node } from '@xyflow/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { docStore, EMPTY_DOC } from '../../../editor/doc-store'
 import {
   getRenderSurfaceSize,
   resetRenderSurfaceSize,
@@ -8,7 +8,6 @@ import {
 } from '../../../render/render-surface-size'
 import { hasCoordinates, viewStateForBounds } from '../../components/tools/detect-coordinates'
 import { useFileSystemStore } from '../../filesystem-store'
-import { clearOps } from '../../store'
 import { useFileImport } from '../use-file-import'
 
 const flow = vi.hoisted(() => ({
@@ -38,21 +37,26 @@ async function importCsv() {
     { x: 0, y: 0 },
     'test'
   )
-  const nodes = flow.addNodes.mock.lastCall?.[0] as Node<{ inputs: { viewState?: unknown } }>[]
-  const basemap = nodes.find(n => n.type === 'MaplibreBasemapOp')
-  return { imported, viewState: basemap?.data.inputs.viewState }
+  // The import's deck holds the camera fitted to the data
+  const deck = docStore()
+    .get()
+    .doc.nodes.find(n => n.op === 'deck')
+  const p = deck?.params ?? {}
+  return {
+    imported,
+    viewState: { longitude: p.longitude, latitude: p.latitude, zoom: p.zoom },
+  }
 }
 
 describe('useFileImport', () => {
   beforeEach(() => {
-    clearOps()
+    docStore().load(EMPTY_DOC)
     vi.clearAllMocks()
     useFileSystemStore.setState({ currentProjectName: 'import-test', activeStorageType: 'memory' })
   })
 
   afterEach(() => {
     resetRenderSurfaceSize()
-    clearOps()
   })
 
   it('fits imported data to the render surface size', async () => {
@@ -64,8 +68,12 @@ describe('useFileImport', () => {
 
     const { detection } = imported
     if (!hasCoordinates(detection)) throw new Error('expected coordinates to be detected')
-    expect(viewState).toEqual(viewStateForBounds(detection.bounds, size))
+    const fit = (s: { width: number; height: number }) => {
+      const { longitude, latitude, zoom } = viewStateForBounds(detection.bounds, s)
+      return { longitude, latitude, zoom }
+    }
+    expect(viewState).toEqual(fit(size))
     // A tall surface frames the same points differently from the default one
-    expect(viewState).not.toEqual(viewStateForBounds(detection.bounds, defaultSize))
+    expect(viewState).not.toEqual(fit(defaultSize))
   })
 })

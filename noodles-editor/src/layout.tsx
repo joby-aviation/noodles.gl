@@ -3,9 +3,8 @@ import type { PropsWithChildren, ReactNode } from 'react'
 import { useEffect, useState } from 'react'
 import { Group, Panel, Separator, useDefaultLayout, usePanelRef } from 'react-resizable-panels'
 import { DockablePane } from './components/dockable-pane'
+import { type MapMode, useUIStore } from './editor/ui-store'
 import s from './layout.module.css'
-import type { MapMode } from './noodles/store'
-import { useUIStore } from './noodles/store'
 import {
   createPanelVisibilityTracker,
   trackMapModeChanged,

@@ -2,7 +2,6 @@ import type { OnMount } from '@monaco-editor/react'
 import * as Dialog from '@radix-ui/react-dialog'
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
 import { Cross2Icon, QuestionMarkCircledIcon } from '@radix-ui/react-icons'
-import { Handle, Position, useEdges, useNodeId, useReactFlow } from '@xyflow/react'
 import cx from 'classnames'
 import type { ScaleLinear, ScaleOrdinal } from 'd3'
 import { Button } from 'primereact/button'
@@ -27,7 +26,6 @@ const CodeiumEditor = lazyWithReload(() =>
 
 import { Temporal } from 'temporal-polyfill'
 import { VectorKeyframeIndicator } from '../../timeline/components/KeyframeIndicator'
-import { getFieldPath } from '../../timeline/field-bindings'
 import { useTimelineStore } from '../../timeline/timeline-store'
 import { analytics } from '../../utils/analytics'
 import { lazyWithReload } from '../../utils/stale-chunk'
@@ -47,7 +45,6 @@ import {
   type ColorRampField,
   type CompoundPropsField,
   type DateField,
-  type ExpressionField,
   type Field,
   type FileUrlField,
   type IField,
@@ -61,31 +58,16 @@ import {
   type Vec3Field,
 } from '../fields'
 import { useFileSystemStore } from '../filesystem-store'
-import type { Edge as GraphEdge } from '../graph-executor'
-import { useObservable } from '../hooks/use-observable'
 import s from '../noodles.module.css'
-import { getFriendlyErrorMessage } from '../operators'
 import { checkAssetExists, getAssetFileHandle, writeAsset } from '../storage'
-import { getOp, useEdgeConnectionStore } from '../store'
-import { type ExpressionContext, getExpressionContext } from '../utils/expression-context'
-import { FieldEditScope } from '../utils/field-edit-analytics'
 import { projectScheme } from '../utils/filesystem'
 import type { OpId } from '../utils/id-utils'
 import { computeRelativePath } from '../utils/path-utils'
-import {
-  captureOperatorInputs,
-  firePropertyMutation,
-  usePropertyHistory,
-} from '../utils/property-history'
 import { formatReference, parseReference, type ReferenceFormat } from '../utils/reference-utils'
 import { ColorSwatch } from './color-swatch'
 import { DraggableNumberInput } from './draggable-number-input'
-import { ExpressionEditorOverlay } from './ExpressionEditorOverlay'
 import { GeocodingDialog } from './geocoding-dialog'
 import menuStyles from './menu.module.css'
-import { MultiInputHandle } from './multi-input-handle'
-import contextMenuStyles from './node-properties.module.css'
-import { handleClass, useHandleDimmed } from './op-components'
 import { extensionOf } from './tools/import-pipelines'
 
 type InputComponent = React.ComponentType<{
@@ -94,10 +76,10 @@ type InputComponent = React.ComponentType<{
   disabled: boolean
 }>
 
-export interface HandleOptions {
-  type: 'target' | 'source'
-  namespace: 'par' | 'out'
-}
+// Field widgets mark where an edit gesture starts and ends. Edits reach the document through
+// the FieldAdapter, whose undo already coalesces a drag into one step, so the marks do nothing.
+const GESTURE = { captureStart: () => {}, commitChange: (_message: string) => {} }
+const usePropertyHistory = () => GESTURE
 
 export const inputComponents = {
   array: EmptyFieldComponent,
@@ -112,7 +94,6 @@ export const inputComponents = {
   data: EmptyFieldComponent,
   date: DateFieldComponent,
   effect: EmptyFieldComponent,
-  expression: ExpressionFieldComponent,
   'file-url': FileUrlFieldComponent,
   function: EmptyFieldComponent,
   geojson: EmptyFieldComponent,
@@ -133,8 +114,9 @@ export const inputComponents = {
   widget: EmptyFieldComponent,
 } as const as Record<string, InputComponent>
 
-// Guard on accessor callbacks in `setValue`/`useState` for when fields are disconnected
-function guardAccessorFallback<V>(value: V): V | (() => V) {
+// React takes a function given to `useState` or `setValue` as an updater; a field whose value is
+// a function (a compiled code field's) is wrapped so it is stored, not called
+function guardFunctionValue<V>(value: V): V | (() => V) {
   return typeof value === 'function' ? () => value : value
 }
 
@@ -405,350 +387,11 @@ export function TextFieldComponent({
   }
 
   return (
-    <div className={cx(s.fieldWrapper, 'nokey')}>
-      <label className={s.fieldLabel} htmlFor={id}>
+    <div className={cx(s.fieldWrapper, 'field-row', 'nokey')}>
+      <label className={cx(s.fieldLabel, 'field-label')} htmlFor={id}>
         {id}
       </label>
-      <div className={s.fieldInputWrapper}>{input}</div>
-    </div>
-  )
-}
-
-const AsyncFunction = Object.getPrototypeOf(async () => {}).constructor as FunctionConstructor
-
-// Validates an expression by attempting to parse it
-// Returns an error message if invalid, null if valid
-function validateExpression(expression: string): string | null {
-  if (!expression.trim()) return null
-
-  try {
-    // Try to parse as a function body (wrapping with return like the operators do)
-    // Match the actual parameters available in AccessorOp.execute() and ExpressionOp.execute()
-    // fnWithSource duck-types async the same way, so `await` expressions parse like the
-    // evaluator will actually run them
-    const Ctor = /\bawait\b/.test(expression) ? AsyncFunction : Function
-    // eslint-disable-next-line no-new-func
-    new Ctor(
-      'd',
-      'i',
-      'data',
-      'op',
-      'utils',
-      'd3',
-      'turf',
-      'deck',
-      'Plot',
-      'Temporal',
-      `return ${expression}`
-    )
-    return null
-  } catch (e) {
-    if (e instanceof SyntaxError) {
-      // Use the friendly error message from operators.ts for better user feedback
-      return getFriendlyErrorMessage(e.message, expression)
-    }
-    return 'Invalid expression'
-  }
-}
-
-export function ExpressionFieldComponent({
-  id,
-  field,
-  disabled,
-}: {
-  id: OpId
-  field: ExpressionField
-  disabled: boolean
-}) {
-  const [value, setValue] = useState(field.value ?? '')
-  const [overlayOpen, setOverlayOpen] = useState(false)
-  const [validationError, setValidationError] = useState<string | null>(null)
-  const inputRef = useRef<HTMLInputElement>(null)
-  const [anchorRect, setAnchorRect] = useState<DOMRect | null>(null)
-  const { captureStart, commitChange } = usePropertyHistory()
-  // Tracks when a click is about to open the overlay so handleInputBlur can skip its commit
-  const openingOverlayRef = useRef(false)
-
-  const nodeId = useNodeId() as string
-  const edges = useEdges()
-
-  // Convert edges to GraphEdge format for context
-  const graphEdges = useMemo(
-    () =>
-      edges.map(e => ({
-        id: e.id,
-        source: e.source,
-        target: e.target,
-        sourceHandle: e.sourceHandle || '',
-        targetHandle: e.targetHandle || '',
-      })) as GraphEdge[],
-    [edges]
-  )
-
-  // Get expression context for autocomplete
-  const expressionContext = useMemo(
-    () => getExpressionContext(nodeId, graphEdges),
-    [nodeId, graphEdges]
-  )
-
-  useEffect(() => {
-    const sub = field.subscribe(newVal => {
-      if (typeof newVal === 'function') return
-      setValue(newVal ?? '')
-      // Validate on external changes
-      setValidationError(validateExpression(newVal ?? ''))
-    })
-    return () => sub.unsubscribe()
-  }, [field])
-
-  const handleInputClick = useCallback(() => {
-    if (disabled) return
-    if (inputRef.current) {
-      setAnchorRect(inputRef.current.getBoundingClientRect())
-    }
-    // Re-capture before the blur fires so handleInputBlur doesn't consume the snapshot
-    openingOverlayRef.current = true
-    captureStart()
-    setOverlayOpen(true)
-  }, [disabled, captureStart])
-
-  const handleOverlayChange = useCallback(
-    (newValue: string) => {
-      setValue(newValue)
-      field.setValue(newValue)
-      setValidationError(validateExpression(newValue))
-    },
-    [field]
-  )
-
-  const handleOverlayClose = useCallback(() => {
-    setOverlayOpen(false)
-    commitChange('Change expression')
-  }, [commitChange])
-
-  const handleInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    const newValue = e.currentTarget.value
-    setValue(newValue)
-  }, [])
-
-  const handleInputBlur = useCallback(
-    (e: React.FocusEvent<HTMLInputElement>) => {
-      const newValue = e.currentTarget.value
-      if (newValue !== field.value) {
-        field.setValue(newValue)
-        setValidationError(validateExpression(newValue))
-      }
-      // Skip commit when the overlay is opening — handleOverlayClose will commit instead
-      if (openingOverlayRef.current) {
-        openingOverlayRef.current = false
-        return
-      }
-      commitChange('Change expression')
-    },
-    [field, commitChange]
-  )
-
-  return (
-    <div className={cx(s.fieldWrapper, 'nokey')}>
-      <label className={s.fieldLabel} htmlFor={id}>
-        {id}
-      </label>
-      <div className={cx(s.fieldInputWrapper, s.expressionFieldWrapper)}>
-        <input
-          ref={inputRef}
-          id={id}
-          className={cx(s.fieldInput, s.expressionFieldInput, {
-            [s.expressionFieldError]: validationError,
-          })}
-          title={validationError || value}
-          value={value}
-          onChange={handleInputChange}
-          onFocus={captureStart}
-          onBlur={handleInputBlur}
-          onClick={handleInputClick}
-          disabled={disabled}
-          placeholder="Click to edit expression..."
-        />
-        {validationError && <span className={s.expressionFieldErrorIcon}>⚠</span>}
-      </div>
-      {overlayOpen && (
-        <ExpressionEditorOverlay
-          value={value}
-          onChange={handleOverlayChange}
-          onClose={handleOverlayClose}
-          context={expressionContext}
-          anchorRect={anchorRect}
-          validationError={validationError}
-        />
-      )}
-    </div>
-  )
-}
-
-// Formats a compact preview of a driven field's evaluated value
-function formatEvaluatedValue(value: unknown): string {
-  if (typeof value === 'function') return 'ƒ'
-  if (typeof value === 'number') return Number.isInteger(value) ? String(value) : value.toFixed(3)
-  if (typeof value === 'string') return value.length > 20 ? `${value.slice(0, 20)}…` : value
-  if (value === undefined) return 'undefined'
-  try {
-    const json = JSON.stringify(value)
-    return json && json.length > 20 ? `${json.slice(0, 20)}…` : (json ?? String(value))
-  } catch {
-    return String(value)
-  }
-}
-
-// Canvas variant of the expression input: derives autocomplete context from the live graph.
-// The graph-owned reference dependency model projects dashed edges for visualization.
-export function ExpressionDrivenInput({
-  id,
-  field,
-  disabled,
-}: {
-  id: OpId
-  field: Field
-  disabled: boolean
-}) {
-  // Outside a node (e.g. the Properties Panel) useNodeId is null; the field knows its op
-  const nodeId = useNodeId() ?? field.op?.id ?? ''
-  const edges = useEdges()
-
-  const graphEdges = useMemo(
-    () =>
-      edges.map(e => ({
-        id: e.id,
-        source: e.source,
-        target: e.target,
-        sourceHandle: e.sourceHandle || '',
-        targetHandle: e.targetHandle || '',
-      })) as GraphEdge[],
-    [edges]
-  )
-
-  const expressionContext = useMemo(
-    () => getExpressionContext(nodeId, graphEdges),
-    [nodeId, graphEdges]
-  )
-
-  return (
-    <ExpressionInputBase id={id} field={field} disabled={disabled} context={expressionContext} />
-  )
-}
-
-// Input for a field in expression mode: shows the expression (mono, violet-tinted),
-// a live preview of the evaluated value, and opens the Monaco overlay for editing.
-// Works outside ReactFlow (e.g. the Properties Panel) — pass the autocomplete context in.
-export function ExpressionInputBase({
-  id,
-  field,
-  disabled,
-  context,
-}: {
-  id: OpId
-  field: Field
-  disabled: boolean
-  context: ExpressionContext
-}) {
-  const expression = useObservable(field.expression$, field.expression) ?? ''
-  const [draft, setDraft] = useState(expression)
-  const [overlayOpen, setOverlayOpen] = useState(false)
-  const [syntaxError, setSyntaxError] = useState<string | null>(null)
-  const evalError = useObservable(field.expressionError$, field.expressionError$.value)
-  const evaluated = useObservable(field, field.value)
-  const inputRef = useRef<HTMLInputElement>(null)
-  const [anchorRect, setAnchorRect] = useState<DOMRect | null>(null)
-  const { captureStart, commitChange } = usePropertyHistory()
-  const openingOverlayRef = useRef(false)
-
-  // Keep the draft in sync when the expression changes externally (undo, load)
-  useEffect(() => {
-    setDraft(expression)
-    setSyntaxError(validateExpression(expression))
-  }, [expression])
-
-  const applyDraft = useCallback(
-    (newValue: string) => {
-      setDraft(newValue)
-      setSyntaxError(validateExpression(newValue))
-      if (newValue !== field.expression) {
-        field.setExpression(newValue)
-      }
-    },
-    [field]
-  )
-
-  const handleInputClick = useCallback(() => {
-    if (disabled) return
-    if (inputRef.current) {
-      setAnchorRect(inputRef.current.getBoundingClientRect())
-    }
-    openingOverlayRef.current = true
-    captureStart()
-    setOverlayOpen(true)
-  }, [disabled, captureStart])
-
-  const handleOverlayClose = useCallback(() => {
-    setOverlayOpen(false)
-    commitChange('Change expression')
-  }, [commitChange])
-
-  const handleInputBlur = useCallback(
-    (e: React.FocusEvent<HTMLInputElement>) => {
-      applyDraft(e.currentTarget.value)
-      if (openingOverlayRef.current) {
-        openingOverlayRef.current = false
-        return
-      }
-      commitChange('Change expression')
-    },
-    [applyDraft, commitChange]
-  )
-
-  const error = syntaxError || evalError
-
-  return (
-    <div className={s.fieldWrapper}>
-      <label className={s.fieldLabel} htmlFor={id}>
-        {id}
-      </label>
-      <div className={cx(s.fieldInputWrapper, s.expressionFieldWrapper)}>
-        <input
-          ref={inputRef}
-          id={id}
-          className={cx(s.fieldInput, s.expressionFieldInput, s.expressionDrivenInput, {
-            [s.expressionFieldError]: error,
-          })}
-          title={error || expression}
-          value={draft}
-          onChange={e => setDraft(e.currentTarget.value)}
-          onFocus={captureStart}
-          onBlur={handleInputBlur}
-          onClick={handleInputClick}
-          disabled={disabled}
-          placeholder="Enter expression…"
-          spellCheck={false}
-        />
-        {error ? (
-          <span className={s.expressionFieldErrorIcon} title={error}>
-            ⚠
-          </span>
-        ) : (
-          <span className={s.expressionValueBadge} title="Current evaluated value">
-            {formatEvaluatedValue(evaluated)}
-          </span>
-        )}
-      </div>
-      {overlayOpen && (
-        <ExpressionEditorOverlay
-          value={draft}
-          onChange={applyDraft}
-          onClose={handleOverlayClose}
-          context={context}
-          anchorRect={anchorRect}
-          validationError={error}
-        />
-      )}
+      <div className={cx(s.fieldInputWrapper, 'field-input')}>{input}</div>
     </div>
   )
 }
@@ -812,7 +455,7 @@ export function VectorFieldComponent({
 }) {
   const [value, setValue] = useState<
     { [key: string]: number } | [number, number] | [number, number, number]
-  >(guardAccessorFallback(field.value))
+  >(guardFunctionValue(field.value))
   const [geocodingOpen, setGeocodingOpen] = useState(false)
   const { captureStart, commitChange } = usePropertyHistory()
 
@@ -894,8 +537,8 @@ export function VectorFieldComponent({
   )
 
   return (
-    <div className={cx(s.fieldWrapper, 'nokey')}>
-      <label className={s.fieldLabel} htmlFor={id}>
+    <div className={cx(s.fieldWrapper, 'field-row', 'nokey')}>
+      <label className={cx(s.fieldLabel, 'field-label')} htmlFor={id}>
         {id}
       </label>
       <div id={id} className={cx(s.fieldInputWrapper, s.fieldInputWrapperVector)}>
@@ -963,15 +606,13 @@ export function CodeFieldComponent({
   field: CodeField
   disabled: boolean
 }) {
-  const [value, setValue] = useState(guardAccessorFallback(field.value))
-  const { getNode } = useReactFlow()
+  const [value, setValue] = useState(guardFunctionValue(field.value))
   const editorRef = useRef<Parameters<OnMount>[0] | null>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const { captureStart, commitChange } = usePropertyHistory()
 
-  const nodeId = useNodeId() as string
-  const node = getNode(nodeId)
-  const nodeHeight = node?.height || 300
+  // The editor's height in the parameter pane
+  const nodeHeight = 300
   const handleEditorChange = useCallback(
     (value: string | undefined, _event) => {
       if (disabled || value === undefined) return
@@ -1016,7 +657,7 @@ export function CodeFieldComponent({
   }, [field])
 
   return (
-    <div className={cx(s.fieldWrapper, s.fieldWrapperCode)} ref={containerRef}>
+    <div className={cx(s.fieldWrapper, 'field-row', s.fieldWrapperCode)} ref={containerRef}>
       <div className={s.fieldInputWrapperCodeEditor}>
         <Suspense
           fallback={
@@ -1088,7 +729,7 @@ export function FileUrlFieldComponent({
   field: FileUrlField
   disabled: boolean
 }) {
-  const [value, setValue] = useState(guardAccessorFallback(field.value))
+  const [value, setValue] = useState(guardFunctionValue(field.value))
   const { captureStart, commitChange } = usePropertyHistory()
 
   useEffect(() => {
@@ -1244,8 +885,8 @@ export function FileUrlFieldComponent({
 
   return (
     <>
-      <div className={cx(s.fieldWrapper, 'nokey')}>
-        <label className={s.fieldLabel} htmlFor={id}>
+      <div className={cx(s.fieldWrapper, 'field-row', 'nokey')}>
+        <label className={cx(s.fieldLabel, 'field-label')} htmlFor={id}>
           {id}
         </label>
         <div className={cx('p-inputgroup', s.fieldFileInputGroup)}>
@@ -1312,7 +953,7 @@ export function MapStyleFieldComponent({
   field: MapStyleField
   disabled: boolean
 }) {
-  const [value, setValue] = useState(guardAccessorFallback(field.value))
+  const [value, setValue] = useState(guardFunctionValue(field.value))
   const { captureStart, commitChange } = usePropertyHistory()
 
   useEffect(() => {
@@ -1442,8 +1083,8 @@ export function MapStyleFieldComponent({
 
   return (
     <>
-      <div className={cx(s.fieldWrapper, 'nokey')}>
-        <label className={s.fieldLabel} htmlFor={id}>
+      <div className={cx(s.fieldWrapper, 'field-row', 'nokey')}>
+        <label className={cx(s.fieldLabel, 'field-label')} htmlFor={id}>
           {id}
         </label>
         <div className={cx('p-inputgroup', s.fieldFileInputGroup)}>
@@ -1525,7 +1166,7 @@ export function NumberFieldComponent({
   field: NumberField
   disabled: boolean
 }) {
-  const [value, setValue] = useState<number>(guardAccessorFallback(field.value))
+  const [value, setValue] = useState<number>(guardFunctionValue(field.value))
   const [stepOverride, setStepOverride] = useState(field.stepOverride)
   const { captureStart, commitChange } = usePropertyHistory()
 
@@ -1550,8 +1191,8 @@ export function NumberFieldComponent({
   )
 
   return (
-    <div className={cx(s.fieldWrapper, 'nokey')}>
-      <label className={s.fieldLabel} htmlFor={id}>
+    <div className={cx(s.fieldWrapper, 'field-row', 'nokey')}>
+      <label className={cx(s.fieldLabel, 'field-label')} htmlFor={id}>
         {id}
       </label>
       <DraggableNumberInput
@@ -1583,7 +1224,7 @@ export function BooleanFieldComponent({
   field: BooleanField
   disabled: boolean
 }) {
-  const [value, setValue] = useState<boolean>(guardAccessorFallback(field.value))
+  const [value, setValue] = useState<boolean>(guardFunctionValue(field.value))
   const { captureStart, commitChange } = usePropertyHistory()
 
   useEffect(() => {
@@ -1604,11 +1245,11 @@ export function BooleanFieldComponent({
   )
 
   return (
-    <div className={cx(s.fieldWrapper, 'nokey')}>
-      <label className={s.fieldLabel} htmlFor={id}>
+    <div className={cx(s.fieldWrapper, 'field-row', 'nokey')}>
+      <label className={cx(s.fieldLabel, 'field-label')} htmlFor={id}>
         {id}
       </label>
-      <div className={s.fieldInputWrapper}>
+      <div className={cx(s.fieldInputWrapper, 'field-input')}>
         <input
           id={id}
           className={cx('revert', s.fieldInput, s.fieldInputCheckbox)}
@@ -1631,7 +1272,7 @@ export function DateFieldComponent({
   field: DateField
   disabled: boolean
 }) {
-  const [value, setValue] = useState(guardAccessorFallback(field.value))
+  const [value, setValue] = useState(guardFunctionValue(field.value))
   const { captureStart, commitChange } = usePropertyHistory()
 
   useEffect(() => {
@@ -1657,11 +1298,11 @@ export function DateFieldComponent({
   const formatted = value?.toString?.()?.substring(0, 23) || ''
 
   return (
-    <div className={cx(s.fieldWrapper, 'nokey')}>
-      <label className={s.fieldLabel} htmlFor={id}>
+    <div className={cx(s.fieldWrapper, 'field-row', 'nokey')}>
+      <label className={cx(s.fieldLabel, 'field-label')} htmlFor={id}>
         {id}
       </label>
-      <div className={s.fieldInputWrapper}>
+      <div className={cx(s.fieldInputWrapper, 'field-input')}>
         <input
           id={id}
           type="datetime-local"
@@ -1685,7 +1326,7 @@ export function ColorFieldComponent({
   field: ColorField
   disabled: boolean
 }) {
-  const [value, setValue] = useState(guardAccessorFallback(field.value))
+  const [value, setValue] = useState(guardFunctionValue(field.value))
   const { captureStart, commitChange } = usePropertyHistory()
 
   useEffect(() => {
@@ -1704,11 +1345,11 @@ export function ColorFieldComponent({
   )
 
   return (
-    <div className={cx(s.fieldWrapper, 'nokey')}>
-      <label className={s.fieldLabel} htmlFor={id}>
+    <div className={cx(s.fieldWrapper, 'field-row', 'nokey')}>
+      <label className={cx(s.fieldLabel, 'field-label')} htmlFor={id}>
         {id}
       </label>
-      <div className={s.fieldInputWrapper}>
+      <div className={cx(s.fieldInputWrapper, 'field-input')}>
         <ColorSwatch
           value={value}
           onChange={handleColorChange}
@@ -1865,7 +1506,7 @@ export function ColorRampComponent({
     )
 
     return (
-      <div className={cx(s.fieldWrapper, 'nokey')}>
+      <div className={cx(s.fieldWrapper, 'field-row', 'nokey')}>
         <ColorSchemeDropdown
           choices={colorSchemeField.choices}
           value={colorSchemeField.value}
@@ -1884,8 +1525,8 @@ export function ColorRampComponent({
 
   // Fallback: read-only canvas (existing behavior)
   return (
-    <div className={cx(s.fieldWrapper, 'nokey')}>
-      <label className={s.fieldLabel} htmlFor={id}>
+    <div className={cx(s.fieldWrapper, 'field-row', 'nokey')}>
+      <label className={cx(s.fieldLabel, 'field-label')} htmlFor={id}>
         {id}
       </label>
       <canvas
@@ -1900,6 +1541,12 @@ export function ColorRampComponent({
   )
 }
 
+// A compound field's member, drawn with its type's widget
+function SubField({ id, field, disabled }: { id: string; field: Field; disabled: boolean }) {
+  const Input = inputComponents[(field.constructor as typeof Field).type]
+  return Input ? <Input id={id} field={field} disabled={disabled} /> : null
+}
+
 export function CompoundFieldComponent({
   id,
   field,
@@ -1911,9 +1558,9 @@ export function CompoundFieldComponent({
 }) {
   const [expanded, setExpanded] = useState(true)
   return (
-    <div className={cx(s.fieldWrapper, 'nokey')}>
+    <div className={cx(s.fieldWrapper, 'field-row', 'nokey')}>
       <button
-        className={s.fieldLabel}
+        className={cx(s.fieldLabel, 'field-label')}
         type="button"
         onClick={() => setExpanded(e => !e)}
         aria-expanded={expanded}
@@ -1926,7 +1573,7 @@ export function CompoundFieldComponent({
       {expanded ? (
         <div id={id} className={s.fieldCompoundWrapper}>
           {Object.entries(field.fields).map(([key, subField]) => (
-            <FieldComponent key={key} id={key} field={subField} disabled={disabled} />
+            <SubField key={key} id={key} field={subField} disabled={disabled} />
           ))}
         </div>
       ) : (
@@ -1944,8 +1591,8 @@ export function CompoundFieldComponent({
 
 export function EmptyFieldComponent({ id }: { id: OpId; field: Field<IField> }) {
   return (
-    <div className={cx(s.fieldWrapper, 'nokey')}>
-      <div className={s.fieldLabel}>{id}</div>
+    <div className={cx(s.fieldWrapper, 'field-row', 'nokey')}>
+      <div className={cx(s.fieldLabel, 'field-label')}>{id}</div>
     </div>
   )
 }
@@ -2243,8 +1890,8 @@ export function BezierCurveFieldComponent({
   const gridLines = generateGridLines()
 
   return (
-    <div className={cx(s.fieldWrapper, 'nokey')} ref={containerRef}>
-      <label className={s.fieldLabel} htmlFor={id}>
+    <div className={cx(s.fieldWrapper, 'field-row', 'nokey')} ref={containerRef}>
+      <label className={cx(s.fieldLabel, 'field-label')} htmlFor={id}>
         {id}
       </label>
       <div className={s.bezierCurveEditor}>
@@ -2502,391 +2149,6 @@ export function BezierCurveFieldComponent({
   )
 }
 
-// O(1) lookup for incoming connections via centralized EdgeConnectionStore
-// The store only updates when edges structurally change (add/remove), not on position updates
-function useHasIncomingConnection(nodeId: string | null, handleId: string): boolean {
-  return useEdgeConnectionStore(
-    useCallback(
-      state => {
-        if (!nodeId) return false
-        const key = `${nodeId}::${handleId}` as const
-        return state.connectionMap.has(key)
-      },
-      [nodeId, handleId]
-    )
-  )
-}
-
-// Field types that can't be driven by an expression: code/expression fields are already
-// expressions, and function fields hold accessors that come from connections
-const EXPRESSION_EXCLUDED_TYPES = new Set([
-  'code',
-  'expression',
-  'function',
-  'layer',
-  'effect',
-  'widget',
-  'view',
-  'visualization',
-])
-
-// Returns true for scalar/value field types that can show an editable input
-export function isValueField(field: Field): boolean {
-  const { type } = field.constructor as typeof Field
-  return [
-    'number',
-    'boolean',
-    'color',
-    'string',
-    'string-literal',
-    'date',
-    'vec2',
-    'vec3',
-    'geopoint-2d',
-    'geopoint-3d',
-  ].includes(type)
-}
-
-// Whether a field's type supports expression mode (connection state is checked separately)
-export function canFieldBeDriven(field: Field): boolean {
-  const { type } = field.constructor as typeof Field
-  return !EXPRESSION_EXCLUDED_TYPES.has(type)
-}
-
-// Seed the expression editor with the field's current value so entering expression mode
-// starts from something meaningful (Houdini-style)
-function toInitialExpressionSource(value: unknown): string {
-  if (typeof value === 'function' || value === undefined) return ''
-  if (typeof value === 'number' || typeof value === 'boolean') return String(value)
-  try {
-    return JSON.stringify(value) ?? ''
-  } catch {
-    return ''
-  }
-}
-
-// Enter or exit expression mode on a field, recording an undo/redo snapshot.
-// Shared by the canvas field context menu and the Properties Panel context menu.
-export function toggleFieldExpression(field: Field): void {
-  const before = captureOperatorInputs()
-  if (field.expression !== null) {
-    field.clearExpression()
-    firePropertyMutation('Remove expression', before)
-  } else {
-    field.setExpression(toInitialExpressionSource(field.value))
-    firePropertyMutation('Add expression', before)
-  }
-}
-
-// Determine the preferred reference format for a field type
-function getPreferredReferenceFormat(field: Field): ReferenceFormat {
-  // SQL code fields use mustache syntax
-  if (field instanceof CodeField && field.language === 'sql') {
-    return 'mustache'
-  }
-  // JavaScript code and expression fields use code syntax
-  if (field instanceof CodeField || field instanceof ExpressionField) {
-    return 'code'
-  }
-  // Default to code format for other fields
-  return 'code'
-}
-
-async function pasteReference(
-  field: Field,
-  operatorId: string,
-  useRelativePath: boolean
-): Promise<boolean> {
-  try {
-    const text = await navigator.clipboard.readText()
-    const parsed = parseReference(text)
-    if (!parsed) {
-      return false
-    }
-
-    // Validate reference points to valid field
-    const { opPath, namespace, fieldName } = parsed
-    const targetOp = getOp(opPath, operatorId)
-    if (!targetOp) {
-      console.warn(`Paste reference: operator not found: ${opPath}`)
-      return false
-    }
-
-    const targetField =
-      namespace === 'par' ? targetOp.inputs[fieldName] : targetOp.outputs[fieldName]
-    if (!targetField) {
-      console.warn(`Paste reference: field not found: ${fieldName}`)
-      return false
-    }
-
-    // Convert to relative path if requested
-    let finalPath = opPath
-    if (useRelativePath) {
-      finalPath = computeRelativePath(targetOp.id, operatorId)
-    }
-
-    // Determine format based on field type
-    const preferredFormat = getPreferredReferenceFormat(field)
-    const ref = { opPath: finalPath, namespace, fieldName }
-    const formattedRef = formatReference(ref, preferredFormat)
-
-    // Set expression on field
-    const before = captureOperatorInputs()
-    field.setExpression(formattedRef.trim())
-    firePropertyMutation('Paste reference', before)
-
-    return true
-  } catch (err) {
-    console.error('Failed to paste reference:', err)
-    return false
-  }
-}
-
-// Right-click context menu for a field row.
-export function FieldContextMenu({
-  field,
-  operatorId,
-  fieldName,
-  namespace,
-  position,
-  onClose,
-}: {
-  field: Field
-  operatorId: string
-  fieldName: string
-  namespace: 'par' | 'out'
-  position: { x: number; y: number }
-  onClose: () => void
-}) {
-  const isDriven = field.expression !== null
-
-  // Generate absolute code reference
-  const absoluteCodeRef = `op('${operatorId}').${namespace}.${fieldName}`
-
-  // Lazy field value serialization - only compute when copying
-  const canCopyValue = isValueField(field)
-  const getFieldValue = useCallback((): string | undefined => {
-    if (!isValueField(field)) return undefined
-    try {
-      const v = field.value
-      return typeof v === 'string' ? v : JSON.stringify(v)
-    } catch {
-      return undefined
-    }
-  }, [field])
-
-  // Check clipboard for valid reference
-  const [clipboardHasReference, setClipboardHasReference] = useState(false)
-  useEffect(() => {
-    navigator.clipboard
-      .readText()
-      .then(text => {
-        const parsed = parseReference(text)
-        setClipboardHasReference(parsed !== null)
-      })
-      .catch(() => {
-        setClipboardHasReference(false)
-      })
-  }, [])
-
-  useEffect(() => {
-    const handleKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose()
-    }
-    document.addEventListener('pointerdown', onClose)
-    document.addEventListener('keydown', handleKey)
-    return () => {
-      document.removeEventListener('pointerdown', onClose)
-      document.removeEventListener('keydown', handleKey)
-    }
-  }, [onClose])
-
-  return createPortal(
-    <div
-      className={contextMenuStyles.contextMenu}
-      style={{ top: position.y, left: position.x }}
-      onPointerDown={e => e.stopPropagation()}
-    >
-      <button
-        type="button"
-        className={contextMenuStyles.contextMenuItem}
-        disabled={!canCopyValue}
-        onClick={() => {
-          const fieldValue = getFieldValue()
-          if (fieldValue === undefined) return
-          navigator.clipboard.writeText(fieldValue)
-          onClose()
-        }}
-      >
-        Copy value
-      </button>
-      <div className={contextMenuStyles.contextMenuSeparator} />
-      <button
-        type="button"
-        className={contextMenuStyles.contextMenuItem}
-        onClick={() => {
-          navigator.clipboard.writeText(absoluteCodeRef)
-          onClose()
-        }}
-      >
-        Copy reference
-      </button>
-      {clipboardHasReference && (
-        <>
-          <button
-            type="button"
-            className={contextMenuStyles.contextMenuItem}
-            onClick={async () => {
-              const success = await pasteReference(field, operatorId, false)
-              if (success) {
-                onClose()
-              }
-            }}
-          >
-            Paste as absolute reference
-          </button>
-          <button
-            type="button"
-            className={contextMenuStyles.contextMenuItem}
-            onClick={async () => {
-              const success = await pasteReference(field, operatorId, true)
-              if (success) {
-                onClose()
-              }
-            }}
-          >
-            Paste as relative reference
-          </button>
-        </>
-      )}
-      <div className={contextMenuStyles.contextMenuSeparator} />
-      <button
-        type="button"
-        className={contextMenuStyles.contextMenuItem}
-        onClick={() => {
-          toggleFieldExpression(field)
-          onClose()
-        }}
-      >
-        {isDriven ? 'Remove expression' : 'Edit expression'}
-      </button>
-    </div>,
-    document.body
-  )
-}
-
-export function FieldComponent({
-  id: fieldId,
-  field,
-  disabled,
-  handle,
-  renderInput = true,
-}: {
-  id: OpId
-  field: Field<IField>
-  disabled: boolean
-  handle?: HandleOptions
-  renderInput?: boolean
-}) {
-  const nid = useNodeId()
-  const qualifiedFieldId = handle ? `${handle.namespace}.${fieldId}` : `par.${fieldId}`
-  const isHandleDimmed = useHandleDimmed(nid ?? '', qualifiedFieldId)
-  const hasIncomingConnection = useHasIncomingConnection(nid, qualifiedFieldId)
-
-  const { type } = field.constructor as typeof Field
-  const InputComp = inputComponents[type]
-
-  const expression = useObservable(field.expression$, field.expression)
-  const isDriven = expression !== null
-  const [contextMenuPos, setContextMenuPos] = useState<{ x: number; y: number } | null>(null)
-
-  // Expression mode only applies to input fields (par namespace)
-  const canDrive =
-    renderInput && handle?.namespace !== 'out' && canFieldBeDriven(field) && !hasIncomingConnection
-
-  const onContextMenu = useCallback(
-    (e: React.MouseEvent) => {
-      if (disabled) return
-      e.preventDefault()
-      // Keep node-level context menus (e.g. the parameter editor) from also firing
-      e.stopPropagation()
-      setContextMenuPos({ x: e.clientX, y: e.clientY })
-    },
-    [disabled]
-  )
-
-  const hasKeyframes = useTimelineStore(state => {
-    if (!nid || !renderInput) return false
-    // Check for a direct track or any sub-property track (e.g. compound fields)
-    const prefix = getFieldPath(nid, fieldId)
-    for (const [path, track] of state.tracks) {
-      if ((path === prefix || path.startsWith(`${prefix} / `)) && track.keyframes.length > 0) {
-        return true
-      }
-    }
-    return false
-  })
-
-  // Position handle at the center of the 25px label row (12.5px from top)
-  // This ensures alignment even when field content expands (CompoundProps, ListField)
-  // ListFields use MultiInputHandle with left: -3px container, so need less translateX
-  const translateX = field instanceof ListField ? '-10px' : '-17px'
-  const handleStyle = renderInput
-    ? { top: '12.5px', transform: `translateX(${translateX})` }
-    : { top: '15px', transform: `translateX(${translateX})` }
-
-  return (
-    // biome-ignore lint/a11y/noStaticElementInteractions: right-click menu is a shortcut; the same actions are reachable via the Properties Panel context menu
-    <div
-      style={{ position: 'relative' }}
-      onContextMenu={canDrive || isDriven ? onContextMenu : undefined}
-    >
-      {handle &&
-        (field instanceof ListField ? (
-          <MultiInputHandle
-            id={qualifiedFieldId}
-            field={field}
-            className={cx(handleClass(field), { [s.handleDimmed]: isHandleDimmed })}
-            style={handleStyle}
-          />
-        ) : (
-          <Handle
-            id={qualifiedFieldId}
-            className={cx(handleClass(field), { [s.handleDimmed]: isHandleDimmed })}
-            style={handleStyle}
-            type={handle.type}
-            position={Position.Left}
-          />
-        ))}
-      {renderInput && (
-        <FieldEditScope field={field}>
-          {hasIncomingConnection ? (
-            <EmptyFieldComponent id={fieldId} field={field} />
-          ) : isDriven ? (
-            <ExpressionDrivenInput id={fieldId} field={field} disabled={disabled} />
-          ) : hasKeyframes ? (
-            <div className={s.keyframedFieldInput}>
-              <InputComp id={fieldId} field={field} disabled={disabled} />
-            </div>
-          ) : (
-            <InputComp id={fieldId} field={field} disabled={disabled} />
-          )}
-        </FieldEditScope>
-      )}
-      {contextMenuPos && nid && (
-        <FieldContextMenu
-          field={field}
-          operatorId={nid}
-          fieldName={fieldId}
-          namespace={handle?.namespace ?? 'par'}
-          position={contextMenuPos}
-          onClose={() => setContextMenuPos(null)}
-        />
-      )}
-    </div>
-  )
-}
-
 // Normalize bbox value to object format for internal use
 function normalizeBboxValue(val: any) {
   if (Array.isArray(val)) {
@@ -2916,7 +2178,7 @@ export function BboxFieldComponent({
   const [value, setValue] = useState<{
     southwest: { lng: number; lat: number }
     northeast: { lng: number; lat: number }
-  }>(normalizeBboxValue(guardAccessorFallback(field.value)))
+  }>(normalizeBboxValue(guardFunctionValue(field.value)))
   const [geocodingOpen, setGeocodingOpen] = useState(false)
   const [geocodingCorner, setGeocodingCorner] = useState<'southwest' | 'northeast'>('southwest')
   const { captureStart, commitChange } = usePropertyHistory()
@@ -2973,8 +2235,8 @@ export function BboxFieldComponent({
   )
 
   return (
-    <div className={cx(s.fieldWrapper, 'nokey')}>
-      <label className={s.fieldLabel} htmlFor={id}>
+    <div className={cx(s.fieldWrapper, 'field-row', 'nokey')}>
+      <label className={cx(s.fieldLabel, 'field-label')} htmlFor={id}>
         {id}
       </label>
       <div id={id} className={s.fieldCompoundWrapper}>

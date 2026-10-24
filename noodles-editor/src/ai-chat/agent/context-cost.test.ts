@@ -8,11 +8,11 @@
 // shape, copied verbatim below.
 
 import { describe, expect, it } from 'vitest'
+import { DocStore } from '../../editor/doc-store'
 import { MCPTools } from '../mcp-tools'
 import { toolDefinitions } from '../tool-definitions'
-import type { NoodlesProject } from '../types'
 import { capToolResult, resultBudgetChars } from './result-budget'
-import { sampleProject } from './sample-project'
+import { sampleDoc, sampleProject } from './sample-project'
 import { ToolRouter } from './tool-router'
 
 // The 9 tools the old client filtered out with exposeToChat: false, plus tools that
@@ -81,9 +81,8 @@ describe('context cost', () => {
 
   it('roughly halves one list_nodes result on a 60-node project', async () => {
     const proj = sampleProject()
-    const tools = new MCPTools()
-    // The measurement only reads nodes, so a full project is not worth building
-    tools.setProject(proj as unknown as NoodlesProject)
+    const doc = sampleDoc()
+    const tools = new MCPTools(undefined, { store: new DocStore(doc), engine: () => undefined })
     const fresh = await tools.listNodes()
 
     const beforeChars = JSON.stringify(oldListNodes(proj)).length

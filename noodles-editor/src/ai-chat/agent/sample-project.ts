@@ -2,6 +2,8 @@
 // a turn costs in context. Not a real project file: it only has to look like one
 // to list_nodes.
 
+import type { EditorDoc } from '@noodles.gl/planner'
+
 const CODE = `
 // Aggregate trips by hour and normalise the counts so the ramp uses the full range
 const byHour = d3.rollups(data, v => v.length, d => new Date(d.pickup_datetime).getHours())
@@ -76,4 +78,21 @@ export function sampleProject() {
     data: { inputs: { layers: [] } },
   })
   return { version: 6, nodes, edges: [] }
+}
+
+/** The sample project's nodes as an editor document, which the graph tools read. */
+export function sampleDoc(): EditorDoc {
+  const proj = sampleProject()
+  return {
+    version: 1,
+    name: 'sample',
+    nodes: proj.nodes.map(n => ({
+      id: n.id,
+      op: n.type,
+      x: n.position?.x ?? 0,
+      y: n.position?.y ?? 0,
+      params: (n.data?.inputs ?? {}) as EditorDoc['nodes'][number]['params'],
+    })),
+    edges: [],
+  }
 }

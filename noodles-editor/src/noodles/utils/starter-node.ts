@@ -1,63 +1,54 @@
 // Picks the node an example selects when it first opens, so the properties panel shows
 // controls instead of "Select a node or edge to inspect it".
 
-import { getParentPath } from './path-utils'
+import type { EditorDoc } from '@noodles.gl/planner'
 
-type StarterNode = { id: string; type?: string }
-type StarterEdge = { source: string; target: string; targetHandle?: string | null }
-
-export type StarterNodeProject = {
-  nodes: StarterNode[]
-  edges: StarterEdge[]
-  editorSettings?: { startNode?: string }
-}
-
-const RENDERER_TYPE = 'DeckRendererOp'
-const LAYERS_HANDLE = 'par.layers'
-// How far upstream of the renderer's layers input to look through non-layer
-// operators (Switch, Concat and the like) for a layer
+const LAYERS_PORT = 'layers'
+// How far upstream of the deck's layers input to look through non-layer operators (Switch,
+// a subnet) for a layer
 const MAX_UPSTREAM_DEPTH = 4
 
-const isRootNode = (id: string) => (getParentPath(id) ?? '/') === '/'
-
 // Returns the id of the node to select, or null for no selection.
-// An example can name its own with `editorSettings.startNode`. Otherwise this is the first
-// layer feeding the root DeckRenderer's `layers` input, in edge order, looking upstream
+// An example can name its own with `meta.startNode`, a root node's id or name. Otherwise this
+// is the first layer feeding the root deck's `layers` input, in order, looking upstream
 // through operators that pass layers along. Only root-level nodes qualify, since the graph
 // opens at the root.
 export function findStarterNodeId(
-  project: StarterNodeProject,
-  isLayerType: (type: string) => boolean
+  doc: Pick<EditorDoc, 'nodes' | 'edges' | 'meta'>,
+  isLayerOp: (op: string) => boolean
 ): string | null {
-  const nodesById = new Map(project.nodes.map(node => [node.id, node]))
+  const roots = doc.nodes.filter(node => !node.parent)
+  const override = doc.meta?.startNode
+  if (typeof override === 'string') {
+    const named = roots.find(node => node.id === override) ?? roots.find(n => n.name === override)
+    if (named) return named.id
+  }
 
-  const override = project.editorSettings?.startNode
-  if (override && nodesById.has(override) && isRootNode(override)) return override
-
-  const renderer = project.nodes.find(node => node.type === RENDERER_TYPE && isRootNode(node.id))
-  if (!renderer) return null
-
+  const deck = roots.find(node => node.op === 'deck')
+  if (!deck) return null
+  const byId = new Map(roots.map(node => [node.id, node]))
   const incoming = new Map<string, string[]>()
-  for (const edge of project.edges) {
+  for (const edge of doc.edges) {
     const sources = incoming.get(edge.target) ?? []
     sources.push(edge.source)
     incoming.set(edge.target, sources)
   }
 
   // Breadth-first from the layers input, so a layer wired straight in wins over one
-  // reached through a Switch, and edge order breaks ties
-  let frontier = project.edges
-    .filter(edge => edge.target === renderer.id && edge.targetHandle === LAYERS_HANDLE)
+  // reached through a Switch, and the deck's layer order breaks ties
+  let frontier = doc.edges
+    .filter(edge => edge.target === deck.id && edge.targetPort === LAYERS_PORT)
+    .sort((a, b) => (a.index ?? 0) - (b.index ?? 0))
     .map(edge => edge.source)
-  const visited = new Set<string>([renderer.id])
+  const visited = new Set<string>([deck.id])
   for (let depth = 0; depth < MAX_UPSTREAM_DEPTH && frontier.length > 0; depth++) {
     const next: string[] = []
     for (const id of frontier) {
       if (visited.has(id)) continue
       visited.add(id)
-      const node = nodesById.get(id)
+      const node = byId.get(id)
       if (!node) continue
-      if (node.type && isLayerType(node.type) && isRootNode(id)) return id
+      if (isLayerOp(node.op)) return id
       next.push(...(incoming.get(id) ?? []))
     }
     frontier = next

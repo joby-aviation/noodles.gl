@@ -1,9 +1,22 @@
+import { fileURLToPath } from 'node:url'
 import { playwright } from '@vitest/browser-playwright'
 import { nodePolyfills } from 'vite-plugin-node-polyfills'
 import { configDefaults, defineConfig } from 'vitest/config'
 
+// The planner is a workspace package; resolve it to source so an edit needs no build.
+const plannerAlias = {
+  '@noodles.gl/planner': fileURLToPath(
+    new URL('../packages/planner/src/index.ts', import.meta.url)
+  ),
+  // deck's S2 cell outline, which its package does not export (as in vite.config.js)
+  'deck-s2-utils': fileURLToPath(
+    new URL('../node_modules/@deck.gl/geo-layers/dist/s2-layer/s2-utils.js', import.meta.url)
+  ),
+}
+
 export default defineConfig({
   resolve: {
+    alias: plannerAlias,
     dedupe: ['react', 'react-dom'],
   },
   test: {
@@ -12,7 +25,7 @@ export default defineConfig({
         extends: true,
         test: {
           name: 'browser',
-          exclude: [...configDefaults.exclude, 'scripts/**'],
+          exclude: [...configDefaults.exclude, 'scripts/**', 'bench/**', '**/*.node.test.ts'],
           setupFiles: ['src/setupTests.ts'],
           browser: {
             provider: playwright({
@@ -30,12 +43,19 @@ export default defineConfig({
           },
         },
       },
-      // CLI scripts need real Node APIs (child processes, the file system)
+      // CLI scripts and the agent bench need real Node APIs (child processes, the file system,
+      // the Bedrock SDK). Runtime tests run real SQL through duckdb-wasm's Node build: no
+      // browser, and no node polyfills, which would replace the `node:module` the Node build
+      // loads through.
       {
+        resolve: { alias: plannerAlias },
         test: {
           name: 'node',
           environment: 'node',
-          include: ['scripts/**/*.test.ts'],
+          include: ['scripts/**/*.test.ts', 'bench/**/*.test.ts', 'src/**/*.node.test.ts'],
+          // These run real DuckDB queries over real example files: seconds each, more when the
+          // machine is busy
+          testTimeout: 30_000,
         },
       },
     ],

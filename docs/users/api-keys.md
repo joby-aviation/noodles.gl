@@ -17,7 +17,7 @@ AI provider keys (Anthropic and OpenRouter) are the exception: they come only fr
 
 | Key | Purpose | Required For |
 |-----|---------|--------------|
-| Mapbox Access Token | Basemaps, directions | MaplibreBasemapOp with Mapbox styles |
+| Mapbox Access Token | Basemaps, directions | Mapbox styles in the deck node's Map style URL |
 | Google Maps API Key | Places and routing | Create Point wizard, traffic-aware driving, transit directions |
 | Anthropic API Key | Claude AI assistant | [AI chat features](./ai-assistant.md) |
 | OpenRouter API Key | AI assistant via OpenRouter | [AI chat features](./ai-assistant.md) |

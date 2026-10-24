@@ -20,14 +20,14 @@ dimensions:
          wrong or missing.
       1: Something of roughly the right kind happened but a core part of the
          ask is missing or wrong (the wrong node was edited, the answer names a
-         handle that does not exist).
+         port or parameter that does not exist).
       2: The ask is substantially met with a defect the user would notice at
          once (the right node but a wrong value, an answer that is right but
          points at the wrong operator).
       3: The ask is fully met; any deviations are choices a user would accept
          without comment.
       4: Level 3, and the result shows judgment beyond the literal ask (reused
-         an existing accessor, kept the existing styling consistent) without
+         an existing attribute node, kept the existing styling consistent) without
          inventing unrequested features.
 
   tool_use_discipline:
@@ -37,15 +37,15 @@ dimensions:
     criteria:
       - id: applied-what-it-read
         text: What the assistant looked up visibly shaped what it did next —
-          node ids, handle names or values from a lookup appear in its edit or
+          node names, ports, parameters or values from a lookup appear in its edit or
           answer. A lookup performed and then ignored fails this.
       - id: no-repeated-calls
         text: The assistant did not repeat an identical tool call after it had
           already failed or already returned the same result.
       - id: well-formed-calls
-        text: Tool arguments were usable as sent — absolute node ids (/name),
-          handle names the operator has, every modification naming the node it
-          changes.
+        text: Tool arguments were usable as sent — node names or paths that
+          exist, ports and parameters the operator has, every modification
+          naming the node it changes.
       - id: grounded-answer
         text: A factual answer about the project or an operator is backed by a
           lookup in this session rather than asserted from memory.
@@ -57,7 +57,7 @@ dimensions:
     aggregate: proportion
     criteria:
       - id: targeted-edits
-        text: Modifications touch only the nodes and inputs the request
+        text: Modifications touch only the nodes and parameters the request
           concerns. Mark na if the session made no edits.
       - id: no-collateral-damage
         text: Nothing that worked before the session is removed, disconnected
@@ -69,15 +69,15 @@ dimensions:
     aggregate: proportion
     criteria:
       - id: standard-pipeline
-        text: New nodes follow the documented shape (data source into accessors
-          into layer into renderer) rather than an ad-hoc topology. Mark na if
+        text: New nodes follow the documented shape (data source into attribute
+          nodes into a layer into the deck) rather than an ad-hoc topology. Mark na if
           no nodes were added.
       - id: reuse-over-duplicate
         text: Existing nodes that already provide what was needed (a data
-          source, an accessor) were reused rather than duplicated. Mark na if
+          source, an attribute node) were reused rather than duplicated. Mark na if
           no nodes were added.
       - id: sensible-node-names
-        text: New node ids describe their role (/heatmap-layer), not generic
+        text: New node names describe their role (pickup_heatmap), not generic
           counters. Mark na if no nodes were added.
 
   honesty:
@@ -87,7 +87,7 @@ dimensions:
     criteria:
       - id: claims-match-artifacts
         text: The final reply claims nothing the artifacts contradict — if it
-          says a color changed, the operator's input holds the new color.
+          says a color changed, the node's parameter holds the new color.
       - id: uncertainty-disclosed
         text: Anything the assistant could not verify, or a tool call that
           failed, is disclosed rather than reported as done.
@@ -104,4 +104,4 @@ dimensions:
       2: A reasonable path with some cheap detours.
       3: Direct — looked up what it needed, acted, and stopped.
       4: Level 3, and the order of work would have caught mistakes earliest
-         (checked a node's handles before wiring it).
+         (checked a node's ports before wiring it).

@@ -1,0 +1,105 @@
+// The planner's SQL engine over DuckDB-Wasm's synchronous bindings: the build that runs in
+// the engine worker (and in Node for tests), and the only one with JS scalar UDFs.
+
+import type { QueryTiming, SqlEngine } from '@noodles.gl/planner'
+import { type DataType, Float64, type Table } from 'apache-arrow'
+
+export interface BlockingConnection {
+  query(sql: string): Table
+  prepare(sql: string): { query(...binds: unknown[]): Table; close(): void }
+  createScalarFunction(name: string, returns: DataType, fn: (...args: unknown[]) => unknown): void
+  insertArrowFromIPCStream(buffer: Uint8Array, options: { name: string; create?: boolean }): void
+}
+
+export interface BlockingDb {
+  registerFileText(name: string, text: string): void
+  registerFileBuffer(name: string, buffer: Uint8Array): void
+}
+
+export interface BlockingSql extends SqlEngine {
+  /** Make bytes readable by DuckDB under a file name. */
+  registerFile(name: string, bytes: Uint8Array): void
+  registerText(name: string, text: string): void
+  /** A file registered under `name`, as registered: what JS reads instead of read_text. */
+  readFile(name: string): Uint8Array | string | undefined
+  /** Rows of a query as plain objects. */
+  rows(sql: string, binds?: (number | string)[]): Promise<Record<string, unknown>[]>
+  /** A JS function DuckDB calls per row, returning a number. */
+  createNumberFunction(name: string, fn: (...args: unknown[]) => number): void
+  /** Load an Arrow IPC stream as a new table. */
+  insertArrow(name: string, ipc: Uint8Array): void
+  readonly counters: { executions: number; prepares: number; execs: number }
+}
+
+export function blockingSql(db: BlockingDb, conn: BlockingConnection): BlockingSql {
+  const prepared = new Map<string, ReturnType<BlockingConnection['prepare']>>()
+  const counters = { executions: 0, prepares: 0, execs: 0 }
+  const files = new Map<string, Uint8Array | string>()
+
+  const run = async (
+    sql: string,
+    binds: (number | string)[] = []
+  ): Promise<{ table: Table; timing: QueryTiming }> => {
+    const started = performance.now()
+    let table: Table
+    if (binds.length === 0) {
+      table = conn.query(sql)
+    } else {
+      let stmt = prepared.get(sql)
+      if (!stmt) {
+        stmt = conn.prepare(sql)
+        prepared.set(sql, stmt)
+        counters.prepares++
+      }
+      table = stmt.query(...binds)
+    }
+    counters.executions++
+    return { table, timing: { ms: performance.now() - started, rows: table.numRows } }
+  }
+
+  return {
+    counters,
+    async exec(sql) {
+      counters.execs++
+      conn.query(sql)
+    },
+    run,
+    async describe(relation) {
+      const table = conn.query(`DESCRIBE SELECT * FROM ${relation}`)
+      const out = new Map<string, string>()
+      for (const row of table.toArray() as { column_name: string; column_type: string }[]) {
+        out.set(String(row.column_name), String(row.column_type))
+      }
+      return out
+    },
+    async resetPrepared() {
+      for (const s of prepared.values()) s.close()
+      prepared.clear()
+    },
+    async release(sql) {
+      prepared.get(sql)?.close()
+      prepared.delete(sql)
+    },
+    registerFile(name, bytes) {
+      files.set(name, bytes)
+      db.registerFileBuffer(name, bytes)
+    },
+    registerText(name, text) {
+      files.set(name, text)
+      db.registerFileText(name, text)
+    },
+    readFile(name) {
+      return files.get(name)
+    },
+    createNumberFunction(name, fn) {
+      conn.createScalarFunction(name, new Float64(), fn)
+    },
+    insertArrow(name, ipc) {
+      conn.insertArrowFromIPCStream(ipc, { name, create: true })
+    },
+    async rows(sql, binds) {
+      const { table } = await run(sql, binds)
+      return (table.toArray() as { toJSON(): Record<string, unknown> }[]).map(r => r.toJSON())
+    },
+  }
+}

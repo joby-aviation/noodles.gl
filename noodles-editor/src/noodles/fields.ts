@@ -25,18 +25,14 @@ export interface IField<
   schema: S
   value: z.output<S>
   defaultValue?: z.output<S>
-  accessor?: boolean
   op?: Operator<IOperator>
   setValue(value: z.input<S>): void
-  addConnection<F extends Field>(id: string, field: F): void
-  removeConnection(id: string, connectionType: 'reference' | 'value'): void
   serialize(): z.infer<S>
 }
 
 type BaseFieldOptions = {
   optional?: boolean
   transform?: (val: unknown, ...args: unknown[]) => unknown
-  accessor?: boolean
   showByDefault?: boolean // Defaults to true. Set to false to hide field by default in UI.
   useDeepEquality?: boolean // Use deep equality when comparing values to prevent unnecessary updates
   maxDepth?: number // Maximum depth for deep equality checks (Infinity = unlimited)
@@ -81,28 +77,6 @@ type CodeFieldOptions = BaseFieldOptions & {
   language?: 'javascript' | 'json' | 'sql' | 'overpass-ql'
 }
 
-// Serialized form of a field driven by an expression, e.g. { $expr: "op('/time').out.seconds * 2" }
-export type SerializedExpression = { $expr: string }
-
-export function isSerializedExpression(value: unknown): value is SerializedExpression {
-  return (
-    typeof value === 'object' &&
-    value !== null &&
-    '$expr' in value &&
-    typeof (value as SerializedExpression).$expr === 'string'
-  )
-}
-
-// The expression engine (utils/field-expressions.ts) registers itself here so Field
-// doesn't import the evaluator directly — that would create an import cycle through
-// operators.ts (which needs fnWithSource, freeExports, and the op store).
-type FieldExpressionEvaluator = (field: Field) => void
-let fieldExpressionEvaluator: FieldExpressionEvaluator | null = null
-
-export function registerFieldExpressionEvaluator(evaluator: FieldExpressionEvaluator | null) {
-  fieldExpressionEvaluator = evaluator
-}
-
 // Field has a lot going on. It's both a type and a value. It's meant to be connected to
 // or own its own data, and it's meant to be able to interpolate over time. It's also meant
 // to be able to be serialized and deserialized. It's also meant to serve as a template for
@@ -126,10 +100,6 @@ export abstract class Field<
   // A Zod schema for the field
   schema!: S
 
-  // Can the field be used as an accessor? This is used to determine if the field can be used
-  // as a callback function. For example, `getPosition`, `getLineColor`, `getFillColor` etc.
-  accessor = false
-
   // Should this field be shown by default in the UI? Defaults to true.
   showByDefault = true
 
@@ -149,20 +119,6 @@ export abstract class Field<
 
   // Allows this field to be used with Theatre, and debugging with zod
   pathToProps: string[] = []
-
-  // Expression mode ("drivers"): when set, the field's value is computed by evaluating
-  // a JavaScript expression instead of holding a literal. Null means literal mode.
-  expression$ = new BehaviorSubject<string | null>(null)
-
-  // Last evaluation error (null when the expression evaluated cleanly or in literal mode)
-  expressionError$ = new BehaviorSubject<string | null>(null)
-
-  // Teardown for engine-managed subscriptions (e.g. timeline reactivity); owned by the engine
-  expressionCleanup: (() => void) | null = null
-
-  get expression(): string | null {
-    return this.expression$.value
-  }
 
   constructor(initialValue?: z.input<S> | undefined | Partial<O>, options?: Partial<O>) {
     // This is fine since we set the value immediately after
@@ -197,15 +153,8 @@ export abstract class Field<
     }
   }
 
-  // Wrap schema in additional functionality like optional, transform, accessor etc.
-  enhanceSchema({
-    accessor,
-    optional,
-    transform,
-    showByDefault,
-    useDeepEquality,
-    maxDepth,
-  }: Partial<O>) {
+  // Wrap schema in additional functionality like optional, transform etc.
+  enhanceSchema({ optional, transform, showByDefault, useDeepEquality, maxDepth }: Partial<O>) {
     let schema = this.schema
 
     // Set showByDefault (defaults to true if not specified)
@@ -223,30 +172,7 @@ export abstract class Field<
       this.maxDepth = maxDepth
     }
 
-    if (accessor) {
-      this.accessor = true
-      schema = schema.or(
-        z
-          .function()
-          .input(
-            z.union([
-              z.tuple([]),
-              z.tuple([z.unknown()]),
-              z.tuple([z.unknown(), z.unknown()]),
-              z.tuple([z.unknown(), z.unknown(), z.unknown()]),
-            ])
-          )
-          .output(z.unknown())
-      )
-
-      if (transform) {
-        schema = schema.transform((val: unknown) => {
-          return typeof val === 'function'
-            ? (...args: unknown[]) => transform(val(...args))
-            : transform(val)
-        }) as unknown as S
-      }
-    } else if (transform) {
+    if (transform) {
       schema = schema.transform(transform) as unknown as S
     }
 
@@ -267,92 +193,16 @@ export abstract class Field<
     if (parsed.success) {
       debugSetValue('%s: %O -> %O', path, oldValue, parsed.data)
       this.next(parsed.data)
-
-      // Mark the owning operator as dirty
-      this.op?.markDirty(this)
     } else {
       debugSetValue('%s: %O -> %O [PARSE FAILED]', path, oldValue, value)
       debugSetValue('Parse error', parsed.error.issues)
     }
   }
 
-  // Enter expression mode. The value becomes the result of evaluating `expr`;
-  // re-evaluation is triggered by reference connections (see addConnection) and,
-  // for timeline-dependent expressions, by the engine's timeline subscription.
-  setExpression(expr: string): void {
-    this.expressionCleanup?.()
-    this.expressionCleanup = null
-    this.expression$.next(expr)
-    if (fieldExpressionEvaluator) {
-      fieldExpressionEvaluator(this)
-    } else {
-      debugSetValue('%s: no expression evaluator registered', this.pathToProps.join('.'))
-    }
-  }
-
-  // Exit expression mode, keeping the last evaluated value as the new literal value
-  clearExpression(): void {
-    if (this.expression === null) return
-    this.expressionCleanup?.()
-    this.expressionCleanup = null
-    this.expression$.next(null)
-    this.expressionError$.next(null)
-  }
-
-  // Re-run the expression (no-op in literal mode)
-  evaluateExpression(): void {
-    if (this.expression !== null) {
-      fieldExpressionEvaluator?.(this)
-    }
-  }
-
-  addConnection<F extends Field>(
-    id: string,
-    field: F,
-    connectionType: 'reference' | 'value' = 'value'
-  ) {
-    if (this.subscriptions.has(id)) {
-      return
-    }
-
-    const subscription = field.subscribe(value => {
-      if (connectionType === 'value') {
-        this.setValue(value)
-      } else if (this.expression !== null) {
-        // Reference feeding an expression-driven field: recompute the value
-        this.evaluateExpression()
-      } else {
-        this.next(this.value)
-        // For reference connections, also mark dirty
-        this.op?.markDirty(this)
-      }
-    })
-    this.subscriptions.set(id, subscription)
-    return subscription
-  }
-
-  removeConnection(id: string, connectionType: 'reference' | 'value' = 'value') {
-    if (
-      connectionType === 'value' &&
-      (this instanceof DataField ||
-        this instanceof ExpressionField ||
-        this instanceof CodeField ||
-        this instanceof UnknownField)
-    ) {
-      this.setValue(this.defaultValue)
-    }
-    const subscription = this.subscriptions.get(id)
-    subscription?.unsubscribe()
-    this.subscriptions.delete(id)
-  }
-
   // This is used to serialize the field for project files.
   // Override when the field's value is not the same as the serialized value.
   // e.g. CodeField should serialize the template string with handlebar references, not the resolved value.
   serialize() {
-    if (this.expression !== null) {
-      return { $expr: this.expression }
-    }
     return this.value
   }
 
@@ -1425,26 +1275,6 @@ export class CompoundPropsField extends Field<
       }
     }
   }
-
-  addConnection<F extends IField<z.ZodType<unknown, z.ZodTypeDef, unknown>>>(
-    id: string,
-    field: F,
-    connectionType: 'reference' | 'value' = 'value'
-  ): Subscription | undefined {
-    if (this.subscriptions.has(id)) {
-      return
-    }
-
-    const subscription = field.subscribe(_value => {
-      if (connectionType === 'value') {
-        this.next(field.value)
-      } else {
-        this.next(this.value)
-      }
-    })
-    this.subscriptions.set(id, subscription)
-    return subscription
-  }
 }
 
 export type NumberStepOverrides = Record<string, number>
@@ -1510,8 +1340,6 @@ export class ListField<F extends Field> extends Field<
   static type = 'list'
   static defaultValue = []
 
-  fields = new Map<string, F>()
-
   createSchema({ subschema }: { subschema: z.Schema<F['schema']> }) {
     return z.array(subschema)
   }
@@ -1522,49 +1350,6 @@ export class ListField<F extends Field> extends Field<
   ) {
     const subschema = field?.schema || z.unknown()
     super([], { subschema, ...options })
-  }
-
-  // Overrides the default setValue to handle a list of fields
-  addConnection(id: string, field: F, connectionType: 'reference' | 'value' = 'value') {
-    // Expressions may assemble a list from several upstream values. A reference
-    // triggers evaluation; only value connections contribute items to the list.
-    if (connectionType === 'reference') {
-      return super.addConnection(id, field, connectionType)
-    }
-    if (this.subscriptions.has(id)) {
-      return
-    }
-
-    this.fields.set(id, field)
-
-    const subscription = field.subscribe(_value => {
-      this.setValue(Array.from(this.fields.values()).map(f => f.value) as F[])
-    })
-    this.subscriptions.set(id, subscription)
-    return subscription
-  }
-
-  removeConnection(id: string, connectionType: 'reference' | 'value' = 'value'): void {
-    super.removeConnection(id, connectionType)
-    if (this.fields.delete(id)) {
-      this.setValue(Array.from(this.fields.values()).map(f => f.value) as F[])
-    }
-  }
-
-  // Idempotently reorder connections to match orderedIds (typically the edge array order).
-  // Unknown ids are ignored; connections not listed keep their relative order at the end.
-  setConnectionOrder(orderedIds: string[]): void {
-    const currentIds = Array.from(this.fields.keys())
-    const listed = orderedIds.filter(id => this.fields.has(id))
-    const unlisted = currentIds.filter(id => !orderedIds.includes(id))
-    const nextIds = [...listed, ...unlisted]
-
-    if (nextIds.every((id, i) => id === currentIds[i])) {
-      return
-    }
-
-    this.fields = new Map(nextIds.map(id => [id, this.fields.get(id) as F]))
-    this.setValue(Array.from(this.fields.values()).map(f => f.value) as F[])
   }
 }
 
@@ -2034,24 +1819,14 @@ export class BezierCurveField extends Field<z.ZodType<BezierCurveData>> {
   }
 }
 
-// Mapping of field type strings to Field class constructors
-// Used for creating custom fields dynamically
-// Apply a serialized value to a field, routing expression payloads ({ $expr }) to
-// setExpression and everything else through the field's normal deserialize + setValue path.
-// Used by project loading and undo/redo restore. Feature-detects the expression methods
-// since some callers pass minimal IField implementations (e.g. test mocks).
+// Apply a serialized value to a field through its deserialize and setValue
 export function applySerializedFieldValue(field: Field, value: unknown): void {
-  if (isSerializedExpression(value) && typeof field.setExpression === 'function') {
-    field.setExpression(value.$expr)
-    return
-  }
-  if (typeof field.clearExpression === 'function' && field.expression != null) {
-    field.clearExpression()
-  }
   const ctor = field.constructor as typeof Field & { deserialize?: (value: unknown) => unknown }
   field.setValue(typeof ctor.deserialize === 'function' ? ctor.deserialize(value) : value)
 }
 
+// Mapping of field type strings to Field class constructors
+// Used for creating custom fields dynamically
 export const fieldTypeToClass = {
   number: NumberField,
   string: StringField,

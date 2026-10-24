@@ -1,7 +1,8 @@
-import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { ReactFlowProvider } from '@xyflow/react'
 import { Temporal } from 'temporal-polyfill'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { hexToColor } from '../../utils/color'
 import {
   BezierCurveField,
   BooleanField,
@@ -17,10 +18,6 @@ import {
   Vec2Field,
   Vec3Field,
 } from '../fields'
-import { BitmapLayerOp, NumberOp, StringOp } from '../operators'
-import { clearOps, setOp } from '../store'
-import { FieldEditScope } from '../utils/field-edit-analytics'
-import { applyOperatorInputs, registerPropertyMutationCallback } from '../utils/property-history'
 import {
   BezierCurveFieldComponent,
   BooleanFieldComponent,
@@ -28,7 +25,6 @@ import {
   CompoundFieldComponent,
   DateFieldComponent,
   EmptyFieldComponent,
-  FieldComponent,
   NumberFieldComponent,
   TextFieldComponent,
   VectorFieldComponent,
@@ -37,7 +33,6 @@ import {
 describe('NumberFieldComponent', () => {
   afterEach(() => {
     cleanup()
-    clearOps()
     vi.restoreAllMocks()
   })
 
@@ -142,47 +137,44 @@ describe('NumberFieldComponent', () => {
   })
 
   it('derives the Number operator step from its current decimal precision', () => {
-    const op = new NumberOp('/number', { val: 0.25 })
-    render(<NumberFieldComponent id="val" field={op.inputs.val} disabled={false} />)
+    const val = new NumberField(0.25, { step: 1, deriveStepFromValue: true })
+    render(<NumberFieldComponent id="val" field={val} disabled={false} />)
 
     expect(screen.getByRole('spinbutton')).toHaveAttribute('step', '0.01')
   })
 
   it('increments a decimal Number operator by its derived precision', () => {
-    const op = new NumberOp('/number', { val: 0.25 })
-    render(<NumberFieldComponent id="val" field={op.inputs.val} disabled={false} />)
+    const val = new NumberField(0.25, { step: 1, deriveStepFromValue: true })
+    render(<NumberFieldComponent id="val" field={val} disabled={false} />)
     const input = screen.getByRole('spinbutton') as HTMLInputElement
 
     fireEvent.focus(input)
     input.stepUp()
     fireEvent.input(input)
 
-    expect(op.inputs.val.value).toBe(0.26)
+    expect(val.value).toBe(0.26)
     expect(input).toHaveAttribute('step', '0.01')
   })
 
   it('reacts to a restored explicit step override', () => {
-    const op = new NumberOp('/number', { val: 0.25 })
-    render(<NumberFieldComponent id="val" field={op.inputs.val} disabled={false} />)
+    const val = new NumberField(0.25, { step: 1, deriveStepFromValue: true })
+    render(<NumberFieldComponent id="val" field={val} disabled={false} />)
 
-    act(() => op.inputs.val.setStepOverride(0.001))
+    act(() => val.setStepOverride(0.001))
 
     expect(screen.getByRole('spinbutton')).toHaveAttribute('step', '0.001')
   })
 
   it('persists the precision selected while scrubbing', () => {
-    const op = new NumberOp('/number', { val: 0.25 })
-    setOp(op.id, op)
-    const { container } = render(
-      <NumberFieldComponent id="val" field={op.inputs.val} disabled={false} />
-    )
+    const val = new NumberField(0.25, { step: 1, deriveStepFromValue: true })
+    const { container } = render(<NumberFieldComponent id="val" field={val} disabled={false} />)
     const wrapper = container.querySelector('[role="group"]') as HTMLElement
 
     fireEvent.mouseDown(wrapper, { clientX: 100, clientY: 100 })
     fireEvent.mouseMove(document, { clientX: 100, clientY: 120 })
     fireEvent.mouseMove(document, { clientX: 120, clientY: 120 })
 
-    expect(op.inputs.val.stepOverride).toBe(0.001)
+    expect(val.stepOverride).toBe(0.001)
     fireEvent.mouseUp(document)
   })
 })
@@ -190,7 +182,6 @@ describe('NumberFieldComponent', () => {
 describe('NumberFieldComponent with typical operator patterns', () => {
   afterEach(() => {
     cleanup()
-    clearOps()
     vi.restoreAllMocks()
   })
 
@@ -257,8 +248,6 @@ describe('NumberFieldComponent with typical operator patterns', () => {
 describe('TextFieldComponent', () => {
   afterEach(() => {
     cleanup()
-    clearOps()
-    registerPropertyMutationCallback(undefined)
     vi.restoreAllMocks()
   })
 
@@ -373,34 +362,6 @@ describe('TextFieldComponent', () => {
     expect(select).toBeDisabled()
   })
 
-  it('commits a typeahead suggestion once without blurring the input', () => {
-    const field = new StringLiteralField('option1', {
-      values: ['option1', 'option2'],
-      freeform: true,
-    })
-    const op = new StringOp('/string')
-    ;(op.inputs as unknown as { val: StringLiteralField }).val = field
-    setOp(op.id, op)
-    const onMutation = vi.fn()
-    registerPropertyMutationCallback(onMutation)
-
-    render(<TextFieldComponent id="test-field" field={field} disabled={false} />)
-
-    const input = screen.getByRole('combobox')
-    input.focus()
-    fireEvent.change(input, { target: { value: '' } })
-    const listbox = screen.getByRole('listbox')
-    fireEvent.mouseDown(within(listbox).getByRole('option', { name: 'option2' }))
-
-    expect(field.value).toBe('option2')
-    expect(onMutation).toHaveBeenCalledTimes(1)
-    expect(document.activeElement).toBe(input)
-    expect(screen.queryByRole('listbox')).not.toBeInTheDocument()
-
-    fireEvent.blur(input)
-    expect(onMutation).toHaveBeenCalledTimes(1)
-  })
-
   it('handles special characters in string values', () => {
     const field = new StringField('hello <script>alert("xss")</script>')
     render(<TextFieldComponent id="test-field" field={field} disabled={false} />)
@@ -422,7 +383,6 @@ describe('TextFieldComponent', () => {
 describe('BooleanFieldComponent', () => {
   afterEach(() => {
     cleanup()
-    clearOps()
     vi.restoreAllMocks()
   })
 
@@ -507,7 +467,6 @@ describe('BooleanFieldComponent', () => {
 describe('DateFieldComponent', () => {
   afterEach(() => {
     cleanup()
-    clearOps()
     vi.restoreAllMocks()
   })
 
@@ -580,7 +539,6 @@ describe('DateFieldComponent', () => {
 describe('EmptyFieldComponent', () => {
   afterEach(() => {
     cleanup()
-    clearOps()
     vi.restoreAllMocks()
   })
 
@@ -609,7 +567,6 @@ describe('EmptyFieldComponent', () => {
 describe('VectorFieldComponent', () => {
   afterEach(() => {
     cleanup()
-    clearOps()
     vi.restoreAllMocks()
   })
 
@@ -791,7 +748,6 @@ describe('VectorFieldComponent', () => {
 describe('CompoundFieldComponent', () => {
   afterEach(() => {
     cleanup()
-    clearOps()
     vi.restoreAllMocks()
   })
 
@@ -945,7 +901,6 @@ describe('CompoundFieldComponent', () => {
 describe('BezierCurveFieldComponent', () => {
   afterEach(() => {
     cleanup()
-    clearOps()
     vi.restoreAllMocks()
   })
 
@@ -972,7 +927,6 @@ describe('BezierCurveFieldComponent', () => {
 describe('ColorFieldComponent', () => {
   afterEach(() => {
     cleanup()
-    clearOps()
     vi.restoreAllMocks()
   })
 
@@ -993,10 +947,14 @@ describe('ColorFieldComponent', () => {
     expect(label).toBeInTheDocument()
   })
 
-  // BitmapLayerOp's transparentColor and tintColor are optional and default to no value.
-  // Showing one in the properties panel used to throw "value is not iterable".
+  // An optional color with no default (the bitmap layer's tint, say) has no value. Showing
+  // one in the properties panel used to throw "value is not iterable".
   it('renders an optional color with no value set', () => {
-    const field = new BitmapLayerOp('/bitmap-layer').inputs.tintColor
+    const field = new ColorField(null, {
+      optional: true,
+      transform: hexToColor,
+      showByDefault: false,
+    })
     expect(field.value ?? null).toBeNull()
 
     render(<ColorFieldComponent id="tintColor" field={field} disabled={false} />)
@@ -1036,7 +994,6 @@ describe('ColorFieldComponent', () => {
 describe('NumberFieldComponent edge cases', () => {
   afterEach(() => {
     cleanup()
-    clearOps()
     vi.restoreAllMocks()
   })
 
@@ -1105,7 +1062,6 @@ describe('NumberFieldComponent edge cases', () => {
 describe('NumberFieldComponent editing behavior', () => {
   afterEach(() => {
     cleanup()
-    clearOps()
     vi.restoreAllMocks()
   })
 
@@ -1165,125 +1121,5 @@ describe('NumberFieldComponent editing behavior', () => {
     fireEvent.change(input, { target: { value: '0.5' } })
 
     expect(field.value).toBe(0.5)
-  })
-})
-
-describe('undo history for a focused field', () => {
-  let text: StringOp
-  let other: NumberOp
-  let onMutation: ReturnType<typeof vi.fn>
-
-  beforeEach(() => {
-    text = new StringOp('/label')
-    other = new NumberOp('/animated')
-    setOp(text.id, text)
-    setOp(other.id, other)
-    onMutation = vi.fn()
-    registerPropertyMutationCallback(onMutation)
-    render(
-      <ReactFlowProvider>
-        <FieldEditScope source="properties_panel" operatorType="StringOp">
-          <FieldComponent id="val" field={text.inputs.val} disabled={false} />
-        </FieldEditScope>
-      </ReactFlowProvider>
-    )
-  })
-
-  afterEach(() => {
-    cleanup()
-    clearOps()
-    registerPropertyMutationCallback(undefined)
-  })
-
-  it('records no undo step when only another input changed while focused', () => {
-    const textbox = screen.getByRole('textbox')
-    fireEvent.focus(textbox)
-    // Keyframe playback moves another operator's input while the text field has focus
-    act(() => other.inputs.val.setValue(42))
-    fireEvent.blur(textbox)
-
-    expect(onMutation).not.toHaveBeenCalled()
-  })
-
-  it('records one undo step for an edit of the focused field', () => {
-    const textbox = screen.getByRole('textbox')
-    fireEvent.focus(textbox)
-    act(() => other.inputs.val.setValue(42))
-    fireEvent.change(textbox, { target: { value: 'hello' } })
-    fireEvent.blur(textbox)
-
-    expect(onMutation).toHaveBeenCalledTimes(1)
-    const [, before, after] = onMutation.mock.calls[0]
-
-    // Playback keeps moving the other input; undo and redo leave it where playback put it
-    act(() => other.inputs.val.setValue(7))
-    act(() => applyOperatorInputs(before))
-    expect(text.inputs.val.value).toBe('')
-    expect(other.inputs.val.value).toBe(7)
-    act(() => applyOperatorInputs(after))
-    expect(text.inputs.val.value).toBe('hello')
-    expect(other.inputs.val.value).toBe(7)
-  })
-})
-
-describe('undo history for a focused compound child', () => {
-  let op: StringOp
-  let padding: CompoundPropsField
-  let top: StringField
-  let right: StringField
-  let onMutation: ReturnType<typeof vi.fn>
-
-  beforeEach(() => {
-    op = new StringOp('/box')
-    top = new StringField('')
-    right = new StringField('')
-    padding = new CompoundPropsField({ top, right })
-    for (const field of [padding, top, right]) field.op = op
-    ;(op.inputs as unknown as { padding: CompoundPropsField }).padding = padding
-    setOp(op.id, op)
-    onMutation = vi.fn()
-    registerPropertyMutationCallback(onMutation)
-    render(
-      <ReactFlowProvider>
-        <FieldEditScope source="properties_panel" operatorType="StringOp">
-          <FieldComponent id="padding" field={padding} disabled={false} />
-        </FieldEditScope>
-      </ReactFlowProvider>
-    )
-  })
-
-  afterEach(() => {
-    cleanup()
-    clearOps()
-    registerPropertyMutationCallback(undefined)
-  })
-
-  it('records no undo step when only a sibling changed while focused', () => {
-    const [topInput] = screen.getAllByRole('textbox')
-    fireEvent.focus(topInput)
-    // Keyframe playback moves the sibling while the child has focus
-    act(() => right.setValue('animated'))
-    fireEvent.blur(topInput)
-
-    expect(onMutation).not.toHaveBeenCalled()
-  })
-
-  it('undoes an edit of the focused child without touching its sibling', () => {
-    const [topInput] = screen.getAllByRole('textbox')
-    fireEvent.focus(topInput)
-    act(() => right.setValue('animated'))
-    fireEvent.change(topInput, { target: { value: 'hello' } })
-    fireEvent.blur(topInput)
-
-    expect(onMutation).toHaveBeenCalledTimes(1)
-    const [, before, after] = onMutation.mock.calls[0]
-
-    act(() => right.setValue('later'))
-    act(() => applyOperatorInputs(before))
-    expect(top.value).toBe('')
-    expect(right.value).toBe('later')
-    act(() => applyOperatorInputs(after))
-    expect(top.value).toBe('hello')
-    expect(right.value).toBe('later')
   })
 })

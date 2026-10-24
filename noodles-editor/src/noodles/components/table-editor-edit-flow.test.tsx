@@ -1,13 +1,10 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { userEvent } from 'vitest/browser'
-import { TableEditorOp } from '../operators'
 import type { TableSchema } from '../table-schema'
 import { TableEditor } from './table-editor'
 
 describe('TableEditor - Edit Flow', () => {
-  const mockOp = new TableEditorOp('/test-table')
-
   afterEach(() => {
     cleanup()
   })
@@ -31,7 +28,6 @@ describe('TableEditor - Edit Flow', () => {
 
       const { getByText, container } = render(
         <TableEditor
-          op={mockOp}
           data={data}
           schema={schema}
           onDataChange={onDataChange}
@@ -70,7 +66,6 @@ describe('TableEditor - Edit Flow', () => {
 
       const { getByText, container } = render(
         <TableEditor
-          op={mockOp}
           data={data}
           schema={schema}
           onDataChange={onDataChange}
@@ -116,7 +111,6 @@ describe('TableEditor - Edit Flow', () => {
 
       const { getByText, getByRole } = render(
         <TableEditor
-          op={mockOp}
           data={[{ anchor: 'start' }]}
           schema={literalSchema}
           onDataChange={onDataChange}
@@ -146,7 +140,6 @@ describe('TableEditor - Edit Flow', () => {
 
       const { getByText, getByRole, queryByRole } = render(
         <TableEditor
-          op={mockOp}
           data={[{ anchor: 'custom' }]}
           schema={literalSchema}
           onDataChange={onDataChange}
@@ -172,7 +165,6 @@ describe('TableEditor - Edit Flow', () => {
 
       const { getByText, container, rerender } = render(
         <TableEditor
-          op={mockOp}
           data={data}
           schema={schema}
           onDataChange={onDataChange}
@@ -203,7 +195,6 @@ describe('TableEditor - Edit Flow', () => {
       ]
       rerender(
         <TableEditor
-          op={mockOp}
           data={updatedData}
           schema={schema}
           onDataChange={onDataChange}
@@ -237,7 +228,6 @@ describe('TableEditor - Edit Flow', () => {
     const renderTable = (onDataChange: (data: unknown[], description?: string) => void) =>
       render(
         <TableEditor
-          op={mockOp}
           data={data}
           schema={schema}
           onDataChange={onDataChange}
@@ -363,7 +353,6 @@ describe('TableEditor - Edit Flow', () => {
 
       const { getByText, container } = render(
         <TableEditor
-          op={mockOp}
           data={data}
           schema={schema}
           onDataChange={onDataChange}
@@ -414,7 +403,6 @@ describe('TableEditor - Edit Flow', () => {
 
       render(
         <TableEditor
-          op={mockOp}
           data={data}
           schema={schema}
           onDataChange={onDataChange}
@@ -435,7 +423,6 @@ describe('TableEditor - Edit Flow', () => {
 
       const { getByText, container } = render(
         <TableEditor
-          op={mockOp}
           data={data}
           schema={schema}
           onDataChange={onDataChange}
@@ -460,7 +447,6 @@ describe('TableEditor - Edit Flow', () => {
 
       const { getByText, container } = render(
         <TableEditor
-          op={mockOp}
           data={data}
           schema={schema}
           onDataChange={onDataChange}
@@ -494,7 +480,6 @@ describe('TableEditor - Edit Flow', () => {
 
       const { container, getByText } = render(
         <TableEditor
-          op={mockOp}
           data={data}
           schema={schema}
           onDataChange={onDataChange}
@@ -544,7 +529,6 @@ describe('TableEditor - Edit Flow', () => {
 
       const { container } = render(
         <TableEditor
-          op={mockOp}
           data={data}
           schema={schema}
           onDataChange={onDataChange}
@@ -591,7 +575,6 @@ describe('TableEditor - Edit Flow', () => {
 
       const { container, getByText } = render(
         <TableEditor
-          op={mockOp}
           data={data}
           schema={schema}
           onDataChange={onDataChange}
@@ -620,7 +603,6 @@ describe('TableEditor - Edit Flow', () => {
       }
       const { getByText } = render(
         <TableEditor
-          op={mockOp}
           data={[{ amount: 10 }]}
           schema={scrubSchema}
           onDataChange={onDataChange}
@@ -646,7 +628,6 @@ describe('TableEditor - Edit Flow', () => {
       }
       const { getByText } = render(
         <TableEditor
-          op={mockOp}
           data={[{ offset: [1, 2] }]}
           schema={scrubSchema}
           onDataChange={onDataChange}
@@ -671,7 +652,6 @@ describe('TableEditor - Edit Flow', () => {
       }
       const { getByText } = render(
         <TableEditor
-          op={mockOp}
           data={[{ vector: [1, 2.3456, 3] }]}
           schema={scrubSchema}
           onDataChange={onDataChange}
@@ -716,7 +696,6 @@ describe('TableEditor - Edit Flow', () => {
       }
       const { getByText } = render(
         <TableEditor
-          op={mockOp}
           data={[{ vector: testCase.value }]}
           schema={scrubSchema}
           onDataChange={onDataChange}

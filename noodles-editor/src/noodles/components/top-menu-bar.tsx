@@ -1,3 +1,4 @@
+import { nameOf } from '@noodles.gl/planner'
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
 import { ChevronDownIcon, ExternalLinkIcon } from '@radix-ui/react-icons'
 import { useReactFlow } from '@xyflow/react'
@@ -5,14 +6,14 @@ import { type RefObject, useCallback, useEffect, useMemo, useState } from 'react
 import { useLocation } from 'wouter'
 import logoSvg from '/noodles-favicon.svg'
 import { SettingsDialog } from '../../components/settings-dialog'
+import { docStore, useEditor } from '../../editor/doc-store'
+import type { CopyControlsRef, UndoRedoHandlerRef } from '../../editor/edit-menu'
+import { renderSettingsOf } from '../../editor/render-settings'
+import { type MapMode, useUIStore } from '../../editor/ui-store'
 import type { RenderSource } from '../../render/render-analytics'
 import { exportsTransparentVideo } from '../../render/video-export'
 import { analytics } from '../../utils/analytics'
 import { debugUI } from '../../utils/debug'
-import { useActiveOutOp } from '../hooks/use-active-outop'
-import { useRenderSettings } from '../hooks/use-render-settings'
-import { ContainerOp } from '../operators'
-import { getOpStore, type MapMode, useNestingStore, useUIStore } from '../store'
 import { directoryHandleCache } from '../utils/directory-handle-cache'
 import {
   trackChatClosed,
@@ -21,9 +22,7 @@ import {
   trackPanelToggled,
 } from '../utils/editor-analytics'
 import { shouldBlockKeyboardShortcut } from '../utils/input-detection'
-import { getParentPath, splitPath } from '../utils/path-utils'
 import { Breadcrumbs } from './breadcrumbs'
-import type { CopyControlsRef } from './copy-controls'
 import { ExportButton } from './export-button'
 import { DataImporterTool } from './tools/data-importer-tool'
 import type { GeoRecipe } from './tools/geo-recipes'
@@ -31,7 +30,6 @@ import { GeoToolWizard } from './tools/geo-tool-wizard'
 import { PointWizardTool } from './tools/point-wizard-tool'
 import { ToolShelf } from './tools/tool-shelf'
 import s from './top-menu-bar.module.css'
-import type { UndoRedoHandlerRef } from './UndoRedoHandler'
 
 interface TopMenuBarProps {
   projectName?: string
@@ -105,11 +103,20 @@ export function TopMenuBar({
   const [showPointWizard, setShowPointWizard] = useState(false)
   const [showDataImporter, setShowDataImporter] = useState(false)
   const [activeRecipe, setActiveRecipe] = useState<GeoRecipe | null>(null)
-  const currentContainerId = useNestingStore(state => state.currentContainerId)
-  const setCurrentContainerId = useNestingStore(state => state.setCurrentContainerId)
   const reactFlow = useReactFlow()
-  const activeOutOp = useActiveOutOp()
-  const renderSettings = useRenderSettings()
+  // The deck whose render settings an export uses
+  const deckName = useEditor(st => {
+    const deck = st.doc.nodes.find(n => n.op === 'deck')
+    return deck ? nameOf(deck) : null
+  })
+  const network = useEditor(st => st.network)
+  const selectedSubnet = useEditor(st => {
+    const n = st.doc.nodes.find(x => x.id === st.selection[0])
+    return n?.op === 'subnet' ? n.id : null
+  })
+  // Its export settings, for the Export menu's labels
+  const doc = useEditor(st => st.doc)
+  const renderSettings = useMemo(() => renderSettingsOf(doc), [doc])
 
   // Load recent projects on mount, and again when one is removed or its folder changes
   useEffect(() => {
@@ -160,25 +167,9 @@ export function TopMenuBar({
   const isMac = useMemo(() => navigator.platform.toUpperCase().indexOf('MAC') >= 0, [])
   const mod = isMac ? '⌘' : 'Ctrl'
 
-  // Container navigation
-  const pathSegments = useMemo(() => splitPath(currentContainerId), [currentContainerId])
-  const canGoUp = pathSegments.length > 1
-
-  // Check if a selected node is a container - needs to update when nodes change
-  const nodes = reactFlow.getNodes()
-  const selectedContainer = useMemo(() => {
-    const selectedNode = nodes.find(n => n.selected)
-    if (!selectedNode) return null
-
-    const store = getOpStore()
-    const op = store.getOp(selectedNode.id)
-    if (op instanceof ContainerOp) {
-      return selectedNode.id
-    }
-    return null
-  }, [nodes])
-
-  const canGoInto = selectedContainer !== null
+  // Subnet navigation, as the network editor's U and Enter keys do
+  const canGoUp = network !== undefined
+  const canGoInto = selectedSubnet !== null
 
   // Simplified export handlers - always use active OutOp's settings. The renderer
   // tracks render and screenshot analytics, so every button that exports is counted.
@@ -192,32 +183,22 @@ export function TopMenuBar({
     await takeScreenshot()
   }, [takeScreenshot])
 
+  const goTo = useCallback(
+    (next: string | undefined, direction: 'up' | 'into') => {
+      docStore().set({ network: next, selection: [] })
+      analytics.track('container_navigated', { method: 'menu', direction })
+      // Fit the nodes at the new level once they have rendered
+      setTimeout(() => reactFlow.fitView({ duration: 0 }), 50)
+    },
+    [reactFlow]
+  )
   const goUp = useCallback(() => {
-    const parentPath = getParentPath(currentContainerId)
-    if (parentPath && parentPath !== currentContainerId) {
-      // Clear selection when changing levels
-      reactFlow.setNodes(nodes => nodes.map(node => ({ ...node, selected: false })))
-      setCurrentContainerId(parentPath)
-      analytics.track('container_navigated', { method: 'menu', direction: 'up' })
-      // Fit all nodes at the new level (no animation)
-      setTimeout(() => {
-        reactFlow.fitView({ duration: 0 })
-      }, 50)
-    }
-  }, [currentContainerId, setCurrentContainerId, reactFlow])
-
+    const { doc, network: at } = docStore().get()
+    goTo(doc.nodes.find(n => n.id === at)?.parent, 'up')
+  }, [goTo])
   const goInto = useCallback(() => {
-    if (selectedContainer) {
-      // Clear selection when changing levels
-      reactFlow.setNodes(nodes => nodes.map(node => ({ ...node, selected: false })))
-      setCurrentContainerId(selectedContainer)
-      analytics.track('container_navigated', { method: 'menu', direction: 'into' })
-      // Fit all nodes at the new level (no animation)
-      setTimeout(() => {
-        reactFlow.fitView({ duration: 0 })
-      }, 50)
-    }
-  }, [selectedContainer, setCurrentContainerId, reactFlow])
+    if (selectedSubnet) goTo(selectedSubnet, 'into')
+  }, [goTo, selectedSubnet])
 
   return (
     <>
@@ -419,7 +400,7 @@ export function TopMenuBar({
                         onSelect={goUp}
                         disabled={!canGoUp}
                       >
-                        <span>Go to Parent Container</span>
+                        <span>Go to Parent Network</span>
                         <span className={s.shortcut}>U</span>
                       </DropdownMenu.Item>
                       <DropdownMenu.Item
@@ -427,8 +408,8 @@ export function TopMenuBar({
                         onSelect={goInto}
                         disabled={!canGoInto}
                       >
-                        <span>Go into Selected Container</span>
-                        <span className={s.shortcut}>I</span>
+                        <span>Go into Selected Subnet</span>
+                        <span className={s.shortcut}>Enter</span>
                       </DropdownMenu.Item>
                     </DropdownMenu.SubContent>
                   </DropdownMenu.Portal>
@@ -611,7 +592,7 @@ export function TopMenuBar({
 
         <div className={s.rightSection}>
           <ExportButton
-            activeOutOpId={activeOutOp?.id ?? null}
+            deckName={deckName}
             transparentVideo={exportsTransparentVideo(renderSettings)}
             isRendering={Boolean(isRendering)}
             takeScreenshot={takeScreenshot}

@@ -1,66 +1,44 @@
+import type { EditorDoc } from '@noodles.gl/planner'
 import { beforeEach, describe, expect, it } from 'vitest'
-import { getTimelineStore } from '../../timeline/timeline-store'
-import type { TimelineData } from '../../timeline/types'
-import { useUIStore } from '../store'
+import { useUIStore } from '../../editor/ui-store'
 import { expandTimelineIfAnimated } from './timeline-panel'
 
-const animatedTimeline = {
-  sheetsById: {
-    Noodles: {
-      sequence: {
-        subUnitsPerUnit: 30,
-        length: 20,
-        tracksByObject: {
-          'maplibre-basemap': {
-            trackData: {
-              bearing: {
-                type: 'BasicKeyframedTrack',
-                keyframes: [
-                  { id: 'a', position: 0, connectedRight: true, handles: [0, 0, 1, 1], value: 0 },
-                  {
-                    id: 'b',
-                    position: 20,
-                    connectedRight: false,
-                    handles: [0, 0, 1, 1],
-                    value: 360,
-                  },
-                ],
-              },
-            },
-            trackIdByPropPath: { '["viewState","bearing"]': 'bearing' },
-          },
-        },
-      },
-    },
-  },
-} as unknown as TimelineData
+const doc = (tracks: NonNullable<EditorDoc['timeline']>['tracks']): EditorDoc => ({
+  version: 1,
+  name: 'p',
+  nodes: [],
+  edges: [],
+  timeline: { tracks },
+})
 
-const staticTimeline = {
-  sheetsById: { Noodles: { staticOverrides: { byObject: {} } } },
-} as unknown as TimelineData
+const key = (time: number, value: number) => ({
+  id: `k${time}`,
+  time,
+  value,
+  interpolation: 'linear' as const,
+})
 
 describe('expandTimelineIfAnimated', () => {
   beforeEach(() => {
-    getTimelineStore().reset()
     useUIStore.getState().setTimelineExpanded(false)
   })
 
-  it('opens the timeline when the project has keyframes', () => {
-    getTimelineStore().fromTimelineJSON(animatedTimeline)
-    expandTimelineIfAnimated()
+  it('opens the timeline when the document has keyframes', () => {
+    expandTimelineIfAnimated(
+      doc([{ target: 'deck.bearing', keyframes: [key(0, 0), key(20, 360)] }])
+    )
     expect(useUIStore.getState().timelineExpanded).toBe(true)
   })
 
-  it('leaves the timeline collapsed when the project has no keyframes', () => {
-    getTimelineStore().fromTimelineJSON(staticTimeline)
-    expandTimelineIfAnimated()
+  it('leaves it closed when no track has a keyframe', () => {
+    expandTimelineIfAnimated(doc([{ target: 'deck.bearing', keyframes: [] }]))
+    expandTimelineIfAnimated({ version: 1, name: 'p', nodes: [], edges: [] })
     expect(useUIStore.getState().timelineExpanded).toBe(false)
   })
 
-  it('does not collapse an open timeline for a project without keyframes', () => {
+  it('never collapses an open timeline', () => {
     useUIStore.getState().setTimelineExpanded(true)
-    getTimelineStore().fromTimelineJSON(staticTimeline)
-    expandTimelineIfAnimated()
+    expandTimelineIfAnimated(doc([]))
     expect(useUIStore.getState().timelineExpanded).toBe(true)
   })
 })

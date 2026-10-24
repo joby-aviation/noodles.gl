@@ -1,9 +1,6 @@
-import type { OpType } from '../../operators'
-import { nodeId as defaultNodeId } from '../../utils/id-utils'
-
-// Recipes are declarative descriptions of a single-purpose GIS flow. The wizard renders
-// them as a form, and buildRecipe() turns the answers into real nodes and edges so the
-// result is an ordinary graph the user can keep editing.
+// Recipes are declarative descriptions of a single-purpose GIS flow, in the terms of the
+// Noodles operator it was: the wizard renders them as a form, and recipeDoc() (editor/
+// tool-docs.ts) turns the answers into the planner operator that operator converts to.
 
 export type RecipeParam =
   | {
@@ -56,7 +53,8 @@ export interface GeoRecipe {
   id: string
   name: string
   summary: string
-  opType: OpType
+  // The Noodles operator the recipe stood for; gis-conversions.ts maps it to a planner operator
+  opType: string
   // Base name for the generated node id (e.g. 'buffer' -> '/buffer', '/buffer-1', ...)
   nodeName: string
   group: RecipeGroup
@@ -975,145 +973,4 @@ export function decodeSourceRef(value: string): SourceRef | null {
   const separator = value.lastIndexOf('|')
   if (separator <= 0) return null
   return { source: value.slice(0, separator), sourceHandle: value.slice(separator + 1) }
-}
-
-interface BuiltNode {
-  id: string
-  type: OpType
-  data: { inputs: Record<string, unknown> }
-  position: { x: number; y: number }
-}
-
-interface BuiltEdge {
-  id: string
-  source: string
-  target: string
-  sourceHandle: string
-  targetHandle: string
-}
-
-export interface BuildRecipeOptions {
-  recipe: GeoRecipe
-  values: Record<string, unknown>
-  // Input key -> upstream output to connect, or null to leave the handle open
-  sources?: Record<string, SourceRef | null>
-  basePosition: { x: number; y: number }
-  containerId?: string
-  // Scaffold a GeoJsonLayer (and a renderer, if the graph has none) downstream
-  addLayer?: boolean
-  // Existing DeckRendererOp to attach the layer to
-  rendererId?: string | null
-  // Injectable for tests so id generation doesn't need the operator store
-  makeNodeId?: (baseName: string, containerId: string) => string
-}
-
-export interface BuiltRecipe {
-  nodes: BuiltNode[]
-  edges: BuiltEdge[]
-  // The node holding the recipe's parameters — selected after creation so the
-  // user can see exactly where to change their answers
-  primaryNodeId: string
-}
-
-function makeEdge(edge: Omit<BuiltEdge, 'id'>): BuiltEdge {
-  return { ...edge, id: `${edge.source}.${edge.sourceHandle}->${edge.target}.${edge.targetHandle}` }
-}
-
-export function buildRecipe({
-  recipe,
-  values,
-  sources = {},
-  basePosition,
-  containerId = '/',
-  addLayer = false,
-  rendererId = null,
-  makeNodeId = defaultNodeId,
-}: BuildRecipeOptions): BuiltRecipe {
-  const inputs: Record<string, unknown> = {}
-  for (const param of recipe.params) {
-    const value = values[param.key]
-    if (value !== undefined) inputs[param.key] = value
-  }
-
-  const primaryNodeId = makeNodeId(recipe.nodeName, containerId)
-  const nodes: BuiltNode[] = [
-    { id: primaryNodeId, type: recipe.opType, data: { inputs }, position: { ...basePosition } },
-  ]
-  const edges: BuiltEdge[] = []
-
-  for (const input of recipe.inputs) {
-    const ref = sources[input.key]
-    if (!ref) continue
-    edges.push(
-      makeEdge({
-        source: ref.source,
-        target: primaryNodeId,
-        sourceHandle: ref.sourceHandle,
-        targetHandle: `par.${input.key}`,
-      })
-    )
-  }
-
-  if (!addLayer || !recipe.layerable) return { nodes, edges, primaryNodeId }
-
-  const layerId = makeNodeId(`${recipe.nodeName}-layer`, containerId)
-  nodes.push({
-    id: layerId,
-    type: 'GeoJsonLayerOp',
-    data: {
-      inputs: {
-        stroked: true,
-        filled: true,
-        getFillColor: '#3b82f6',
-        getLineColor: '#1e40af',
-        getLineWidth: 2,
-        getPointRadius: 5,
-      },
-    },
-    position: { x: basePosition.x + 450, y: basePosition.y },
-  })
-  edges.push(
-    makeEdge({
-      source: primaryNodeId,
-      target: layerId,
-      sourceHandle: `out.${recipe.output}`,
-      targetHandle: 'par.data',
-    })
-  )
-
-  let targetRendererId = rendererId
-  if (!targetRendererId) {
-    targetRendererId = makeNodeId('deck', containerId)
-    const basemapId = makeNodeId('basemap', containerId)
-    nodes.push({
-      id: basemapId,
-      type: 'MaplibreBasemapOp',
-      data: { inputs: {} },
-      position: { x: basePosition.x + 450, y: basePosition.y + 280 },
-    })
-    nodes.push({
-      id: targetRendererId,
-      type: 'DeckRendererOp',
-      data: { inputs: {} },
-      position: { x: basePosition.x + 900, y: basePosition.y + 120 },
-    })
-    edges.push(
-      makeEdge({
-        source: basemapId,
-        target: targetRendererId,
-        sourceHandle: 'out.maplibre',
-        targetHandle: 'par.basemap',
-      })
-    )
-  }
-  edges.push(
-    makeEdge({
-      source: layerId,
-      target: targetRendererId,
-      sourceHandle: 'out.layer',
-      targetHandle: 'par.layers',
-    })
-  )
-
-  return { nodes, edges, primaryNodeId }
 }

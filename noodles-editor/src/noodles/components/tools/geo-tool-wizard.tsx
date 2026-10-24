@@ -1,17 +1,12 @@
 import * as Dialog from '@radix-ui/react-dialog'
 import { Cross2Icon } from '@radix-ui/react-icons'
-import { useReactFlow } from '@xyflow/react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { besideNetwork, commitBuilt } from '../../../editor/doc-builder'
+import { useEngineState } from '../../../editor/doc-engine'
+import { docStore, useEditor } from '../../../editor/doc-store'
+import { sourceOptions as docSourceOptions, recipeDoc } from '../../../editor/tool-docs'
 import { analytics } from '../../../utils/analytics'
-import type { Operator, OpType } from '../../operators'
-import { useNestingStore, useOperatorStore } from '../../store'
-import type { NodeJSON } from '../../transform-graph'
-import { appendUniqueEdges } from '../../utils/edge-integrity'
-import { normalizeMultiInputEdges } from '../../utils/multi-input-utils'
-import { resolveNodeOverlaps } from '../../utils/node-layout'
-import { getBaseName } from '../../utils/path-utils'
 import {
-  buildRecipe,
   decodeSourceRef,
   defaultValuesFor,
   encodeSourceRef,
@@ -19,9 +14,6 @@ import {
   type SourceRef,
 } from './geo-recipes'
 import s from './geo-tool-wizard.module.css'
-
-// Output field types worth offering as a geometry source in the wizard
-const GEO_OUTPUT_TYPES = new Set(['geojson', 'data'])
 
 interface SourceOption {
   value: string
@@ -45,10 +37,9 @@ interface GeoToolWizardProps {
   reactFlowRef: React.RefObject<HTMLDivElement>
 }
 
-export function GeoToolWizard({ recipe, onOpenChange, reactFlowRef }: GeoToolWizardProps) {
-  const reactFlow = useReactFlow()
-  const operators = useOperatorStore(state => state.operators)
-  const currentContainerId = useNestingStore(state => state.currentContainerId)
+export function GeoToolWizard({ recipe, onOpenChange }: GeoToolWizardProps) {
+  const doc = useEditor(st => st.doc)
+  const engine = useEngineState()
 
   const [values, setValues] = useState<Record<string, unknown>>({})
   const [sources, setSources] = useState<Record<string, string>>({})
@@ -64,29 +55,20 @@ export function GeoToolWizard({ recipe, onOpenChange, reactFlowRef }: GeoToolWiz
     setError(null)
   }, [recipe])
 
-  // Every existing output that could plausibly carry geometry, so the user can
-  // wire the new node into their graph without hunting for handles
+  // Every table in the document, features (a geom column) first, so the user can wire the new
+  // node into their graph without hunting for ports
   const sourceOptions = useMemo<SourceOption[]>(() => {
-    const options: SourceOption[] = []
-    for (const [id, op] of operators.entries()) {
-      for (const [fieldName, field] of Object.entries(op.outputs)) {
-        const fieldType = (field.constructor as unknown as { type?: string }).type
-        if (!fieldType || !GEO_OUTPUT_TYPES.has(fieldType)) continue
-        options.push({
-          value: encodeSourceRef({ source: id, sourceHandle: `out.${fieldName}` }),
-          label: `${getBaseName(id) || id} → ${fieldName}`,
-        })
-      }
+    const hasGeometry = (id: string, port: string) => {
+      const ir = engine.lowered?.outputs[id]?.[port]
+      return !!ir && !!engine.program?.nodes[ir]?.columns?.some(c => c.name === 'geom')
     }
-    return options.sort((a, b) => a.label.localeCompare(b.label))
-  }, [operators])
+    return docSourceOptions(doc, hasGeometry).map(o => ({
+      value: encodeSourceRef(o.value),
+      label: o.geometry ? o.label : `${o.label} (rows)`,
+    }))
+  }, [doc, engine.lowered, engine.program])
 
-  const rendererId = useMemo(() => {
-    for (const [id, op] of operators.entries()) {
-      if ((op.constructor as typeof Operator).displayName === 'DeckRenderer') return id
-    }
-    return null
-  }, [operators])
+  const rendererId = useMemo(() => doc.nodes.find(n => n.op === 'deck')?.id ?? null, [doc])
 
   const setParam = useCallback((key: string, value: unknown) => {
     setValues(prev => ({ ...prev, [key]: value }))
@@ -94,65 +76,33 @@ export function GeoToolWizard({ recipe, onOpenChange, reactFlowRef }: GeoToolWiz
 
   const handleCreate = useCallback(() => {
     if (!recipe) return
-
-    const pane = reactFlowRef.current?.getBoundingClientRect()
-    const basePosition = pane
-      ? reactFlow.screenToFlowPosition({
-          x: pane.left + pane.width / 3,
-          y: pane.top + pane.height / 2,
-        })
-      : { x: 0, y: 0 }
-
     const resolvedSources: Record<string, SourceRef | null> = {}
     for (const input of recipe.inputs) {
       const raw = sources[input.key]
       resolvedSources[input.key] = raw ? decodeSourceRef(raw) : null
     }
-
     try {
-      const built = buildRecipe({
+      const { doc: current, network } = docStore().get()
+      const built = recipeDoc({
+        doc: current,
+        network,
+        basePosition: besideNetwork(current, network),
         recipe,
         values,
         sources: resolvedSources,
-        basePosition,
-        containerId: currentContainerId || '/',
         addLayer: addLayer && recipe.layerable,
-        rendererId,
       })
-      const { edges, primaryNodeId } = built
-      const nodes = resolveNodeOverlaps(built.nodes, reactFlow.getNodes())
-
-      reactFlow.addNodes(nodes as NodeJSON<OpType>[])
-      if (edges.length > 0) {
-        reactFlow.setEdges(current => normalizeMultiInputEdges(appendUniqueEdges(current, edges)))
-      }
-
-      // Select and frame the parameter node so it is obvious where to make changes
-      reactFlow.setNodes(ns => ns.map(n => ({ ...n, selected: n.id === primaryNodeId })))
-      requestAnimationFrame(() => {
-        reactFlow.fitView({ nodes: [{ id: primaryNodeId }], duration: 300, padding: 0.6 })
-      })
-
+      commitBuilt(docStore(), built)
       analytics.track('gis_tool_created', {
         recipe: recipe.id,
         addLayer,
-        wiredInputs: edges.length,
+        wiredInputs: Object.values(resolvedSources).filter(Boolean).length,
       })
       onOpenChange(false)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create nodes')
     }
-  }, [
-    recipe,
-    values,
-    sources,
-    addLayer,
-    rendererId,
-    currentContainerId,
-    reactFlow,
-    reactFlowRef,
-    onOpenChange,
-  ])
+  }, [recipe, values, sources, addLayer, onOpenChange])
 
   if (!recipe) return null
 
@@ -321,8 +271,8 @@ export function GeoToolWizard({ recipe, onOpenChange, reactFlowRef }: GeoToolWiz
               >
                 <i className={addLayer ? 'pi pi-check-square' : 'pi pi-stop'} />
                 <span>
-                  Also add a GeoJsonLayer
-                  {rendererId ? ' wired to the existing renderer' : ' plus a renderer and basemap'}
+                  Also draw it
+                  {rendererId ? ' in the deck' : ' in a new deck'}
                 </span>
               </button>
             </div>
@@ -332,8 +282,9 @@ export function GeoToolWizard({ recipe, onOpenChange, reactFlowRef }: GeoToolWiz
             <i className="pi pi-info-circle" />
             <span>
               Creates a <strong>{recipe.name}</strong> node
-              {addLayer && recipe.layerable ? ' and a layer' : ''}. It stays selected afterwards, so
-              you can tweak these values on the node itself — or keyframe them in the timeline.
+              {addLayer && recipe.layerable ? ' and the layers that draw it' : ''}. It stays
+              selected afterwards, so you can tweak these values in the parameter pane, or keyframe
+              them in the timeline.
             </span>
           </div>
 

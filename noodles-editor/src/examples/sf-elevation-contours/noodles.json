@@ -1,276 +1,239 @@
 {
-  "edges": [
-    {
-      "id": "/deck.out.vis->/out.par.vis",
-      "source": "/deck",
-      "target": "/out",
-      "sourceHandle": "out.vis",
-      "targetHandle": "par.vis"
-    },
-    {
-      "id": "/data-source.out.data->/geojson-layer.par.data",
-      "source": "/data-source",
-      "target": "/geojson-layer",
-      "sourceHandle": "out.data",
-      "targetHandle": "par.data"
-    },
-    {
-      "id": "/elevation-color.out.color->/geojson-layer.par.getFillColor",
-      "source": "/elevation-color",
-      "target": "/geojson-layer",
-      "sourceHandle": "out.color",
-      "targetHandle": "par.getFillColor"
-    },
-    {
-      "id": "/elevation-color.out.color->/geojson-layer.par.getLineColor",
-      "source": "/elevation-color",
-      "target": "/geojson-layer",
-      "sourceHandle": "out.color",
-      "targetHandle": "par.getLineColor"
-    },
-    {
-      "id": "/elevation-accessor.out.accessor->/elevation-range.par.val",
-      "source": "/elevation-accessor",
-      "target": "/elevation-range",
-      "sourceHandle": "out.accessor",
-      "targetHandle": "par.val"
-    },
-    {
-      "id": "/elevation-range.out.scaled->/elevation-color.par.value",
-      "source": "/elevation-range",
-      "target": "/elevation-color",
-      "sourceHandle": "out.scaled",
-      "targetHandle": "par.value"
-    },
-    {
-      "id": "/maplibre-basemap.out.maplibre->/deck.par.basemap",
-      "source": "/maplibre-basemap",
-      "target": "/deck",
-      "sourceHandle": "out.maplibre",
-      "targetHandle": "par.basemap"
-    },
-    {
-      "id": "/geojson-layer.out.layer->/deck.par.layers",
-      "source": "/geojson-layer",
-      "target": "/deck",
-      "sourceHandle": "out.layer",
-      "targetHandle": "par.layers"
-    }
-  ],
-  "viewport": {
-    "x": 149,
-    "y": 48.131400370141876,
-    "zoom": 0.42504626773596543
-  },
-  "version": 19,
+  "version": 1,
   "name": "San Francisco Elevation Contours",
-  "editorSettings": {
-    "layoutMode": "noodles-on-top",
-    "showOverlay": true
-  },
   "nodes": [
     {
-      "id": "/deck",
-      "type": "DeckRendererOp",
-      "data": {
-        "inputs": {},
-        "locked": false
-      },
-      "position": {
-        "x": 1200,
-        "y": 100
+      "id": "deck",
+      "op": "deck",
+      "name": "deck",
+      "x": 1200,
+      "y": 100,
+      "params": {
+        "mapStyle": "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json",
+        "projection": "mercator",
+        "longitude": -122.46,
+        "latitude": 37.75,
+        "zoom": 14.1,
+        "pitch": 52.59,
+        "bearing": 25.07,
+        "display": "fixed",
+        "width": 1920,
+        "height": 1080,
+        "lod": 2,
+        "scaleMode": "fit",
+        "waitForData": true,
+        "codec": "avc",
+        "bitrateMbps": 10,
+        "bitrateMode": "constant",
+        "scaleControl": 0.3,
+        "framerate": 30,
+        "captureDelay": 50,
+        "rendersDirectory": "renders"
       }
     },
     {
-      "id": "/out",
-      "type": "OutOp",
-      "data": {
-        "inputs": {
-          "display": "fixed",
-          "width": 1920,
-          "height": 1080,
-          "lod": 2,
-          "waitForData": true,
-          "codec": "avc",
-          "bitrateMbps": 10,
-          "bitrateMode": "constant",
-          "scaleControl": 0.3,
-          "framerate": 30,
-          "captureDelay": 50
-        },
-        "locked": false
-      },
-      "position": {
-        "x": 1500,
-        "y": 100
+      "id": "data-source",
+      "op": "geojson",
+      "name": "data-source",
+      "x": 0,
+      "y": 50,
+      "params": {
+        "url": "https://raw.githubusercontent.com/keplergl/kepler.gl-data/master/sfcontour/data.json"
       }
     },
     {
-      "id": "/data-source",
-      "type": "FileOp",
-      "data": {
-        "inputs": {
-          "url": "https://raw.githubusercontent.com/keplergl/kepler.gl-data/master/sfcontour/data.json"
-        },
-        "locked": false
-      },
-      "position": {
-        "x": 0,
-        "y": 50
+      "id": "geojson-layer",
+      "op": "polygon",
+      "name": "geojson-layer",
+      "x": 900,
+      "y": 0,
+      "params": {
+        "opacity": 0.38,
+        "blend": "normal",
+        "position": "geom",
+        "color": "elevation_color",
+        "lineColorChannel": "elevation_color",
+        "filled": true,
+        "stroked": true,
+        "lineWidthScale": 8,
+        "lineWidthUnits": "meters",
+        "lineWidthMinPixels": 0.2,
+        "extruded": false,
+        "elevation": "",
+        "elevationScale": 1000
       }
     },
     {
-      "id": "/geojson-layer",
-      "type": "GeoJsonLayerOp",
-      "data": {
-        "inputs": {
-          "opacity": 0.38,
-          "lineWidthScale": 8,
-          "lineWidthMinPixels": 0.2
-        },
-        "locked": false
-      },
-      "position": {
-        "x": 900,
-        "y": 0
+      "id": "geojson-layer-lines",
+      "op": "path",
+      "name": "geojson-layer-lines",
+      "x": 900,
+      "y": 160,
+      "params": {
+        "opacity": 0.38,
+        "blend": "normal",
+        "position": "geom",
+        "color": "elevation_color",
+        "widthScale": 8,
+        "widthUnits": "meters",
+        "widthMinPixels": 0.2
       }
     },
     {
-      "id": "/elevation-color",
-      "type": "ColorRampOp",
-      "data": {
-        "inputs": {},
-        "locked": false
-      },
-      "position": {
-        "x": 418.8432510885341,
-        "y": 308.2017416545719
+      "id": "geojson-layer-points",
+      "op": "scatter",
+      "name": "geojson-layer-points",
+      "x": 900,
+      "y": 320,
+      "params": {
+        "opacity": 0.38,
+        "blend": "normal",
+        "position": "geom",
+        "color": "elevation_color",
+        "radius": "",
+        "radiusScale": 1,
+        "radiusUnits": "meters"
       }
     },
     {
-      "id": "/elevation-accessor",
-      "type": "AccessorOp",
-      "data": {
-        "inputs": {
-          "expression": "d.properties.elevation"
-        },
-        "locked": false
-      },
-      "position": {
-        "x": 22.383164005805497,
-        "y": 357.60812772133534
+      "id": "elevation-range",
+      "op": "map-range",
+      "name": "elevation-range",
+      "x": 450,
+      "y": 50,
+      "params": {
+        "input": "elevation",
+        "name": "elevation_range",
+        "kind": "linear",
+        "clamp": false,
+        "inMin": 0,
+        "inMax": 900,
+        "outMin": 0,
+        "outMax": 1
       }
     },
     {
-      "id": "/elevation-range",
-      "type": "MapRangeOp",
-      "data": {
-        "inputs": {
-          "inMin": 0,
-          "inMax": 900
-        },
-        "locked": false
-      },
-      "position": {
-        "x": 220,
-        "y": 357.60812772133534
+      "id": "elevation-color",
+      "op": "color-ramp",
+      "name": "elevation-color",
+      "x": 675,
+      "y": 50,
+      "params": {
+        "input": "elevation_range",
+        "ramp": "viridis",
+        "min": 0,
+        "max": 1,
+        "name": "elevation_color"
       }
     },
     {
-      "type": "MaplibreBasemapOp",
-      "id": "/maplibre-basemap",
-      "position": {
-        "x": 1224.6705370101597,
-        "y": 352.92452830188677
-      },
-      "data": {
-        "inputs": {
-          "mapStyle": "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json",
-          "viewState": {
-            "latitude": 37.75,
-            "longitude": -122.46,
-            "zoom": 14.1,
-            "pitch": 52.59,
-            "bearing": 25.07
-          }
-        },
-        "locked": false
+      "id": "data-note",
+      "op": "comment",
+      "name": "data-note",
+      "x": 0,
+      "y": -70,
+      "params": {
+        "text": "This loads San Francisco's contour lines. Each line follows one height above sea level.",
+        "width": 300,
+        "height": 90
       }
     },
     {
-      "id": "/data-note",
-      "type": "CommentOp",
-      "position": {
-        "x": 0,
-        "y": -70
-      },
-      "data": {
-        "inputs": {
-          "text": "This loads San Francisco's contour lines. Each line follows one height above sea level."
-        },
-        "locked": false
-      },
-      "width": 300,
-      "height": 90
+      "id": "layer-note",
+      "op": "comment",
+      "name": "layer-note",
+      "x": 900,
+      "y": -120,
+      "params": {
+        "text": "geojson-layer-lines draws the contour lines. Click it and change Width scale to make them thicker.",
+        "width": 300,
+        "height": 90
+      }
     },
     {
-      "id": "/layer-note",
-      "type": "CommentOp",
-      "position": {
-        "x": 900,
-        "y": -110
-      },
-      "data": {
-        "inputs": {
-          "text": "This layer draws the contour lines. Click it and change lineWidthScale to make them thicker."
-        },
-        "locked": false
-      },
-      "width": 300,
-      "height": 90
+      "id": "range-note",
+      "op": "comment",
+      "name": "range-note",
+      "x": 450,
+      "y": 150,
+      "params": {
+        "text": "elevation-range turns each line's elevation into a color. Change In max to spread the colors differently.",
+        "width": 320,
+        "height": 80
+      }
     },
     {
-      "id": "/range-note",
-      "type": "CommentOp",
-      "position": {
-        "x": 220,
-        "y": 590
-      },
-      "data": {
-        "inputs": {
-          "text": "This turns each line's elevation into a color. Change inMax to spread the colors differently."
-        },
-        "locked": false
-      },
-      "width": 320,
-      "height": 80
-    },
-    {
-      "id": "/try-next-note",
-      "type": "CommentOp",
-      "position": {
-        "x": 1220,
-        "y": -120
-      },
-      "data": {
-        "inputs": {
-          "text": "Try next:\n- Click elevation-color and pick a different colorScheme.\n- Click the diamond next to bearing on maplibre-basemap, pick a later time in the Timeline, and change it again.\n- Press Export and pick Video (MP4) to save the animation."
-        },
-        "locked": false
-      },
-      "width": 340,
-      "height": 190
+      "id": "try-next-note",
+      "op": "comment",
+      "name": "try-next-note",
+      "x": 1200,
+      "y": -120,
+      "params": {
+        "text": "Try next:\n- Click elevation-color and pick a different Ramp.\n- Click the diamond next to Bearing on deck, pick a later time in the Timeline, and change it again.\n- Press Export and pick Video (MP4) to save the animation.",
+        "width": 340,
+        "height": 190
+      }
     }
   ],
-  "timeline": {
-    "sheetsById": {
-      "Noodles": {
-        "staticOverrides": {
-          "byObject": {}
-        }
-      }
+  "edges": [
+    {
+      "id": "geojson-layer.out->deck.layers",
+      "source": "geojson-layer",
+      "sourcePort": "out",
+      "target": "deck",
+      "targetPort": "layers",
+      "index": 0
     },
-    "definitionVersion": "0.4.0",
-    "revisionHistory": []
-  }
+    {
+      "id": "geojson-layer-lines.out->deck.layers.1",
+      "source": "geojson-layer-lines",
+      "sourcePort": "out",
+      "target": "deck",
+      "targetPort": "layers",
+      "index": 1
+    },
+    {
+      "id": "geojson-layer-points.out->deck.layers.2",
+      "source": "geojson-layer-points",
+      "sourcePort": "out",
+      "target": "deck",
+      "targetPort": "layers",
+      "index": 2
+    },
+    {
+      "id": "data-source.features->elevation-range.in",
+      "source": "data-source",
+      "sourcePort": "features",
+      "target": "elevation-range",
+      "targetPort": "in"
+    },
+    {
+      "id": "elevation-range.out->elevation-color.in",
+      "source": "elevation-range",
+      "sourcePort": "out",
+      "target": "elevation-color",
+      "targetPort": "in"
+    },
+    {
+      "id": "elevation-color.out->geojson-layer.in",
+      "source": "elevation-color",
+      "sourcePort": "out",
+      "target": "geojson-layer",
+      "targetPort": "in"
+    },
+    {
+      "id": "elevation-color.out->geojson-layer-lines.in",
+      "source": "elevation-color",
+      "sourcePort": "out",
+      "target": "geojson-layer-lines",
+      "targetPort": "in"
+    },
+    {
+      "id": "elevation-color.out->geojson-layer-points.in",
+      "source": "elevation-color",
+      "sourcePort": "out",
+      "target": "geojson-layer-points",
+      "targetPort": "in"
+    }
+  ]
 }

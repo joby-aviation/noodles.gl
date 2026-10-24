@@ -1,91 +1,76 @@
 # Properties Panel
 
-Configure operator inputs, manage field visibility, and access context actions in the Properties Panel sidebar.
+Edit a node's parameters, drive them from other parameters, and keyframe them in the Properties Panel.
 
 ## Overview
 
-The Properties Panel appears on the right side of the editor when you select a node (operator) on the canvas. It displays the operator's name, type badge, description, and all configurable fields organized into **Inputs** and **Outputs** sections.
+The Properties Panel appears on the right side of the editor when you select a node on the canvas. At the top are the node's operator type, its name (click to rename), its path, its **B** (bypass) and **D** (display) flags, and a description of the operator. Below are its parameters, grouped into folders such as Channels, Style and Export. Click a folder's heading to fold it away.
+
+With nothing selected, the panel shows the project's name.
 
 When you open an example, its main map layer is already selected, so the panel starts with controls you can change.
 
 You can also click a point, line or shape on the map to select the node that draws it and edit its settings here.
 
-![Properties Panel with a node selected](/img/properties-panel-overview.png)
+## Parameters
 
-## Inputs
+### Editing Values
 
-### Editing Field Values
+The editor for each parameter fits its kind:
 
-When an input field is not connected to another operator's output, you can edit its value directly. The editor adapts to the field type:
-
-| Field Type | Editor |
+| Parameter Kind | Editor |
 |------------|--------|
 | Number | Numeric input with scroll-to-scrub |
-| String | Text input |
-| Boolean | Checkbox toggle |
+| Text, column, expression | Text input |
+| Toggle | Checkbox |
 | Color | Color swatch with picker |
-| Select | Dropdown menu |
-| Vector | Multi-channel numeric inputs |
+| Menu | Dropdown menu |
+| Code, SQL | Code editor |
 
-### Field Indicators
+Some parameters only appear for certain values of another: a Filter shows Column and Value in Compare mode, and Expression in Expression mode. Some operators add an editor above their parameters, such as the Map Style node's style editor and the Table node's rows.
 
-Each field row shows several visual cues:
+### Driven Parameters
 
-![Field rows with keyframe indicators](/img/properties-panel-keyframe.png)
+A parameter can take its value from somewhere other than its editor:
 
-- **Colored dot** (left side) — indicates the field's type category and connection handle color
-- **+/− button** — show or hide the field from the panel
-- **Diamond icon** (◇) — keyframe indicator for animation. Click to add a keyframe at the current timeline position. See [Animation and Rendering](./animation-and-rendering.md) for details.
+- **Wired**: a number node wired into the parameter's port. The row shows the source node and its value.
+- **Expression**: shows the expression text and its current value. See [Expressions](./expressions.md).
+- **Reference**: shows a chip naming the parameter it follows. Click the chip to go to that node, or click × to break the reference and keep the value.
 
-### Showing and Hiding Fields
+A parameter that other nodes reference lists them under "used by". Click one to go to it.
 
-Operators often have many input fields. You can manage which ones are visible:
+### Keyframes
 
-- Click the **+** button to show a hidden field
-- Click the **−** button to hide a visible field (resets to default value)
-
-Fields with active connections cannot be hidden until disconnected.
-
-## Outputs
-
-Output fields display the values produced by the operator. They cannot be edited directly but can be connected to other operators' inputs by dragging from the output handle on the node.
+The **diamond icon** (◇) next to a number parameter is its keyframe indicator. Click it to add a keyframe at the playhead, and click it again on a keyframe to remove it. See [Animation and Rendering](./animation-and-rendering.md) for details.
 
 ## Right-Click Context Menu
 
-Right-click any field row to access the context menu:
-
-![Right-click context menu](/img/properties-panel-context-menu.png)
-
-### Input fields
+Right-click any parameter row for its menu. Items appear disabled when they don't apply.
 
 | Action | Description |
 |--------|-------------|
-| **Copy value** | Copy the field's current value to the clipboard (disabled for non-value fields) |
-| **Copy field name** | Copy the field's identifier (e.g., `opacity`) |
-| **Copy code reference** | Copy a JavaScript reference for use in CodeOp (e.g., `op('/arc-layer').par.opacity`) |
-| **Copy mustache reference** | Copy a mustache template reference for DuckDbOp (e.g., `{{/arc-layer.par.opacity}}`) |
-| **Sequence** | Convert to a keyframed animation track (shown when field has no keyframes) |
-| **Make static** | Remove all keyframes and lock to current value (shown when field has keyframes) |
-| **Reset to default** | Reset the field to its original default value (disabled when already at default or connected) |
-| **Disconnect all inputs** | Remove all incoming connections to this field (enabled only for list fields with connections) |
-| **Hide field** | Hide the field from the panel (disabled when connected) |
-| **Show field** | Show a hidden field in the panel |
+| **Set expression...** | Drive a number with an expression (`T`, `F`, `ch('node/param')`) |
+| **Revert to value** | Replace an expression with a plain number |
+| **Reference a parameter...** | Follow another node's parameter of the same kind |
+| **Copy parameter** | Remember this parameter for a reference |
+| **Paste relative reference** | Follow the copied parameter |
+| **Remove reference** | Keep the current value and stop following |
+| **Add keyframe at playhead** / **Update keyframe** | Keyframe the current value |
+| **Remove keyframe here** | Remove the keyframe at the playhead |
+| **Clear keyframes** | Remove every keyframe of this parameter |
+| **Revert to default** | Reset the parameter and clear its keyframes (disabled while wired) |
+| **Promote to subnet** | Show this parameter on the subnet the node is in, to control it from outside |
 
-### Output fields
+## Subnets
 
-Output fields show a reduced context menu with copy actions only:
+A subnet's panel lists its promoted parameters. Each edits the parameter inside that it drives. Right-click one and choose **Remove promotion** to take it off the subnet.
 
-| Action | Description |
-|--------|-------------|
-| **Copy value** | Copy the output's current value (disabled if value is not serializable) |
-| **Copy field name** | Copy the field's identifier |
-| **Copy code reference** | Copy a JavaScript reference (e.g., `op('/arc-layer').out.layer`) |
-| **Copy mustache reference** | Copy a mustache template reference |
+## Debug Information
 
-Actions are context-sensitive: items appear disabled when not applicable to the current field state.
+With **Show editor debug info** on in the top menu, the panel also shows what the engine made of the node: its query, how its table is stored, and what a change to each parameter costs.
 
 ## Related
 
-- [Introduction to Workflows](./workflows-intro.md) — Fields and connections fundamentals
-- [Animation and Rendering](./animation-and-rendering.md) — Keyframes and timeline editor
-- [Essential Operators](./operators-guide.md) — Available operators and their fields
+- [Introduction to Workflows](./workflows-intro.md): parameters and connections
+- [Animation and Rendering](./animation-and-rendering.md): keyframes and the timeline editor
+- [Essential Operators](./operators-guide.md): operators and their parameters

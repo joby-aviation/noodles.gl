@@ -12,7 +12,7 @@ import type {
 import type { ExportStatusParams, ExportVideoParams } from './export-video'
 import type { MCPTools } from './mcp-tools'
 import type { RunCodeParams } from './run-code'
-import type { NoodlesProject, SearchCodeParams, ToolResult } from './types'
+import type { SearchCodeParams, ToolResult } from './types'
 
 // JSON Schema subset accepted by both Anthropic tools and WebMCP registerTool
 export interface ToolInputSchema {
@@ -47,12 +47,7 @@ export interface ToolDefinition {
   // in the chat is one click from the Export button, and a multi-minute render the
   // model starts on its own would take over the canvas and playhead under them.
   audience?: 'external'
-  // getProject supplies the live project for tools that need it injected (analyze_project)
-  execute: (
-    tools: MCPTools,
-    params: Record<string, unknown>,
-    getProject: () => NoodlesProject | null
-  ) => Promise<ToolResult> | ToolResult
+  execute: (tools: MCPTools, params: Record<string, unknown>) => Promise<ToolResult> | ToolResult
 }
 
 export const toolDefinitions: ToolDefinition[] = [
@@ -121,13 +116,12 @@ export const toolDefinitions: ToolDefinition[] = [
     name: 'apply_modifications',
     annotations: { readOnlyHint: false, destructiveHint: true },
     description:
-      'Apply modifications to the project (add/update/delete nodes or edges). Use this instead of returning JSON in text.',
+      "Edit the document; a batch applies whole as one undo step, or not at all. add_node {op, name, params}; update_node {id, params} merges (null reverts); delete_node {id}; add_edge {source, sourcePort, target, targetPort}, a targetPort of 'par:<param>' drives a parameter; delete_edge {source, target}. Nodes by id or name.",
     inputSchema: {
       type: 'object',
       properties: {
         modifications: {
           type: 'array',
-          description: 'Array of modifications to apply',
           items: {
             type: 'object',
             properties: {
@@ -135,19 +129,22 @@ export const toolDefinitions: ToolDefinition[] = [
                 type: 'string',
                 enum: ['add_node', 'update_node', 'delete_node', 'add_edge', 'delete_edge'],
               },
-              data: {
-                type: 'object',
-                description: 'The node or edge data',
-              },
+              id: { type: 'string' },
+              op: { type: 'string' },
+              name: { type: 'string' },
+              params: { type: 'object' },
+              source: { type: 'string' },
+              sourcePort: { type: 'string' },
+              target: { type: 'string' },
+              targetPort: { type: 'string' },
             },
-            required: ['type', 'data'],
+            required: ['type'],
           },
         },
       },
       required: ['modifications'],
     },
-    // biome-ignore lint/suspicious/noExplicitAny: dynamic modification structure from Claude
-    execute: (tools, params) => tools.applyModifications(params as { modifications: any[] }),
+    execute: (tools, params) => tools.applyModifications(params as { modifications: unknown[] }),
   },
   {
     name: 'run_code',
@@ -156,7 +153,7 @@ export const toolDefinitions: ToolDefinition[] = [
     // by the identifiers they are bound to — that is how a query like "compute a
     // distance" or "check the shape of the data" reaches it.
     description:
-      "Run JavaScript against the live graph and get the value back. The same sandbox CodeOp uses: op('/node-id').out.data and .par.field read any operator's output or input, and d3, turf, deck, Plot, Temporal, utils and every operator class are in scope, plus sequenceTime, frame, totalFrames and sequence. Use it to compute a statistic, inspect the shape of a dataset, test a transform before committing it to a CodeOp, or check what an accessor would return. Return a value to see it; console.log is captured too. Large results come back as a sample with a length. Runs on the main thread, so no unbounded loops. Use apply_modifications to add or remove nodes — this tool is for computing and reading.",
+      "Run JavaScript against the live document and get the value back. The same sandbox a code node's op() uses: op('node/path').out.data reads a node's rows and .par.name a parameter (assigning one edits the document), and d3, turf, Plot, Temporal and utils are in scope, plus sequenceTime, frame, totalFrames and sequence. Use it to compute a statistic, inspect the shape of a dataset, or test a transform before putting it in a code node or an expression. Return a value to see it; console.log is captured too. Large results come back as a sample with a length. Runs on the main thread, so no unbounded loops. Use apply_modifications to add or remove nodes — this tool is for computing and reading.",
     inputSchema: {
       type: 'object',
       properties: {
@@ -247,7 +244,8 @@ export const toolDefinitions: ToolDefinition[] = [
   {
     name: 'get_current_project',
     annotations: { readOnlyHint: true },
-    description: 'Get the current project state including all nodes and edges',
+    description:
+      'Get the whole document: every node with all its parameters, every wire, and which parameters are keyframed',
     inputSchema: {
       type: 'object',
       properties: {},
@@ -257,7 +255,7 @@ export const toolDefinitions: ToolDefinition[] = [
   {
     name: 'list_nodes',
     annotations: { readOnlyHint: true },
-    description: 'List all nodes in the project with their current state and execution status',
+    description: "List the document's nodes (operator, parameters, errors) and wires",
     inputSchema: {
       type: 'object',
       properties: {},
@@ -267,11 +265,12 @@ export const toolDefinitions: ToolDefinition[] = [
   {
     name: 'get_node_info',
     annotations: { readOnlyHint: true },
-    description: 'Get detailed information about a specific node including connections and schema',
+    description:
+      'Get one node in full: every parameter with its kind, default and current value, its ports, its wires, which parameters are keyframed, how many rows it drew, and its errors',
     inputSchema: {
       type: 'object',
       properties: {
-        nodeId: { type: 'string', description: 'The ID of the node to inspect' },
+        nodeId: { type: 'string', description: 'The node id or name' },
       },
       required: ['nodeId'],
     },
@@ -281,11 +280,11 @@ export const toolDefinitions: ToolDefinition[] = [
     name: 'get_node_output',
     annotations: { readOnlyHint: true },
     description:
-      'Read the output data from a specific operator/node. Useful for inspecting data at any point in the pipeline.',
+      'The rows a node makes: columns, count and a sample. Check column names here before writing expressions',
     inputSchema: {
       type: 'object',
       properties: {
-        nodeId: { type: 'string', description: 'The ID of the node to read output from' },
+        nodeId: { type: 'string', description: 'The node id or name' },
         maxRows: {
           type: 'number',
           description: 'Maximum number of rows to return (default: 10)',
@@ -300,7 +299,7 @@ export const toolDefinitions: ToolDefinition[] = [
     name: 'get_timeline',
     annotations: { readOnlyHint: true },
     description:
-      'Get the current animation timeline state: sequence length, FPS, playback position, and all animated tracks with their keyframes. Use this before adding keyframes to understand the current animation.',
+      "Get the animation timeline: length, frame rate, playback position, and each keyframed parameter ('node.param') with its keyframes. Use this before adding keyframes.",
     inputSchema: {
       type: 'object',
       properties: {},
@@ -311,48 +310,39 @@ export const toolDefinitions: ToolDefinition[] = [
     name: 'set_keyframe',
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
     description:
-      'Add or update a keyframe on an animated field. Track IDs follow the pattern "operator-name / fieldName" (e.g. "my-layer / opacity"). Position is in seconds. Interpolation is "bezier" (smooth) or "hold" (step). If a keyframe already exists within 1 frame of the position, it will be updated.',
+      "Add or update a keyframe on a number parameter: target is 'node.param' (e.g. 'dots.opacity'), time is in seconds, interpolation is bezier (smooth), linear or hold (step). A keyframe already at that time is updated.",
     inputSchema: {
       type: 'object',
       properties: {
-        trackId: {
-          type: 'string',
-          description: 'Track identifier in format "operator-name / fieldName"',
-        },
-        position: { type: 'number', description: 'Time position in seconds' },
-        value: { description: 'The value at this keyframe (number, boolean, or string)' },
+        target: { type: 'string', description: "The parameter, as 'node.param'" },
+        time: { type: 'number', description: 'Time in seconds' },
+        value: { type: 'number', description: 'The value at that time' },
         interpolation: {
           type: 'string',
-          enum: ['bezier', 'hold'],
-          description: 'Interpolation type (default: bezier)',
+          enum: ['bezier', 'linear', 'hold'],
+          description: 'How the value moves to the next keyframe (default: bezier)',
         },
       },
-      required: ['trackId', 'position', 'value'],
+      required: ['target', 'time', 'value'],
     },
-    execute: (tools, params) =>
-      tools.setKeyframe(
-        params as {
-          trackId: string
-          position: number
-          value: number | boolean | string
-          interpolation?: 'bezier' | 'hold'
-        }
-      ),
+    execute: (tools, params) => tools.setKeyframe(params as Parameters<MCPTools['setKeyframe']>[0]),
   },
   {
     name: 'delete_keyframe',
     annotations: { readOnlyHint: false, destructiveHint: true },
-    description: 'Delete a specific keyframe by its ID. Use get_timeline to find keyframe IDs.',
+    description:
+      "Delete a keyframe from a parameter's track, by its id or its time. Use get_timeline to find them.",
     inputSchema: {
       type: 'object',
       properties: {
-        trackId: { type: 'string', description: 'The track containing the keyframe' },
-        keyframeId: { type: 'string', description: 'The keyframe ID to delete' },
+        target: { type: 'string', description: "The parameter, as 'node.param'" },
+        keyframeId: { type: 'string', description: 'The keyframe id' },
+        time: { type: 'number', description: 'Or the keyframe time, in seconds' },
       },
-      required: ['trackId', 'keyframeId'],
+      required: ['target'],
     },
     execute: (tools, params) =>
-      tools.deleteKeyframe(params as { trackId: string; keyframeId: string }),
+      tools.deleteKeyframe(params as Parameters<MCPTools['deleteKeyframe']>[0]),
   },
   {
     name: 'set_playback_position',
@@ -466,7 +456,7 @@ export const toolDefinitions: ToolDefinition[] = [
     name: 'get_operator_schema',
     annotations: { readOnlyHint: true },
     description:
-      'Get the input/output field schema for an operator type (e.g. FileOp, ScatterplotLayerOp)',
+      "Get an operator type's ports and parameters (name, kind, default, options), e.g. 'scatter', 'attribute', 'file'",
     inputSchema: {
       type: 'object',
       properties: {
@@ -479,7 +469,8 @@ export const toolDefinitions: ToolDefinition[] = [
   {
     name: 'list_operators',
     annotations: { readOnlyHint: true },
-    description: 'List all available operator types, optionally filtered by category',
+    description:
+      'List the operator types a document can use, optionally by category (data, table, rows, color, layer, number, output, host)',
     inputSchema: {
       type: 'object',
       properties: {
@@ -563,28 +554,13 @@ export const toolDefinitions: ToolDefinition[] = [
   {
     name: 'analyze_project',
     annotations: { readOnlyHint: true },
-    description: 'Analyze the current project for validation issues or performance problems',
+    description:
+      'Check the document for problems: nodes that failed to lower or query, host operator errors, unknown operators, and nodes nothing reads',
     inputSchema: {
       type: 'object',
-      properties: {
-        analysisType: {
-          type: 'string',
-          enum: ['validation', 'performance', 'suggestions'],
-          description: 'Type of analysis to run',
-        },
-      },
-      required: ['analysisType'],
+      properties: {},
     },
-    execute: (tools, params, getProject) => {
-      const project = getProject()
-      if (!project) {
-        return { success: false, error: 'No project loaded' }
-      }
-      return tools.analyzeProject({
-        project,
-        analysisType: params.analysisType as 'validation' | 'performance' | 'suggestions',
-      })
-    },
+    execute: tools => tools.analyzeProject(),
   },
 ]
 

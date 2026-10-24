@@ -10,7 +10,6 @@ import { ChatPanel } from './chat-panel'
 import type { ContextLoader } from './context-loader'
 import { globalContextManager } from './global-context-manager'
 import { MCPTools } from './mcp-tools'
-import type { NoodlesProject } from './types'
 
 vi.mock('./agent/provider-factory', async importOriginal => ({
   ...(await importOriginal<typeof import('./agent/provider-factory')>()),
@@ -31,11 +30,7 @@ function fakeProvider(supportsImages: boolean): AgentProvider {
 async function renderReadyPanel() {
   render(
     <ReactFlowProvider>
-      <ChatPanel
-        project={{ nodes: [], edges: [] } as NoodlesProject}
-        onClose={() => {}}
-        isVisible
-      />
+      <ChatPanel onClose={() => {}} isVisible />
     </ReactFlowProvider>
   )
   await vi.waitFor(() => expect(screen.getByPlaceholderText('Ask for help...')).toBeTruthy())

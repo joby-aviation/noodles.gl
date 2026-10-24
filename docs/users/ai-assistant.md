@@ -109,7 +109,7 @@ The assistant has access to powerful tools to help you:
 **Data & Computation:**
 - Run JavaScript against your live graph to compute a result
 - List, read, and search your project's data files
-- Write a derived dataset to `@/.agent/` and load it with a FileOp
+- Write a derived dataset to `@/.agent/` and load it with a `file` node
 
 **Documentation & Examples:**
 - Search the Noodles.gl documentation
@@ -141,9 +141,9 @@ You can't send another message while a card is waiting. Starting or loading a co
 >
 > **Assistant:** I found the USGS earthquake feed. Creating your visualization now...
 >
-> *[Creates FileOp to load data, adds HeatmapLayer]*
+> *[Adds a `file` node to load the data and a Heatmap Layer]*
 >
-> **Assistant:** Done! I've created a heatmap showing 2,547 earthquakes from the past 7 days. The intensity represents magnitude. You can adjust the radius and intensity in the HeatmapLayer settings.
+> **Assistant:** Done! I've created a heatmap showing 2,547 earthquakes from the past 7 days. The intensity represents magnitude. You can adjust the radius and intensity in the Heatmap Layer's parameters.
 
 **Example 2: Debugging an Error**
 
@@ -153,7 +153,7 @@ You can't send another message while a card is waiting. Starting or loading a co
 >
 > *[Checks console errors]*
 >
-> **Assistant:** I found the issue - your PathLayer has an undefined data input. It looks like your FileOp failed to load because the URL is incorrect. The file should be `@/data.geojson` (relative to your project), not `/data.geojson` (absolute path).
+> **Assistant:** I found the issue: your Path Layer has no rows because the `geojson` node feeding it failed to load. Its URL is incorrect. The file should be `@/data.geojson` (relative to your project), not `/data.geojson` (absolute path).
 >
 > Would you like me to fix the URL?
 

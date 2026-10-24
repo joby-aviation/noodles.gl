@@ -1,460 +1,301 @@
 {
-  "edges": [
-    {
-      "id": "/deck.out.vis->/out.par.vis",
-      "source": "/deck",
-      "target": "/out",
-      "sourceHandle": "out.vis",
-      "targetHandle": "par.vis"
-    },
-    {
-      "id": "/data-source.out.data->/arc-layer.par.data",
-      "source": "/data-source",
-      "target": "/arc-layer",
-      "sourceHandle": "out.data",
-      "targetHandle": "par.data"
-    },
-    {
-      "id": "/data-source.out.data->/pickup-layer.par.data",
-      "source": "/data-source",
-      "target": "/pickup-layer",
-      "sourceHandle": "out.data",
-      "targetHandle": "par.data"
-    },
-    {
-      "id": "/data-source.out.data->/dropoff-layer.par.data",
-      "source": "/data-source",
-      "target": "/dropoff-layer",
-      "sourceHandle": "out.data",
-      "targetHandle": "par.data"
-    },
-    {
-      "id": "/pickup-position.out.accessor->/arc-layer.par.getSourcePosition",
-      "source": "/pickup-position",
-      "target": "/arc-layer",
-      "sourceHandle": "out.accessor",
-      "targetHandle": "par.getSourcePosition"
-    },
-    {
-      "id": "/dropoff-position.out.accessor->/arc-layer.par.getTargetPosition",
-      "source": "/dropoff-position",
-      "target": "/arc-layer",
-      "sourceHandle": "out.accessor",
-      "targetHandle": "par.getTargetPosition"
-    },
-    {
-      "id": "/pickup-position.out.accessor->/pickup-layer.par.getPosition",
-      "source": "/pickup-position",
-      "target": "/pickup-layer",
-      "sourceHandle": "out.accessor",
-      "targetHandle": "par.getPosition"
-    },
-    {
-      "id": "/dropoff-position.out.accessor->/dropoff-layer.par.getPosition",
-      "source": "/dropoff-position",
-      "target": "/dropoff-layer",
-      "sourceHandle": "out.accessor",
-      "targetHandle": "par.getPosition"
-    },
-    {
-      "id": "/maplibre-basemap.out.maplibre->/deck.par.basemap",
-      "source": "/maplibre-basemap",
-      "target": "/deck",
-      "sourceHandle": "out.maplibre",
-      "targetHandle": "par.basemap"
-    },
-    {
-      "id": "/arc-layer.out.layer->/deck.par.layers",
-      "source": "/arc-layer",
-      "target": "/deck",
-      "sourceHandle": "out.layer",
-      "targetHandle": "par.layers"
-    },
-    {
-      "id": "/pickup-layer.out.layer->/deck.par.layers",
-      "source": "/pickup-layer",
-      "target": "/deck",
-      "sourceHandle": "out.layer",
-      "targetHandle": "par.layers"
-    },
-    {
-      "id": "/dropoff-layer.out.layer->/deck.par.layers",
-      "source": "/dropoff-layer",
-      "target": "/deck",
-      "sourceHandle": "out.layer",
-      "targetHandle": "par.layers"
-    },
-    {
-      "source": "/pickup",
-      "sourceHandle": "out.color",
-      "target": "/arc-layer",
-      "targetHandle": "par.getSourceColor",
-      "id": "/pickup.out.color->/arc-layer.par.getSourceColor"
-    },
-    {
-      "source": "/pickup",
-      "sourceHandle": "out.color",
-      "target": "/pickup-layer",
-      "targetHandle": "par.getFillColor",
-      "id": "/pickup.out.color->/pickup-layer.par.getFillColor"
-    },
-    {
-      "source": "/dropoff",
-      "sourceHandle": "out.color",
-      "target": "/arc-layer",
-      "targetHandle": "par.getTargetColor",
-      "id": "/dropoff.out.color->/arc-layer.par.getTargetColor"
-    },
-    {
-      "source": "/dropoff",
-      "sourceHandle": "out.color",
-      "target": "/dropoff-layer",
-      "targetHandle": "par.getFillColor",
-      "id": "/dropoff.out.color->/dropoff-layer.par.getFillColor"
-    },
-    {
-      "source": "/blending",
-      "sourceHandle": "out.parameters",
-      "target": "/pickup-layer",
-      "targetHandle": "par.parameters",
-      "id": "/blending.out.parameters->/pickup-layer.par.parameters"
-    },
-    {
-      "source": "/blending",
-      "sourceHandle": "out.parameters",
-      "target": "/arc-layer",
-      "targetHandle": "par.parameters",
-      "id": "/blending.out.parameters->/arc-layer.par.parameters"
-    },
-    {
-      "source": "/blending",
-      "sourceHandle": "out.parameters",
-      "target": "/dropoff-layer",
-      "targetHandle": "par.parameters",
-      "id": "/blending.out.parameters->/dropoff-layer.par.parameters"
-    }
-  ],
-  "viewport": {
-    "x": 172.53317127277438,
-    "y": 204.01752158305402,
-    "zoom": 0.467987771000214
-  },
-  "version": 19,
+  "version": 1,
   "name": "NYC Taxis",
-  "editorSettings": {
-    "layoutMode": "noodles-on-top",
-    "showOverlay": true
-  },
   "nodes": [
     {
-      "id": "/deck",
-      "type": "DeckRendererOp",
-      "data": {
-        "inputs": {},
-        "locked": false
-      },
-      "position": {
-        "x": 1200,
-        "y": 200
+      "id": "deck",
+      "op": "deck",
+      "name": "deck",
+      "x": 1200,
+      "y": 200,
+      "params": {
+        "mapStyle": "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json",
+        "projection": "mercator",
+        "longitude": -73.98,
+        "latitude": 40.74,
+        "zoom": 12.09,
+        "pitch": 56,
+        "bearing": -15.25,
+        "display": "fixed",
+        "width": 1920,
+        "height": 1080,
+        "lod": 2,
+        "scaleMode": "fit",
+        "waitForData": true,
+        "codec": "avc",
+        "bitrateMbps": 10,
+        "bitrateMode": "constant",
+        "scaleControl": 0.3,
+        "framerate": 30,
+        "captureDelay": 50,
+        "rendersDirectory": "renders"
       }
     },
     {
-      "id": "/out",
-      "type": "OutOp",
-      "data": {
-        "inputs": {
-          "display": "fixed",
-          "width": 1920,
-          "height": 1080,
-          "lod": 2,
-          "waitForData": true,
-          "codec": "avc",
-          "bitrateMbps": 10,
-          "bitrateMode": "constant",
-          "scaleControl": 0.3,
-          "framerate": 30,
-          "captureDelay": 50
-        },
-        "locked": false
-      },
-      "position": {
-        "x": 1500,
-        "y": 200
+      "id": "data-source",
+      "op": "file",
+      "name": "data-source",
+      "x": 0,
+      "y": 200,
+      "params": {
+        "url": "@/data.csv",
+        "format": "csv"
       }
     },
     {
-      "id": "/data-source",
-      "type": "FileOp",
-      "data": {
-        "inputs": {
-          "format": "csv",
-          "url": "@/data.csv"
-        },
-        "locked": false
-      },
-      "position": {
-        "x": 0,
-        "y": 200
+      "id": "pickup",
+      "op": "color",
+      "name": "pickup",
+      "x": 471.3628571428572,
+      "y": 62.52428571428571,
+      "params": {
+        "color": [
+          141,
+          18,
+          175
+        ]
       }
     },
     {
-      "id": "/arc-layer",
-      "type": "ArcLayerOp",
-      "data": {
-        "inputs": {
-          "getWidth": 4
-        },
-        "locked": false
-      },
-      "position": {
-        "x": 897.6842857142857,
-        "y": -143.5742857142857
+      "id": "dropoff",
+      "op": "color",
+      "name": "dropoff",
+      "x": 443.5742857142857,
+      "y": 420.8414285714286,
+      "params": {
+        "color": [
+          16,
+          91,
+          137
+        ]
       }
     },
     {
-      "id": "/pickup-layer",
-      "type": "ScatterplotLayerOp",
-      "data": {
-        "inputs": {
-          "opacity": 0.8,
-          "getLineColor": "#ffffffff",
-          "getRadius": 10
+      "id": "arc-layer",
+      "op": "arc",
+      "name": "arc-layer",
+      "x": 897.6842857142857,
+      "y": -143.5742857142857,
+      "params": {
+        "opacity": 1,
+        "blend": "additive",
+        "source": "pickup_position",
+        "target": "dropoff_position",
+        "sourceColor": "",
+        "targetColor": "",
+        "fromColor": {
+          "ref": "pickup/color"
         },
-        "locked": false
-      },
-      "position": {
-        "x": 837.4757142857144,
-        "y": 195.36857142857144
+        "toColor": {
+          "ref": "dropoff/color"
+        },
+        "width": "",
+        "widthScale": 4,
+        "widthUnits": "meters",
+        "height": 1
       }
     },
     {
-      "id": "/dropoff-layer",
-      "type": "ScatterplotLayerOp",
-      "data": {
-        "inputs": {
-          "opacity": 0.8,
-          "getLineColor": "#ffffffff",
-          "getRadius": 10
+      "id": "pickup-layer",
+      "op": "scatter",
+      "name": "pickup-layer",
+      "x": 837.4757142857144,
+      "y": 195.36857142857144,
+      "params": {
+        "opacity": 0.8,
+        "blend": "additive",
+        "position": "pickup_position",
+        "color": "",
+        "fillColor": {
+          "ref": "pickup/color"
         },
-        "locked": false
-      },
-      "position": {
-        "x": 851.3700000000001,
-        "y": 589.8885714285714
+        "radius": "",
+        "radiusScale": 10,
+        "radiusUnits": "pixels"
       }
     },
     {
-      "id": "/pickup-position",
-      "type": "AccessorOp",
-      "data": {
-        "inputs": {
-          "expression": "[d.pickup_longitude, d.pickup_latitude]"
+      "id": "dropoff-layer",
+      "op": "scatter",
+      "name": "dropoff-layer",
+      "x": 851.3700000000001,
+      "y": 589.8885714285714,
+      "params": {
+        "opacity": 0.8,
+        "blend": "additive",
+        "position": "dropoff_position",
+        "color": "",
+        "fillColor": {
+          "ref": "dropoff/color"
         },
-        "locked": false
-      },
-      "position": {
-        "x": 352.2185714285714,
-        "y": 157.89285714285714
+        "radius": "",
+        "radiusScale": 10,
+        "radiusUnits": "pixels"
       }
     },
     {
-      "id": "/dropoff-position",
-      "type": "AccessorOp",
-      "data": {
-        "inputs": {
-          "expression": "[d.dropoff_longitude, d.dropoff_latitude]"
-        },
-        "locked": false
-      },
-      "position": {
-        "x": 352.2185714285714,
-        "y": 274.52714285714285
+      "id": "pickup-position",
+      "op": "attribute",
+      "name": "pickup-position",
+      "x": 279,
+      "y": 200,
+      "params": {
+        "name": "pickup_position",
+        "expression": "[pickup_longitude, pickup_latitude]"
       }
     },
     {
-      "type": "MaplibreBasemapOp",
-      "id": "/maplibre-basemap",
-      "position": {
-        "x": 1184.8328571428572,
-        "y": 484.2142857142857
-      },
-      "data": {
-        "inputs": {
-          "mapStyle": "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json",
-          "viewState": {
-            "latitude": 40.74,
-            "longitude": -73.98,
-            "zoom": 12.09,
-            "pitch": 56,
-            "bearing": -15.25
-          }
-        },
-        "locked": false
+      "id": "dropoff-position",
+      "op": "attribute",
+      "name": "dropoff-position",
+      "x": 558,
+      "y": 200,
+      "params": {
+        "name": "dropoff_position",
+        "expression": "[dropoff_longitude, dropoff_latitude]"
       }
     },
     {
-      "type": "ColorOp",
-      "id": "/pickup",
-      "position": {
-        "x": 471.3628571428572,
-        "y": 62.52428571428571
-      },
-      "data": {
-        "inputs": {
-          "color": "#8d12af"
-        },
-        "locked": false
+      "id": "data-note",
+      "op": "comment",
+      "name": "data-note",
+      "x": 0,
+      "y": 320,
+      "params": {
+        "text": "This loads the taxi trips CSV. Click it to see its columns.",
+        "width": 265,
+        "height": 80
       }
     },
     {
-      "type": "ColorOp",
-      "id": "/dropoff",
-      "position": {
-        "x": 443.5742857142857,
-        "y": 420.8414285714286
-      },
-      "data": {
-        "inputs": {
-          "color": "#105b89"
-        },
-        "locked": false
+      "id": "color-note",
+      "op": "comment",
+      "name": "color-note",
+      "x": 440,
+      "y": -60,
+      "params": {
+        "text": "These two nodes set the pickup and drop-off colors. Click one to pick a new color.",
+        "width": 290,
+        "height": 90
       }
     },
     {
-      "type": "BlendingOp",
-      "id": "/blending",
-      "position": {
-        "x": 272.8555514364492,
-        "y": 705.7558236067697
-      },
-      "data": {
-        "inputs": {
-          "mode": "additive"
-        },
-        "locked": false
+      "id": "arc-note",
+      "op": "comment",
+      "name": "arc-note",
+      "x": 898,
+      "y": -260,
+      "params": {
+        "text": "This layer draws an arc from each pickup to its drop-off. Click it and change Width scale.",
+        "width": 300,
+        "height": 80
       }
     },
     {
-      "id": "/data-note",
-      "type": "CommentOp",
-      "position": {
-        "x": 0,
-        "y": 390
-      },
-      "data": {
-        "inputs": {
-          "text": "This loads the taxi trips CSV. Click it to see its columns."
-        },
-        "locked": false
-      },
-      "width": 265,
-      "height": 80
+      "id": "try-next-note",
+      "op": "comment",
+      "name": "try-next-note",
+      "x": 1200,
+      "y": 380,
+      "params": {
+        "text": "Try next:\n- Press the space bar to play the camera move on the Timeline.\n- Click arc-layer and change Height to raise or flatten the arcs.\n- Press Export and pick Video (MP4) to save the animation.",
+        "width": 340,
+        "height": 170
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "arc-layer.out->deck.layers",
+      "source": "arc-layer",
+      "sourcePort": "out",
+      "target": "deck",
+      "targetPort": "layers",
+      "index": 0
     },
     {
-      "id": "/color-note",
-      "type": "CommentOp",
-      "position": {
-        "x": 352,
-        "y": -60
-      },
-      "data": {
-        "inputs": {
-          "text": "These two nodes set the pickup and drop-off colors. Click one to pick a new color."
-        },
-        "locked": false
-      },
-      "width": 290,
-      "height": 90
+      "id": "pickup-layer.out->deck.layers.10",
+      "source": "pickup-layer",
+      "sourcePort": "out",
+      "target": "deck",
+      "targetPort": "layers",
+      "index": 10
     },
     {
-      "id": "/arc-note",
-      "type": "CommentOp",
-      "position": {
-        "x": 898,
-        "y": -250
-      },
-      "data": {
-        "inputs": {
-          "text": "This layer draws an arc from each pickup to its drop-off. Click it and change getWidth."
-        },
-        "locked": false
-      },
-      "width": 300,
-      "height": 80
+      "id": "dropoff-layer.out->deck.layers.20",
+      "source": "dropoff-layer",
+      "sourcePort": "out",
+      "target": "deck",
+      "targetPort": "layers",
+      "index": 20
     },
     {
-      "id": "/try-next-note",
-      "type": "CommentOp",
-      "position": {
-        "x": 1200,
-        "y": 10
-      },
-      "data": {
-        "inputs": {
-          "text": "Try next:\n- Press the space bar to play the camera move on the Timeline.\n- Click arc-layer and change getHeight to raise or flatten the arcs.\n- Press Export and pick Video (MP4) to save the animation."
-        },
-        "locked": false
-      },
-      "width": 340,
-      "height": 170
+      "id": "data-source.out->pickup-position.in",
+      "source": "data-source",
+      "sourcePort": "out",
+      "target": "pickup-position",
+      "targetPort": "in"
+    },
+    {
+      "id": "pickup-position.out->dropoff-position.in",
+      "source": "pickup-position",
+      "sourcePort": "out",
+      "target": "dropoff-position",
+      "targetPort": "in"
+    },
+    {
+      "id": "dropoff-position.out->arc-layer.in",
+      "source": "dropoff-position",
+      "sourcePort": "out",
+      "target": "arc-layer",
+      "targetPort": "in"
+    },
+    {
+      "id": "dropoff-position.out->pickup-layer.in",
+      "source": "dropoff-position",
+      "sourcePort": "out",
+      "target": "pickup-layer",
+      "targetPort": "in"
+    },
+    {
+      "id": "dropoff-position.out->dropoff-layer.in",
+      "source": "dropoff-position",
+      "sourcePort": "out",
+      "target": "dropoff-layer",
+      "targetPort": "in"
     }
   ],
   "timeline": {
-    "sheetsById": {
-      "Noodles": {
-        "staticOverrides": {
-          "byObject": {}
-        },
-        "sequence": {
-          "subUnitsPerUnit": 30,
-          "length": 20,
-          "type": "PositionalSequence",
-          "tracksByObject": {
-            "maplibre-basemap": {
-              "trackData": {
-                "bearingTrk01": {
-                  "type": "BasicKeyframedTrack",
-                  "__debugName": "maplibre-basemap:[\"viewState\",\"bearing\"]",
-                  "keyframes": [
-                    {
-                      "id": "kf_bearing_0",
-                      "position": 0,
-                      "connectedRight": true,
-                      "handles": [
-                        0.333,
-                        0.333,
-                        0.667,
-                        0.667
-                      ],
-                      "type": "bezier",
-                      "value": -15.25
-                    },
-                    {
-                      "id": "kf_bearing_1",
-                      "position": 20,
-                      "connectedRight": false,
-                      "handles": [
-                        0.333,
-                        0.333,
-                        0.667,
-                        0.667
-                      ],
-                      "type": "bezier",
-                      "value": 344.75
-                    }
-                  ]
-                }
-              },
-              "trackIdByPropPath": {
-                "[\"viewState\",\"bearing\"]": "bearingTrk01"
-              }
+    "length": 20,
+    "fps": 30,
+    "tracks": [
+      {
+        "target": "deck.bearing",
+        "keyframes": [
+          {
+            "id": "kf_bearing_0",
+            "time": 0,
+            "value": -15.25,
+            "interpolation": "bezier",
+            "handles": {
+              "left": [
+                0.333,
+                0.333
+              ],
+              "right": [
+                0.667,
+                0.667
+              ]
             }
           },
-          "markers": []
-        }
+          {
+            "id": "kf_bearing_1",
+            "time": 20,
+            "value": 344.75,
+            "interpolation": "hold"
+          }
+        ]
       }
-    },
-    "definitionVersion": "0.4.0",
-    "revisionHistory": []
+    ]
   }
 }

@@ -15,46 +15,38 @@ ls src/examples/
 
 ### Editing Project Files Directly
 
-Project files (`noodles.json`) are plain JSON and can be read and written by Claude Code. See the [Project Files section](../AGENTS.md#project-files-noodlesjson) for the full schema. Key points:
+A project saved from the editor is a document (`EditorDoc`, defined in
+`packages/planner/src/doc.ts`): `nodes` with an `op` and `params`, and `edges` between ports.
+See the [Project Files section](../AGENTS.md#project-files) for the shape. Key points:
 
-- Node IDs are Unix-style paths: `/my-node`, `/container/child`
-- Edge handles: `out.fieldName` (source) → `par.fieldName` (target)
-- Only non-default input values need to be serialized
-- The current version is the number of the latest migration in `src/noodles/__migrations__/`; `validate-projects` prints it. Write new files at the current version; older files are migrated when they load, so don't bump the version of an existing file by hand
-- The file shape is published as a JSON Schema at `https://noodles.gl/schema/noodles-project.schema.json` (generated from `src/noodles/utils/project-schema.ts`), with a fixed copy per version at `noodles-project.v<N>.schema.json`. It checks shape only; operator types, inputs and handles are left to `validate-projects`
-- Examples open with one node selected so the properties panel shows controls: the first layer feeding the DeckRenderer's `layers` input. To pick another root-level node, set `"editorSettings": { "startNode": "/node-id" }`. This is optional and needs no migration
-
-### Looking Things Up Without a Browser
-
-The `noodles` MCP server ([noodles-mcp](../noodles-mcp/README.md)) answers from this checkout, with no dev server running. `.mcp.json` registers it, so Claude Code sessions in this repo have it after `npm install`; approve it when Claude Code asks. Its tools:
-
-- `list_operators`, `get_operator_schema`: every operator, and one operator's inputs, outputs and the `par.`/`out.` handles to wire them
-- `get_documentation`: search the docs and workflow guides, or read a topic by id
-- `list_examples`, `get_example`: the projects under `src/examples/`, with their READMEs and data files
-- `validate_project`: the check below, as a tool
-
-The first five have the same names and parameters as the in-app assistant's tools. With the WebMCP relay also connected, Claude Code tells them apart by server (`mcp__noodles__get_operator_schema`, `mcp__webmcp__get_operator_schema`). The live one reads the running editor's operator classes; the `noodles` one reads a snapshot of them that `npm test` keeps current.
-
-To write a project file:
-
-1. Find a similar project with `list_examples` and read it with `get_example`.
-2. Read each operator you'll use with `get_operator_schema` before writing its edges. Never guess a field name.
-3. Write the file, then validate it (next section) and fix every error.
-4. When it validates, the file is done. Load it in the browser if you want to see it, but don't keep researching.
+- Node ids are opaque; a node's `name` is unique within its network, and its path is its name
+  under its subnets' names (`/data-source`, `/subnet/filter`).
+- Edges join `sourcePort` to `targetPort`: `out` → `in` for tables, `out` → `layers` (with an
+  `index`) for layers into the deck, and `par:<name>` to drive a parameter.
+- `params` hold literals, `{ "expr": "..." }` or `{ "ref": "node/param" }`. Leave out
+  parameters that keep their default.
+- The examples in `src/examples/` are documents. Older operator-graph files (`noodles.json`
+  schema 1 to 19) still open: they are migrated and converted when they load. The operator
+  graphs the examples were are kept as conversion fixtures in `src/runtime/migrate/__fixtures__/`.
+- Examples open with one node selected so the parameter pane shows controls: the first layer
+  wired into the deck's `layers`. To pick another root-level node, set
+  `"meta": { "startNode": "<node id or name>" }`.
+- The file shape is published as a JSON Schema at
+  `https://noodles.gl/schema/noodles-project.schema.json` (generated from
+  `src/noodles/utils/project-schema.ts` by `npm run generate:schema`), pinned per document
+  version at `noodles-document.v<N>.schema.json`. `noodles-project.v19.schema.json` is the
+  older operator-graph format. The schema checks shape only; operators, parameters and ports
+  are left to `validate:projects`.
 
 ### Validating Changes
 
-After editing a project file, check it against the operator registry, with the `validate_project` tool or from the repo root:
-
-```bash
-npm run validate:projects -- path/to/noodles.json
-```
-
-From another directory, use `node noodles-validate/bin/validate-projects.ts <path>` with the path to this checkout. Don't run it as a bare `npx validate-projects`: the name isn't published on npm, so in a checkout without `node_modules` (a fresh clone, or a git worktree) npx would download and run whatever package someone publishes under it.
-
-It checks the schema version, operator types, input names, edge handles, duplicate edges and loops, and names the fix for each error. When it prints `OK` (or `validate_project` returns `"valid": true`), the file is valid. With no path it checks every project under `src/examples/`, the same as `npm run validate:examples`. See [noodles-validate](../noodles-validate/README.md) for the rules and exit codes.
-
-It doesn't check the `timeline` key or run the project. Load it in the browser at `http://localhost:5173/examples/<project-name>` to visually verify.
+Load the project in the browser at `http://localhost:5173/examples/<project-name>` (or open
+the file) and check the nodes for error badges. `npm run validate:projects -- path/to/noodles.json`
+(from the repo root) checks a document's operators, parameters, ports, wire types and
+references against the operator registry; `npm run validate:examples` checks every example.
+The same check is the `validate_project` tool of the noodles MCP server. The headless check is
+`npm test -- src/runtime/migrate/examples.node.test.ts` from `noodles-editor/`, which converts,
+lowers and runs every example.
 
 ### Connecting Claude Code to a Running Browser Instance
 
@@ -103,21 +95,21 @@ Two things the prompt works around, found while testing it:
 
 ### Graph Design Guidelines for Claude Code
 
-When generating or modifying `noodles.json` programmatically:
+When generating or modifying a document:
 
-- **Keep graphs simple** — aim for 5–8 nodes. A human must be able to read and modify the result.
-- **Prefer CodeOp for data transformation** over chaining FilterOp → MapOp → SortOp. One CodeOp node with a few lines of JavaScript is more reliable and easier to inspect:
-  ```json
-  {
-    "id": "/transform",
-    "type": "CodeOp",
-    "data": { "inputs": { "code": "return data.filter(d => d.value > 0).sort((a,b) => b.value - a.value)" } }
-  }
-  ```
-- **Standard pipeline**: FileOp/DuckDbOp → CodeOp (transform) → AccessorOp (position) → LayerOp → DeckRendererOp
-- **Always include MaplibreBasemapOp** for geographic visualizations
-- **Verify handle names** with `get_operator_schema` before writing edges, and validate the file when you're done (see [Validating Changes](#validating-changes))
+- **Keep graphs simple**: 5–8 nodes a person can read and change.
+- **Standard pipeline**: a source (`file`, `geojson`, `sql`) → row nodes (`filter`,
+  `attribute`, `aggregate`, `join`) → a layer (`scatter`, `path`, `polygon`, `heatmap`…) → the
+  `deck` node, which holds the basemap, the camera and the render settings.
+- **Per-row values are columns.** Compute them with `attribute` nodes or a layer channel's
+  expression (`[lng, lat]`, `magnitude * 1000`), not JavaScript accessors.
+- **Use `sql` for reshaping** that would take a chain of nodes; `{{input0}}` is the table on
+  `in0`, and `ch('node/param')` reads a parameter.
+- **`code`** runs JavaScript in the engine worker and returns rows. A converted CodeOp whose
+  code reads `op()`, the timeline or `this` stays a host operator, run outside the plan.
+- **Check ports and parameters** with `get_operator_schema` before writing edges.
 
 ### Timeline / Animation
 
-The timeline is serialized inside `noodles.json` under the `"timeline"` key. The structure is complex — prefer using the in-app chat's `set_keyframe` / `get_timeline` tools rather than editing the timeline JSON directly.
+The timeline is `timeline.tracks` in the document; each track's `target` is `nodeId.param`. Prefer the
+`set_keyframe` / `get_timeline` tools to editing it by hand.

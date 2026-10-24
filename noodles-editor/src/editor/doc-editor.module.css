@@ -1,0 +1,656 @@
+.tabMenu,
+.menu {
+  position: fixed;
+  z-index: 1000;
+  background: var(--color-surface-1, #1c1f26);
+  border: 1px solid var(--color-border, #333845);
+  border-radius: 6px;
+  box-shadow: 0 8px 24px rgb(0 0 0 / 40%);
+  color: var(--color-text, #e6e8ee);
+  font-size: 12px;
+}
+
+.tabMenu {
+  width: 300px;
+  display: flex;
+  flex-direction: column;
+}
+
+.tabMenu input {
+  margin: 6px;
+  padding: 6px 8px;
+  background: var(--color-surface-0, #12141a);
+  border: 1px solid var(--color-border, #333845);
+  border-radius: 4px;
+  color: inherit;
+  font-size: 12px;
+}
+
+.list {
+  max-height: 380px;
+  overflow-y: auto;
+  padding-bottom: 4px;
+}
+
+.category {
+  padding: 6px 10px 2px;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  opacity: 0.55;
+}
+
+.item {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 4px 10px;
+  cursor: pointer;
+}
+
+.item small {
+  opacity: 0.55;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.itemActive {
+  background: var(--color-accent-muted, #2b3550);
+}
+
+.menu {
+  min-width: 180px;
+  padding: 4px 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.menu button {
+  all: unset;
+  padding: 5px 12px;
+  cursor: pointer;
+}
+
+.menu button:hover {
+  background: var(--color-accent-muted, #2b3550);
+}
+
+.menu button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.menu hr {
+  border: none;
+  border-top: 1px solid var(--color-border, #333845);
+  margin: 4px 0;
+}
+
+.menuHeading {
+  padding: 4px 12px;
+  opacity: 0.6;
+}
+
+.panel {
+  padding: 8px;
+  font-size: 12px;
+  overflow-y: auto;
+  height: 100%;
+}
+
+.panelTitle {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.panelTitle input {
+  flex: 1;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  color: inherit;
+  font-weight: 600;
+  padding: 2px 4px;
+}
+
+.panelTitle input:focus {
+  border-color: var(--color-border, #333845);
+}
+
+.error {
+  color: #f87171;
+  margin-bottom: 8px;
+  white-space: pre-wrap;
+}
+
+.empty {
+  opacity: 0.6;
+  padding: 12px;
+}
+
+/* --- the parameter pane: d-d-d's layout, Noodles' widgets ---------------------------- */
+
+.pane {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow-y: auto;
+  font-size: 12px;
+}
+
+.paneHead {
+  padding: 10px 12px 8px;
+  border-bottom: 1px solid var(--color-border, #333);
+}
+
+.paneRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.chip {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  padding: 1px 6px;
+  border-radius: 3px;
+  color: var(--node-header-text-color, #dadada);
+  white-space: nowrap;
+}
+
+.paneName {
+  flex: 1;
+  min-width: 0;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  color: inherit;
+  font-weight: 600;
+  font-size: 13px;
+  padding: 2px 4px;
+}
+
+.paneName:hover,
+.paneName:focus {
+  border-color: var(--color-border, #333);
+  outline: none;
+}
+
+.flags {
+  display: flex;
+  gap: 4px;
+}
+
+.flag {
+  width: 20px;
+  height: 18px;
+  border-radius: 3px;
+  border: 1px solid var(--color-border, #333);
+  background: var(--color-bg-secondary, #2a2a2a);
+  color: var(--color-text-secondary, #888);
+  cursor: pointer;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 0;
+}
+
+.flagBypass {
+  background: #d9b53a;
+  color: #20170a;
+  border-color: #d9b53a;
+}
+
+.flagDisplay {
+  background: #3a8bd9;
+  color: white;
+  border-color: #3a8bd9;
+}
+
+.panePath {
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 10.5px;
+  color: var(--color-text-disabled, #555);
+  margin-top: 3px;
+}
+
+.paneDesc {
+  color: var(--color-text-secondary, #888);
+  margin-top: 5px;
+  font-size: 11.5px;
+}
+
+.params {
+  padding: 4px 8px 12px;
+}
+
+/* A folder: an uppercase heading, as the old properties panel titled its sections */
+.folder + .folder {
+  margin-top: 6px;
+}
+
+.folderHead {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  margin: 6px 0 2px;
+  padding: 4px 6px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: rgb(255 255 255 / 50%);
+  font: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.folderHead:hover {
+  background: rgb(255 255 255 / 4%);
+  color: rgb(255 255 255 / 75%);
+}
+
+.folderChevron {
+  width: 10px;
+  font-size: 9px;
+}
+
+.paramRow {
+  position: relative;
+  padding: 2px 6px;
+  border-radius: 4px;
+  transition: background 0.1s;
+}
+
+.paramRow:hover {
+  background: rgb(255 255 255 / 3%);
+}
+
+/* A Noodles widget in the pane: its label right-aligned in a column, the input filling the
+   rest, as Houdini's parameter pane lines them up */
+.paramRow :global(.field-row) {
+  display: grid;
+  grid-template-columns: minmax(64px, 36%) minmax(0, 1fr);
+  gap: 8px;
+  min-height: 26px;
+}
+
+.paramRow :global(.field-label) {
+  text-align: right;
+  color: var(--color-text-secondary, #9a9a9a);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.paramRow :global(.field-input) {
+  justify-content: stretch;
+  min-width: 0;
+}
+
+.paramRow :global(.field-input) > input,
+.paramRow :global(.field-input) > :global(.p-inputtext) {
+  width: 100%;
+  min-width: 0;
+}
+
+/* Linking a parameter to another: the button appears on hover */
+.linkButton {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: 0;
+  border-radius: 3px;
+  background: transparent;
+  color: var(--color-text-secondary, #888);
+  font-size: 11px;
+  cursor: pointer;
+  opacity: 0;
+}
+
+.paramRow:hover .linkButton {
+  opacity: 0.6;
+}
+
+.linkButton:hover {
+  opacity: 1 !important;
+  background: rgb(255 255 255 / 8%);
+}
+
+/* A parameter that reads another: its source, its value, and a way to break the link */
+.refChip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  padding: 2px 4px 2px 6px;
+  border: 1px solid #2f4b7d;
+  border-radius: 4px;
+  background: #1b2233;
+}
+
+.refChipSource {
+  flex: 1;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #9fc0ff;
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 11px;
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+}
+
+.refChipSource:hover {
+  text-decoration: underline;
+}
+
+.refChipBreak {
+  padding: 0 3px;
+  border: 0;
+  background: transparent;
+  color: #9fc0ff;
+  cursor: pointer;
+  opacity: 0.7;
+}
+
+.refChipBreak:hover {
+  opacity: 1;
+}
+
+.readers {
+  padding: 0 6px 2px calc(36% + 8px);
+  color: var(--color-text-secondary, #888);
+  font-size: 10.5px;
+}
+
+.readers button {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #9fc0ff;
+  font: inherit;
+  cursor: pointer;
+}
+
+.refPicker {
+  position: fixed;
+  z-index: 10000;
+  width: 300px;
+  border: 1px solid var(--color-border, #333);
+  border-radius: 6px;
+  background: var(--color-bg-primary-solid, #1e2126);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 55%);
+  overflow: hidden;
+}
+
+.refPickerSearch {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 7px 10px;
+  border: 0;
+  border-bottom: 1px solid var(--color-border, #333);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  outline: none;
+}
+
+.refPickerList {
+  max-height: 260px;
+  overflow-y: auto;
+  padding: 4px;
+}
+
+.refPickerItem {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  padding: 5px 8px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 11.5px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.refPickerItem[aria-selected="true"] {
+  background: rgb(74 158 255 / 18%);
+}
+
+.refPickerValue,
+.refPickerEmpty {
+  color: var(--color-text-secondary, #888);
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 10.5px;
+  white-space: nowrap;
+}
+
+.refPickerEmpty {
+  padding: 8px;
+}
+
+.paramMain {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.paramMain > :first-child {
+  flex: 1;
+  min-width: 0;
+}
+
+.paramDriven {
+  display: grid;
+  grid-template-columns: minmax(64px, 36%) minmax(0, 1fr) auto;
+  gap: 6px;
+  align-items: center;
+  padding: 3px 8px;
+}
+
+.paramLabel {
+  text-align: right;
+  color: var(--color-text-secondary, #888);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.wired {
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 11px;
+  color: #ff9d9d;
+}
+
+.evaluated {
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 10.5px;
+  color: var(--color-text-disabled, #555);
+}
+
+.exprMode,
+.refMode {
+  min-width: 0;
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 11.5px;
+  border-radius: 3px;
+  border: 1px solid;
+  padding: 2px 5px;
+}
+
+.exprMode {
+  background: #16261d;
+  border-color: #2a5a3d;
+  color: #9ce0b4;
+}
+
+.refMode {
+  background: #1b2233;
+  border-color: #2f4b7d;
+  color: #9fc0ff;
+}
+
+.diamond {
+  width: 10px;
+  height: 10px;
+  flex: none;
+  margin-right: 6px;
+  transform: rotate(45deg);
+  border: 1.5px solid var(--color-text-disabled, #555);
+  background: transparent;
+  cursor: pointer;
+  padding: 0;
+}
+
+.diamondTrack {
+  border-color: #e6b53d;
+}
+
+.diamondOn {
+  background: #e6b53d;
+  border-color: #e6b53d;
+}
+
+.routes {
+  display: flex;
+  gap: 3px;
+  flex-wrap: wrap;
+  padding: 0 8px 2px 124px;
+}
+
+.route {
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 9.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 0 4px;
+  border-radius: 3px;
+  border: 1px solid;
+  opacity: 0.9;
+}
+
+.route_prop {
+  color: #4fd6a8;
+  border-color: #1f5e4a;
+}
+
+.route_uniform {
+  color: #f0a05a;
+  border-color: #5c3d20;
+}
+
+.route_cpu {
+  color: #e2c75b;
+  border-color: #564b1e;
+}
+
+.route_requery {
+  color: #6ea8fe;
+  border-color: #253e66;
+}
+
+.route_rematerialize {
+  color: #b98cf0;
+  border-color: #45306a;
+}
+
+.route_rebuild {
+  color: #ff6b6b;
+  border-color: #5a2525;
+}
+
+.section {
+  padding: 8px 12px;
+  border-top: 1px solid var(--color-border, #333);
+}
+
+.section h4 {
+  margin: 0 0 6px;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--color-text-secondary, #888);
+}
+
+.kv {
+  display: grid;
+  grid-template-columns: 80px 1fr;
+  gap: 2px 8px;
+  margin: 0;
+  font-size: 11px;
+}
+
+.kv dt {
+  color: var(--color-text-secondary, #888);
+}
+
+.kv dd {
+  margin: 0;
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  overflow-wrap: anywhere;
+}
+
+.code {
+  margin: 6px 0 0;
+  padding: 6px;
+  max-height: 160px;
+  overflow: auto;
+  background: var(--color-bg-base, #1a1a1a);
+  border-radius: 4px;
+  font-size: 10.5px;
+  white-space: pre-wrap;
+}
+
+/* --- custom editors above a node's parameters (pane-editors.tsx) ---------------------- */
+
+.paneEditor {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--color-border, #333);
+  overflow-x: auto;
+}
+
+.paneButton {
+  padding: 4px 10px;
+  border: 1px solid var(--color-border, #444);
+  border-radius: 4px;
+  background: var(--color-surface-raised, #2a2f3a);
+  color: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.paneButton:hover {
+  border-color: var(--color-accent, #6b8cff);
+}
+
+/* Shown under the header for the node an example selects when it opens */
+.starterHint {
+  margin: 0 6px 12px;
+  padding: 6px 8px;
+  border-left: 2px solid var(--color-primary, #3b82f6);
+  border-radius: 3px;
+  background: rgba(59, 130, 246, 0.1);
+  color: var(--color-text-secondary);
+  font-size: 12px;
+  line-height: 1.4;
+}

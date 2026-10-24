@@ -5,13 +5,18 @@ _Adapted from [Kepler.gl examples](https://github.com/keplergl/kepler.gl-data/tr
 ## Overview
 This example creates a choropleth map of NYC census tracts where each tract polygon is colored based on demographic data. Each tract is colored and extruded by its population, revealing demographic patterns across New York City's five boroughs.
 
-## Key Techniques
-- **Data source**: `FileOp` loads census tract boundaries with demographic data
-- **Polygon layer**: `GeoJsonLayerOp` renders tract boundaries with `extruded: true` and `elevationScale: 11`
-- **Population accessor**: `AccessorOp` with expression `d.properties.Population`
-- **Color mapping**: `MapRangeOp` scales population from 0-10000 to 0-1, then `ColorRampOp` with the `turbo` scheme sets the fill color
-- **Elevation**: a second `MapRangeOp` scales population from 0-10000 to 0-200 for `getElevation`
-- **Basemap**: `MaplibreBasemapOp` with voyager style, centered on New York City
+## Nodes
+- **`data-source`** (GeoJSON) loads the census tracts from `@/data.json`
+- **`map-range`** (Map Range) scales `Population` from 0 to 10000 into 0 to 1, written as `map_range`
+- **`population-color`** (Color Ramp) maps `map_range` through the `turbo` ramp into `population_color`
+- **`population-to-elevation`** (Map Range) scales `Population` from 0 to 10000 into 0 to 200, written as `population_to_elevation`
+- **`geojson-layer`** (Polygon Layer) fills and extrudes tracts with `color: "population_color"`, `elevation: "population_to_elevation"` and `elevationScale: 11`
+- **`deck`** (Deck) holds the Carto Voyager basemap and the camera
+
+## Pipeline
+```
+data-source → map-range → population-color → population-to-elevation → geojson-layer → deck
+```
 
 ## Data Structure
 The GeoJSON file contains census tract features with:

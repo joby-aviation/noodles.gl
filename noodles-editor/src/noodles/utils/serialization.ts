@@ -1,20 +1,12 @@
-import type { NodeJSON } from 'SKIP-@xyflow/react'
 import type {
   Edge as ReactFlowEdge,
   ReactFlowJsonObject,
   Node as ReactFlowNode,
 } from '@xyflow/react'
 import { debugSerialize } from '../../utils/debug'
-import { resizeableNodes } from '../components/op-components'
-import { captureNodeUIMetadata } from '../fields'
-import { UnknownOperator } from '../operators'
-import type { useGraphStore } from '../store'
-import { deepEqual } from './deep-equal'
-import type { ExtractProps } from './extract-props'
 import type { StorageType } from './filesystem'
-import { MULTI_INPUT_EDGE_TYPE } from './multi-input-utils'
 import { CACHE_DIRECTORY_NAME, type OutputCacheFiles } from './output-cache'
-import { parseHandleId } from './path-utils'
+import type { RenderSettings } from './render-settings-constants'
 
 export { NOODLES_VERSION } from './migrate-schema'
 
@@ -93,220 +85,6 @@ export function safeStringify(obj: Record<string, unknown>) {
   return `${JSON.stringify(obj, getJsonSanitizer(), 2)}\n`
 }
 
-import { computeVisibilityHeuristic } from './visibility-heuristic'
-
-export type SerializeNodesOptions = {
-  // When true (clipboard), always serializes visible fields to preserve exact state on paste,
-  // even if visibility matches heuristic. This handles fields visible due to connections
-  // that won't exist after paste.
-  forClipboard?: boolean
-}
-
-// Check if two sets have the same elements
-function setsEqual(a: Set<string>, b: Set<string>): boolean {
-  if (a.size !== b.size) return false
-  for (const item of a) {
-    if (!b.has(item)) return false
-  }
-  return true
-}
-
-export function serializeNodes(
-  store: ReturnType<typeof useGraphStore.getState>,
-  nodes: ReactFlowNode<Record<string, unknown>>[],
-  edges: ReactFlowEdge[],
-  options?: SerializeNodesOptions
-) {
-  const { forClipboard = false } = options ?? {}
-  debugSerialize(
-    'serializeNodes: %d nodes, %d edges, forClipboard=%s',
-    nodes.length,
-    edges.length,
-    forClipboard
-  )
-
-  // Make a copy of the node to prepared for serialization.
-  const preparedNodes: NodeJSON<unknown>[] = []
-  for (const node of nodes) {
-    if (node.type === 'group') {
-      // React Flow's runtime dimensions override style dimensions when a project
-      // is loaded. Persist the fitted size in style, not the transient measurement
-      // cache, so a stale measurement cannot resurrect old group bounds.
-      const { measured, width, height, ...cleanedGroup } = node
-      const fittedWidth = node.style?.width ?? measured?.width ?? width
-      const fittedHeight = node.style?.height ?? measured?.height ?? height
-      preparedNodes.push({
-        ...cleanedGroup,
-        ...((fittedWidth !== undefined || fittedHeight !== undefined) && {
-          style: {
-            ...node.style,
-            ...(fittedWidth !== undefined && { width: fittedWidth }),
-            ...(fittedHeight !== undefined && { height: fittedHeight }),
-          },
-        }),
-      })
-      continue
-    }
-    const op = store.getOp(node.id)
-    if (!op) continue
-
-    // A placeholder for a missing operator type saves the node exactly as it was loaded
-    if (op instanceof UnknownOperator) {
-      const {
-        selected: _,
-        dragging: __,
-        hidden: ___,
-        measured,
-        width,
-        height,
-        ...cleanedNode
-      } = node
-      preparedNodes.push({ ...cleanedNode, type: op.originalType, data: op.originalData })
-      continue
-    }
-
-    // Don't set node data for connected inputs (saves space). A locked upstream op restores
-    // its own outputs from the cache folder, so its values aren't copied here either.
-    const incomers = edges
-      .filter(edge => edge.target === node.id && edge.type !== 'ReferenceEdge')
-      .map(edge => parseHandleId(edge.targetHandle)?.fieldName)
-      .reduce((acc, fieldName) => acc.add(fieldName), new Set<string | undefined>())
-
-    // Serialize fields
-    const inputs: ExtractProps<ReturnType<typeof op.createInputs>> = {}
-    for (const [name, field] of Object.entries(op.inputs)) {
-      const serialized = field.serialize()
-      // Compare transformed values to properly detect non-default values
-      // This handles fields where serialize() returns a different format than stored value
-      // (e.g., ColorField with transform: hexToColor stores [R,G,B,A] but serializes to '#rrggbbaa')
-      let normalizedDefault = field.defaultValue
-      try {
-        if (normalizedDefault !== undefined) {
-          normalizedDefault = field.schema.parse(normalizedDefault)
-        }
-      } catch {
-        // If parsing fails, use the raw default value
-      }
-      // Expression-driven fields always serialize — the expression must persist even
-      // when its current evaluated value happens to equal the default
-      const hasNonDefaultValue =
-        serialized !== undefined &&
-        (field.expression !== null || !deepEqual(field.value, normalizedDefault))
-      if (hasNonDefaultValue && !incomers.has(name)) {
-        inputs[name] = serialized
-      }
-    }
-
-    // Clean up the node object to remove unnecessary properties (they're recreated on load)
-    const {
-      selected: _,
-      dragging: __,
-      hidden: ___,
-      dragHandle: ____,
-      // Set by NodeResizer while a resize is in progress
-      resizing: _____,
-      measured,
-      width,
-      height,
-      ...cleanedNode
-    } = node
-
-    // Determine visibleInputs serialization
-    // We serialize the full visible set when it differs from heuristic
-    const visibilityData: { visibleInputs?: string[] } = {}
-
-    // Only serialize visibleInputs if visibility has been explicitly configured
-    // (visibleFields.value is not null) AND differs from heuristic
-    // If visibleFields.value is null, we rely on heuristic during deserialization
-    const hasExplicitVisibility = op.visibleFields.value !== null
-
-    if (hasExplicitVisibility || forClipboard) {
-      // Get current visible fields
-      const currentVisible = new Set<string>()
-      for (const name of Object.keys(op.inputs)) {
-        if (op.isFieldVisible(name)) {
-          currentVisible.add(name)
-        }
-      }
-
-      // Compute heuristic visibility
-      const { visibleFields: heuristicVisible } = computeVisibilityHeuristic(op, inputs, incomers)
-
-      // For clipboard: always serialize to preserve exact state (connections may not survive paste)
-      // For project save: only serialize if visibility differs from heuristic
-      if (forClipboard || !setsEqual(currentVisible, heuristicVisible)) {
-        visibilityData.visibleInputs = Array.from(currentVisible)
-      }
-    }
-
-    const ui = captureNodeUIMetadata(op.inputs)
-
-    preparedNodes.push({
-      ...cleanedNode,
-      ...(node.type && (resizeableNodes as readonly string[]).includes(node.type)
-        ? { width, height, measured }
-        : {}),
-      data: {
-        inputs,
-        locked: op.locked.value,
-        ...(op.customInputDefinitions?.length > 0
-          ? { customInputs: op.customInputDefinitions }
-          : {}),
-        ...(ui ? { ui } : {}),
-        ...visibilityData,
-      },
-    })
-  }
-  return preparedNodes
-}
-
-export function serializeEdges(
-  _store: ReturnType<typeof useGraphStore.getState>,
-  nodes: ReactFlowNode<Record<string, unknown>>[],
-  edges: ReactFlowEdge[]
-) {
-  debugSerialize('serializeEdges: %d nodes, %d edges', nodes.length, edges.length)
-  // Create a set of valid node IDs to filter out orphaned edges
-  const validNodeIds = new Set(nodes.map(node => node.id))
-
-  return edges
-    .filter(edge => {
-      // Skip edges that reference non-existent nodes
-      if (!validNodeIds.has(edge.source) || !validNodeIds.has(edge.target)) {
-        debugSerialize('Skipping orphaned edge: %s (%s -> %s)', edge.id, edge.source, edge.target)
-        return false
-      }
-      // Skip ReferenceEdge types - they should not be persisted in save files
-      if (edge.type === 'ReferenceEdge') {
-        return false
-      }
-      return true
-    })
-    .map(edge => {
-      const serialized = Object.fromEntries(
-        Object.entries(edge).filter(([key]) => !['selected', 'animated'].includes(key))
-      )
-
-      // Multi-input slot state (edge type + orderIndex/groupSize) is derived from edge
-      // array order at load time — keep files canonical by not persisting it
-      if (serialized.type === MULTI_INPUT_EDGE_TYPE) {
-        delete serialized.type
-        const {
-          orderIndex: _orderIndex,
-          groupSize: _groupSize,
-          ...data
-        } = (serialized.data ?? {}) as Record<string, unknown>
-        if (Object.keys(data).length > 0) {
-          serialized.data = data
-        } else {
-          delete serialized.data
-        }
-      }
-
-      return serialized
-    })
-}
-
 // Pre-load all example asset URLs for download functionality
 const exampleAssetUrls: Record<string, string> = import.meta.glob('../../examples/**/*', {
   eager: true,
@@ -314,7 +92,6 @@ const exampleAssetUrls: Record<string, string> = import.meta.glob('../../example
   query: '?url',
 })
 
-// Export a project as a downloadable zip file containing noodles.json, data and cache files
 export async function saveProjectLocally(
   projectName: string,
   projectJson: NoodlesProjectJSON,
