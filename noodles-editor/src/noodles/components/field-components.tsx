@@ -67,6 +67,7 @@ import { computeRelativePath } from '../utils/path-utils'
 import { formatReference, parseReference, type ReferenceFormat } from '../utils/reference-utils'
 import { ColorSwatch } from './color-swatch'
 import { DraggableNumberInput } from './draggable-number-input'
+import { FieldTooltip } from './field-tooltip'
 import { GeocodingDialog } from './geocoding-dialog'
 import menuStyles from './menu.module.css'
 import { extensionOf } from './tools/import-pipelines'
@@ -1540,20 +1541,25 @@ export function CompoundFieldComponent({
   disabled: boolean
 }) {
   const [expanded, setExpanded] = useState(true)
+  const docs = getFieldDocs(id, field, field.op)
   return (
     <div className={cx(s.fieldWrapper, 'field-row', 'nokey')}>
-      <button
-        className={cx(s.fieldLabel, 'field-label')}
-        type="button"
-        onClick={() => setExpanded(e => !e)}
-        aria-expanded={expanded}
-        title={id}
-      >
-        {getFieldDocs(id, field, field.op).label}
-        <span className={cx(s.compoundPropsExpander, expanded && s.compoundPropsExpanderExpanded)}>
-          ►
-        </span>
-      </button>
+      <FieldTooltip fieldKey={id} description={docs.description}>
+        <button
+          className={cx(s.fieldLabel, 'field-label')}
+          type="button"
+          onClick={() => setExpanded(e => !e)}
+          aria-expanded={expanded}
+          data-field-key={id}
+        >
+          {docs.label}
+          <span
+            className={cx(s.compoundPropsExpander, expanded && s.compoundPropsExpanderExpanded)}
+          >
+            ►
+          </span>
+        </button>
+      </FieldTooltip>
       {expanded ? (
         <div id={id} className={s.fieldCompoundWrapper}>
           {Object.entries(field.fields).map(([key, subField]) => (
@@ -1573,9 +1579,10 @@ export function CompoundFieldComponent({
   )
 }
 
-// Row label: the field's friendly name, with its key (the name used in edges, references and
-// expressions) as the tooltip. A bare key (`getFillColor`) gets the field's label or its
-// humanized name; a label the parameter pane passes as the id (`Min width (px)`) stays as it is.
+// Row label: the field's friendly name. Hovering shows its description and its key (the
+// name used in edges, references and expressions). A bare key (`getFillColor`) gets the
+// field's label or its humanized name; a label the parameter pane passes as the id
+// (`Min width (px)`) stays as it is.
 export function FieldLabel({
   id,
   field,
@@ -1585,17 +1592,20 @@ export function FieldLabel({
   field: Field<IField>
   as?: 'label' | 'div'
 }) {
-  const label = /^[A-Za-z_$][\w$]*$/.test(id)
-    ? getFieldDocs(id, field, field.op).label
-    : (field.label ?? id)
-  return as === 'label' ? (
-    <label className={cx(s.fieldLabel, 'field-label')} htmlFor={id} title={id}>
-      {label}
-    </label>
-  ) : (
-    <div className={cx(s.fieldLabel, 'field-label')} title={id}>
-      {label}
-    </div>
+  const docs = getFieldDocs(id, field, field.op)
+  const label = /^[A-Za-z_$][\w$]*$/.test(id) ? docs.label : (field.label ?? id)
+  return (
+    <FieldTooltip fieldKey={id} description={docs.description}>
+      {as === 'label' ? (
+        <label className={cx(s.fieldLabel, 'field-label')} htmlFor={id} data-field-key={id}>
+          {label}
+        </label>
+      ) : (
+        <div className={cx(s.fieldLabel, 'field-label')} data-field-key={id}>
+          {label}
+        </div>
+      )}
+    </FieldTooltip>
   )
 }
 

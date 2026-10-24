@@ -245,6 +245,8 @@ export function ParamRow({
     // biome-ignore lint/a11y/noStaticElementInteractions: right-click opens the parameter's menu
     <div
       className={s.paramRow}
+      // A field label's tooltip opens when keyboard focus reaches this row's input
+      data-field-row
       title={`${def.help ?? def.label}\n${key}`}
       onContextMenu={e => {
         e.preventDefault()

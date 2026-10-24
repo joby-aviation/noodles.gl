@@ -14,6 +14,13 @@ describe('humanizeFieldName', () => {
     ['_full3d', 'Full 3D'],
     ['max_width', 'Max width'],
     ['URLPath', 'URL path'],
+    ['geojson', 'GeoJSON'],
+    ['inputGeojson', 'Input GeoJSON'],
+    ['kml', 'KML'],
+    // Object.prototype keys must not be read as special-cased words
+    ['constructor', 'Constructor'],
+    ['toString', 'To string'],
+    ['__proto__', 'Proto'],
     ['get', 'Get'],
     ['val', 'Val'],
   ])('%s -> %s', (name, label) => {
@@ -50,8 +57,8 @@ describe('getFieldDocs', () => {
   })
 
   it('does not apply layer prop docs to other operators', () => {
-    expect(getFieldDocs('val', new NumberField(0), number)).toEqual({
-      label: 'Val',
+    expect(getFieldDocs('data', new NumberField(1), number)).toEqual({
+      label: 'Data',
       description: undefined,
     })
     expect(getFieldDocs('opacity', new NumberField(1), number).description).toBeUndefined()
@@ -61,6 +68,13 @@ describe('getFieldDocs', () => {
     const op = new CodeOp('/code')
     op.addCustomInput({ id: 'a', name: 'maxSpeed', type: 'number', order: 0, defaultValue: 5 })
     expect(getFieldDocs('maxSpeed', op.getAllInputs().maxSpeed, op).label).toBe('maxSpeed')
+  })
+
+  it('ignores inherited keys when looking up layer prop docs', () => {
+    expect(getFieldDocs('constructor', new NumberField(1), arcLayer)).toEqual({
+      label: 'Constructor',
+      description: undefined,
+    })
   })
 
   it('humanizes the key when nothing else applies', () => {

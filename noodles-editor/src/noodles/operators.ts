@@ -538,8 +538,15 @@ export class BezierCurveOp extends Operator<BezierCurveOp> {
   static description = 'Bezier curve for mapping input values using an interactive graph editor'
   createInputs() {
     return {
-      factor: new NumberField(0.5, { min: 0, max: 1, step: 0.01 }),
-      curve: new BezierCurveField(),
+      factor: new NumberField(0.5, {
+        min: 0,
+        max: 1,
+        step: 0.01,
+        description: 'Input position on the curve, 0 to 1.',
+      }),
+      curve: new BezierCurveField(undefined, {
+        description: 'The curve that maps input to output. Drag the handles to shape it.',
+      }),
     }
   }
   createOutputs() {
@@ -680,7 +687,10 @@ export class GeocoderOp extends Operator<GeocoderOp> {
   static description = 'Get the location of a query string'
   createInputs() {
     return {
-      query: new StringField(),
+      query: new StringField(undefined, {
+        description:
+          'Place name or address to look up with Mapbox. Needs a Mapbox key in Settings.',
+      }),
     }
   }
   createOutputs() {
@@ -721,30 +731,43 @@ export class DirectionsOp extends Operator<DirectionsOp> {
   asDownload = () => this.outputData
   createInputs() {
     return {
-      origin: new Point2DField(),
-      destination: new Point2DField(),
+      origin: new Point2DField(undefined, {
+        description: 'Start of the route, as a longitude and latitude.',
+      }),
+      destination: new Point2DField(undefined, {
+        description: 'End of the route, as a longitude and latitude.',
+      }),
       mode: new StringLiteralField('transit', {
         values: [
           { value: 'driving', label: 'Driving (Mapbox / OSRM)' },
           { value: 'driving-traffic', label: 'Driving with traffic (Google)' },
           { value: 'transit', label: 'Transit (Google)' },
         ],
+        description:
+          'Routing service: driving, traffic-aware driving (Google) or transit (Google).',
       }),
       departureMode: new StringLiteralField('now', {
         values: [
           { value: 'now', label: 'Depart now' },
           { value: 'scheduled', label: 'Schedule departure' },
         ],
+        description: 'Leave now or at a set time. Only used for driving with traffic.',
       }),
-      departureTime: new DateField(),
+      departureTime: new DateField(undefined, {
+        description:
+          'Local time at the origin to leave. Must be in the future. Used with a scheduled departure.',
+      }),
       trafficModel: new StringLiteralField('best-guess', {
         values: [
           { value: 'best-guess', label: 'Best guess' },
           { value: 'pessimistic', label: 'Pessimistic' },
           { value: 'optimistic', label: 'Optimistic' },
         ],
+        description: 'How to estimate traffic delay: best guess, pessimistic or optimistic.',
       }),
-      avoidTolls: new BooleanField(false),
+      avoidTolls: new BooleanField(false, {
+        description: 'Prefer routes without toll roads. Only used for driving with traffic.',
+      }),
     }
   }
   createOutputs() {
@@ -818,20 +841,31 @@ export class CustomMapLibreLayerOp extends Operator<CustomMapLibreLayerOp> {
 
   createInputs() {
     return {
-      id: new StringField('custom-layer'),
-      code: new CodeField('', { language: 'javascript' }),
+      id: new StringField('custom-layer', {
+        label: 'Layer ID',
+        description: 'Unique MapLibre layer ID. A layer with the same ID is replaced.',
+      }),
+      code: new CodeField('', {
+        language: 'javascript',
+        description:
+          'Function body that gets params and map and returns an object with a render method.',
+      }),
       renderingMode: new StringLiteralField('3d', {
         values: ['2d', '3d'],
+        description: "'3d' shares the map's depth buffer; '2d' draws flat with no depth.",
       }),
       beforeId: new StringField('', {
         optional: true,
         showByDefault: false,
+        label: 'Before layer ID',
+        description: 'ID of an existing map layer to draw under. Empty adds it on top.',
       }),
       params: new UnknownField(
         {},
         {
           optional: true,
           showByDefault: false,
+          description: 'Values passed to the code as params.',
         }
       ),
     }
@@ -878,9 +912,18 @@ export class MapStyleConfiguratorOp extends Operator<MapStyleConfiguratorOp> {
 
   createInputs() {
     return {
-      baseStyle: new FileUrlField(CARTO_DARK, { accept: '.json' }),
+      baseStyle: new FileUrlField(CARTO_DARK, {
+        accept: '.json',
+        description: 'MapLibre style JSON to start from, as a URL or file.',
+      }),
       // Stores layer + global overrides as { layers: LayerOverride[], global: StyleGlobalOverrides }
-      overrides: new UnknownField({ layers: [], global: {} }),
+      overrides: new UnknownField(
+        { layers: [], global: {} },
+        {
+          label: 'Style edits',
+          description: 'Layer color, font and visibility edits made in the style editor.',
+        }
+      ),
     }
   }
 
@@ -954,12 +997,24 @@ export class BrushingExtensionOp extends Operator<BrushingExtensionOp> {
     'Only render the points within a given radius of the mouse position. Used with most layer types.'
   createInputs() {
     return {
-      brushingRadius: new NumberField(100, { min: 0, softMax: 100_000 }),
-      brushingEnabled: new BooleanField(true),
+      brushingRadius: new NumberField(100, {
+        min: 0,
+        softMax: 100_000,
+        description: 'Radius around the mouse, in meters, inside which objects are drawn.',
+      }),
+      brushingEnabled: new BooleanField(true, {
+        description: 'When off, all objects are drawn regardless of the mouse position.',
+      }),
       brushingTarget: new StringLiteralField('source', {
         values: ['source', 'target', 'source_target', 'custom'],
+        description:
+          'Which position is tested against the mouse: source, target, either, or Brushing target.',
       }),
-      getBrushingTarget: new Point2DField([0, 0], { returnType: 'tuple' }),
+      getBrushingTarget: new Point2DField([0, 0], {
+        returnType: 'tuple',
+        description:
+          "[lng, lat] tested against the mouse. Only used when Brushing target is 'custom'.",
+      }),
     }
   }
   createOutputs() {
@@ -981,15 +1036,42 @@ export class PathStyleExtensionOp extends Operator<PathStyleExtensionOp> {
   static description = 'Style a path (used with PathLayer, PolygonLayer, and GeoJSONLayer)'
   createInputs() {
     return {
-      dash: new BooleanField(true),
-      highPrecisionDash: new BooleanField(false, { showByDefault: false }),
-      offset: new BooleanField(false),
-      dashMode: new StringLiteralField('segment', ['segment', 'path']),
-      dashJustified: new BooleanField(false),
-      dashUnits: new StringLiteralField('widths', ['widths', 'pixels', 'meters', 'common']),
-      getDashArray: new Vec2Field([4, 4], { returnType: 'tuple' }),
-      getOffset: new NumberField(0, { softMin: -10_000, softMax: 10_000 }),
-      dashGapPickable: new BooleanField(false),
+      dash: new BooleanField(true, {
+        description: 'Turns on dashed lines, drawn with Dash array.',
+      }),
+      highPrecisionDash: new BooleanField(false, {
+        showByDefault: false,
+        description: "When on, forces Dash mode to 'path' for smoother dashes, at some speed cost.",
+      }),
+      offset: new BooleanField(false, {
+        description: 'Turns on shifting lines sideways by Offset.',
+      }),
+      dashMode: new StringLiteralField('segment', {
+        values: ['segment', 'path'],
+        description:
+          "'segment' restarts dashes at each segment; 'path' keeps them continuous along the path.",
+      }),
+      dashJustified: new BooleanField(false, {
+        description: 'When on, adjusts gaps so dashes line up with both ends of each path.',
+      }),
+      dashUnits: new StringLiteralField('widths', {
+        values: ['widths', 'pixels', 'meters', 'common'],
+        description:
+          "Units for Dash array. 'widths' is relative to half the line width, so dashes scale with it.",
+      }),
+      getDashArray: new Vec2Field([4, 4], {
+        returnType: 'tuple',
+        description: '[dash length, gap length], in Dash units.',
+      }),
+      getOffset: new NumberField(0, {
+        softMin: -10_000,
+        softMax: 10_000,
+        description: 'Sideways shift in line widths. Negative moves left, positive moves right.',
+      }),
+      dashGapPickable: new BooleanField(false, {
+        description:
+          'When on, the gaps between dashes respond to hover and click, not just the dashes.',
+      }),
     }
   }
   createOutputs() {
@@ -1151,8 +1233,15 @@ export class CodeOp extends Operator<CodeOp> {
   asDownload = () => this.outputs.data.value
   createInputs() {
     return {
-      data: new ListField(new DataField()),
-      code: new CodeField('', { language: 'javascript' }),
+      data: new ListField(new DataField(), {
+        description:
+          'Values from connected nodes, available in code as the data array; d is the first.',
+      }),
+      code: new CodeField('', {
+        language: 'javascript',
+        description:
+          'JavaScript function body that must return a value. Can use op(), await, d3 and turf.',
+      }),
     }
   }
   createOutputs() {
@@ -1317,8 +1406,14 @@ export class ClipExtensionOp extends Operator<ClipExtensionOp> {
   static description = 'Clip layers by a rectangular bounds'
   createInputs() {
     return {
-      clipByInstance: new BooleanField(false),
-      clipBounds: new UnknownField([0, 0, 1, 1]), // [minX, minY, maxX, maxY]
+      clipByInstance: new BooleanField(false, {
+        description:
+          'When on, hides whole objects whose anchor is outside the bounds instead of cutting them.',
+      }),
+      clipBounds: new UnknownField([0, 0, 1, 1], {
+        description:
+          'Rectangle to keep, as [minX, minY, maxX, maxY] in layer coordinates (e.g. lng, lat).',
+      }), // [minX, minY, maxX, maxY]
     }
   }
   createOutputs() {
@@ -1343,18 +1438,49 @@ export class FillStyleExtensionOp extends Operator<FillStyleExtensionOp> {
   static description = 'Add patterns and styles to polygon fills'
   createInputs() {
     return {
-      fillPatternEnabled: new BooleanField(true),
-      proceduralPattern: new BooleanField(false, { showByDefault: false }),
-      fillPatternMask: new BooleanField(true),
-      fillPatternSizeUnits: new StringLiteralField('meters', ['pixels', 'meters', 'common']),
-      fillPatternAtlas: new StringField('', { optional: true }),
-      fillPatternMapping: new UnknownField(null, { optional: true }),
-      getFillPattern: new UnknownField(null),
-      getFillPatternScale: new NumberField(1),
-      getFillPatternOffset: new Vec2Field([0, 0], { returnType: 'tuple' }),
+      fillPatternEnabled: new BooleanField(true, {
+        label: 'Pattern fill',
+        description: 'Turns on pattern fills, so fills tile a pattern instead of a solid color.',
+      }),
+      proceduralPattern: new BooleanField(false, {
+        showByDefault: false,
+        description:
+          'Draws hatch, cross-hatch or dot patterns from Fill pattern mapping, with no image atlas.',
+      }),
+      fillPatternMask: new BooleanField(true, {
+        description:
+          'When on, patterns act as masks tinted by the fill color instead of showing their own colors.',
+      }),
+      fillPatternSizeUnits: new StringLiteralField('meters', {
+        values: ['pixels', 'meters', 'common'],
+        description:
+          "Units for the pattern size. 'meters' zooms with the map; 'pixels' keeps a fixed screen size.",
+      }),
+      fillPatternAtlas: new StringField('', {
+        optional: true,
+        description:
+          'URL of a sprite image holding all patterns. Ignored when Procedural pattern is on.',
+      }),
+      fillPatternMapping: new UnknownField(null, {
+        optional: true,
+        description:
+          'Pattern names mapped to atlas frames {x, y, width, height} or procedural pattern settings.',
+      }),
+      getFillPattern: new UnknownField(null, {
+        description: 'Pattern name, a key in Fill pattern mapping.',
+      }),
+      getFillPatternScale: new NumberField(1, {
+        description:
+          'Pattern size multiplier, relative to Fill pattern size units. 1 is original size.',
+      }),
+      getFillPatternOffset: new Vec2Field([0, 0], {
+        returnType: 'tuple',
+        description: 'Pattern shift as a fraction of its size, [x, y]. [0.5, 0.5] shifts by half.',
+      }),
       getFillPatternBackgroundColor: new ColorField('#00000000', {
         transform: hexToColor,
         showByDefault: false,
+        description: 'Color drawn behind the pattern where it is transparent. Clear by default.',
       }),
     }
   }
