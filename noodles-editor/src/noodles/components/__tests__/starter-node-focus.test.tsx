@@ -3,6 +3,7 @@
 import { act, cleanup, render } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useUIStore } from '../../../editor/ui-store'
+import { useWorkspaceStore } from '../../../editor/workspace-store'
 import {
   LOAD_FIT_VIEW_OPTIONS,
   MAP_PICK_PULSE_MS,
@@ -16,6 +17,11 @@ let measured = true
 // Far outside a 1000x500 pane at zoom 1, so every check pans
 const flush = () => act(() => vi.advanceTimersByTimeAsync(20))
 
+// React Flow's container, at the size the mocked store reports
+const pane = document.createElement('div')
+pane.style.cssText = 'position: fixed; left: 0; top: 0; width: 1000px; height: 500px'
+document.body.append(pane)
+
 const offscreenNode = {
   measured: { width: 100, height: 50 },
   internals: { positionAbsolute: { x: 5000, y: 5000 } },
@@ -27,6 +33,9 @@ vi.mock('@xyflow/react', () => ({
     getState: () => ({
       nodeLookup: new Map([['/scatterplot-layer', offscreenNode]]),
       nodesInitialized: measured,
+      domNode: pane,
+      width: 1000,
+      height: 500,
     }),
   }),
   useReactFlow: () => ({
@@ -66,6 +75,9 @@ describe('ProjectLoadView', () => {
     setViewport.mockClear()
     fitView.mockClear()
     measured = true
+    pane.style.visibility = ''
+    // The Nodes workspace shows the graph
+    useWorkspaceStore.setState({ active: 'nodes' })
     useUIStore.getState().setStarterHintNodeId('/scatterplot-layer')
   })
 
@@ -92,6 +104,23 @@ describe('ProjectLoadView', () => {
     expect(fitView).not.toHaveBeenCalled()
     measured = true
     rerender(<ProjectLoadView loadId={1} fitView />)
+    await settle()
+    expect(fitView).toHaveBeenCalledTimes(1)
+  })
+
+  it('waits for a Node Graph area to show the graph before fitting', async () => {
+    useWorkspaceStore.setState({ active: 'layout' })
+    pane.style.visibility = 'hidden'
+    render(<ProjectLoadView loadId={1} fitView />)
+    await settle()
+    expect(fitView).not.toHaveBeenCalled()
+
+    // The area appears a render before the pane is pinned to it
+    act(() => useWorkspaceStore.setState({ active: 'nodes' }))
+    await settle()
+    expect(fitView).not.toHaveBeenCalled()
+
+    pane.style.visibility = ''
     await settle()
     expect(fitView).toHaveBeenCalledTimes(1)
   })
