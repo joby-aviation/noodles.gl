@@ -6,8 +6,8 @@
       "id": "deck",
       "op": "deck",
       "name": "deck",
-      "x": 773.8775821892834,
-      "y": -378.07249361978614,
+      "x": 1233,
+      "y": 61,
       "params": {
         "mapStyle": "https://basemaps.cartocdn.com/gl/positron-gl-style/style.json",
         "projection": "mercator",
@@ -35,8 +35,8 @@
       "id": "switch",
       "op": "switch",
       "name": "switch",
-      "x": 361.0002896459933,
-      "y": -378.2848378568678,
+      "x": 933,
+      "y": 155,
       "params": {
         "index": 0
       }
@@ -45,8 +45,8 @@
       "id": "data-source",
       "op": "file",
       "name": "data-source",
-      "x": -500.2487592119116,
-      "y": -528.1170745332273,
+      "x": 0,
+      "y": 150,
       "params": {
         "url": "https://raw.githubusercontent.com/visgl/deck.gl-data/master/website/sf-bike-parking.json",
         "format": "json"
@@ -56,8 +56,8 @@
       "id": "hexagon-layer",
       "op": "hexagon",
       "name": "hexagon-layer",
-      "x": 160,
-      "y": -982.6889355005047,
+      "x": 575,
+      "y": 0,
       "params": {
         "opacity": 1,
         "blend": "normal",
@@ -77,8 +77,8 @@
       "id": "grid-layer",
       "op": "grid-layer",
       "name": "grid-layer",
-      "x": 160,
-      "y": -300,
+      "x": 575,
+      "y": 194,
       "params": {
         "opacity": 1,
         "blend": "normal",
@@ -98,8 +98,8 @@
       "id": "position",
       "op": "attribute",
       "name": "position",
-      "x": -280,
-      "y": -528.1170745332273,
+      "x": 305,
+      "y": 97,
       "params": {
         "name": "position",
         "expression": "[item(COORDINATES, 0.0), item(COORDINATES, 1.0)]"
@@ -109,8 +109,8 @@
       "id": "data-note",
       "op": "comment",
       "name": "data-note",
-      "x": -500,
-      "y": -650,
+      "x": 0,
+      "y": 62,
       "params": {
         "text": "This loads bike parking spots in San Francisco. Click it to see the data.",
         "width": 265,
@@ -121,8 +121,8 @@
       "id": "layers-note",
       "op": "comment",
       "name": "layers-note",
-      "x": 160,
-      "y": -180,
+      "x": 575,
+      "y": 106,
       "params": {
         "text": "Both layers count the bike spots in each area. Click one and change its Radius or Cell size.",
         "width": 318,
@@ -133,8 +133,8 @@
       "id": "switch-note",
       "op": "comment",
       "name": "switch-note",
-      "x": 361,
-      "y": -500,
+      "x": 933,
+      "y": 57,
       "params": {
         "text": "This picks which layer to show. Click it and change Index from 0 to 1.",
         "width": 260,
@@ -145,8 +145,8 @@
       "id": "try-next-note",
       "op": "comment",
       "name": "try-next-note",
-      "x": 774,
-      "y": -230,
+      "x": 1423,
+      "y": 55,
       "params": {
         "text": "Try next:\n- Click hexagon-layer and change Elevation scale to make the bars taller.\n- Click the diamond next to Elevation scale, pick a later time in the Timeline, and change it again.\n- Press Export and pick Video (MP4) to save the animation.",
         "width": 340,

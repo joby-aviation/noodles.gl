@@ -6,8 +6,8 @@
       "id": "deck",
       "op": "deck",
       "name": "deck",
-      "x": 1200,
-      "y": 200,
+      "x": 1310,
+      "y": 114,
       "params": {
         "mapStyle": "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json",
         "projection": "mercator",
@@ -36,7 +36,7 @@
       "op": "file",
       "name": "data-source",
       "x": 0,
-      "y": 200,
+      "y": 203,
       "params": {
         "url": "https://raw.githubusercontent.com/keplergl/kepler.gl-data/master/ukcommute/data.csv",
         "format": "csv"
@@ -46,8 +46,8 @@
       "id": "source-color",
       "op": "color",
       "name": "source-color",
-      "x": 489.70793658494136,
-      "y": 60.857634523930294,
+      "x": 610,
+      "y": 112,
       "params": {
         "color": [
           246,
@@ -60,8 +60,8 @@
       "id": "target-color",
       "op": "color",
       "name": "target-color",
-      "x": 489.70793658494136,
-      "y": 180,
+      "x": 610,
+      "y": 300,
       "params": {
         "color": [
           149,
@@ -74,8 +74,8 @@
       "id": "arc-layer",
       "op": "arc",
       "name": "arc-layer",
-      "x": 856.0014285714285,
-      "y": -90.31285714285714,
+      "x": 950,
+      "y": 194,
       "params": {
         "opacity": 0.3,
         "blend": "additive",
@@ -99,8 +99,8 @@
       "id": "residence-layer",
       "op": "scatter",
       "name": "residence-layer",
-      "x": 781.8985714285714,
-      "y": 257.89285714285717,
+      "x": 950,
+      "y": 0,
       "params": {
         "opacity": 0.4,
         "blend": "additive",
@@ -118,8 +118,8 @@
       "id": "workplace-layer",
       "op": "scatter",
       "name": "workplace-layer",
-      "x": 798.1085714285715,
-      "y": 657.0442857142856,
+      "x": 950,
+      "y": 300,
       "params": {
         "opacity": 0.3,
         "blend": "additive",
@@ -137,8 +137,8 @@
       "id": "home-position",
       "op": "attribute",
       "name": "home-position",
-      "x": 261,
-      "y": 200,
+      "x": 340,
+      "y": 150,
       "params": {
         "name": "home_position",
         "expression": "[residence_lng, residence_lat]"
@@ -148,8 +148,8 @@
       "id": "work-position",
       "op": "attribute",
       "name": "work-position",
-      "x": 521,
-      "y": 200,
+      "x": 610,
+      "y": 194,
       "params": {
         "name": "work_position",
         "expression": "[workplace_lng, workplace_lat]"
@@ -160,7 +160,7 @@
       "op": "comment",
       "name": "data-note",
       "x": 0,
-      "y": 320,
+      "y": 115,
       "params": {
         "text": "This loads UK commute flows: where people live and where they work.",
         "width": 300,
@@ -171,8 +171,8 @@
       "id": "color-note",
       "op": "comment",
       "name": "color-note",
-      "x": 490,
-      "y": -60,
+      "x": 610,
+      "y": 24,
       "params": {
         "text": "These two nodes set the home and work colors. Click one to pick a new color.",
         "width": 300,
@@ -183,8 +183,8 @@
       "id": "arc-note",
       "op": "comment",
       "name": "arc-note",
-      "x": 856,
-      "y": -210,
+      "x": 950,
+      "y": 106,
       "params": {
         "text": "Each arc links a home (orange) to a workplace (purple). Click it and change Height.",
         "width": 320,
@@ -195,8 +195,8 @@
       "id": "try-next-note",
       "op": "comment",
       "name": "try-next-note",
-      "x": 1200,
-      "y": 380,
+      "x": 1500,
+      "y": 98,
       "params": {
         "text": "Try next:\n- Click residence-layer and change Radius scale to resize the home dots.\n- Click the diamond next to Bearing on deck, pick a later time in the Timeline, and change it again.\n- Press Export and pick Video (MP4) to save the animation.",
         "width": 340,

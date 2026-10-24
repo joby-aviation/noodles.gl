@@ -6,8 +6,8 @@
       "id": "deck",
       "op": "deck",
       "name": "deck",
-      "x": 1200,
-      "y": 100,
+      "x": 1152,
+      "y": 163,
       "params": {
         "mapStyle": "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json",
         "projection": "mercator",
@@ -36,7 +36,7 @@
       "op": "geojson",
       "name": "data-source",
       "x": 0,
-      "y": 50,
+      "y": 212,
       "params": {
         "url": "https://raw.githubusercontent.com/keplergl/kepler.gl-data/master/sfcontour/data.json"
       }
@@ -45,8 +45,8 @@
       "id": "geojson-layer",
       "op": "polygon",
       "name": "geojson-layer",
-      "x": 900,
-      "y": 0,
+      "x": 792,
+      "y": 98,
       "params": {
         "opacity": 0.38,
         "blend": "normal",
@@ -67,8 +67,8 @@
       "id": "geojson-layer-lines",
       "op": "path",
       "name": "geojson-layer-lines",
-      "x": 900,
-      "y": 160,
+      "x": 792,
+      "y": 204,
       "params": {
         "opacity": 0.38,
         "blend": "normal",
@@ -83,8 +83,8 @@
       "id": "geojson-layer-points",
       "op": "scatter",
       "name": "geojson-layer-points",
-      "x": 900,
-      "y": 320,
+      "x": 792,
+      "y": 398,
       "params": {
         "opacity": 0.38,
         "blend": "normal",
@@ -99,8 +99,8 @@
       "id": "elevation-range",
       "op": "map-range",
       "name": "elevation-range",
-      "x": 450,
-      "y": 50,
+      "x": 340,
+      "y": 199,
       "params": {
         "input": "elevation",
         "name": "elevation_range",
@@ -116,8 +116,8 @@
       "id": "elevation-color",
       "op": "color-ramp",
       "name": "elevation-color",
-      "x": 675,
-      "y": 50,
+      "x": 567,
+      "y": 199,
       "params": {
         "input": "elevation_range",
         "ramp": "viridis",
@@ -131,7 +131,7 @@
       "op": "comment",
       "name": "data-note",
       "x": 0,
-      "y": -70,
+      "y": 114,
       "params": {
         "text": "This loads San Francisco's contour lines. Each line follows one height above sea level.",
         "width": 300,
@@ -142,8 +142,8 @@
       "id": "layer-note",
       "op": "comment",
       "name": "layer-note",
-      "x": 900,
-      "y": -120,
+      "x": 792,
+      "y": 0,
       "params": {
         "text": "geojson-layer-lines draws the contour lines. Click it and change Width scale to make them thicker.",
         "width": 300,
@@ -154,8 +154,8 @@
       "id": "range-note",
       "op": "comment",
       "name": "range-note",
-      "x": 450,
-      "y": 150,
+      "x": 792,
+      "y": 310,
       "params": {
         "text": "elevation-range turns each line's elevation into a color. Change In max to spread the colors differently.",
         "width": 320,
@@ -166,8 +166,8 @@
       "id": "try-next-note",
       "op": "comment",
       "name": "try-next-note",
-      "x": 1200,
-      "y": -120,
+      "x": 1342,
+      "y": 147,
       "params": {
         "text": "Try next:\n- Click elevation-color and pick a different Ramp.\n- Click the diamond next to Bearing on deck, pick a later time in the Timeline, and change it again.\n- Press Export and pick Video (MP4) to save the animation.",
         "width": 340,

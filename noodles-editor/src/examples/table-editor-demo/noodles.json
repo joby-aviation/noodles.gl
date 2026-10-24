@@ -6,8 +6,8 @@
       "id": "deck",
       "op": "deck",
       "name": "deck",
-      "x": 700,
-      "y": 400,
+      "x": 1040,
+      "y": 17,
       "params": {
         "mapStyle": "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json",
         "projection": "mercator",
@@ -36,7 +36,7 @@
       "op": "table",
       "name": "cities-table",
       "x": 0,
-      "y": 200,
+      "y": 62,
       "params": {
         "rows": "[\n  {\n    \"city\": \"New York City\",\n    \"position\": [\n      -74.006,\n      40.7128\n    ],\n    \"population\": 8336817,\n    \"color\": \"#ff5733\",\n    \"active\": true\n  },\n  {\n    \"city\": \"San Francisco\",\n    \"position\": [\n      -122.4194,\n      37.7749\n    ],\n    \"population\": 873965,\n    \"color\": \"#33ff57\",\n    \"active\": true\n  },\n  {\n    \"city\": \"Los Angeles\",\n    \"position\": [\n      -118.2437,\n      34.0522\n    ],\n    \"population\": 3979576,\n    \"color\": \"#3357ff\",\n    \"active\": true\n  },\n  {\n    \"city\": \"Chicago\",\n    \"position\": [\n      -87.6298,\n      41.8781\n    ],\n    \"population\": 2693976,\n    \"color\": \"#ff33f5\",\n    \"active\": false\n  },\n  {\n    \"city\": \"Seattle\",\n    \"position\": [\n      -122.3321,\n      47.6062\n    ],\n    \"population\": 753675,\n    \"color\": \"#f5ff33\",\n    \"active\": true\n  }\n]",
         "schema": "{\"columns\":[{\"name\":\"city\",\"type\":\"string\",\"defaultValue\":\"\"},{\"name\":\"position\",\"type\":\"point2d\",\"defaultValue\":[0,0],\"options\":{\"geocoder\":true}},{\"name\":\"population\",\"type\":\"number\",\"defaultValue\":0,\"options\":{\"min\":0,\"step\":1}},{\"name\":\"color\",\"type\":\"color\",\"defaultValue\":\"#3b82f6\"},{\"name\":\"active\",\"type\":\"boolean\",\"defaultValue\":true}]}"
@@ -46,8 +46,8 @@
       "id": "cities-layer",
       "op": "scatter",
       "name": "cities-layer",
-      "x": 880,
-      "y": 200,
+      "x": 810,
+      "y": 0,
       "params": {
         "opacity": 1,
         "blend": "normal",
@@ -62,8 +62,8 @@
       "id": "labels-layer",
       "op": "text",
       "name": "labels-layer",
-      "x": 880,
-      "y": 600,
+      "x": 810,
+      "y": 106,
       "params": {
         "opacity": 1,
         "blend": "normal",
@@ -104,8 +104,8 @@
       "id": "city-position",
       "op": "attribute",
       "name": "city-position",
-      "x": 220,
-      "y": 200,
+      "x": 270,
+      "y": 53,
       "params": {
         "name": "city_position",
         "expression": "[item(position, 0.0), item(position, 1.0)]"
@@ -115,8 +115,8 @@
       "id": "city-radius",
       "op": "attribute",
       "name": "city-radius",
-      "x": 660,
-      "y": 200,
+      "x": 540,
+      "y": 53,
       "params": {
         "name": "city_radius",
         "expression": "sqrt(population) * 25"

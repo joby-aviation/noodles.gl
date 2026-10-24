@@ -6,8 +6,8 @@
       "id": "deck-renderer",
       "op": "deck",
       "name": "deck-renderer",
-      "x": 400,
-      "y": 200,
+      "x": 247,
+      "y": 0,
       "params": {
         "mapStyle": "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json",
         "projection": "mercator",
@@ -35,8 +35,8 @@
       "id": "test-layer",
       "op": "CustomMapLibreLayerOp",
       "name": "test-layer",
-      "x": 100,
-      "y": 300,
+      "x": 0,
+      "y": 54,
       "params": {
         "id": "test-custom-layer",
         "renderingMode": "3d",

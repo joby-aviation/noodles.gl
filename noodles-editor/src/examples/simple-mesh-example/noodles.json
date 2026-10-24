@@ -6,8 +6,8 @@
       "id": "deck",
       "op": "deck",
       "name": "deck",
-      "x": 400,
-      "y": 0,
+      "x": 1509,
+      "y": 88,
       "params": {
         "mapStyle": "https://basemaps.cartocdn.com/gl/positron-gl-style/style.json",
         "projection": "mercator",
@@ -35,8 +35,8 @@
       "id": "data-source",
       "op": "file",
       "name": "data-source",
-      "x": -398.3985098486273,
-      "y": -292.07381101918014,
+      "x": 0,
+      "y": 133,
       "params": {
         "url": "https://raw.githubusercontent.com/visgl/deck.gl-data/master/website/bart-stations.json",
         "format": "json"
@@ -46,8 +46,8 @@
       "id": "mesh-layer",
       "op": "mesh",
       "name": "mesh-layer",
-      "x": 482,
-      "y": -292.48522167487687,
+      "x": 1129,
+      "y": 124,
       "params": {
         "opacity": 1,
         "blend": "normal",
@@ -65,8 +65,8 @@
       "id": "position",
       "op": "attribute",
       "name": "position",
-      "x": -178,
-      "y": -292.07381101918014,
+      "x": 340,
+      "y": 80,
       "params": {
         "name": "position",
         "expression": "[item(coordinates, 0.0), item(coordinates, 1.0)]"
@@ -76,8 +76,8 @@
       "id": "color",
       "op": "attribute",
       "name": "color",
-      "x": 42,
-      "y": -292.07381101918014,
+      "x": 610,
+      "y": 80,
       "params": {
         "name": "color",
         "expression": "([sqrt(exits), 140, 0])"
@@ -87,8 +87,8 @@
       "id": "orientation",
       "op": "attribute",
       "name": "orientation",
-      "x": 262,
-      "y": -292.07381101918014,
+      "x": 859,
+      "y": 80,
       "params": {
         "name": "orientation",
         "expression": "[0, random() * 180, 0]"
@@ -98,8 +98,8 @@
       "id": "data-note",
       "op": "comment",
       "name": "data-note",
-      "x": -398,
-      "y": -400,
+      "x": 0,
+      "y": 45,
       "params": {
         "text": "This loads BART train stations, with how many riders exit at each one.",
         "width": 300,
@@ -110,8 +110,8 @@
       "id": "mesh-note",
       "op": "comment",
       "name": "mesh-note",
-      "x": 482,
-      "y": -400,
+      "x": 1129,
+      "y": 36,
       "params": {
         "text": "This puts a small 3D figure on each station. Click it and change Size scale to resize them.",
         "width": 340,
@@ -122,8 +122,8 @@
       "id": "color-note",
       "op": "comment",
       "name": "color-note",
-      "x": 42,
-      "y": -180,
+      "x": 1509,
+      "y": 0,
       "params": {
         "text": "color sets each figure by its riders: busy stations are orange and quiet ones are green.",
         "width": 330,
@@ -134,8 +134,8 @@
       "id": "try-next-note",
       "op": "comment",
       "name": "try-next-note",
-      "x": 400,
-      "y": 120,
+      "x": 1879,
+      "y": 48,
       "params": {
         "text": "Try next:\n- Click mesh-layer and turn on Wireframe.\n- Click the diamond next to Size scale, pick a later time in the Timeline, and change it again.\n- Press Export and pick Video (MP4) to save the animation.",
         "width": 340,

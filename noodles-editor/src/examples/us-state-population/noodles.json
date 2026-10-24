@@ -6,8 +6,8 @@
       "id": "deck",
       "op": "deck",
       "name": "deck",
-      "x": 1000,
-      "y": 0,
+      "x": 1402,
+      "y": 105,
       "params": {
         "mapStyle": "https://basemaps.cartocdn.com/gl/positron-nolabels-gl-style/style.json",
         "projection": "mercator",
@@ -35,8 +35,8 @@
       "id": "state-data",
       "op": "file",
       "name": "state-data",
-      "x": -1000,
-      "y": 0,
+      "x": 0,
+      "y": 194,
       "params": {
         "url": "@/data.csv",
         "format": "csv"
@@ -46,8 +46,8 @@
       "id": "population-choropleth",
       "op": "choropleth",
       "name": "population-choropleth",
-      "x": -500,
-      "y": -600,
+      "x": 1022,
+      "y": 88,
       "params": {
         "opacity": 0.85,
         "geography": "us-states",
@@ -68,8 +68,8 @@
       "id": "state-join",
       "op": "choropleth-join",
       "name": "state-join",
-      "x": -500,
-      "y": 200,
+      "x": 340,
+      "y": 141,
       "params": {
         "geography": "us-states",
         "joinKey": "state",
@@ -80,8 +80,8 @@
       "id": "state-centroids",
       "op": "code",
       "name": "state-centroids",
-      "x": 0,
-      "y": 200,
+      "x": 555,
+      "y": 141,
       "params": {
         "code": "// One label point per state, keeping the joined properties\nreturn {\n  type: 'FeatureCollection',\n  features: d.features.map(f => turf.centroid(f, { properties: f.properties })),\n}"
       }
@@ -90,8 +90,8 @@
       "id": "labels",
       "op": "text",
       "name": "labels",
-      "x": 500,
-      "y": 600,
+      "x": 1022,
+      "y": 282,
       "params": {
         "opacity": 1,
         "blend": "normal",
@@ -110,8 +110,8 @@
       "id": "label-text",
       "op": "sql",
       "name": "label-text",
-      "x": 260,
-      "y": 200,
+      "x": 752,
+      "y": 123,
       "params": {
         "query": "SELECT *, state || ' ' || printf('%.1f', population / 1e6) || 'M' AS label FROM {{input0}}"
       }
@@ -120,8 +120,8 @@
       "id": "data-note",
       "op": "comment",
       "name": "data-note",
-      "x": -1000,
-      "y": -110,
+      "x": 0,
+      "y": 106,
       "params": {
         "text": "This loads the 2020 population of each US state from a CSV file.",
         "width": 300,
@@ -132,8 +132,8 @@
       "id": "choropleth-note",
       "op": "comment",
       "name": "choropleth-note",
-      "x": -500,
-      "y": -720,
+      "x": 1022,
+      "y": 0,
       "params": {
         "text": "This colors each state by its population. Click it and pick a different Ramp.",
         "width": 340,
@@ -144,8 +144,8 @@
       "id": "labels-note",
       "op": "comment",
       "name": "labels-note",
-      "x": 500,
-      "y": 720,
+      "x": 1022,
+      "y": 194,
       "params": {
         "text": "This writes each state's short name and population on the map, like CA 39.5M.",
         "width": 300,
@@ -156,8 +156,8 @@
       "id": "try-next-note",
       "op": "comment",
       "name": "try-next-note",
-      "x": 1000,
-      "y": 140,
+      "x": 1592,
+      "y": 89,
       "params": {
         "text": "Try next:\n- Click labels and change Size (px) to resize the labels.\n- Click the diamond next to Opacity on population-choropleth, pick a later time in the Timeline, and change it again.\n- Press Export and pick Image (PNG) to save the map.",
         "width": 340,

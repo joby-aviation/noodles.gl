@@ -6,8 +6,8 @@
       "id": "renderer",
       "op": "deck",
       "name": "renderer",
-      "x": 800,
-      "y": 60,
+      "x": 370,
+      "y": 30,
       "params": {
         "mapStyle": "https://basemaps.cartocdn.com/gl/positron-gl-style/style.json",
         "projection": "mercator",
@@ -35,8 +35,8 @@
       "id": "point-cloud",
       "op": "tile-3d",
       "name": "point-cloud",
-      "x": -50,
-      "y": -180,
+      "x": 0,
+      "y": 0,
       "params": {
         "provider": "Cesium",
         "flatLighting": true
@@ -46,8 +46,8 @@
       "id": "video-spheres",
       "op": "CodeOp",
       "name": "video-spheres",
-      "x": -400,
-      "y": 60,
+      "x": 0,
+      "y": 168,
       "params": {
         "code": [
           "// Generate a UV sphere as a loaders.gl Mesh object (deck.gl accepts this natively)",
@@ -127,8 +127,8 @@
       "id": "videos-note",
       "op": "comment",
       "name": "videos-note",
-      "x": -400,
-      "y": -60,
+      "x": 0,
+      "y": 70,
       "params": {
         "text": "This code puts street performance videos on spheres around Manhattan. Edit the videos list to change a clip or where it sits.",
         "width": 330,
@@ -139,8 +139,8 @@
       "id": "try-next-note",
       "op": "comment",
       "name": "try-next-note",
-      "x": 800,
-      "y": 180,
+      "x": 560,
+      "y": 34,
       "params": {
         "text": "Try next:\n- Press the space bar to play the camera flight on the Timeline.\n- Click point-cloud and change Opacity.\n- Press Export and pick Video (MP4) to save the flythrough.",
         "width": 340,

@@ -7,7 +7,7 @@
       "op": "sql",
       "name": "flights",
       "x": 0,
-      "y": 0,
+      "y": 225,
       "params": {
         "query": "WITH raw_flights AS (\n  SELECT\n    icao,\n    r AS registration,\n    aircraft_type,\n    start_t,\n    end_t,\n    start_height_agl_ft,\n    end_height_agl_ft,\n    ST_MakeLine(list_transform(geometry, g -> ST_Point(g.x, g.y))) AS geom\n  FROM read_parquet([\n    'https://data.source.coop/root-geospatial/flight-tracks/quadkey_z8=02301200/year=2024/month=6/day=15/flights-2024-06-15.parquet',\n    'https://data.source.coop/root-geospatial/flight-tracks/quadkey_z8=02301201/year=2024/month=6/day=15/flights-2024-06-15.parquet',\n    'https://data.source.coop/root-geospatial/flight-tracks/quadkey_z8=02301210/year=2024/month=6/day=15/flights-2024-06-15.parquet',\n    'https://data.source.coop/root-geospatial/flight-tracks/quadkey_z8=02301211/year=2024/month=6/day=15/flights-2024-06-15.parquet'\n  ])\n),\nunique_flights AS (\n  SELECT DISTINCT ON (icao, end_t)\n    icao,\n    registration,\n    aircraft_type,\n    start_t,\n    end_t,\n    start_height_agl_ft,\n    end_height_agl_ft,\n    geom\n  FROM raw_flights\n  WHERE geom IS NOT NULL\n)\n-- Where each flight starts and ends, for the points drawn there\nSELECT *, ST_StartPoint(geom) AS start_point, ST_EndPoint(geom) AS end_point\nFROM unique_flights\nLIMIT 500"
       }
@@ -16,8 +16,8 @@
       "id": "tracks",
       "op": "path",
       "name": "tracks",
-      "x": 400,
-      "y": 0,
+      "x": 380,
+      "y": 106,
       "params": {
         "position": "geom",
         "lineColor": [
@@ -35,8 +35,8 @@
       "id": "starts",
       "op": "scatter",
       "name": "starts",
-      "x": 400,
-      "y": -200,
+      "x": 380,
+      "y": 0,
       "params": {
         "position": "start_point",
         "fillColor": [
@@ -53,8 +53,8 @@
       "id": "ends",
       "op": "scatter",
       "name": "ends",
-      "x": 400,
-      "y": 200,
+      "x": 380,
+      "y": 388,
       "params": {
         "position": "end_point",
         "fillColor": [
@@ -71,8 +71,8 @@
       "id": "deck",
       "op": "deck",
       "name": "deck",
-      "x": 800,
-      "y": 0,
+      "x": 764,
+      "y": 158,
       "params": {
         "mapStyle": "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json",
         "projection": "mercator",
@@ -100,8 +100,8 @@
       "id": "query-note",
       "op": "comment",
       "name": "query-note",
-      "x": -400,
-      "y": -10,
+      "x": 0,
+      "y": 127,
       "params": {
         "text": "This query loads up to 500 flight tracks over California's Central Coast on June 15, 2024, from an online dataset.",
         "width": 340,
@@ -112,8 +112,8 @@
       "id": "end-note",
       "op": "comment",
       "name": "end-note",
-      "x": 400,
-      "y": 300,
+      "x": 380,
+      "y": 212,
       "params": {
         "text": "This layer puts a red dot where each flight ends. The green dots come from starts.",
         "width": 344,
@@ -124,8 +124,8 @@
       "id": "path-note",
       "op": "comment",
       "name": "path-note",
-      "x": 0,
-      "y": 120,
+      "x": 380,
+      "y": 300,
       "params": {
         "text": "tracks draws each flight's path. Click it and change Line color or Width scale.",
         "width": 300,
@@ -136,8 +136,8 @@
       "id": "try-next-note",
       "op": "comment",
       "name": "try-next-note",
-      "x": 800,
-      "y": 120,
+      "x": 954,
+      "y": 142,
       "params": {
         "text": "Try next:\n- Click deck and change Zoom to see more of the coast.\n- Click the diamond next to Opacity on tracks, pick a later time in the Timeline, and change it again.\n- Press Export and pick Image (PNG) to save the map.",
         "width": 340,

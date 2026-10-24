@@ -6,8 +6,8 @@
       "id": "deck",
       "op": "deck",
       "name": "deck",
-      "x": 621.0648631276329,
-      "y": -15.15716566510391,
+      "x": 1540,
+      "y": 106,
       "params": {
         "mapStyle": "https://basemaps.cartocdn.com/gl/dark-matter-nolabels-gl-style/style.json",
         "projection": "mercator",
@@ -35,8 +35,8 @@
       "id": "layer-toggle",
       "op": "switch",
       "name": "layer-toggle",
-      "x": 137.09785434585186,
-      "y": 67.59016854354427,
+      "x": 1210,
+      "y": 257,
       "params": {
         "index": 0
       }
@@ -45,8 +45,8 @@
       "id": "charger-query",
       "op": "sql",
       "name": "charger-query",
-      "x": -1264.3775772798185,
-      "y": -102.49235227489045,
+      "x": 340,
+      "y": 168,
       "params": {
         "query": "SELECT AddressInfo.Latitude as lat, AddressInfo.Longitude as lng, *\nFROM read_json_auto(printf('https://api.openchargemap.io/v3/poi/?client=ocm.app.ionic.8.7.0&verbose=false&output=json&maxresults=1000&compact=true&boundingbox=(%f,%f),(%f,%f)&key=%s', ch('centroid/out.location.lat') + 0.5, ch('centroid/out.location.lng') - 0.5, ch('centroid/out.location.lat') - 0.5, ch('centroid/out.location.lng') + 0.5,\n'3967da06-b05f-47b5-8c83-f52cdf1065c2\n'))"
       }
@@ -55,8 +55,8 @@
       "id": "charger-points",
       "op": "scatter",
       "name": "charger-points",
-      "x": -443.51651196326486,
-      "y": 42.81912717553373,
+      "x": 955,
+      "y": 178,
       "params": {
         "opacity": 1,
         "blend": "normal",
@@ -76,8 +76,8 @@
       "id": "charger-heatmap",
       "op": "heatmap",
       "name": "charger-heatmap",
-      "x": -440.1008136696714,
-      "y": 476.821166774823,
+      "x": 955,
+      "y": 284,
       "params": {
         "opacity": 1,
         "blend": "normal",
@@ -94,8 +94,8 @@
       "id": "auto-view",
       "op": "view-state",
       "name": "auto-view",
-      "x": -322.94795308841765,
-      "y": -212.49515765894387,
+      "x": 1210,
+      "y": 45,
       "params": {
         "zoom": 10.8
       }
@@ -104,8 +104,8 @@
       "id": "charger-bounds",
       "op": "fit-bounds",
       "name": "charger-bounds",
-      "x": -707.2197014646986,
-      "y": -209.733438472903,
+      "x": 955,
+      "y": 0,
       "params": {
         "padding": 200
       }
@@ -114,8 +114,8 @@
       "id": "centroid",
       "op": "GeocoderOp",
       "name": "centroid",
-      "x": -1628.0833659498644,
-      "y": -92.14066297377941,
+      "x": 0,
+      "y": 195,
       "params": {
         "query": "Denver, CO"
       }
@@ -124,8 +124,8 @@
       "id": "charger-position",
       "op": "attribute",
       "name": "charger-position",
-      "x": -854,
-      "y": -102.49235227489045,
+      "x": 700,
+      "y": 142,
       "params": {
         "name": "charger_position",
         "expression": "[lng, lat]"
@@ -135,8 +135,8 @@
       "id": "city-note",
       "op": "comment",
       "name": "city-note",
-      "x": -1628,
-      "y": -210,
+      "x": 0,
+      "y": 107,
       "params": {
         "text": "This finds Denver, CO on the map. Click it and type another city into Query.",
         "width": 300,
@@ -147,8 +147,8 @@
       "id": "query-note",
       "op": "comment",
       "name": "query-note",
-      "x": -1264,
-      "y": -220,
+      "x": 340,
+      "y": 80,
       "params": {
         "text": "This asks the Open Charge Map service for up to 1,000 charging stations around that city.",
         "width": 320,
@@ -159,8 +159,8 @@
       "id": "toggle-note",
       "op": "comment",
       "name": "toggle-note",
-      "x": 137,
-      "y": -50,
+      "x": 1210,
+      "y": 169,
       "params": {
         "text": "This picks which layer to show. Click it and set Index to 1 to see a heatmap.",
         "width": 290,
@@ -171,8 +171,8 @@
       "id": "try-next-note",
       "op": "comment",
       "name": "try-next-note",
-      "x": 621,
-      "y": 120,
+      "x": 1730,
+      "y": 90,
       "params": {
         "text": "Try next:\n- Click charger-points and change Radius scale to resize the dots.\n- Click the diamond next to Zoom on auto-view, pick a later time in the Timeline, and change it again.\n- Press Export and pick Image (PNG) to save the map.",
         "width": 340,

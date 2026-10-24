@@ -62,15 +62,8 @@ function useShowNode(nodeId: string | null, focusKey: string, onShown?: (nodeId:
   ])
 }
 
-// Never zoom past 100% to fit, so a small graph doesn't open blown up, nor below 80%, where
-// the network's compact node text gets too small to read. A graph wider than that opens on
-// its center, and the starter node is panned into view after.
-export const LOAD_FIT_VIEW_OPTIONS: FitViewOptions = {
-  padding: 0.1,
-  minZoom: 0.8,
-  maxZoom: 1,
-  duration: 0,
-}
+// The whole graph, never past 100%, so a small graph doesn't open blown up
+export const LOAD_FIT_VIEW_OPTIONS: FitViewOptions = { padding: 0.1, maxZoom: 1, duration: 0 }
 
 // Frames the graph after a project loads. A fresh load fits the whole graph so it opens
 // on an overview; then the node an example selected on open is panned into view if the
