@@ -707,6 +707,7 @@ class NotFoldable extends Error {}
 
 /** Noodles operators on rows that convert to planner nodes on the data path. */
 const TABLE_OPS = new Set([
+  'BrushableHistogramOp',
   'FilterOp',
   'SortOp',
   'SliceOp',
@@ -1430,6 +1431,29 @@ export function toEditorDoc(original: NoodlesProject): Migrated {
           sql(`SELECT * FROM {{input0}} WHERE ${where[condition]}`)
           from('data', 'in0')
         }
+        return
+      }
+      case 'BrushableHistogramOp': {
+        literalOnly('field', 'binCount')
+        // Only the brushed rows convert; the bins are the node's bins output now
+        for (const lost of ['binData', 'extent']) {
+          if (project.edges.some(e => e.source === id && handleField(e.sourceHandle) === lost)) {
+            throw new MigrationError(
+              `${id}: a wired histogram ${lost} is not converted; wire the node's bins output`
+            )
+          }
+        }
+        put('brushable-histogram', {
+          column: String(i.field ?? ''),
+          binCount: Math.round(num(i.binCount, 20)),
+          brushMin: num(i.brushMin, 0),
+          brushMax: num(i.brushMax, 100),
+          brushMode: i.brushMode === 'offset' ? 'offset' : 'handles',
+        })
+        from('data')
+        // A brush a Number or curve moves keeps its wire
+        wiredNumber(id, 'brushMin', id, 'brushMin')
+        wiredNumber(id, 'brushMax', id, 'brushMax')
         return
       }
       case 'SortOp': {

@@ -16,6 +16,7 @@ Operators are the nodes of a project. Most take a table on `in`, change it, and 
 
 - **Filter** (`filter`): Keep rows that compare a number, match text, or pass an expression
 - **Range Filter** (`range`), **Region Filter** (`region`): Keep rows between two values, or inside, outside or near a polygon
+- **Brushable Histogram** (`brushable-histogram`): Keep rows whose column lies in a range you brush over the column's histogram, which the parameter pane draws. Drag the brush's ends, or switch Brush to Center and width; keyframe Brush min and Brush max to animate it. Its Bins output is the histogram as a table
 - **Attribute Create** (`attribute`): One new column from an [expression](./expressions.md)
 - **Attribute Wrangle** (`wrangle`): Several columns from a few lines of code
 - **Map Range** (`map-range`): Rescale a value linearly, on a log scale or a square root

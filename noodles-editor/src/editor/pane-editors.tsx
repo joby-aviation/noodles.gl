@@ -1,5 +1,5 @@
 // Editors in the parameter pane for nodes whose value is easier drawn than typed: features on a
-// map, a basemap style, a ramp's stops, a table's rows. Each reads and writes the node's own
+// map, a basemap style, a ramp's stops, a table's rows, a histogram's brush. Each reads and writes the node's own
 // parameters, so undo, save and the engine see a plain parameter change; the parameters it
 // replaces are left out of the pane's list.
 
@@ -16,6 +16,7 @@ import type { StyleConfiguratorData } from '../utils/map-style-utils'
 import s from './doc-editor.module.css'
 import { setParam } from './doc-ops'
 import { docStore } from './doc-store'
+import { HistogramEditor } from './histogram-editor'
 
 interface PaneEditor {
   Editor: ComponentType<{ node: DocNode }>
@@ -179,6 +180,8 @@ export const PANE_EDITORS: Record<string, PaneEditor> = {
   'map-style': { Editor: MapStyleEditor, replaces: ['overrides'] },
   ramp: { Editor: RampStopsEditor, replaces: ['stops'] },
   table: { Editor: RowsEditor, replaces: ['rows', 'schema'] },
+  // Brush min and max stay in the list, where they are keyframed
+  'brushable-histogram': { Editor: HistogramEditor, replaces: [] },
 }
 
 export function PaneEditorFor({ node }: { node: DocNode }) {

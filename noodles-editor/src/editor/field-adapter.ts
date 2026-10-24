@@ -57,7 +57,13 @@ export const fieldHexToColor = (value: string): number[] => {
 
 /** A field for one of the planner's parameter kinds. */
 function plannerField(def: ParamDef): AnyField {
-  const range = { min: def.min, max: def.max, step: def.step }
+  // Only the bounds the parameter has: an undefined one would override the field's infinite
+  // default, and its schema would refuse every value
+  const range = Object.fromEntries(
+    Object.entries({ min: def.min, max: def.max, step: def.step }).filter(
+      ([, v]) => v !== undefined
+    )
+  )
   switch (def.kind) {
     case 'float':
       return new NumberField(Number(def.default ?? 0), range) as unknown as AnyField

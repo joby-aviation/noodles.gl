@@ -307,3 +307,50 @@ describe('rows from parameters', () => {
     return expect(fromEnd()).rejects.toThrow(MigrationError)
   })
 })
+
+describe('BrushableHistogramOp', () => {
+  const histogram = (extra: NoodlesEdge[] = []): NoodlesProject => ({
+    version: 19,
+    nodes: [
+      op('/rows', 'DuckDbOp', { query: 'SELECT 1.0 AS lng, 2.0 AS lat, 3.0 AS mag' }),
+      op('/hist', 'BrushableHistogramOp', {
+        field: 'mag',
+        binCount: 30,
+        brushMin: 2,
+        brushMax: 6,
+        brushMode: 'offset',
+      }),
+      op('/where', 'AccessorOp', { expression: '[d.lng, d.lat]' }),
+      op('/points', 'ScatterplotLayerOp'),
+      op('/deck', 'DeckRendererOp'),
+      op('/out', 'OutOp'),
+    ],
+    edges: [
+      wire('/rows', 'data', '/hist', 'data'),
+      wire('/hist', 'filteredData', '/points', 'data'),
+      wire('/where', 'accessor', '/points', 'getPosition'),
+      wire('/points', 'layer', '/deck', 'layers'),
+      wire('/deck', 'vis', '/out', 'vis'),
+      ...extra,
+    ],
+  })
+
+  it('converts to the planner histogram on the data path, with its brush', () => {
+    const { doc } = toEditorDoc(histogram())
+    expect(doc.nodes.find(n => n.id === '/hist')).toMatchObject({
+      op: 'brushable-histogram',
+      params: { column: 'mag', binCount: 30, brushMin: 2, brushMax: 6, brushMode: 'offset' },
+    })
+    expect(doc.edges).toContainEqual(
+      expect.objectContaining({ source: '/rows', target: '/hist', targetPort: 'in' })
+    )
+    expect(lowerDocument(doc).errors).toEqual([])
+  })
+
+  it('refuses wired bins, which are the bins output now', () => {
+    const chart = op('/chart', 'ChartOp')
+    const project = histogram([wire('/hist', 'binData', '/chart', 'data')])
+    project.nodes.push(chart)
+    expect(() => toEditorDoc(project)).toThrow(/wired histogram binData is not converted/)
+  })
+})

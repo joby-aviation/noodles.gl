@@ -120,7 +120,7 @@ export interface RuntimeLike {
   error(): string | undefined
   preview(nodeId: string, limit?: number): Promise<Preview>
   /** A SELECT of a node's rows, and their shape: its relation, or row-wise nodes over one. */
-  nodeSql(nodeId: string): Promise<NodeSql | undefined>
+  nodeSql(nodeId: string, columns?: string[]): Promise<NodeSql | undefined>
   /** Rows of a query as plain objects. */
   query(sql: string): Promise<Record<string, unknown>[]>
   /** A relation's rows as plain objects, decimals and 64-bit integers as numbers. */
