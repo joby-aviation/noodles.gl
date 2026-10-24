@@ -1,6 +1,6 @@
 import type { Feature, FeatureCollection } from 'geojson'
-import { createStore } from 'zustand/vanilla'
 import { feature as topoFeature } from 'topojson-client'
+import { createStore } from 'zustand/vanilla'
 
 export type Geography = 'us-states' | 'world-countries' | 'ca-provinces' | 'custom'
 export type GeoKey = 'auto' | 'name' | 'abbrev' | 'fips' | 'iso2' | 'iso3'

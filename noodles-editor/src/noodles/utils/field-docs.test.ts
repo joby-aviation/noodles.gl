@@ -14,6 +14,9 @@ describe('humanizeFieldName', () => {
     ['_full3d', 'Full 3D'],
     ['max_width', 'Max width'],
     ['URLPath', 'URL path'],
+    ['geojson', 'GeoJSON'],
+    ['inputGeojson', 'Input GeoJSON'],
+    ['kml', 'KML'],
     ['get', 'Get'],
     ['val', 'Val'],
   ])('%s -> %s', (name, label) => {
@@ -46,7 +49,10 @@ describe('getFieldDocs', () => {
 
   it('does not apply layer prop docs to other operators', () => {
     const op = new NumberOp('/num')
-    expect(getFieldDocs('val', op.inputs.val, op)).toEqual({ label: 'Val', description: undefined })
+    expect(getFieldDocs('data', new NumberField(1), op)).toEqual({
+      label: 'Data',
+      description: undefined,
+    })
     expect(getFieldDocs('opacity', new NumberField(1), op).description).toBeUndefined()
   })
 

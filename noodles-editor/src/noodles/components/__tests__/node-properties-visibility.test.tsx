@@ -179,7 +179,7 @@ describe('NodeProperties field visibility editing', () => {
       const node = setupOperator('NumberOp', '/num')
       renderNodeProperties(node)
 
-      expect(screen.getByLabelText('Val')).toBeInTheDocument()
+      expect(screen.getByLabelText('Value')).toBeInTheDocument()
       expect(screen.getByRole('button', { name: /keyframe/i })).toBeInTheDocument()
     })
 
@@ -218,7 +218,7 @@ describe('NodeProperties field visibility editing', () => {
         data: { inputs: {} },
       })
 
-      expect(screen.queryByLabelText('Val')).not.toBeInTheDocument()
+      expect(screen.queryByLabelText('Value')).not.toBeInTheDocument()
       expect(screen.queryByRole('button', { name: /keyframe/i })).not.toBeInTheDocument()
     })
   })
