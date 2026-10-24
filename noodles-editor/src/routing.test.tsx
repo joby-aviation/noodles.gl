@@ -38,6 +38,7 @@ vi.mock('./noodles/utils/filesystem', () => ({
   writeFileToDirectory: () => Promise.resolve(),
   fileExists: () => Promise.resolve(false),
   directoryExists: () => Promise.resolve(false),
+  queryPermission: () => Promise.resolve('granted'),
   requestPermission: () => Promise.resolve('granted'),
 }))
 

@@ -34,9 +34,17 @@ import {
 import { useObservable } from '../hooks/use-observable'
 import type { IOperator, OpType } from '../operators'
 import { Operator, OutOp } from '../operators'
-import { getOp, getOpStore, useNestingStore, useUIStore } from '../store'
+import {
+  dismissStarterHint,
+  getOp,
+  getOpStore,
+  getUIStore,
+  useNestingStore,
+  useUIStore,
+} from '../store'
 import type { ConnectionPlan } from '../utils/auto-connect'
 import { appendUniqueEdges } from '../utils/edge-integrity'
+import { FieldEditScope } from '../utils/field-edit-analytics'
 import { edgeId } from '../utils/id-utils'
 import {
   moveEdgeWithinGroup,
@@ -332,13 +340,15 @@ function FieldInputWithHighlight({
         [s.vectorFieldContent]: channelKeys !== null,
       })}
     >
-      <EditableFieldInput
-        fieldName={subPath?.[0] ?? fieldName}
-        field={field}
-        disabled={false}
-        opId={opId}
-        expandTimeline={expandTimeline}
-      />
+      <FieldEditScope field={field}>
+        <EditableFieldInput
+          fieldName={subPath?.[0] ?? fieldName}
+          field={field}
+          disabled={false}
+          opId={opId}
+          expandTimeline={expandTimeline}
+        />
+      </FieldEditScope>
     </div>
   )
 }
@@ -464,6 +474,9 @@ function CompoundSubFields({
 }
 
 // Exported for testing
+export const STARTER_HINT_TEXT =
+  'Change a value to edit the map. Click any node to see its settings.'
+
 export function NodeProperties({ nodeId }: { nodeId: string }) {
   const { setEdges, addNodes, getEdges } = useReactFlow()
   const onEdgesChange = useStore(s => s.onEdgesChange)
@@ -480,6 +493,7 @@ export function NodeProperties({ nodeId }: { nodeId: string }) {
     return n ? { x: n.position.x, y: n.position.y } : { x: 0, y: 0 }
   })
   const currentContainerId = useNestingStore(state => state.currentContainerId)
+  const showStarterHint = useUIStore(state => state.starterHintNodeId === nodeId)
   const expandTimeline = useCallback(() => {
     useUIStore.getState().setTimelineExpanded(true)
   }, [])
@@ -763,13 +777,18 @@ export function NodeProperties({ nodeId }: { nodeId: string }) {
   }
 
   return (
-    <>
+    <FieldEditScope source="properties_panel" operatorType={nodeType}>
       <div className={s.header}>
         <div className={s.title}>
           {getBaseName(op.id)}
           <div className={cx(s.capsule, headerClass(nodeType))}>{typeCategory(nodeType)}</div>
         </div>
       </div>
+      {showStarterHint && (
+        <div className={s.starterHint} role="status">
+          {STARTER_HINT_TEXT}
+        </div>
+      )}
       {op instanceof OutOp && (
         <div className={s.section}>
           <div className={s.sectionTitle}>Render Settings</div>
@@ -1335,7 +1354,7 @@ export function NodeProperties({ nodeId }: { nodeId: string }) {
           </div>,
           document.body
         )}
-    </>
+    </FieldEditScope>
   )
 }
 
@@ -1526,8 +1545,18 @@ export function PropertyPanel({ onAutoLayout }: PropertyPanelProps) {
 
   const showLayoutButton = selectedNodeCount >= 2 && onAutoLayout !== undefined
 
+  // The starter hint goes away once the user selects something else or edits a value
+  const starterHintNodeId = useUIStore(state => state.starterHintNodeId)
+  const previousSelectedNodeIdRef = useRef(selectedNodeId)
+  useEffect(() => {
+    const previous = previousSelectedNodeIdRef.current
+    previousSelectedNodeIdRef.current = selectedNodeId
+    if (starterHintNodeId && previous === starterHintNodeId && selectedNodeId !== previous) {
+      getUIStore().setStarterHintNodeId(null)
+    }
+  }, [selectedNodeId, starterHintNodeId])
   return (
-    <div className={s.panel}>
+    <div className={s.panel} onChange={dismissStarterHint} onInput={dismissStarterHint}>
       {selectedNodeId != null ? (
         <NodeProperties nodeId={selectedNodeId} />
       ) : inspectedEdge != null ? (
