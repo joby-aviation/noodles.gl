@@ -307,33 +307,38 @@ export function ParamRow({
             />
           )
         )}
-        {referenceable(def) && !wired && mode === 'literal' && (
-          <button
-            type="button"
-            className={s.linkButton}
-            title="Reference another node's parameter"
-            onClick={e => {
-              const r = e.currentTarget.getBoundingClientRect()
-              setPicker({ x: r.left, y: r.bottom + 4 })
-            }}
-          >
-            ⛓
-          </button>
-        )}
-        {canKey || track ? (
-          <button
-            type="button"
-            className={cx(s.diamond, { [s.diamondTrack]: !!track, [s.diamondOn]: atKey })}
-            title={atKey ? 'Keyframe at the playhead (click to remove)' : 'Click to set a keyframe'}
-            disabled={!canKey && !atKey}
-            onClick={() =>
-              docStore().edit(d => {
-                if (atKey) removeKey(d, key, time)
-                else setKey(d, key, time, Number(field.value))
-              })
-            }
-          />
-        ) : null}
+        {/* Link and keyframe buttons share a fixed gutter, so every control ends at the same edge */}
+        <span className={s.paramGutter}>
+          {referenceable(def) && !wired && mode === 'literal' && (
+            <button
+              type="button"
+              className={s.linkButton}
+              title="Reference another node's parameter"
+              onClick={e => {
+                const r = e.currentTarget.getBoundingClientRect()
+                setPicker({ x: r.left, y: r.bottom + 4 })
+              }}
+            >
+              ⛓
+            </button>
+          )}
+          {canKey || track ? (
+            <button
+              type="button"
+              className={cx(s.diamond, { [s.diamondTrack]: !!track, [s.diamondOn]: atKey })}
+              title={
+                atKey ? 'Keyframe at the playhead (click to remove)' : 'Click to set a keyframe'
+              }
+              disabled={!canKey && !atKey}
+              onClick={() =>
+                docStore().edit(d => {
+                  if (atKey) removeKey(d, key, time)
+                  else setKey(d, key, time, Number(field.value))
+                })
+              }
+            />
+          ) : null}
+        </span>
       </div>
       {readers.length > 0 && (
         <div className={s.readers}>
