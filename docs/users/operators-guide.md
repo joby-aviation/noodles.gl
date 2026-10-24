@@ -2,6 +2,8 @@
 
 Operators are the core processing units in the Noodles.gl system. They take inputs, process data, and produce outputs that can be connected to other operators.
 
+This page covers the ones you'll use most. The [Operator Reference](../reference/operators.md) lists every operator with its inputs and outputs.
+
 ## Primitives
 
 - **NumberOp**, **StringOp**, **BooleanOp**
