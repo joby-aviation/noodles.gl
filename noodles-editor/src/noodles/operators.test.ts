@@ -3828,6 +3828,12 @@ describe('Tile3DLayerOp', () => {
     expect(op.isFieldVisible('tilesetUrl')).toBe(false)
   })
 
+  it('has no maxLodMetricValue input, which deck.gl and loaders.gl do not read', async () => {
+    const op = new Tile3DLayerOp('/tile3d-0')
+    expect(op.inputs).not.toHaveProperty('maxLodMetricValue')
+    expect((await op.execute({})).layer).not.toHaveProperty('maxLodMetricValue')
+  })
+
   it('includes Generic in provider options', () => {
     const op = new Tile3DLayerOp('/tile3d-0')
     const values = op.inputs.provider.choices.map(c => c.value)

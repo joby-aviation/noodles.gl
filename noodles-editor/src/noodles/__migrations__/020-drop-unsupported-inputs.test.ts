@@ -88,15 +88,18 @@ describe('020-drop-unsupported-inputs', () => {
     expect(migrated.nodes[0].data.inputs).toEqual({ placement: 'top-left' })
   })
 
-  it('removes MVTLayerOp autoLabels values', async () => {
+  it('removes MVTLayerOp autoLabels and Tile3DLayerOp maxLodMetricValue values', async () => {
     const project = {
       ...baseProject,
-      nodes: [node('/tiles', 'MVTLayerOp', { autoLabels: true, minZoom: 2 })],
+      nodes: [
+        node('/tiles', 'MVTLayerOp', { autoLabels: true, minZoom: 2 }),
+        node('/tiles-3d', 'Tile3DLayerOp', { maxLodMetricValue: 4, provider: 'Cesium' }),
+      ],
     }
 
     const migrated = await up(project)
 
-    expect(migrated.nodes[0].data.inputs).toEqual({ minZoom: 2 })
+    expect(migrated.nodes.map(n => n.data.inputs)).toEqual([{ minZoom: 2 }, { provider: 'Cesium' }])
   })
 
   it('returns the same project when nothing needs migrating', async () => {

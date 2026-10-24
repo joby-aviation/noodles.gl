@@ -7982,7 +7982,6 @@ export class Tile3DLayerOp extends Operator<Tile3DLayerOp> {
       flatLighting: new BooleanField(true, { showByDefault: false }),
       throttleRequests: new BooleanField(false, { showByDefault: false }),
       pointSize: new NumberField(1, { min: 0, softMax: 100 }), // Only applies when tile format is 'pnts'
-      maxLodMetricValue: new NumberField(2, { min: 0, softMax: 10, showByDefault: false }),
       maxScreenSpaceError: new NumberField(50, { min: 0, softMax: 1_000, showByDefault: false }),
       maxMemoryUsage: new NumberField(2024, { min: 0, softMax: 10_000, showByDefault: false }),
       parameters: new CompoundPropsField(

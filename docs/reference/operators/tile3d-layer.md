@@ -35,7 +35,6 @@ Expressions and code read its fields as `op('/tile3d-layer').par.visible` (an in
 | `flatLighting` | `BooleanField` | `true` |
 | `throttleRequests` | `BooleanField` | `false` |
 | `pointSize` | `NumberField` | `1` |
-| `maxLodMetricValue` | `NumberField` | `2` |
 | `maxScreenSpaceError` | `NumberField` | `50` |
 | `maxMemoryUsage` | `NumberField` | `2024` |
 | `parameters` | `CompoundPropsField` | `{"depthTest":true}` |
@@ -60,4 +59,9 @@ Expressions and code read its fields as `op('/tile3d-layer').par.visible` (an in
 <!-- gen:end details -->
 
 <!-- gen:begin history -->
+## History
+
+Schema migrations that changed this operator. Older project files go through them when they open.
+
+- Version 20: [`020-drop-unsupported-inputs`](https://github.com/joby-aviation/noodles.gl/blob/main/noodles-editor/src/noodles/__migrations__/020-drop-unsupported-inputs.ts)
 <!-- gen:end history -->

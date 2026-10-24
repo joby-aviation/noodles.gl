@@ -6656,10 +6656,6 @@
           "type": "NumberField",
           "default": 1
         },
-        "maxLodMetricValue": {
-          "type": "NumberField",
-          "default": 2
-        },
         "maxScreenSpaceError": {
           "type": "NumberField",
           "default": 50
