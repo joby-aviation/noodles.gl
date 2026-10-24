@@ -8065,7 +8065,8 @@ export class GeoParquetOp extends Operator<GeoParquetOp> {
 
 export class ShapefileOp extends Operator<ShapefileOp> {
   static displayName = 'Shapefile'
-  static description = 'Load a Shapefile (.shp) and convert to GeoJSON'
+  static description =
+    'Load a Shapefile (.shp) and convert to GeoJSON, with attributes from the .dbf file beside it'
   asDownload = () => this.outputData
   createInputs() {
     return {
@@ -8084,9 +8085,18 @@ export class ShapefileOp extends Operator<ShapefileOp> {
   }: ExtractProps<typeof this.inputs>): Promise<ExtractProps<typeof this.outputs>> {
     if (!url) return { featureCollection: { type: 'FeatureCollection', features: [] } }
     const shapefile = await import('shapefile')
-    const response = await fetch(url)
-    const buffer = await response.arrayBuffer()
-    const geojson = await shapefile.read(buffer, undefined, { encoding })
+    // Feature attributes live in a .dbf file next to the .shp. Without it, features have
+    // no properties and encoding (which decodes the .dbf text) does nothing
+    const dbfUrl = url.replace(/\.shp(?=$|[?#])/i, '.dbf')
+    const [shp, dbf] = await Promise.all([
+      fetch(url).then(response => response.arrayBuffer()),
+      dbfUrl === url
+        ? undefined
+        : fetch(dbfUrl)
+            .then(response => (response.ok ? response.arrayBuffer() : undefined))
+            .catch(() => undefined),
+    ])
+    const geojson = await shapefile.read(shp, dbf, { encoding })
     return { featureCollection: geojson }
   }
 }

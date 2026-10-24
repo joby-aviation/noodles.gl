@@ -1,5 +1,5 @@
 import * as turf from '@turf/turf'
-import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import {
   AggregateOp,
   AlongOp,
@@ -635,6 +635,84 @@ describe('Format Support Operators', () => {
     const op = new ShapefileOp('/shp')
     const result = await op.execute({ url: '', encoding: 'utf-8' })
     expect(result.featureCollection.features).toHaveLength(0)
+  })
+
+  it('ShapefileOp reads attributes from the .dbf beside the .shp, in the given encoding', async () => {
+    // One point at (8.5, 47.4)
+    const shp = new DataView(new ArrayBuffer(128))
+    shp.setInt32(0, 9994) // file code
+    shp.setInt32(24, 64) // file length in 16-bit words
+    shp.setInt32(28, 1000, true) // version
+    shp.setInt32(32, 1, true) // shape type: point
+    for (const [offset, value] of [
+      [36, 8.5],
+      [44, 47.4],
+      [52, 8.5],
+      [60, 47.4],
+    ]) {
+      shp.setFloat64(offset, value, true) // bounding box
+    }
+    shp.setInt32(100, 1) // record number
+    shp.setInt32(104, 10) // content length in words
+    shp.setInt32(108, 1, true)
+    shp.setFloat64(112, 8.5, true)
+    shp.setFloat64(120, 47.4, true)
+
+    // One record with a 6-character 'name' column holding 'Zürich' in windows-1252
+    const name = [0x5a, 0xfc, 0x72, 0x69, 0x63, 0x68]
+    const dbf = new Uint8Array(65 + 1 + name.length + 1)
+    const dbfView = new DataView(dbf.buffer)
+    dbf[0] = 0x03
+    dbfView.setUint32(4, 1, true) // record count
+    dbfView.setUint16(8, 65, true) // header length
+    dbfView.setUint16(10, 1 + name.length, true) // record length
+    dbf.set([0x6e, 0x61, 0x6d, 0x65], 32) // field name 'name'
+    dbf[43] = 0x43 // field type 'C'
+    dbf[48] = name.length
+    dbf[64] = 0x0d // end of field descriptors
+    dbf[65] = 0x20 // record not deleted
+    dbf.set(name, 66)
+    dbf[66 + name.length] = 0x1a
+
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation(async input => {
+      const url = String(input)
+      if (url === 'https://example.com/places.shp') return new Response(shp.buffer)
+      if (url === 'https://example.com/places.dbf') return new Response(dbf.buffer)
+      return new Response(null, { status: 404 })
+    })
+
+    const op = new ShapefileOp('/shp')
+    const result = await op.execute({
+      url: 'https://example.com/places.shp',
+      encoding: 'windows-1252',
+    })
+
+    expect(fetchMock).toHaveBeenCalledWith('https://example.com/places.dbf')
+    expect(result.featureCollection.features).toEqual([
+      {
+        type: 'Feature',
+        properties: { name: 'Zürich' },
+        geometry: { type: 'Point', coordinates: [8.5, 47.4] },
+      },
+    ])
+  })
+
+  it('ShapefileOp still loads when the .dbf is missing', async () => {
+    const shp = new DataView(new ArrayBuffer(100))
+    shp.setInt32(0, 9994)
+    shp.setInt32(24, 50)
+    shp.setInt32(28, 1000, true)
+    shp.setInt32(32, 1, true)
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async input =>
+      String(input).endsWith('.shp')
+        ? new Response(shp.buffer)
+        : new Response(null, { status: 404 })
+    )
+
+    const op = new ShapefileOp('/shp')
+    const result = await op.execute({ url: 'https://example.com/empty.shp', encoding: 'utf-8' })
+
+    expect(result.featureCollection.features).toEqual([])
   })
 })
 

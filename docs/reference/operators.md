@@ -57,7 +57,7 @@ To update the pages after changing an operator, run `npm run generate:registry` 
 - [RandomizeAttribute](./operators/randomize-attribute.md): Randomize a numeric attribute on data elements within a given range.
 - [Scatter](./operators/scatter.md): Scatter points randomly within a bounding box.
 - [Select](./operators/select.md): Select an element from an array using an index (clamped to array bounds by default, or wrapped around array bounds).
-- [Shapefile](./operators/shapefile.md): Load a Shapefile (.shp) and convert to GeoJSON.
+- [Shapefile](./operators/shapefile.md): Load a Shapefile (.shp) and convert to GeoJSON, with attributes from the .dbf file beside it.
 - [Slice](./operators/slice.md): Slice an array of data.
 - [Sort](./operators/sort.md): Sort an array of data based on a key.
 - [Switch](./operators/switch.md): Select one value from a list using an index (0, 1, 2...).
