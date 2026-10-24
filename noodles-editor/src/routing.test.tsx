@@ -47,6 +47,7 @@ vi.mock('./noodles/utils/directory-handle-cache', () => ({
   directoryHandleCache: {
     getAllCachedHandles: () => Promise.resolve([]),
     cacheHandle: () => Promise.resolve(),
+    subscribe: () => () => {},
   },
 }))
 
