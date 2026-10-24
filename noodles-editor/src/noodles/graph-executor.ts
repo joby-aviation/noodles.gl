@@ -146,6 +146,15 @@ type ForLoopScope = {
   scopeNodeIds: string[]
 }
 
+// Operators that follow the executor's clock (TimeOp)
+interface ClockDriven {
+  advanceClock(now: number): void
+}
+
+function isClockDriven(node: object): node is ClockDriven {
+  return typeof (node as Partial<ClockDriven>).advanceClock === 'function'
+}
+
 // GraphExecutor - manages execution of the operator graph
 export class GraphExecutor {
   private nodes: Map<string, Operator<IOperator>> = new Map()
@@ -218,6 +227,13 @@ export class GraphExecutor {
     // Guard against the interval firing more frequently than expected
     if (deltaTime >= this.frameInterval) {
       this.lastFrameTime = currentTime - (deltaTime % this.frameInterval)
+
+      // Advance clock-driven operators even while a slow frame is still pulling, so they
+      // don't freeze behind a long-running async operator
+      const now = Date.now()
+      for (const node of this.nodes.values()) {
+        if (isClockDriven(node)) node.advanceClock(now)
+      }
 
       if (!this.isPulling) {
         this.isPulling = true
