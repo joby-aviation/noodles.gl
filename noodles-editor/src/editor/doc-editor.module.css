@@ -134,15 +134,18 @@
 /* --- the parameter pane: d-d-d's layout, Noodles' widgets ---------------------------- */
 
 .pane {
+  /* Labels take this column; controls fill the rest, then the link and keyframe gutter */
+  --pane-label: minmax(72px, 38%);
+  --pane-gutter: 34px;
   display: flex;
   flex-direction: column;
   height: 100%;
   overflow-y: auto;
-  font-size: 12px;
+  font-size: 11.5px;
 }
 
 .paneHead {
-  padding: 10px 12px 8px;
+  padding: 8px 10px 6px;
   border-bottom: 1px solid var(--color-border, #333);
 }
 
@@ -218,55 +221,76 @@
 }
 
 .paneDesc {
-  color: var(--color-text-secondary, #888);
-  margin-top: 5px;
-  font-size: 11.5px;
-}
-
-.params {
-  padding: 4px 8px 12px;
-}
-
-/* A folder: an uppercase heading, as the old properties panel titled its sections */
-.folder + .folder {
-  margin-top: 6px;
-}
-
-.folderHead {
-  display: flex;
-  align-items: center;
-  gap: 6px;
+  display: -webkit-box;
   width: 100%;
-  margin: 6px 0 2px;
-  padding: 4px 6px;
+  margin-top: 4px;
+  padding: 0;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
   border: 0;
-  border-radius: 4px;
   background: transparent;
-  color: rgb(255 255 255 / 50%);
+  color: var(--color-text-secondary, #888);
   font: inherit;
   font-size: 11px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
+  line-height: 1.4;
   text-align: left;
   cursor: pointer;
 }
 
+.paneDescOpen {
+  display: block;
+}
+
+.params {
+  padding: 0 0 12px;
+}
+
+/* A folder: an uppercase heading, as the old properties panel titled its sections */
+.folder {
+  padding-bottom: 4px;
+}
+
+.folderHead {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  height: 24px;
+  margin: 0 0 4px;
+  padding: 0 10px;
+  border: 0;
+  border-top: 1px solid var(--color-border, #333);
+  border-bottom: 1px solid var(--color-border, #333);
+  background: var(--color-bg-base, #1b1d21);
+  color: var(--color-text-primary, #ddd);
+  font: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+
+.folder:first-child .folderHead {
+  border-top: 0;
+}
+
 .folderHead:hover {
-  background: rgb(255 255 255 / 4%);
-  color: rgb(255 255 255 / 75%);
+  color: #fff;
 }
 
 .folderChevron {
   width: 10px;
+  color: var(--color-text-secondary, #888);
   font-size: 9px;
 }
 
 .paramRow {
   position: relative;
-  padding: 2px 6px;
-  border-radius: 4px;
-  transition: background 0.1s;
+  padding: 1px 4px 1px 10px;
 }
 
 .paramRow:hover {
@@ -277,20 +301,92 @@
    rest, as Houdini's parameter pane lines them up */
 .paramRow :global(.field-row) {
   display: grid;
-  grid-template-columns: minmax(64px, 36%) minmax(0, 1fr);
+  grid-template-columns: var(--pane-label) minmax(0, 1fr);
   gap: 8px;
-  min-height: 26px;
+  min-height: 22px;
 }
 
 .paramRow :global(.field-label) {
-  text-align: right;
-  color: var(--color-text-secondary, #9a9a9a);
-  white-space: nowrap;
   overflow: hidden;
+  color: var(--color-text-secondary, #9a9a9a);
+  text-align: left;
   text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.paramRow :global(.field-input) {
+/* Every widget's control is a filled box with its text at the left, as Cavalry and Kepler draw
+   them, instead of bare right-aligned text */
+.paramRow
+  :global(.field-row)
+  > :last-child
+  input:not([type="checkbox"]):not([type="color"]):not([type="range"]),
+.paramRow :global(.field-row) > :last-child select,
+.paramRow :global(.field-row) > :last-child textarea {
+  width: 100%;
+  min-width: 0;
+  max-width: none;
+  height: 20px;
+  min-height: 20px;
+  padding: 0 6px;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  background: rgb(255 255 255 / 5%);
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+  line-height: 18px;
+  text-align: left;
+}
+
+.paramRow
+  :global(.field-row)
+  > :last-child
+  input:not([type="checkbox"]):not([type="color"]):not([type="range"]):hover,
+.paramRow :global(.field-row) > :last-child select:hover,
+.paramRow :global(.field-row) > :last-child textarea:hover {
+  background: rgb(255 255 255 / 8%);
+}
+
+.paramRow
+  :global(.field-row)
+  > :last-child
+  input:not([type="checkbox"]):not([type="color"]):not([type="range"]):focus,
+.paramRow :global(.field-row) > :last-child select:focus,
+.paramRow :global(.field-row) > :last-child textarea:focus {
+  border-color: var(--color-text-accent, #4a9eff);
+  background: rgb(0 0 0 / 25%);
+}
+
+/* A code parameter: its editor was sized for a canvas node, absolutely filling at least
+   400 by 200 pixels. In the pane it takes the row's width at its own height. */
+.paramRow :global(.field-row:has(.monaco-editor)) {
+  display: block;
+  width: auto;
+  height: auto;
+  min-width: 0;
+  min-height: 0;
+  padding: 2px 0;
+}
+
+.paramRow :global(.field-row:has(.monaco-editor)) > :last-child {
+  position: relative;
+  inset: auto;
+  height: auto;
+  min-height: 0;
+  max-height: 260px;
+  overflow: auto;
+  border-radius: 3px;
+  background: rgb(0 0 0 / 20%);
+}
+
+/* A one-line text parameter (a column, an expression) stays one line, with no resize grip */
+.paramRow :global(.field-row) > :last-child textarea[rows="1"] {
+  overflow: hidden;
+  resize: none;
+  white-space: nowrap;
+  field-sizing: fixed;
+}
+
+.paramRow :global(.field-row) > :last-child {
   justify-content: stretch;
   min-width: 0;
 }
@@ -371,7 +467,7 @@
 }
 
 .readers {
-  padding: 0 6px 2px calc(36% + 8px);
+  padding: 0 calc(var(--pane-gutter) + 4px) 2px calc(38% + 8px);
   color: var(--color-text-secondary, #888);
   font-size: 10.5px;
 }
@@ -449,7 +545,16 @@
 .paramMain {
   display: flex;
   align-items: center;
+  gap: 0;
+}
+
+.paramGutter {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: flex-end;
   gap: 4px;
+  width: var(--pane-gutter);
 }
 
 .paramMain > :first-child {
@@ -459,18 +564,18 @@
 
 .paramDriven {
   display: grid;
-  grid-template-columns: minmax(64px, 36%) minmax(0, 1fr) auto;
-  gap: 6px;
+  grid-template-columns: var(--pane-label) minmax(0, 1fr) auto;
+  gap: 8px;
   align-items: center;
-  padding: 3px 8px;
+  min-height: 22px;
 }
 
 .paramLabel {
-  text-align: right;
-  color: var(--color-text-secondary, #888);
-  white-space: nowrap;
   overflow: hidden;
+  color: var(--color-text-secondary, #888);
+  text-align: left;
   text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .wired {
@@ -508,10 +613,10 @@
 }
 
 .diamond {
-  width: 10px;
-  height: 10px;
+  width: 9px;
+  height: 9px;
   flex: none;
-  margin-right: 6px;
+  margin: 0 4px 0 2px;
   transform: rotate(45deg);
   border: 1.5px solid var(--color-text-disabled, #555);
   background: transparent;
@@ -645,12 +750,12 @@
 
 /* Shown under the header for the node an example selects when it opens */
 .starterHint {
-  margin: 0 6px 12px;
-  padding: 6px 8px;
+  margin: 6px 10px;
+  padding: 5px 8px;
   border-left: 2px solid var(--color-primary, #3b82f6);
   border-radius: 3px;
   background: rgba(59, 130, 246, 0.1);
   color: var(--color-text-secondary);
-  font-size: 12px;
+  font-size: 11.5px;
   line-height: 1.4;
 }
