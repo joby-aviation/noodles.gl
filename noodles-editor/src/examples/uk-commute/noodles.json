@@ -156,68 +156,52 @@
       }
     },
     {
-      "id": "/data-note",
-      "type": "CommentOp",
-      "position": {
-        "x": 0,
-        "y": 90
-      },
-      "data": {
-        "inputs": {
-          "text": "This loads UK commute flows: where people live and where they work."
-        },
-        "locked": false
-      },
-      "width": 300,
-      "height": 80
+      "id": "data-note",
+      "op": "comment",
+      "name": "data-note",
+      "x": 0,
+      "y": 320,
+      "params": {
+        "text": "This loads UK commute flows: where people live and where they work.",
+        "width": 300,
+        "height": 80
+      }
     },
     {
-      "id": "/color-note",
-      "type": "CommentOp",
-      "position": {
-        "x": 490,
-        "y": -40
-      },
-      "data": {
-        "inputs": {
-          "text": "These two nodes set the home and work colors. Click one to pick a new color."
-        },
-        "locked": false
-      },
-      "width": 300,
-      "height": 80
+      "id": "color-note",
+      "op": "comment",
+      "name": "color-note",
+      "x": 490,
+      "y": -60,
+      "params": {
+        "text": "These two nodes set the home and work colors. Click one to pick a new color.",
+        "width": 300,
+        "height": 80
+      }
     },
     {
-      "id": "/arc-note",
-      "type": "CommentOp",
-      "position": {
-        "x": 856,
-        "y": -200
-      },
-      "data": {
-        "inputs": {
-          "text": "Each arc links a home (orange) to a workplace (purple). Click it and change getHeight."
-        },
-        "locked": false
-      },
-      "width": 320,
-      "height": 80
+      "id": "arc-note",
+      "op": "comment",
+      "name": "arc-note",
+      "x": 856,
+      "y": -210,
+      "params": {
+        "text": "Each arc links a home (orange) to a workplace (purple). Click it and change Height.",
+        "width": 320,
+        "height": 80
+      }
     },
     {
-      "id": "/try-next-note",
-      "type": "CommentOp",
-      "position": {
-        "x": 1200,
-        "y": -20
-      },
-      "data": {
-        "inputs": {
-          "text": "Try next:\n- Click residence-layer and change getRadius to resize the home dots.\n- Click the diamond next to bearing on maplibre-basemap, pick a later time in the Timeline, and change it again.\n- Press Export and pick Video (MP4) to save the animation."
-        },
-        "locked": false
-      },
-      "width": 340,
-      "height": 190
+      "id": "try-next-note",
+      "op": "comment",
+      "name": "try-next-note",
+      "x": 1200,
+      "y": 380,
+      "params": {
+        "text": "Try next:\n- Click residence-layer and change Radius scale to resize the home dots.\n- Click the diamond next to Bearing on deck, pick a later time in the Timeline, and change it again.\n- Press Export and pick Video (MP4) to save the animation.",
+        "width": 340,
+        "height": 190
+      }
     }
   ],
   "edges": [

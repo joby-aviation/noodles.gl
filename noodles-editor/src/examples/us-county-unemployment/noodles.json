@@ -157,68 +157,52 @@
       }
     },
     {
-      "id": "/data-note",
-      "type": "CommentOp",
-      "position": {
-        "x": -756,
-        "y": -70
-      },
-      "data": {
-        "inputs": {
-          "text": "This loads every US county with its unemployment rate and labor force."
-        },
-        "locked": false
-      },
-      "width": 300,
-      "height": 80
+      "id": "data-note",
+      "op": "comment",
+      "name": "data-note",
+      "x": -756,
+      "y": -80,
+      "params": {
+        "text": "This loads every US county with its unemployment rate and labor force.",
+        "width": 300,
+        "height": 80
+      }
     },
     {
-      "id": "/extent-note",
-      "type": "CommentOp",
-      "position": {
-        "x": -137,
-        "y": 160
-      },
-      "data": {
-        "inputs": {
-          "text": "This finds the highest rate, so the colors cover the full range from low to high."
-        },
-        "locked": false
-      },
-      "width": 300,
-      "height": 80
+      "id": "extent-note",
+      "op": "comment",
+      "name": "extent-note",
+      "x": -137,
+      "y": 400,
+      "params": {
+        "text": "This finds the highest rate, so the colors cover the full range from low to high.",
+        "width": 300,
+        "height": 80
+      }
     },
     {
-      "id": "/rate-note",
-      "type": "CommentOp",
-      "position": {
-        "x": -600,
-        "y": 625
-      },
-      "data": {
-        "inputs": {
-          "text": "This reads each county's rate. Change unemployment_rate to labor_force in expression to map workforce size instead."
-        },
-        "locked": false
-      },
-      "width": 333,
-      "height": 90
+      "id": "rate-note",
+      "op": "comment",
+      "name": "rate-note",
+      "x": -359,
+      "y": 160,
+      "params": {
+        "text": "unemployment reads each county's rate. Change unemployment_rate to labor_force in Expression to map workforce size instead.",
+        "width": 333,
+        "height": 90
+      }
     },
     {
-      "id": "/try-next-note",
-      "type": "CommentOp",
-      "position": {
-        "x": 1200,
-        "y": 270
-      },
-      "data": {
-        "inputs": {
-          "text": "Try next:\n- Click unemployment-color and pick a different colorScheme.\n- Click geojson-layer and turn on stroked to outline each county.\n- Press Export and pick Image (PNG) to save the map."
-        },
-        "locked": false
-      },
-      "width": 340,
-      "height": 170
+      "id": "try-next-note",
+      "op": "comment",
+      "name": "try-next-note",
+      "x": 1200,
+      "y": 300,
+      "params": {
+        "text": "Try next:\n- Click unemployment-color and pick a different Ramp.\n- Click geojson-layer and turn on Outline to outline each county.\n- Press Export and pick Image (PNG) to save the map.",
+        "width": 340,
+        "height": 170
+      }
     }
   ],
   "edges": [

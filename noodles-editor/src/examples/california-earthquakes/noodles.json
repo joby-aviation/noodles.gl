@@ -157,6 +157,18 @@
         "width": 329,
         "height": 80
       }
+    },
+    {
+      "id": "try-next-note",
+      "op": "comment",
+      "name": "try-next-note",
+      "x": 1200,
+      "y": 380,
+      "params": {
+        "text": "Try next:\n- Click magnitude-color and pick a different Ramp.\n- Drop a CSV with latitude and longitude columns onto the canvas to map your own points.\n- Press Export and pick Image (PNG) to save the map.",
+        "width": 340,
+        "height": 190
+      }
     }
   ],
   "edges": [

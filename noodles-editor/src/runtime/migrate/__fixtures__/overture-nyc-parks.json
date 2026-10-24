@@ -238,6 +238,54 @@
         },
         "locked": false
       }
+    },
+    {
+      "id": "/query-note",
+      "type": "CommentOp",
+      "position": {
+        "x": -773,
+        "y": -240
+      },
+      "data": {
+        "inputs": {
+          "text": "This query finds parks in Overture Maps, a free world map dataset, inside the box set by bounds."
+        },
+        "locked": false
+      },
+      "width": 340,
+      "height": 80
+    },
+    {
+      "id": "/layer-note",
+      "type": "CommentOp",
+      "position": {
+        "x": 200,
+        "y": 130
+      },
+      "data": {
+        "inputs": {
+          "text": "This layer draws each park in green. Click it and pick a new getFillColor."
+        },
+        "locked": false
+      },
+      "width": 300,
+      "height": 80
+    },
+    {
+      "id": "/try-next-note",
+      "type": "CommentOp",
+      "position": {
+        "x": 873,
+        "y": -10
+      },
+      "data": {
+        "inputs": {
+          "text": "Try next:\n- Click maplibre-basemap and change zoom under viewState to look closer.\n- Click the diamond next to opacity on geojson-layer, pick a later time in the Timeline, and change it again.\n- Press Export and pick Image (PNG) to save the map."
+        },
+        "locked": false
+      },
+      "width": 340,
+      "height": 190
     }
   ],
   "timeline": {
@@ -249,6 +297,8 @@
       }
     },
     "definitionVersion": "0.4.0",
-    "revisionHistory": ["05HP5KUPC8hGmM0r"]
+    "revisionHistory": [
+      "05HP5KUPC8hGmM0r"
+    ]
   }
 }

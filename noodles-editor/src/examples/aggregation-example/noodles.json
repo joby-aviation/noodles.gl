@@ -140,6 +140,18 @@
         "width": 260,
         "height": 90
       }
+    },
+    {
+      "id": "try-next-note",
+      "op": "comment",
+      "name": "try-next-note",
+      "x": 774,
+      "y": -230,
+      "params": {
+        "text": "Try next:\n- Click hexagon-layer and change Elevation scale to make the bars taller.\n- Click the diamond next to Elevation scale, pick a later time in the Timeline, and change it again.\n- Press Export and pick Video (MP4) to save the animation.",
+        "width": 340,
+        "height": 170
+      }
     }
   ],
   "edges": [

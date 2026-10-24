@@ -95,68 +95,52 @@
       }
     },
     {
-      "id": "/data-note",
-      "type": "CommentOp",
-      "position": {
-        "x": -398,
-        "y": -400
-      },
-      "data": {
-        "inputs": {
-          "text": "This loads BART train stations, with how many riders exit at each one."
-        },
-        "locked": false
-      },
-      "width": 300,
-      "height": 80
+      "id": "data-note",
+      "op": "comment",
+      "name": "data-note",
+      "x": -398,
+      "y": -400,
+      "params": {
+        "text": "This loads BART train stations, with how many riders exit at each one.",
+        "width": 300,
+        "height": 80
+      }
     },
     {
-      "id": "/mesh-note",
-      "type": "CommentOp",
-      "position": {
-        "x": -12,
-        "y": -400
-      },
-      "data": {
-        "inputs": {
-          "text": "This puts a small 3D figure on each station. Click it and change sizeScale to resize them."
-        },
-        "locked": false
-      },
-      "width": 340,
-      "height": 80
+      "id": "mesh-note",
+      "op": "comment",
+      "name": "mesh-note",
+      "x": 482,
+      "y": -400,
+      "params": {
+        "text": "This puts a small 3D figure on each station. Click it and change Size scale to resize them.",
+        "width": 340,
+        "height": 80
+      }
     },
     {
-      "id": "/color-note",
-      "type": "CommentOp",
-      "position": {
-        "x": -760,
-        "y": 1
-      },
-      "data": {
-        "inputs": {
-          "text": "This colors each figure by its riders: busy stations are orange and quiet ones are green."
-        },
-        "locked": false
-      },
-      "width": 330,
-      "height": 80
+      "id": "color-note",
+      "op": "comment",
+      "name": "color-note",
+      "x": 42,
+      "y": -180,
+      "params": {
+        "text": "color sets each figure by its riders: busy stations are orange and quiet ones are green.",
+        "width": 330,
+        "height": 80
+      }
     },
     {
-      "id": "/try-next-note",
-      "type": "CommentOp",
-      "position": {
-        "x": 400,
-        "y": 180
-      },
-      "data": {
-        "inputs": {
-          "text": "Try next:\n- Click mesh-layer and turn on wireframe.\n- Click the diamond next to sizeScale, pick a later time in the Timeline, and change it again.\n- Press Export and pick Video (MP4) to save the animation."
-        },
-        "locked": false
-      },
-      "width": 340,
-      "height": 150
+      "id": "try-next-note",
+      "op": "comment",
+      "name": "try-next-note",
+      "x": 400,
+      "y": 120,
+      "params": {
+        "text": "Try next:\n- Click mesh-layer and turn on Wireframe.\n- Click the diamond next to Size scale, pick a later time in the Timeline, and change it again.\n- Press Export and pick Video (MP4) to save the animation.",
+        "width": 340,
+        "height": 150
+      }
     }
   ],
   "edges": [

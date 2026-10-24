@@ -74,36 +74,28 @@
       }
     },
     {
-      "id": "/model-note",
-      "type": "CommentOp",
-      "position": {
-        "x": -540,
-        "y": -430
-      },
-      "data": {
-        "inputs": {
-          "text": "This draws a 3D airplane model on a plain background, with no map. Put a link to another .glb model in scenegraph to swap it."
-        },
-        "locked": false
-      },
-      "width": 340,
-      "height": 90
+      "id": "model-note",
+      "op": "comment",
+      "name": "model-note",
+      "x": -540,
+      "y": -405,
+      "params": {
+        "text": "This draws a 3D airplane model on a plain background, with no map. Put a link to another .glb model in Model URL (glTF) on scene to swap it.",
+        "width": 340,
+        "height": 90
+      }
     },
     {
-      "id": "/try-next-note",
-      "type": "CommentOp",
-      "position": {
-        "x": 0,
-        "y": 180
-      },
-      "data": {
-        "inputs": {
-          "text": "Try next:\n- Click camera and change clearColor to set the background.\n- Click scene and change getColor to tint the model.\n- Press Export and pick Image (PNG) to save it."
-        },
-        "locked": false
-      },
-      "width": 340,
-      "height": 150
+      "id": "try-next-note",
+      "op": "comment",
+      "name": "try-next-note",
+      "x": 0,
+      "y": 120,
+      "params": {
+        "text": "Try next:\n- Click camera and change Clear Color to set the background.\n- Click scene and change Color to tint the model.\n- Press Export and pick Image (PNG) to save it.",
+        "width": 340,
+        "height": 150
+      }
     }
   ],
   "edges": [

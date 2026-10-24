@@ -21,7 +21,10 @@
               {
                 "name": "position",
                 "type": "point2d",
-                "defaultValue": [0, 0],
+                "defaultValue": [
+                  0,
+                  0
+                ],
                 "options": {
                   "geocoder": true
                 }
@@ -50,35 +53,50 @@
           "data": [
             {
               "city": "New York City",
-              "position": [-74.006, 40.7128],
+              "position": [
+                -74.006,
+                40.7128
+              ],
               "population": 8336817,
               "color": "#ff5733",
               "active": true
             },
             {
               "city": "San Francisco",
-              "position": [-122.4194, 37.7749],
+              "position": [
+                -122.4194,
+                37.7749
+              ],
               "population": 873965,
               "color": "#33ff57",
               "active": true
             },
             {
               "city": "Los Angeles",
-              "position": [-118.2437, 34.0522],
+              "position": [
+                -118.2437,
+                34.0522
+              ],
               "population": 3979576,
               "color": "#3357ff",
               "active": true
             },
             {
               "city": "Chicago",
-              "position": [-87.6298, 41.8781],
+              "position": [
+                -87.6298,
+                41.8781
+              ],
               "population": 2693976,
               "color": "#ff33f5",
               "active": false
             },
             {
               "city": "Seattle",
-              "position": [-122.3321, 47.6062],
+              "position": [
+                -122.3321,
+                47.6062
+              ],
               "population": 753675,
               "color": "#f5ff33",
               "active": true

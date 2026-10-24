@@ -203,6 +203,38 @@
         },
         "locked": false
       }
+    },
+    {
+      "id": "/videos-note",
+      "type": "CommentOp",
+      "position": {
+        "x": -400,
+        "y": -80
+      },
+      "data": {
+        "inputs": {
+          "text": "This code puts street performance videos on spheres around Manhattan. Edit the videos list to change a clip or where it sits."
+        },
+        "locked": false
+      },
+      "width": 330,
+      "height": 90
+    },
+    {
+      "id": "/try-next-note",
+      "type": "CommentOp",
+      "position": {
+        "x": 800,
+        "y": 240
+      },
+      "data": {
+        "inputs": {
+          "text": "Try next:\n- Press the space bar to play the camera flight on the Timeline.\n- Click point-cloud and change opacity.\n- Press Export and pick Video (MP4) to save the flythrough."
+        },
+        "locked": false
+      },
+      "width": 340,
+      "height": 150
     }
   ],
   "timeline": {
@@ -226,7 +258,12 @@
                       "id": "kf_lng_0",
                       "position": 0,
                       "connectedRight": true,
-                      "handles": [0.5, 1, 0.5, 0],
+                      "handles": [
+                        0.5,
+                        1,
+                        0.5,
+                        0
+                      ],
                       "type": "bezier",
                       "value": -74.01528014573182
                     },
@@ -234,7 +271,12 @@
                       "id": "kf_lng_1",
                       "position": 4,
                       "connectedRight": true,
-                      "handles": [0.5, 1, 0.5, 0],
+                      "handles": [
+                        0.5,
+                        1,
+                        0.5,
+                        0
+                      ],
                       "type": "bezier",
                       "value": -74.0152298040547
                     },
@@ -242,7 +284,12 @@
                       "id": "kf_lng_2",
                       "position": 5.5,
                       "connectedRight": true,
-                      "handles": [0.5, 1, 0.5, 0],
+                      "handles": [
+                        0.5,
+                        1,
+                        0.5,
+                        0
+                      ],
                       "type": "bezier",
                       "value": -74.00393041204993
                     },
@@ -250,7 +297,12 @@
                       "id": "kf_lng_3",
                       "position": 7,
                       "connectedRight": true,
-                      "handles": [0.5, 1, 0.5, 0],
+                      "handles": [
+                        0.5,
+                        1,
+                        0.5,
+                        0
+                      ],
                       "type": "bezier",
                       "value": -73.98427479072922
                     },
@@ -258,7 +310,12 @@
                       "id": "kf_lng_4",
                       "position": 7.5,
                       "connectedRight": true,
-                      "handles": [0.5, 1, 0.5, 0],
+                      "handles": [
+                        0.5,
+                        1,
+                        0.5,
+                        0
+                      ],
                       "type": "bezier",
                       "value": -73.98
                     },
@@ -266,7 +323,12 @@
                       "id": "kf_lng_5",
                       "position": 11,
                       "connectedRight": true,
-                      "handles": [0.5, 1, 0.5, 0],
+                      "handles": [
+                        0.5,
+                        1,
+                        0.5,
+                        0
+                      ],
                       "type": "bezier",
                       "value": -73.97857897544452
                     },
@@ -274,7 +336,12 @@
                       "id": "kf_lng_6",
                       "position": 18,
                       "connectedRight": true,
-                      "handles": [0.5, 1, 0.5, 0],
+                      "handles": [
+                        0.5,
+                        1,
+                        0.5,
+                        0
+                      ],
                       "type": "bezier",
                       "value": -73.99384768869895
                     },
@@ -282,7 +349,12 @@
                       "id": "kf_lng_7",
                       "position": 19,
                       "connectedRight": false,
-                      "handles": [0.5, 1, 0.5, 0],
+                      "handles": [
+                        0.5,
+                        1,
+                        0.5,
+                        0
+                      ],
                       "type": "bezier",
                       "value": -73.99244100531732
                     }
@@ -296,7 +368,12 @@
                       "id": "kf_lat_0",
                       "position": 0,
                       "connectedRight": true,
-                      "handles": [0.5, 1, 0.5, 0],
+                      "handles": [
+                        0.5,
+                        1,
+                        0.5,
+                        0
+                      ],
                       "type": "bezier",
                       "value": 40.706616771021125
                     },
@@ -304,7 +381,12 @@
                       "id": "kf_lat_1",
                       "position": 4,
                       "connectedRight": true,
-                      "handles": [0.5, 1, 0.5, 0],
+                      "handles": [
+                        0.5,
+                        1,
+                        0.5,
+                        0
+                      ],
                       "type": "bezier",
                       "value": 40.70303169832896
                     },
@@ -312,7 +394,12 @@
                       "id": "kf_lat_2",
                       "position": 5.5,
                       "connectedRight": true,
-                      "handles": [0.5, 1, 0.5, 0],
+                      "handles": [
+                        0.5,
+                        1,
+                        0.5,
+                        0
+                      ],
                       "type": "bezier",
                       "value": 40.71734981243856
                     },
@@ -320,7 +407,12 @@
                       "id": "kf_lat_3",
                       "position": 7,
                       "connectedRight": true,
-                      "handles": [0.5, 1, 0.5, 0],
+                      "handles": [
+                        0.5,
+                        1,
+                        0.5,
+                        0
+                      ],
                       "type": "bezier",
                       "value": 40.75431303578706
                     },
@@ -328,7 +420,12 @@
                       "id": "kf_lat_4",
                       "position": 7.5,
                       "connectedRight": true,
-                      "handles": [0.5, 1, 0.5, 0],
+                      "handles": [
+                        0.5,
+                        1,
+                        0.5,
+                        0
+                      ],
                       "type": "bezier",
                       "value": 40.76
                     },
@@ -336,7 +433,12 @@
                       "id": "kf_lat_5",
                       "position": 11,
                       "connectedRight": true,
-                      "handles": [0.5, 1, 0.5, 0],
+                      "handles": [
+                        0.5,
+                        1,
+                        0.5,
+                        0
+                      ],
                       "type": "bezier",
                       "value": 40.76987541463695
                     },
@@ -344,7 +446,12 @@
                       "id": "kf_lat_6",
                       "position": 18,
                       "connectedRight": true,
-                      "handles": [0.5, 1, 0.5, 0],
+                      "handles": [
+                        0.5,
+                        1,
+                        0.5,
+                        0
+                      ],
                       "type": "bezier",
                       "value": 40.709429113152396
                     },
@@ -352,7 +459,12 @@
                       "id": "kf_lat_7",
                       "position": 19,
                       "connectedRight": false,
-                      "handles": [0.5, 1, 0.5, 0],
+                      "handles": [
+                        0.5,
+                        1,
+                        0.5,
+                        0
+                      ],
                       "type": "bezier",
                       "value": 40.7096991343267
                     }
@@ -366,7 +478,12 @@
                       "id": "kf_zm_0",
                       "position": 0,
                       "connectedRight": true,
-                      "handles": [0.5, 1, 0.5, 0],
+                      "handles": [
+                        0.5,
+                        1,
+                        0.5,
+                        0
+                      ],
                       "type": "bezier",
                       "value": 20
                     },
@@ -374,7 +491,12 @@
                       "id": "kf_zm_1",
                       "position": 4,
                       "connectedRight": true,
-                      "handles": [0.5, 1, 0.5, 0],
+                      "handles": [
+                        0.5,
+                        1,
+                        0.5,
+                        0
+                      ],
                       "type": "bezier",
                       "value": 15.71886755188483
                     },
@@ -382,7 +504,12 @@
                       "id": "kf_zm_2",
                       "position": 5.5,
                       "connectedRight": true,
-                      "handles": [0.5, 1, 0.5, 0],
+                      "handles": [
+                        0.5,
+                        1,
+                        0.5,
+                        0
+                      ],
                       "type": "bezier",
                       "value": 15.71886755188483
                     },
@@ -390,7 +517,12 @@
                       "id": "kf_zm_3",
                       "position": 7,
                       "connectedRight": true,
-                      "handles": [0.5, 1, 0.5, 0],
+                      "handles": [
+                        0.5,
+                        1,
+                        0.5,
+                        0
+                      ],
                       "type": "bezier",
                       "value": 18.73975411019099
                     },
@@ -398,7 +530,12 @@
                       "id": "kf_zm_4",
                       "position": 7.5,
                       "connectedRight": true,
-                      "handles": [0.5, 1, 0.5, 0],
+                      "handles": [
+                        0.5,
+                        1,
+                        0.5,
+                        0
+                      ],
                       "type": "bezier",
                       "value": 17
                     },
@@ -406,7 +543,12 @@
                       "id": "kf_zm_5",
                       "position": 11,
                       "connectedRight": true,
-                      "handles": [0.5, 1, 0.5, 0],
+                      "handles": [
+                        0.5,
+                        1,
+                        0.5,
+                        0
+                      ],
                       "type": "bezier",
                       "value": 15
                     },
@@ -414,7 +556,12 @@
                       "id": "kf_zm_6",
                       "position": 18,
                       "connectedRight": true,
-                      "handles": [0.5, 1, 0.5, 0],
+                      "handles": [
+                        0.5,
+                        1,
+                        0.5,
+                        0
+                      ],
                       "type": "bezier",
                       "value": 14.5
                     },
@@ -422,7 +569,12 @@
                       "id": "kf_zm_7",
                       "position": 19,
                       "connectedRight": false,
-                      "handles": [0.5, 1, 0.5, 0],
+                      "handles": [
+                        0.5,
+                        1,
+                        0.5,
+                        0
+                      ],
                       "type": "bezier",
                       "value": 17
                     }
@@ -436,7 +588,12 @@
                       "id": "kf_pt_0",
                       "position": 0,
                       "connectedRight": true,
-                      "handles": [0.5, 1, 0.5, 0],
+                      "handles": [
+                        0.5,
+                        1,
+                        0.5,
+                        0
+                      ],
                       "type": "bezier",
                       "value": 55.17280350846221
                     },
@@ -444,7 +601,12 @@
                       "id": "kf_pt_1",
                       "position": 4,
                       "connectedRight": true,
-                      "handles": [0.5, 1, 0.5, 0],
+                      "handles": [
+                        0.5,
+                        1,
+                        0.5,
+                        0
+                      ],
                       "type": "bezier",
                       "value": 60
                     },
@@ -452,7 +614,12 @@
                       "id": "kf_pt_2",
                       "position": 5.5,
                       "connectedRight": true,
-                      "handles": [0.5, 1, 0.5, 0],
+                      "handles": [
+                        0.5,
+                        1,
+                        0.5,
+                        0
+                      ],
                       "type": "bezier",
                       "value": 60
                     },
@@ -460,7 +627,12 @@
                       "id": "kf_pt_3",
                       "position": 7,
                       "connectedRight": true,
-                      "handles": [0.5, 1, 0.5, 0],
+                      "handles": [
+                        0.5,
+                        1,
+                        0.5,
+                        0
+                      ],
                       "type": "bezier",
                       "value": 60
                     },
@@ -468,7 +640,12 @@
                       "id": "kf_pt_4",
                       "position": 7.5,
                       "connectedRight": true,
-                      "handles": [0.5, 1, 0.5, 0],
+                      "handles": [
+                        0.5,
+                        1,
+                        0.5,
+                        0
+                      ],
                       "type": "bezier",
                       "value": 60
                     },
@@ -476,7 +653,12 @@
                       "id": "kf_pt_5",
                       "position": 11,
                       "connectedRight": true,
-                      "handles": [0.5, 1, 0.5, 0],
+                      "handles": [
+                        0.5,
+                        1,
+                        0.5,
+                        0
+                      ],
                       "type": "bezier",
                       "value": 60
                     },
@@ -484,7 +666,12 @@
                       "id": "kf_pt_6",
                       "position": 18,
                       "connectedRight": true,
-                      "handles": [0.5, 1, 0.5, 0],
+                      "handles": [
+                        0.5,
+                        1,
+                        0.5,
+                        0
+                      ],
                       "type": "bezier",
                       "value": 59.70381797146161
                     },
@@ -492,7 +679,12 @@
                       "id": "kf_pt_7",
                       "position": 19,
                       "connectedRight": false,
-                      "handles": [0.5, 1, 0.5, 0],
+                      "handles": [
+                        0.5,
+                        1,
+                        0.5,
+                        0
+                      ],
                       "type": "bezier",
                       "value": 59.70381797146161
                     }
@@ -506,7 +698,12 @@
                       "id": "kf_br_0",
                       "position": 0,
                       "connectedRight": true,
-                      "handles": [0.5, 1, 0.5, 0],
+                      "handles": [
+                        0.5,
+                        1,
+                        0.5,
+                        0
+                      ],
                       "type": "bezier",
                       "value": 2.3531249999999773
                     },
@@ -514,7 +711,12 @@
                       "id": "kf_br_1",
                       "position": 4,
                       "connectedRight": true,
-                      "handles": [0.5, 1, 0.5, 0],
+                      "handles": [
+                        0.5,
+                        1,
+                        0.5,
+                        0
+                      ],
                       "type": "bezier",
                       "value": 33.00937499999998
                     },
@@ -522,7 +724,12 @@
                       "id": "kf_br_2",
                       "position": 5.5,
                       "connectedRight": true,
-                      "handles": [0.5, 1, 0.5, 0],
+                      "handles": [
+                        0.5,
+                        1,
+                        0.5,
+                        0
+                      ],
                       "type": "bezier",
                       "value": 33.00937499999998
                     },
@@ -530,7 +737,12 @@
                       "id": "kf_br_3",
                       "position": 7,
                       "connectedRight": true,
-                      "handles": [0.5, 1, 0.5, 0],
+                      "handles": [
+                        0.5,
+                        1,
+                        0.5,
+                        0
+                      ],
                       "type": "bezier",
                       "value": 33.00937499999998
                     },
@@ -538,7 +750,12 @@
                       "id": "kf_br_4",
                       "position": 7.5,
                       "connectedRight": true,
-                      "handles": [0.5, 1, 0.5, 0],
+                      "handles": [
+                        0.5,
+                        1,
+                        0.5,
+                        0
+                      ],
                       "type": "bezier",
                       "value": 33.00937499999998
                     },
@@ -546,7 +763,12 @@
                       "id": "kf_br_5",
                       "position": 11,
                       "connectedRight": true,
-                      "handles": [0.5, 1, 0.5, 0],
+                      "handles": [
+                        0.5,
+                        1,
+                        0.5,
+                        0
+                      ],
                       "type": "bezier",
                       "value": 120
                     },
@@ -554,7 +776,12 @@
                       "id": "kf_br_6",
                       "position": 18,
                       "connectedRight": true,
-                      "handles": [0.5, 1, 0.5, 0],
+                      "handles": [
+                        0.5,
+                        1,
+                        0.5,
+                        0
+                      ],
                       "type": "bezier",
                       "value": 165.36231617647059
                     },
@@ -562,7 +789,12 @@
                       "id": "kf_br_7",
                       "position": 19,
                       "connectedRight": false,
-                      "handles": [0.5, 1, 0.5, 0],
+                      "handles": [
+                        0.5,
+                        1,
+                        0.5,
+                        0
+                      ],
                       "type": "bezier",
                       "value": 165.36231617647059
                     }

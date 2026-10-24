@@ -73,6 +73,7 @@ describe('toEditorDoc', () => {
       '/pickup-layer:scatter',
       '/pickup-position:attribute',
       '/pickup:color',
+      '/try-next-note:comment',
     ])
     const rows = Object.fromEntries(runtime.layers().map(l => [l.id, l.data?.rows]))
     expect(rows).toEqual({ '/arc-layer': 97986, '/pickup-layer': 97986, '/dropoff-layer': 97986 })
@@ -138,7 +139,7 @@ describe('toEditorDoc', () => {
       })
     )
     const hubble = toEditorDoc(example('cesium-hubble'))
-    expect(hubble.doc.nodes.map(n => n.op).sort()).toEqual(['CodeOp', 'deck', 'tile-3d'])
+    expect(hubble.doc.nodes.map(n => n.op).sort()).toEqual(['CodeOp', 'comment', 'comment', 'deck', 'tile-3d'])
     // The basemap's camera keyframes drive the deck's camera.
     expect(hubble.doc.timeline?.tracks.map(t => t.target)).toEqual(
       ['longitude', 'latitude', 'zoom', 'pitch', 'bearing'].map(k => `/renderer.${k}`)

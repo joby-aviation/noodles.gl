@@ -131,52 +131,40 @@
       }
     },
     {
-      "id": "/query-note",
-      "type": "CommentOp",
-      "position": {
-        "x": -300,
-        "y": -340
-      },
-      "data": {
-        "inputs": {
-          "text": "This asks OpenStreetMap for every park inside the box set by bounds. Change both park entries in query to playground to map playgrounds."
-        },
-        "locked": false
-      },
-      "width": 330,
-      "height": 110
+      "id": "query-note",
+      "op": "comment",
+      "name": "query-note",
+      "x": -300,
+      "y": -360,
+      "params": {
+        "text": "This asks OpenStreetMap for every park inside the box set by West, South, East and North. Change both park entries in Query to playground to map playgrounds.",
+        "width": 330,
+        "height": 110
+      }
     },
     {
-      "id": "/layer-note",
-      "type": "CommentOp",
-      "position": {
-        "x": 200,
-        "y": 130
-      },
-      "data": {
-        "inputs": {
-          "text": "This layer fills each park in green. Click it and pick a new getFillColor."
-        },
-        "locked": false
-      },
-      "width": 300,
-      "height": 80
+      "id": "layer-note",
+      "op": "comment",
+      "name": "layer-note",
+      "x": 200,
+      "y": -320,
+      "params": {
+        "text": "This layer fills each park in green. Click it and pick a new Fill color.",
+        "width": 300,
+        "height": 80
+      }
     },
     {
-      "id": "/try-next-note",
-      "type": "CommentOp",
-      "position": {
-        "x": 800,
-        "y": -90
-      },
-      "data": {
-        "inputs": {
-          "text": "Try next:\n- Click maplibre-basemap and change zoom under viewState to see all the parks.\n- Click the diamond next to opacity on geojson-layer, pick a later time in the Timeline, and change it again.\n- Press Export and pick Image (PNG) to save the map."
-        },
-        "locked": false
-      },
-      "width": 340,
-      "height": 190
+      "id": "try-next-note",
+      "op": "comment",
+      "name": "try-next-note",
+      "x": 500,
+      "y": -60,
+      "params": {
+        "text": "Try next:\n- Click deck and change Zoom to see all the parks.\n- Click the diamond next to Opacity on geojson-layer, pick a later time in the Timeline, and change it again.\n- Press Export and pick Image (PNG) to save the map.",
+        "width": 340,
+        "height": 190
+      }
     }
   ],
   "edges": [
