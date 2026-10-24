@@ -2,6 +2,7 @@ import { act, cleanup, fireEvent, render, screen, within } from '@testing-librar
 import { ReactFlowProvider } from '@xyflow/react'
 import { Temporal } from 'temporal-polyfill'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { userEvent } from 'vitest/browser'
 import {
   BezierCurveField,
   BooleanField,
@@ -410,12 +411,12 @@ describe('TextFieldComponent', () => {
     expect(input).toHaveValue('hello <script>alert("xss")</script>')
   })
 
-  it('renders the friendly label with the field id as its tooltip', () => {
+  it('renders the friendly label with the field key attached', () => {
     const field = new StringField('test')
     render(<TextFieldComponent id="myFieldName" field={field} disabled={false} />)
 
     const label = screen.getByText('My field name')
-    expect(label).toHaveAttribute('title', 'myFieldName')
+    expect(label).toHaveAttribute('data-field-key', 'myFieldName')
   })
 })
 
@@ -484,12 +485,12 @@ describe('BooleanFieldComponent', () => {
     expect(checkbox).toBeChecked()
   })
 
-  it('renders the friendly label with the field id as its tooltip', () => {
+  it('renders the friendly label with the field key attached', () => {
     const field = new BooleanField(true)
     render(<BooleanFieldComponent id="visible" field={field} disabled={false} />)
 
     const label = screen.getByText('Visible')
-    expect(label).toHaveAttribute('title', 'visible')
+    expect(label).toHaveAttribute('data-field-key', 'visible')
   })
 
   it('has disabled attribute when disabled prop is true', () => {
@@ -568,12 +569,12 @@ describe('DateFieldComponent', () => {
     expect(input).toHaveAttribute('step', '0.001')
   })
 
-  it('renders the friendly label with the field id as its tooltip', () => {
+  it('renders the friendly label with the field key attached', () => {
     const field = new DateField(Temporal.PlainDateTime.from('2024-01-15T10:30:00'))
     render(<DateFieldComponent id="startDate" field={field} disabled={false} />)
 
     const label = screen.getByText('Start date')
-    expect(label).toHaveAttribute('title', 'startDate')
+    expect(label).toHaveAttribute('data-field-key', 'startDate')
   })
 })
 
@@ -589,7 +590,7 @@ describe('EmptyFieldComponent', () => {
     render(<EmptyFieldComponent id="data" field={field} />)
 
     const label = screen.getByText('Data')
-    expect(label).toHaveAttribute('title', 'data')
+    expect(label).toHaveAttribute('data-field-key', 'data')
 
     // Should not have any interactive inputs
     expect(screen.queryByRole('textbox')).not.toBeInTheDocument()
@@ -602,7 +603,7 @@ describe('EmptyFieldComponent', () => {
     render(<EmptyFieldComponent id="customDataField" field={field} />)
 
     const label = screen.getByText('Custom data field')
-    expect(label).toHaveAttribute('title', 'customDataField')
+    expect(label).toHaveAttribute('data-field-key', 'customDataField')
   })
 })
 
@@ -889,7 +890,7 @@ describe('CompoundFieldComponent', () => {
     expect(screen.getByText('Y')).toBeInTheDocument()
   })
 
-  it('renders the friendly label with the field id as its tooltip', () => {
+  it('renders the friendly label with the field key attached', () => {
     const field = new CompoundPropsField({ depthTest: new BooleanField(true) })
     render(
       <ReactFlowProvider>
@@ -898,8 +899,56 @@ describe('CompoundFieldComponent', () => {
     )
 
     const button = screen.getByRole('button', { name: /Light settings/ })
-    expect(button).toHaveAttribute('title', 'lightSettings')
-    expect(screen.getByText('Depth test')).toHaveAttribute('title', 'depthTest')
+    expect(button).toHaveAttribute('data-field-key', 'lightSettings')
+    expect(screen.getByText('Depth test')).toHaveAttribute('data-field-key', 'depthTest')
+  })
+
+  it('shows the description and field key in a tooltip on hover', async () => {
+    const field = new NumberField(1, { description: 'How wide each line is.' })
+    render(<NumberFieldComponent id="lineWidth" field={field} disabled={false} />)
+
+    // Timers are fake in tests, so advance past the hover delay
+    await act(async () => {
+      await userEvent.hover(screen.getByText('Line width'))
+      await vi.advanceTimersByTimeAsync(500)
+    })
+    const tooltip = screen.getByRole('tooltip')
+    expect(tooltip).toHaveTextContent('How wide each line is.')
+    expect(tooltip).toHaveTextContent('lineWidth')
+  })
+
+  it('shows the description when keyboard focus reaches the field input', async () => {
+    const field = new NumberField(1, { description: 'How wide each line is.' })
+    render(
+      <ReactFlowProvider>
+        <FieldComponent id="lineWidth" field={field} disabled={false} />
+      </ReactFlowProvider>
+    )
+
+    await act(async () => {
+      await userEvent.keyboard('{Tab}')
+    })
+    const input = screen.getByRole('spinbutton')
+    expect(input).toHaveFocus()
+    expect(screen.getByRole('tooltip')).toHaveTextContent('How wide each line is.')
+    // Screen readers get the description from the focused input itself
+    const describedBy = document.getElementById(input.getAttribute('aria-describedby') ?? '')
+    expect(describedBy).toHaveTextContent('How wide each line is.')
+  })
+
+  it('does not open the tooltip when the input is clicked', async () => {
+    const field = new NumberField(1, { description: 'How wide each line is.' })
+    render(
+      <ReactFlowProvider>
+        <FieldComponent id="lineWidth" field={field} disabled={false} />
+      </ReactFlowProvider>
+    )
+
+    await act(async () => {
+      await userEvent.click(screen.getByRole('spinbutton'))
+    })
+    expect(screen.getByRole('spinbutton')).toHaveFocus()
+    expect(screen.queryByRole('tooltip')).toBeNull()
   })
 
   it('uses the shared layer label for layer parameters', () => {
@@ -911,7 +960,7 @@ describe('CompoundFieldComponent', () => {
     )
 
     expect(screen.getByRole('button', { name: /Render parameters/ })).toHaveAttribute(
-      'title',
+      'data-field-key',
       'parameters'
     )
   })
@@ -1012,12 +1061,12 @@ describe('ColorFieldComponent', () => {
     expect(colorSwatch).toBeInTheDocument()
   })
 
-  it('renders the friendly label with the field id as its tooltip', () => {
+  it('renders the friendly label with the field key attached', () => {
     const field = new ColorField('#00ff00ff')
     render(<ColorFieldComponent id="fillColor" field={field} disabled={false} />)
 
     const label = screen.getByText('Fill color')
-    expect(label).toHaveAttribute('title', 'fillColor')
+    expect(label).toHaveAttribute('data-field-key', 'fillColor')
   })
 
   // BitmapLayerOp's transparentColor and tintColor are optional and default to no value.
@@ -1120,12 +1169,12 @@ describe('NumberFieldComponent edge cases', () => {
     expect(input).toHaveAttribute('max', '100')
   })
 
-  it('renders the friendly label with the field id as its tooltip', () => {
+  it('renders the friendly label with the field key attached', () => {
     const field = new NumberField(42)
     render(<NumberFieldComponent id="myNumber" field={field} disabled={false} />)
 
     const label = screen.getByText('My number')
-    expect(label).toHaveAttribute('title', 'myNumber')
+    expect(label).toHaveAttribute('data-field-key', 'myNumber')
   })
 })
 

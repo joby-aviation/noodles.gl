@@ -95,11 +95,11 @@ describe('NodeProperties field visibility editing', () => {
     )
   }
 
-  // Rows show friendly labels with the field key as the tooltip. The field component's own
-  // (hidden) <label> has the same tooltip, so pick the panel's span
+  // Rows show friendly labels; `data-field-key` holds the field key. The field component's
+  // own (hidden) <label> carries it too, so pick the panel's span
   const getRowLabel = (fieldName: string) => {
-    const label = screen.getAllByTitle(fieldName).find(el => el.tagName === 'SPAN')
-    expect(label).toBeDefined()
+    const label = document.querySelector<HTMLElement>(`span[data-field-key="${fieldName}"]`)
+    expect(label).toBeInTheDocument()
     return label!
   }
 
@@ -146,7 +146,7 @@ describe('NodeProperties field visibility editing', () => {
       // 'effects' is hidden by default, so it starts collapsed
       const toggle = screen.getByRole('button', { name: /More settings/ })
       expect(toggle).toHaveAttribute('aria-expanded', 'false')
-      expect(screen.queryAllByTitle('effects')).toHaveLength(0)
+      expect(document.querySelector('[data-field-key="effects"]')).toBeNull()
 
       fireEvent.click(toggle)
       expect(toggle).toHaveAttribute('aria-expanded', 'true')
@@ -179,7 +179,7 @@ describe('NodeProperties field visibility editing', () => {
       const node = setupOperator('NumberOp', '/num')
       renderNodeProperties(node)
 
-      expect(screen.getByLabelText('Val')).toBeInTheDocument()
+      expect(screen.getByLabelText('Value')).toBeInTheDocument()
       expect(screen.getByRole('button', { name: /keyframe/i })).toBeInTheDocument()
     })
 
@@ -218,7 +218,7 @@ describe('NodeProperties field visibility editing', () => {
         data: { inputs: {} },
       })
 
-      expect(screen.queryByLabelText('Val')).not.toBeInTheDocument()
+      expect(screen.queryByLabelText('Value')).not.toBeInTheDocument()
       expect(screen.queryByRole('button', { name: /keyframe/i })).not.toBeInTheDocument()
     })
   })
