@@ -6,8 +6,8 @@
       "id": "deck",
       "op": "deck",
       "name": "deck",
-      "x": 1054,
-      "y": 172,
+      "x": 872,
+      "y": 253,
       "params": {
         "mapStyle": "https://basemaps.cartocdn.com/gl/positron-gl-style/style.json",
         "projection": "mercator",
@@ -36,7 +36,7 @@
       "op": "geojson",
       "name": "data-source",
       "x": 0,
-      "y": 221,
+      "y": 170,
       "params": {
         "url": "https://raw.githubusercontent.com/visgl/deck.gl-data/master/website/bart.geo.json"
       }
@@ -45,8 +45,8 @@
       "id": "fill-color",
       "op": "color",
       "name": "fill-color",
-      "x": 340,
-      "y": 317,
+      "x": 284,
+      "y": 55,
       "params": {
         "color": [
           1,
@@ -59,8 +59,8 @@
       "id": "geojson-layer",
       "op": "polygon",
       "name": "geojson-layer",
-      "x": 694,
-      "y": 310,
+      "x": 578,
+      "y": 124,
       "params": {
         "opacity": 1,
         "blend": "normal",
@@ -84,8 +84,8 @@
       "id": "geojson-layer-lines",
       "op": "path",
       "name": "geojson-layer-lines",
-      "x": 694,
-      "y": 0,
+      "x": 578,
+      "y": 234,
       "params": {
         "opacity": 1,
         "blend": "normal",
@@ -100,8 +100,8 @@
       "id": "geojson-layer-points",
       "op": "scatter",
       "name": "geojson-layer-points",
-      "x": 694,
-      "y": 416,
+      "x": 578,
+      "y": 344,
       "params": {
         "opacity": 1,
         "blend": "normal",
@@ -119,8 +119,8 @@
       "id": "geojson-layer-labels",
       "op": "text",
       "name": "geojson-layer-labels",
-      "x": 694,
-      "y": 106,
+      "x": 578,
+      "y": 454,
       "params": {
         "opacity": 1,
         "blend": "normal",
@@ -139,8 +139,8 @@
       "id": "line-color",
       "op": "attribute",
       "name": "line-color",
-      "x": 340,
-      "y": 123,
+      "x": 284,
+      "y": 206,
       "params": {
         "name": "line_color",
         "expression": "hex_color(coalesce(color, '#000'))"
@@ -151,47 +151,47 @@
       "op": "comment",
       "name": "data-note",
       "x": 0,
-      "y": 123,
+      "y": 66,
       "params": {
         "text": "This loads BART train lines and stations in the San Francisco Bay Area from a GeoJSON file.",
-        "width": 300,
-        "height": 90
+        "width": 220,
+        "height": 96
       }
     },
     {
       "id": "layer-note",
       "op": "comment",
       "name": "layer-note",
-      "x": 694,
-      "y": 212,
+      "x": 578,
+      "y": 0,
       "params": {
         "text": "These four layers draw the stations, their names, and the train lines. Click geojson-layer-lines and change Min width (px).",
-        "width": 320,
-        "height": 90
+        "width": 230,
+        "height": 116
       }
     },
     {
       "id": "line-color-note",
       "op": "comment",
       "name": "line-color-note",
-      "x": 340,
-      "y": 229,
+      "x": 284,
+      "y": 141,
       "params": {
         "text": "line-color gives each train line the color stored in its data.",
-        "width": 314,
-        "height": 80
+        "width": 230,
+        "height": 57
       }
     },
     {
       "id": "try-next-note",
       "op": "comment",
       "name": "try-next-note",
-      "x": 1244,
-      "y": 176,
+      "x": 1086,
+      "y": 253,
       "params": {
         "text": "Try next:\n- Click fill-color and pick a new color.\n- Drop your own GeoJSON file onto the canvas to map it.\n- Press Export and pick Image (PNG) to save the map.",
         "width": 340,
-        "height": 150
+        "height": 136
       }
     }
   ],

@@ -6,7 +6,7 @@
       "id": "deck-renderer",
       "op": "deck",
       "name": "deck-renderer",
-      "x": 247,
+      "x": 271,
       "y": 0,
       "params": {
         "mapStyle": "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json",

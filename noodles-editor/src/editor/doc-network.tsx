@@ -23,6 +23,7 @@ import {
 } from '../noodles/components/starter-node-focus'
 import { DocCommentComponent } from './doc-comment'
 import { useEngineState } from './doc-engine'
+import { applyLayout, layoutNetwork } from './doc-layout'
 import ns from './doc-network.module.css'
 import { DocNodeComponent } from './doc-node'
 import {
@@ -62,6 +63,25 @@ let clipboard: Clip | undefined
 // The controls' fit button. One object, not one per render: React Flow copies a new one into
 // its store, replacing the options of a fit already queued (the load's, in ProjectLoadView).
 const FIT_VIEW_OPTIONS = { padding: 0.15 }
+
+// A note's height with its text wrapped at `width`: a copy of its drawn box, measured off screen
+function noteHeightAt(id: string, width: number): number {
+  const node = document.querySelector<HTMLElement>(`.react-flow__node[data-id="${CSS.escape(id)}"]`)
+  const box = node?.firstElementChild as HTMLElement | null
+  if (!node?.parentElement || !box) return 80
+  const probe = box.cloneNode(true) as HTMLElement
+  Object.assign(probe.style, {
+    position: 'absolute',
+    visibility: 'hidden',
+    width: `${width}px`,
+    height: 'auto',
+    minHeight: '0',
+  })
+  node.parentElement.appendChild(probe)
+  const height = probe.offsetHeight
+  probe.remove()
+  return height
+}
 
 /** Copy the selection: kept here, and as JSON on the system clipboard for other tabs. */
 export function copySelection(): boolean {
@@ -382,7 +402,23 @@ export function DocNetwork({ children }: { children?: ReactNode }) {
       if (first) enter(first)
     } else if (e.key === 'f' && !meta) {
       void flow.fitView({ ...FIT_VIEW_OPTIONS, duration: 250 })
+    } else if (e.key === 'l' && !meta) {
+      layOut()
     }
+  }
+
+  // Lays the network out left to right at the sizes it draws its nodes, as one undo step
+  const layOut = () => {
+    const { doc: current, network: at } = docStore().get()
+    const placed = layoutNetwork(current, at, {
+      size: id => {
+        const n = flow.getInternalNode(id)
+        return { w: n?.measured.width ?? 200, h: n?.measured.height ?? 80 }
+      },
+      noteHeight: noteHeightAt,
+    })
+    docStore().edit(d => applyLayout(d, placed), 'layout')
+    requestAnimationFrame(() => void flow.fitView({ ...FIT_VIEW_OPTIONS, duration: 250 }))
   }
 
   const nodeMenu = (id: string): MenuItem[] => {

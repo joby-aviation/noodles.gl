@@ -6,8 +6,8 @@
       "id": "deck",
       "op": "deck",
       "name": "deck",
-      "x": 962,
-      "y": 114,
+      "x": 854,
+      "y": 200,
       "params": {
         "mapStyle": "https://basemaps.cartocdn.com/gl/positron-gl-style/style.json",
         "projection": "mercator",
@@ -36,7 +36,7 @@
       "op": "overpass",
       "name": "overpass-query",
       "x": 0,
-      "y": 227,
+      "y": 144,
       "params": {
         "query": "[out:json][timeout:25];\n(\n  way[\"leisure\"=\"park\"]({{bbox}});\n  relation[\"leisure\"=\"park\"]({{bbox}});\n);\nout geom;",
         "endpoint": "https://overpass.openstreetmap.fr/api/interpreter",
@@ -50,8 +50,8 @@
       "id": "overpass-query-rows",
       "op": "geojson",
       "name": "overpass-query-rows",
-      "x": 370,
-      "y": 123,
+      "x": 284,
+      "y": 99,
       "params": {
         "url": ""
       }
@@ -60,8 +60,8 @@
       "id": "geojson-layer",
       "op": "polygon",
       "name": "geojson-layer",
-      "x": 622,
-      "y": 88,
+      "x": 560,
+      "y": 126,
       "params": {
         "opacity": 0.7,
         "blend": "normal",
@@ -92,8 +92,8 @@
       "id": "geojson-layer-lines",
       "op": "path",
       "name": "geojson-layer-lines",
-      "x": 622,
-      "y": 194,
+      "x": 560,
+      "y": 236,
       "params": {
         "opacity": 0.7,
         "blend": "normal",
@@ -113,8 +113,8 @@
       "id": "geojson-layer-points",
       "op": "scatter",
       "name": "geojson-layer-points",
-      "x": 622,
-      "y": 300,
+      "x": 560,
+      "y": 346,
       "params": {
         "opacity": 0.7,
         "blend": "normal",
@@ -135,35 +135,35 @@
       "op": "comment",
       "name": "query-note",
       "x": 0,
-      "y": 109,
+      "y": 0,
       "params": {
         "text": "This asks OpenStreetMap for every park inside the box set by West, South, East and North. Change both park entries in Query to playground to map playgrounds.",
-        "width": 330,
-        "height": 110
+        "width": 220,
+        "height": 136
       }
     },
     {
       "id": "layer-note",
       "op": "comment",
       "name": "layer-note",
-      "x": 622,
-      "y": 0,
+      "x": 560,
+      "y": 41,
       "params": {
         "text": "This layer fills each park in green. Click it and pick a new Fill color.",
-        "width": 300,
-        "height": 80
+        "width": 230,
+        "height": 77
       }
     },
     {
       "id": "try-next-note",
       "op": "comment",
       "name": "try-next-note",
-      "x": 1152,
-      "y": 98,
+      "x": 1068,
+      "y": 200,
       "params": {
         "text": "Try next:\n- Click deck and change Zoom to see all the parks.\n- Click the diamond next to Opacity on geojson-layer, pick a later time in the Timeline, and change it again.\n- Press Export and pick Image (PNG) to save the map.",
         "width": 340,
-        "height": 190
+        "height": 175
       }
     }
   ],

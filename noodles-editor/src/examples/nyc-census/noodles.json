@@ -6,8 +6,8 @@
       "id": "deck",
       "op": "deck",
       "name": "deck",
-      "x": 1417,
-      "y": 163,
+      "x": 1367,
+      "y": 195,
       "params": {
         "mapStyle": "https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json",
         "projection": "mercator",
@@ -36,7 +36,7 @@
       "op": "geojson",
       "name": "data-source",
       "x": 0,
-      "y": 163,
+      "y": 85,
       "params": {
         "url": "@/data.json"
       }
@@ -45,8 +45,8 @@
       "id": "geojson-layer",
       "op": "polygon",
       "name": "geojson-layer",
-      "x": 1057,
-      "y": 98,
+      "x": 1073,
+      "y": 121,
       "params": {
         "opacity": 0.7,
         "blend": "normal",
@@ -72,8 +72,8 @@
       "id": "geojson-layer-lines",
       "op": "path",
       "name": "geojson-layer-lines",
-      "x": 1057,
-      "y": 204,
+      "x": 1073,
+      "y": 231,
       "params": {
         "opacity": 0.7,
         "blend": "normal",
@@ -93,8 +93,8 @@
       "id": "geojson-layer-points",
       "op": "scatter",
       "name": "geojson-layer-points",
-      "x": 1057,
-      "y": 310,
+      "x": 1073,
+      "y": 341,
       "params": {
         "opacity": 0.7,
         "blend": "normal",
@@ -109,8 +109,8 @@
       "id": "map-range",
       "op": "map-range",
       "name": "map-range",
-      "x": 340,
-      "y": 155,
+      "x": 284,
+      "y": 121,
       "params": {
         "input": "Population",
         "name": "map_range",
@@ -126,8 +126,8 @@
       "id": "population-color",
       "op": "color-ramp",
       "name": "population-color",
-      "x": 553,
-      "y": 155,
+      "x": 521,
+      "y": 121,
       "params": {
         "input": "map_range",
         "ramp": "turbo",
@@ -140,8 +140,8 @@
       "id": "population-to-elevation",
       "op": "map-range",
       "name": "population-to-elevation",
-      "x": 787,
-      "y": 155,
+      "x": 779,
+      "y": 121,
       "params": {
         "input": "Population",
         "name": "population_to_elevation",
@@ -158,47 +158,47 @@
       "op": "comment",
       "name": "data-note",
       "x": 0,
-      "y": 75,
+      "y": 0,
       "params": {
         "text": "This loads New York City census tracts, each with its population.",
-        "width": 300,
-        "height": 80
+        "width": 220,
+        "height": 77
       }
     },
     {
       "id": "layer-note",
       "op": "comment",
       "name": "layer-note",
-      "x": 1057,
-      "y": 0,
+      "x": 1073,
+      "y": 17,
       "params": {
         "text": "This layer draws each tract, colored and raised by its population. Click it and change Elevation scale.",
-        "width": 320,
-        "height": 90
+        "width": 230,
+        "height": 96
       }
     },
     {
       "id": "height-note",
       "op": "comment",
       "name": "height-note",
-      "x": 1417,
-      "y": 75,
+      "x": 779,
+      "y": 17,
       "params": {
         "text": "population-to-elevation turns population into a height. Change Out max to make the tallest tracts taller.",
-        "width": 333,
-        "height": 80
+        "width": 230,
+        "height": 96
       }
     },
     {
       "id": "try-next-note",
       "op": "comment",
       "name": "try-next-note",
-      "x": 1790,
-      "y": 103,
+      "x": 1581,
+      "y": 195,
       "params": {
         "text": "Try next:\n- Click population-color and pick a different Ramp.\n- Click the diamond next to Elevation scale on geojson-layer, pick a later time in the Timeline, and change it again.\n- Press Export and pick Video (MP4) to save the animation.",
         "width": 340,
-        "height": 190
+        "height": 175
       }
     }
   ],

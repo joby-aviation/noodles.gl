@@ -275,6 +275,7 @@ Now that you understand workflows, explore:
 | Enter subnet | `Enter` or double-click |
 | Go up one subnet | `U` |
 | Frame all | `F` |
+| Lay out the network, left to right | `L` |
 | Search operators | Type after pressing `Tab` |
 | Play animation | `Space` |
 | Rename node | Double-click its name in the sidebar |

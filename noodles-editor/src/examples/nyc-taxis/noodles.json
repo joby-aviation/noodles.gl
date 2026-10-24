@@ -6,8 +6,8 @@
       "id": "deck",
       "op": "deck",
       "name": "deck",
-      "x": 1130,
-      "y": 139,
+      "x": 1157,
+      "y": 233,
       "params": {
         "mapStyle": "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json",
         "projection": "mercator",
@@ -36,7 +36,7 @@
       "op": "file",
       "name": "data-source",
       "x": 0,
-      "y": 184,
+      "y": 180,
       "params": {
         "url": "@/data.csv",
         "format": "csv"
@@ -46,8 +46,8 @@
       "id": "pickup",
       "op": "color",
       "name": "pickup",
-      "x": 460,
-      "y": 98,
+      "x": 578,
+      "y": 85,
       "params": {
         "color": [
           141,
@@ -60,8 +60,8 @@
       "id": "dropoff",
       "op": "color",
       "name": "dropoff",
-      "x": 460,
-      "y": 374,
+      "x": 578,
+      "y": 171,
       "params": {
         "color": [
           16,
@@ -74,8 +74,8 @@
       "id": "arc-layer",
       "op": "arc",
       "name": "arc-layer",
-      "x": 790,
-      "y": 219,
+      "x": 872,
+      "y": 159,
       "params": {
         "opacity": 1,
         "blend": "additive",
@@ -99,8 +99,8 @@
       "id": "pickup-layer",
       "op": "scatter",
       "name": "pickup-layer",
-      "x": 790,
-      "y": 25,
+      "x": 872,
+      "y": 269,
       "params": {
         "opacity": 0.8,
         "blend": "additive",
@@ -118,8 +118,8 @@
       "id": "dropoff-layer",
       "op": "scatter",
       "name": "dropoff-layer",
-      "x": 790,
-      "y": 325,
+      "x": 872,
+      "y": 379,
       "params": {
         "opacity": 0.8,
         "blend": "additive",
@@ -137,8 +137,8 @@
       "id": "pickup-position",
       "op": "attribute",
       "name": "pickup-position",
-      "x": 190,
-      "y": 175,
+      "x": 284,
+      "y": 171,
       "params": {
         "name": "pickup_position",
         "expression": "[pickup_longitude, pickup_latitude]"
@@ -148,8 +148,8 @@
       "id": "dropoff-position",
       "op": "attribute",
       "name": "dropoff-position",
-      "x": 460,
-      "y": 180,
+      "x": 578,
+      "y": 257,
       "params": {
         "name": "dropoff_position",
         "expression": "[dropoff_longitude, dropoff_latitude]"
@@ -159,48 +159,48 @@
       "id": "data-note",
       "op": "comment",
       "name": "data-note",
-      "x": 460,
-      "y": 286,
+      "x": 0,
+      "y": 115,
       "params": {
         "text": "This loads the taxi trips CSV. Click it to see its columns.",
-        "width": 265,
-        "height": 80
+        "width": 220,
+        "height": 57
       }
     },
     {
       "id": "color-note",
       "op": "comment",
       "name": "color-note",
-      "x": 460,
+      "x": 578,
       "y": 0,
       "params": {
         "text": "These two nodes set the pickup and drop-off colors. Click one to pick a new color.",
-        "width": 290,
-        "height": 90
+        "width": 230,
+        "height": 77
       }
     },
     {
       "id": "arc-note",
       "op": "comment",
       "name": "arc-note",
-      "x": 790,
-      "y": 131,
+      "x": 872,
+      "y": 55,
       "params": {
         "text": "This layer draws an arc from each pickup to its drop-off. Click it and change Width scale.",
-        "width": 300,
-        "height": 80
+        "width": 221,
+        "height": 96
       }
     },
     {
       "id": "try-next-note",
       "op": "comment",
       "name": "try-next-note",
-      "x": 1320,
-      "y": 133,
+      "x": 1371,
+      "y": 233,
       "params": {
         "text": "Try next:\n- Press the space bar to play the camera move on the Timeline.\n- Click arc-layer and change Height to raise or flatten the arcs.\n- Press Export and pick Video (MP4) to save the animation.",
         "width": 340,
-        "height": 170
+        "height": 155
       }
     }
   ],

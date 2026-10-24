@@ -6,8 +6,8 @@
       "id": "deck",
       "op": "deck",
       "name": "deck",
-      "x": 1454,
-      "y": 119,
+      "x": 1391,
+      "y": 317,
       "params": {
         "mapStyle": "https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json",
         "projection": "mercator",
@@ -36,7 +36,7 @@
       "op": "geojson",
       "name": "data-source",
       "x": 0,
-      "y": 163,
+      "y": 85,
       "params": {
         "url": "@/data.geojson"
       }
@@ -45,8 +45,8 @@
       "id": "extent",
       "op": "extent",
       "name": "extent",
-      "x": 340,
-      "y": 292,
+      "x": 284,
+      "y": 112,
       "params": {
         "input": "coalesce(unemployment_rate, 0)"
       }
@@ -55,8 +55,8 @@
       "id": "geojson-layer",
       "op": "polygon",
       "name": "geojson-layer",
-      "x": 1184,
-      "y": 49,
+      "x": 1097,
+      "y": 243,
       "params": {
         "opacity": 0.8,
         "blend": "normal",
@@ -82,8 +82,8 @@
       "id": "geojson-layer-lines",
       "op": "path",
       "name": "geojson-layer-lines",
-      "x": 1184,
-      "y": 155,
+      "x": 1097,
+      "y": 353,
       "params": {
         "opacity": 0.8,
         "blend": "normal",
@@ -103,8 +103,8 @@
       "id": "geojson-layer-points",
       "op": "scatter",
       "name": "geojson-layer-points",
-      "x": 1184,
-      "y": 261,
+      "x": 1097,
+      "y": 463,
       "params": {
         "opacity": 0.8,
         "blend": "normal",
@@ -119,8 +119,8 @@
       "id": "unemployment",
       "op": "attribute",
       "name": "unemployment",
-      "x": 340,
-      "y": 0,
+      "x": 284,
+      "y": 364,
       "params": {
         "name": "unemployment",
         "expression": "coalesce(unemployment_rate, 0)"
@@ -130,8 +130,8 @@
       "id": "map-range",
       "op": "map-range",
       "name": "map-range",
-      "x": 713,
-      "y": 146,
+      "x": 578,
+      "y": 234,
       "params": {
         "input": "unemployment",
         "name": "map_range",
@@ -146,8 +146,8 @@
       "id": "unemployment-color",
       "op": "color-ramp",
       "name": "unemployment-color",
-      "x": 926,
-      "y": 155,
+      "x": 815,
+      "y": 243,
       "params": {
         "input": "map_range",
         "ramp": "viridis",
@@ -161,47 +161,47 @@
       "op": "comment",
       "name": "data-note",
       "x": 0,
-      "y": 75,
+      "y": 0,
       "params": {
         "text": "This loads every US county with its unemployment rate and labor force.",
-        "width": 300,
-        "height": 80
+        "width": 220,
+        "height": 77
       }
     },
     {
       "id": "extent-note",
       "op": "comment",
       "name": "extent-note",
-      "x": 340,
-      "y": 106,
+      "x": 284,
+      "y": 27,
       "params": {
         "text": "This finds the highest rate, so the colors cover the full range from low to high.",
-        "width": 300,
-        "height": 80
+        "width": 230,
+        "height": 77
       }
     },
     {
       "id": "rate-note",
       "op": "comment",
       "name": "rate-note",
-      "x": 340,
-      "y": 194,
+      "x": 284,
+      "y": 240,
       "params": {
         "text": "unemployment reads each county's rate. Change unemployment_rate to labor_force in Expression to map workforce size instead.",
-        "width": 333,
-        "height": 90
+        "width": 230,
+        "height": 116
       }
     },
     {
       "id": "try-next-note",
       "op": "comment",
       "name": "try-next-note",
-      "x": 1644,
-      "y": 113,
+      "x": 1605,
+      "y": 317,
       "params": {
         "text": "Try next:\n- Click unemployment-color and pick a different Ramp.\n- Click geojson-layer and turn on Outline to outline each county.\n- Press Export and pick Image (PNG) to save the map.",
         "width": 340,
-        "height": 170
+        "height": 155
       }
     }
   ],

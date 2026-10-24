@@ -6,8 +6,8 @@
       "id": "deck",
       "op": "deck",
       "name": "deck",
-      "x": 1930,
-      "y": 16,
+      "x": 1852,
+      "y": 68,
       "params": {
         "mapStyle": "https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json",
         "projection": "mercator",
@@ -36,7 +36,7 @@
       "op": "file",
       "name": "data-source",
       "x": 0,
-      "y": 105,
+      "y": 113,
       "params": {
         "url": "@/data.csv",
         "format": "csv"
@@ -46,8 +46,8 @@
       "id": "scatterplot-layer",
       "op": "scatter",
       "name": "scatterplot-layer",
-      "x": 1561,
-      "y": 96,
+      "x": 1566,
+      "y": 104,
       "params": {
         "opacity": 1,
         "blend": "normal",
@@ -62,8 +62,8 @@
       "id": "position",
       "op": "attribute",
       "name": "position",
-      "x": 305,
-      "y": 52,
+      "x": 284,
+      "y": 104,
       "params": {
         "name": "position",
         "expression": "[Longitude, Latitude]"
@@ -73,8 +73,8 @@
       "id": "map-range",
       "op": "map-range",
       "name": "map-range",
-      "x": 560,
-      "y": 96,
+      "x": 563,
+      "y": 104,
       "params": {
         "input": "Magnitude",
         "name": "map_range",
@@ -90,8 +90,8 @@
       "id": "magnitude-color",
       "op": "color-ramp",
       "name": "magnitude-color",
-      "x": 914,
-      "y": 52,
+      "x": 847,
+      "y": 104,
       "params": {
         "input": "map_range",
         "ramp": "turbo",
@@ -104,8 +104,8 @@
       "id": "sqrt",
       "op": "attribute",
       "name": "sqrt",
-      "x": 1148,
-      "y": 52,
+      "x": 1105,
+      "y": 104,
       "params": {
         "name": "sqrt",
         "expression": "sqrt(Magnitude)"
@@ -115,8 +115,8 @@
       "id": "multiply",
       "op": "attribute",
       "name": "multiply",
-      "x": 1342,
-      "y": 52,
+      "x": 1323,
+      "y": 104,
       "params": {
         "name": "multiply",
         "expression": "(sqrt * 1700.0)"
@@ -127,47 +127,47 @@
       "op": "comment",
       "name": "data-note",
       "x": 0,
-      "y": 17,
+      "y": 28,
       "params": {
         "text": "This loads the earthquake CSV. Click it to see its columns.",
-        "width": 265,
-        "height": 80
+        "width": 220,
+        "height": 77
       }
     },
     {
       "id": "magnitude-note",
       "op": "comment",
       "name": "magnitude-note",
-      "x": 560,
-      "y": 8,
+      "x": 563,
+      "y": 0,
       "params": {
         "text": "This reads each earthquake's magnitude. The nodes to its right turn it into a circle color and size.",
-        "width": 314,
-        "height": 80
+        "width": 220,
+        "height": 96
       }
     },
     {
       "id": "layer-note",
       "op": "comment",
       "name": "layer-note",
-      "x": 1561,
-      "y": 8,
+      "x": 1566,
+      "y": 0,
       "params": {
         "text": "This layer draws one circle per earthquake. Click it and change Radius scale to make the circles bigger.",
-        "width": 329,
-        "height": 80
+        "width": 222,
+        "height": 96
       }
     },
     {
       "id": "try-next-note",
       "op": "comment",
       "name": "try-next-note",
-      "x": 2120,
-      "y": 0,
+      "x": 2066,
+      "y": 68,
       "params": {
         "text": "Try next:\n- Click magnitude-color and pick a different Ramp.\n- Drop a CSV with latitude and longitude columns onto the canvas to map your own points.\n- Press Export and pick Image (PNG) to save the map.",
         "width": 340,
-        "height": 190
+        "height": 175
       }
     }
   ],

@@ -68,8 +68,8 @@ function DocumentInfo({ doc }: { doc: EditorDoc }) {
       </div>
       <div className={s.empty}>
         Select a node to edit its parameters. <kbd>Tab</kbd> in the network adds an operator; drag
-        from a port to wire it, and right-click a wire to insert a node. Right-click a parameter for
-        expressions, references, keyframes and promotion.
+        from a port to wire it, and right-click a wire to insert a node. <kbd>L</kbd> lays the
+        network out. Right-click a parameter for expressions, references, keyframes and promotion.
       </div>
     </div>
   )

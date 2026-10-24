@@ -1,5 +1,5 @@
-// Every example opens laid out: no node or note drawn over another, at the sizes the network
-// actually renders them
+// Every example opens laid out: no node or note drawn over another, and every wire running
+// left to right, at the sizes the network actually renders them
 import type { EditorDoc } from '@noodles.gl/planner'
 import { cleanup, render, waitFor } from '@testing-library/react'
 import { ReactFlowProvider } from '@xyflow/react'
@@ -46,7 +46,7 @@ describe('example layouts', () => {
   afterEach(() => cleanup())
 
   it.each(Object.entries(examples).map(([path, doc]) => [path.split('/')[2], doc] as const))(
-    '%s has no overlapping nodes',
+    '%s has no overlapping nodes and its wires run left to right',
     async (_name, doc) => {
       vi.useRealTimers()
       docStore().load(structuredClone(doc))
@@ -62,7 +62,16 @@ describe('example layouts', () => {
         expect(drawn).toHaveLength(doc.nodes.length)
         expect(drawn.every(r => r.w > 0 && r.h > 0)).toBe(true)
       })
-      expect(overlaps(rects(container))).toEqual([])
+      const drawn = rects(container)
+      expect(overlaps(drawn)).toEqual([])
+      const at = new Map(drawn.map(r => [r.id, r]))
+      const backward = doc.edges
+        .filter(e => {
+          const [a, b] = [at.get(e.source), at.get(e.target)]
+          return a && b && a.x + a.w > b.x
+        })
+        .map(e => `${e.source} to ${e.target}`)
+      expect(backward).toEqual([])
     }
   )
 })

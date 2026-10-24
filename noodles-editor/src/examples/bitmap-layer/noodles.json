@@ -6,8 +6,8 @@
       "id": "deck",
       "op": "deck",
       "name": "deck",
-      "x": 371,
-      "y": 6,
+      "x": 284,
+      "y": 70,
       "params": {
         "mapStyle": "https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json",
         "projection": "mercator",
@@ -36,7 +36,7 @@
       "op": "bitmap",
       "name": "bitmap-layer",
       "x": 0,
-      "y": 109,
+      "y": 124,
       "params": {
         "image": "@/sf-districts.png",
         "bounds": {
@@ -56,23 +56,23 @@
       "op": "comment",
       "name": "image-note",
       "x": 0,
-      "y": 11,
+      "y": 0,
       "params": {
         "text": "This places a picture of San Francisco's districts on the map. Click it and lower Opacity to see the streets below.",
-        "width": 331,
-        "height": 90
+        "width": 220,
+        "height": 116
       }
     },
     {
       "id": "try-next-note",
       "op": "comment",
       "name": "try-next-note",
-      "x": 561,
-      "y": 0,
+      "x": 498,
+      "y": 70,
       "params": {
         "text": "Try next:\n- Click bitmap-layer and change Desaturate to fade the colors.\n- Click the diamond next to Opacity, pick a later time in the Timeline, and change it again.\n- Press Export and pick Video (MP4) to save the fade.",
         "width": 340,
-        "height": 170
+        "height": 155
       }
     }
   ],

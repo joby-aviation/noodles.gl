@@ -19,7 +19,7 @@ Open the editor and follow along.
 ### Node Editor
 - **Add Nodes**: Press `Tab` or right-click an empty area of the canvas to open the Add Node menu
 - **Connect Data**: Drag from an output port to an input port
-- **Navigate**: Double-click a subnet (or select it and press `Enter`) to go inside, use the breadcrumbs or press `U` to go back up, and press `F` to frame the whole network
+- **Navigate**: Double-click a subnet (or select it and press `Enter`) to go inside, use the breadcrumbs or press `U` to go back up, press `F` to frame the whole network, and press `L` to lay it out left to right
 
 ### Parameter Pane
 - **Edit Parameters**: Adjust the selected node's parameters, grouped into folders

@@ -6,8 +6,8 @@
       "id": "deck",
       "op": "deck",
       "name": "deck",
-      "x": 1540,
-      "y": 106,
+      "x": 1420,
+      "y": 168,
       "params": {
         "mapStyle": "https://basemaps.cartocdn.com/gl/dark-matter-nolabels-gl-style/style.json",
         "projection": "mercator",
@@ -35,8 +35,8 @@
       "id": "layer-toggle",
       "op": "switch",
       "name": "layer-toggle",
-      "x": 1210,
-      "y": 257,
+      "x": 1136,
+      "y": 313,
       "params": {
         "index": 0
       }
@@ -45,8 +45,8 @@
       "id": "charger-query",
       "op": "sql",
       "name": "charger-query",
-      "x": 340,
-      "y": 168,
+      "x": 284,
+      "y": 85,
       "params": {
         "query": "SELECT AddressInfo.Latitude as lat, AddressInfo.Longitude as lng, *\nFROM read_json_auto(printf('https://api.openchargemap.io/v3/poi/?client=ocm.app.ionic.8.7.0&verbose=false&output=json&maxresults=1000&compact=true&boundingbox=(%f,%f),(%f,%f)&key=%s', ch('centroid/out.location.lat') + 0.5, ch('centroid/out.location.lng') - 0.5, ch('centroid/out.location.lat') - 0.5, ch('centroid/out.location.lng') + 0.5,\n'3967da06-b05f-47b5-8c83-f52cdf1065c2\n'))"
       }
@@ -55,8 +55,8 @@
       "id": "charger-points",
       "op": "scatter",
       "name": "charger-points",
-      "x": 955,
-      "y": 178,
+      "x": 857,
+      "y": 249,
       "params": {
         "opacity": 1,
         "blend": "normal",
@@ -76,8 +76,8 @@
       "id": "charger-heatmap",
       "op": "heatmap",
       "name": "charger-heatmap",
-      "x": 955,
-      "y": 284,
+      "x": 857,
+      "y": 359,
       "params": {
         "opacity": 1,
         "blend": "normal",
@@ -94,8 +94,8 @@
       "id": "auto-view",
       "op": "view-state",
       "name": "auto-view",
-      "x": 1210,
-      "y": 45,
+      "x": 1136,
+      "y": 94,
       "params": {
         "zoom": 10.8
       }
@@ -104,8 +104,8 @@
       "id": "charger-bounds",
       "op": "fit-bounds",
       "name": "charger-bounds",
-      "x": 955,
-      "y": 0,
+      "x": 857,
+      "y": 67,
       "params": {
         "padding": 200
       }
@@ -115,7 +115,7 @@
       "op": "GeocoderOp",
       "name": "centroid",
       "x": 0,
-      "y": 195,
+      "y": 112,
       "params": {
         "query": "Denver, CO"
       }
@@ -124,8 +124,8 @@
       "id": "charger-position",
       "op": "attribute",
       "name": "charger-position",
-      "x": 700,
-      "y": 142,
+      "x": 578,
+      "y": 103,
       "params": {
         "name": "charger_position",
         "expression": "[lng, lat]"
@@ -136,47 +136,47 @@
       "op": "comment",
       "name": "city-note",
       "x": 0,
-      "y": 107,
+      "y": 27,
       "params": {
         "text": "This finds Denver, CO on the map. Click it and type another city into Query.",
-        "width": 300,
-        "height": 80
+        "width": 220,
+        "height": 77
       }
     },
     {
       "id": "query-note",
       "op": "comment",
       "name": "query-note",
-      "x": 340,
-      "y": 80,
+      "x": 284,
+      "y": 0,
       "params": {
         "text": "This asks the Open Charge Map service for up to 1,000 charging stations around that city.",
-        "width": 320,
-        "height": 80
+        "width": 230,
+        "height": 77
       }
     },
     {
       "id": "toggle-note",
       "op": "comment",
       "name": "toggle-note",
-      "x": 1210,
-      "y": 169,
+      "x": 1136,
+      "y": 228,
       "params": {
         "text": "This picks which layer to show. Click it and set Index to 1 to see a heatmap.",
-        "width": 290,
-        "height": 80
+        "width": 220,
+        "height": 77
       }
     },
     {
       "id": "try-next-note",
       "op": "comment",
       "name": "try-next-note",
-      "x": 1730,
-      "y": 90,
+      "x": 1634,
+      "y": 168,
       "params": {
         "text": "Try next:\n- Click charger-points and change Radius scale to resize the dots.\n- Click the diamond next to Zoom on auto-view, pick a later time in the Timeline, and change it again.\n- Press Export and pick Image (PNG) to save the map.",
         "width": 340,
-        "height": 190
+        "height": 175
       }
     }
   ],

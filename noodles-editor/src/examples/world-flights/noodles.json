@@ -6,8 +6,8 @@
       "id": "deck",
       "op": "deck",
       "name": "deck",
-      "x": 1915,
-      "y": 141,
+      "x": 1744,
+      "y": 418,
       "params": {
         "mapStyle": "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json",
         "projection": "mercator",
@@ -36,7 +36,7 @@
       "op": "code",
       "name": "flights",
       "x": 0,
-      "y": 221,
+      "y": 404,
       "params": {
         "code": "return d.features.map(({\n  geometry: {coordinates}, properties\n}) => ({\n  path: coordinates.map(([lng, lat, alt]) => [lng, lat, alt]),\n  timestamps: coordinates.map(([_0, _1, _2, t]) => t),\n  properties\n}))",
         "url": "https://raw.githubusercontent.com/keplergl/kepler.gl-data/master/world_flights/world_flights_soei4h.json"
@@ -46,8 +46,8 @@
       "id": "heads-now",
       "op": "time-series",
       "name": "heads-now",
-      "x": 1035,
-      "y": 115,
+      "x": 872,
+      "y": 445,
       "params": {
         "rows": "paths",
         "path": "path",
@@ -60,8 +60,8 @@
       "id": "time",
       "op": "number",
       "name": "time",
-      "x": 730,
-      "y": 106,
+      "x": 578,
+      "y": 514,
       "params": {
         "value": 1567555200.276152
       }
@@ -70,8 +70,8 @@
       "id": "heads",
       "op": "scatter",
       "name": "heads",
-      "x": 1575,
-      "y": 18,
+      "x": 1460,
+      "y": 573,
       "params": {
         "opacity": 0.6,
         "blend": "normal",
@@ -86,8 +86,8 @@
       "id": "trails",
       "op": "trips",
       "name": "trails",
-      "x": 1575,
-      "y": 212,
+      "x": 1460,
+      "y": 445,
       "params": {
         "opacity": 0.8,
         "blend": "normal",
@@ -106,8 +106,8 @@
       "id": "flights-file",
       "op": "geojson",
       "name": "flights-file",
-      "x": 730,
-      "y": 282,
+      "x": 578,
+      "y": 85,
       "params": {
         "url": "https://raw.githubusercontent.com/keplergl/kepler.gl-data/master/world_flights/world_flights_soei4h.json"
       }
@@ -116,8 +116,8 @@
       "id": "routes",
       "op": "path",
       "name": "routes",
-      "x": 1575,
-      "y": 336,
+      "x": 1460,
+      "y": 121,
       "params": {
         "opacity": 0.6,
         "blend": "normal",
@@ -132,8 +132,8 @@
       "id": "position",
       "op": "attribute",
       "name": "position",
-      "x": 1305,
-      "y": 124,
+      "x": 1166,
+      "y": 454,
       "params": {
         "name": "position",
         "expression": "[lng, lat, alt]"
@@ -143,8 +143,8 @@
       "id": "color-index",
       "op": "attribute",
       "name": "color-index",
-      "x": 460,
-      "y": 177,
+      "x": 284,
+      "y": 404,
       "params": {
         "name": "color_ramp_index",
         "expression": "(category(origin_country, 8.0) + 0.5) / 10.0"
@@ -154,8 +154,8 @@
       "id": "color",
       "op": "color-ramp",
       "name": "color",
-      "x": 730,
-      "y": 0,
+      "x": 578,
+      "y": 404,
       "params": {
         "input": "color_ramp_index",
         "ramp": "categorical-category10",
@@ -168,8 +168,8 @@
       "id": "route-color-index",
       "op": "attribute",
       "name": "route-color-index",
-      "x": 1035,
-      "y": 239,
+      "x": 872,
+      "y": 121,
       "params": {
         "name": "color_ramp_index",
         "expression": "(category(origin_country, 8.0) + 0.5) / 10.0"
@@ -179,8 +179,8 @@
       "id": "route-color",
       "op": "color-ramp",
       "name": "route-color",
-      "x": 1305,
-      "y": 230,
+      "x": 1166,
+      "y": 121,
       "params": {
         "input": "color_ramp_index",
         "ramp": "categorical-category10",
@@ -194,47 +194,47 @@
       "op": "comment",
       "name": "transform-note",
       "x": 0,
-      "y": 133,
+      "y": 280,
       "params": {
         "text": "This loads the flights from a file on the web and turns each one into a path with a time for every point. Click it to read or change the code.",
-        "width": 420,
-        "height": 80
+        "width": 220,
+        "height": 116
       }
     },
     {
       "id": "data-note",
       "op": "comment",
       "name": "data-note",
-      "x": 730,
-      "y": 194,
+      "x": 578,
+      "y": 0,
       "params": {
         "text": "This loads the same file as routes, drawn faintly under the trails.",
-        "width": 265,
-        "height": 80
+        "width": 230,
+        "height": 77
       }
     },
     {
       "id": "trails-note",
       "op": "comment",
       "name": "trails-note",
-      "x": 1575,
-      "y": 124,
+      "x": 1460,
+      "y": 341,
       "params": {
         "text": "This layer draws the moving flight trails. Click it and change Trail length to make them longer.",
-        "width": 300,
-        "height": 80
+        "width": 220,
+        "height": 96
       }
     },
     {
       "id": "try-next-note",
       "op": "comment",
       "name": "try-next-note",
-      "x": 2105,
-      "y": 135,
+      "x": 1958,
+      "y": 418,
       "params": {
         "text": "Try next:\n- Press the space bar to play the flights on the Timeline.\n- Click color and pick a different Ramp.\n- Press Export and pick Video (MP4) to save the animation.",
         "width": 340,
-        "height": 170
+        "height": 136
       }
     }
   ],
