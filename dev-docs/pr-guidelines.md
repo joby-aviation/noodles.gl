@@ -202,8 +202,7 @@ Always include a `noodles.json` file that reviewers can save and load:
       "sourceHandle": "out.data",
       "targetHandle": "par.data"
     }
-  ],
-  "viewport": {"x": 0, "y": 0, "zoom": 1}
+  ]
 }
 ```
 

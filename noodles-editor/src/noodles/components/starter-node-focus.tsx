@@ -1,5 +1,11 @@
-import { useNodesInitialized, useReactFlow, useStore } from '@xyflow/react'
-import { useEffect, useRef } from 'react'
+import {
+  type FitViewOptions,
+  useNodesInitialized,
+  useReactFlow,
+  useStore,
+  useStoreApi,
+} from '@xyflow/react'
+import { useEffect, useRef, useState } from 'react'
 import { useUIStore } from '../store'
 import { panViewportToShow } from '../utils/starter-node'
 import s from './starter-node-focus.module.css'
@@ -56,11 +62,47 @@ function useShowNode(nodeId: string | null, focusKey: string, onShown?: (nodeId:
   ])
 }
 
-// Pans the graph so the node an example selected on open is on screen. `loadId` changes
-// on every project load, so two examples that start on the same node id each get the check.
-export function StarterNodeFocus({ loadId }: { loadId: number }) {
+// Never zoom past 100% to fit, so a small graph doesn't open blown up
+export const LOAD_FIT_VIEW_OPTIONS: FitViewOptions = { padding: 0.2, maxZoom: 1, duration: 0 }
+
+// Frames the graph after a project loads. A fresh load fits the whole graph so it opens
+// on an overview; then the node an example selected on open is panned into view if the
+// fit left it off screen. `loadId` changes on every project load, so two examples that
+// start on the same node id each get the check. `fitView` is false for undo/redo restores,
+// which keep the user's view, and for empty projects.
+//
+// The fit waits for every node to be measured: a fitView queued while nodes are still
+// mounting resolves on the first measured node and zooms all the way in on it.
+export function ProjectLoadView({ loadId, fitView }: { loadId: number; fitView: boolean }) {
   const nodeId = useUIStore(state => state.starterHintNodeId)
-  useShowNode(nodeId, `${loadId}:${nodeId}`)
+  const nodesInitialized = useNodesInitialized()
+  const store = useStoreApi()
+  const reactFlow = useReactFlow()
+  const [framedLoadId, setFramedLoadId] = useState<number | null>(null)
+
+  useEffect(() => {
+    if (framedLoadId === loadId) return
+    if (!fitView) {
+      setFramedLoadId(loadId)
+      return
+    }
+    if (!nodesInitialized) return
+    let cancelled = false
+    // Wait a frame so React Flow has the new project's nodes, not the previous project's
+    const frame = requestAnimationFrame(async () => {
+      const { nodeLookup, nodesInitialized: measured } = store.getState()
+      if (!measured || nodeLookup.size === 0) return
+      await reactFlow.fitView(LOAD_FIT_VIEW_OPTIONS)
+      if (!cancelled) setFramedLoadId(loadId)
+    })
+    return () => {
+      cancelled = true
+      cancelAnimationFrame(frame)
+    }
+  }, [loadId, fitView, framedLoadId, nodesInitialized, store, reactFlow])
+
+  // Pan after the fit, so the check starts from the fitted view
+  useShowNode(framedLoadId === loadId ? nodeId : null, `${loadId}:${nodeId}`)
   return null
 }
 

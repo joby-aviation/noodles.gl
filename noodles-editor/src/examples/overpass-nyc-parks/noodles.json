@@ -37,11 +37,6 @@
       "id": "/maplibre-basemap.out.maplibre->/deck.par.basemap"
     }
   ],
-  "viewport": {
-    "x": 600,
-    "y": 400,
-    "zoom": 0.8
-  },
   "version": 19,
   "editorSettings": {
     "showOverlay": true
