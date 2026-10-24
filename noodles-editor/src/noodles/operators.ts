@@ -1964,8 +1964,6 @@ export class SplitRGBAOp extends Operator<SplitRGBAOp> {
   execute({ color }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     const parseColor = (c: string) => {
       const [r, g, b, a] = hexToColor(c)
-        .split(',')
-        .map((v: string) => parseInt(v, 10))
       return { r, g, b, a }
     }
 
