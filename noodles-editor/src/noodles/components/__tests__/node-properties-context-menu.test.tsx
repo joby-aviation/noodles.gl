@@ -50,11 +50,11 @@ const renderNodeProperties = (nodeId: string) => {
   )
 }
 
-// Rows show friendly labels with the field key as the tooltip. The field component's own
-// (hidden) <label> has the same tooltip, so pick the panel's span
+// Rows show friendly labels; `data-field-key` holds the field key. The field component's
+// own (hidden) <label> carries it too, so pick the panel's span
 const getRowLabel = (fieldName: string) => {
-  const label = screen.getAllByTitle(fieldName).find(el => el.tagName === 'SPAN')
-  expect(label).toBeDefined()
+  const label = document.querySelector<HTMLElement>(`span[data-field-key="${fieldName}"]`)
+  expect(label).toBeInTheDocument()
   return label!
 }
 
@@ -333,7 +333,7 @@ describe('Context menu on output fields', () => {
     renderNodeProperties('/num')
 
     // Right-click on the output field "val"
-    const label = screen.getAllByTitle('val').find(el => {
+    const label = Array.from(document.querySelectorAll('[data-field-key="val"]')).find(el => {
       const listItem = el.closest('[role="listitem"]')
       return listItem?.querySelector('[class*="outputRow"]')
     })

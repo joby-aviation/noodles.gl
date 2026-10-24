@@ -52,9 +52,11 @@ const renderAtWidth = (width: number) => {
 }
 
 const rowParts = (container: HTMLElement, name: string) => {
-  // The panel's label span (friendly label, field key as its tooltip), not the hidden
+  // The panel's label span (friendly label, field key in `data-field-key`), not the hidden
   // <label> the field component renders
-  const label = container.querySelector<HTMLElement>(`[role="listitem"] span[title="${name}"]`)
+  const label = container.querySelector<HTMLElement>(
+    `[role="listitem"] span[data-field-key="${name}"]`
+  )
   if (!label) throw new Error(`No label for ${name}`)
   const row = label.closest('[role="listitem"]') as HTMLElement
   const inputs = Array.from(
@@ -79,7 +81,7 @@ describe('NodeProperties row layout', () => {
       const { label } = rowParts(container, name)
       expect(label.scrollWidth, name).toBeLessThanOrEqual(label.clientWidth + 1)
       expect(label.scrollHeight, name).toBeLessThanOrEqual(label.clientHeight + 1)
-      expect(label.title, name).toBe(name)
+      expect(label.dataset.fieldKey, name).toBe(name)
     }
   })
 
@@ -104,6 +106,29 @@ describe('NodeProperties row layout', () => {
       }
     }
   )
+
+  it('never breaks a one-word label mid-word beside a select', () => {
+    transformGraph({
+      nodes: [{ id: '/math', type: 'MathOp', position: { x: 0, y: 0 }, data: { inputs: {} } }],
+      edges: [],
+    })
+    const { container } = render(
+      <ReactFlowProvider>
+        <div style={{ width: MIN_WIDTH, fontSize: 11 }}>
+          <NodeProperties nodeId="/math" />
+        </div>
+      </ReactFlowProvider>
+    )
+    const { label, inputs } = rowParts(container, 'operator')
+    // Distinct line tops of the label's text: a too-long word is cut with an ellipsis on
+    // its line instead of continuing on the next
+    const range = document.createRange()
+    range.selectNodeContents(label)
+    expect(label.textContent).toBe('Operation')
+    const lineTops = new Set(Array.from(range.getClientRects(), r => Math.round(r.top)))
+    expect(lineTops.size).toBe(1)
+    expect(inputs[0].getBoundingClientRect().width).toBeGreaterThan(20)
+  })
 
   it('wraps vector channels onto their own line under the label', () => {
     const { container } = renderAtWidth(MIN_WIDTH)

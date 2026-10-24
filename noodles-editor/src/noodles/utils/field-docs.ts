@@ -24,6 +24,7 @@ const ACRONYMS = new Set([
   'html',
   'id',
   'json',
+  'kml',
   'lod',
   'rgb',
   'rgba',
@@ -33,6 +34,13 @@ const ACRONYMS = new Set([
   'utc',
   'xyz',
 ])
+
+// Words whose casing isn't plain uppercase
+const WORD_CASE: Record<string, string> = {
+  geojson: 'GeoJSON',
+  geoparquet: 'GeoParquet',
+  pmtiles: 'PMTiles',
+}
 
 // `getSourcePosition` -> `Source position`, `tilesetUrl` -> `Tileset URL`, `_full3d` -> `Full 3D`
 export function humanizeFieldName(name: string): string {
@@ -44,7 +52,11 @@ export function humanizeFieldName(name: string): string {
     .replace(/([A-Z]+)([A-Z][a-z])/g, '$1 $2')
     .split(/[\s_-]+/)
     .filter(Boolean)
-    .map(word => (ACRONYMS.has(word.toLowerCase()) ? word.toUpperCase() : word.toLowerCase()))
+    .map(word => {
+      const lower = word.toLowerCase()
+      if (Object.hasOwn(WORD_CASE, lower)) return WORD_CASE[lower]
+      return ACRONYMS.has(lower) ? word.toUpperCase() : lower
+    })
 
   if (words.length === 0) return name
   const [first, ...rest] = words
@@ -177,7 +189,10 @@ function isLayerOperator(op: OperatorLike | undefined): boolean {
 type FieldLike = { label?: string; description?: string }
 
 export function getFieldDocs(name: string, field: FieldLike, op?: OperatorLike): FieldDocs {
-  const shared = isLayerOperator(op) ? LAYER_FIELD_DOCS[name] : undefined
+  const shared =
+    isLayerOperator(op) && Object.hasOwn(LAYER_FIELD_DOCS, name)
+      ? LAYER_FIELD_DOCS[name]
+      : undefined
   return {
     label: field.label ?? shared?.label ?? humanizeFieldName(name),
     description: field.description ?? shared?.description,
