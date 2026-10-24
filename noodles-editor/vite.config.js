@@ -20,6 +20,24 @@ export const plannerAlias = {
   ),
 }
 
+// With VITE_USE_CDN_DUCKDB, DuckDB's WebAssembly loads from jsDelivr, so its files (over 30 MB
+// each, past Cloudflare Pages' 25 MiB limit) must not be emitted. The code skips them, but a
+// worker build emits a dynamic import's asset before dropping the branch, so the imports are
+// stubbed here instead.
+function duckdbWasmFromCdn() {
+  const stub = '\0duckdb-wasm-cdn'
+  return {
+    name: 'duckdb-wasm-from-cdn',
+    enforce: 'pre',
+    resolveId(id) {
+      return /@duckdb\/duckdb-wasm\/dist\/.*\.(wasm|worker\.js)\?url$/.test(id) ? stub : null
+    },
+    load(id) {
+      return id === stub ? "export default ''" : null
+    },
+  }
+}
+
 const ENV_VARIABLES_WITH_INSTRUCTIONS = {
   VITE_GOOGLE_MAPS_API_KEY:
     'Get token at https://developers.google.com/maps/documentation/javascript/get-api-key',
@@ -42,6 +60,8 @@ export default defineConfig(({ mode }) => {
       }
     })
   }
+
+  const cdnDuckdb = env.VITE_USE_CDN_DUCKDB === 'true'
 
   return {
     base: mode === 'development' ? '/' : '/app/',
@@ -68,8 +88,10 @@ export default defineConfig(({ mode }) => {
     // and every worker this app creates is already declared `type: 'module'`.
     worker: {
       format: 'es',
+      plugins: () => (cdnDuckdb ? [duckdbWasmFromCdn()] : []),
     },
     plugins: [
+      ...(cdnDuckdb ? [duckdbWasmFromCdn()] : []),
       react(),
       nodePolyfills({
         protocolImports: true,
