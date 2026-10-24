@@ -85,10 +85,12 @@ VITE_GA_MEASUREMENT_ID=G-XXXXXXXXXX
 | `node_deleted` | `count` | use-project-modifications.ts |
 | `edge_added` | `count` | use-project-modifications.ts |
 | `edge_deleted` | `count` | use-project-modifications.ts |
+| `starter_node_selected` | `operatorType` | noodles.tsx |
 | `ai_modification_proposed` | `provider, modificationCount` | chat-panel.tsx |
 | `ai_modification_proposal_resolved` | `provider, outcome, modificationCount` | chat-panel.tsx |
 
 - `outcome`: `accepted`, `rejected`, or `failed` (accepted, but the editor refused the batch)
+- `starter_node_selected`: an example opened and the editor selected a node for it (its main layer, or the example's `editorSettings.startNode`), so the properties panel shows controls. Sent once per example per page load, only for the bundled example file, and never with `?externalControl=true` or agent bench mode. `operatorType` is the operator class, such as `ScatterplotLayerOp`
 
 ### Rendering and Export
 

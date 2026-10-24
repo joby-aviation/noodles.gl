@@ -138,6 +138,10 @@ interface UIStoreState {
   setNodeDragState: (state: NodeDragState | null) => void
   inspectedReferenceEdge: ReactFlowEdge | null
   setInspectedReferenceEdge: (edge: ReactFlowEdge | null) => void
+  // Node an example selected on open; its properties panel shows a short hint until
+  // the user edits a value or selects something else
+  starterHintNodeId: string | null
+  setStarterHintNodeId: (id: string | null) => void
   sidebarSearchFocusTrigger: number
   triggerSidebarSearch: () => void
   settingsDialogOpen: boolean
@@ -179,6 +183,8 @@ export const useUIStore = create<UIStoreState>(set => ({
   setNodeDragState: state => set({ nodeDragState: state }),
   inspectedReferenceEdge: null,
   setInspectedReferenceEdge: edge => set({ inspectedReferenceEdge: edge }),
+  starterHintNodeId: null,
+  setStarterHintNodeId: id => set({ starterHintNodeId: id }),
   sidebarSearchFocusTrigger: 0,
   triggerSidebarSearch: () =>
     set(state => ({ sidebarSearchFocusTrigger: state.sidebarSearchFocusTrigger + 1 })),
