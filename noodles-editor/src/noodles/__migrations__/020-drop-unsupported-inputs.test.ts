@@ -102,6 +102,20 @@ describe('020-drop-unsupported-inputs', () => {
     expect(migrated.nodes.map(n => n.data.inputs)).toEqual([{ minZoom: 2 }, { provider: 'Cesium' }])
   })
 
+  it('trims ColumnLayerOp offset to [x, y]', async () => {
+    const project = {
+      ...baseProject,
+      nodes: [
+        node('/columns', 'ColumnLayerOp', { offset: [1, 2, 3] }),
+        node('/columns-2d', 'ColumnLayerOp', { offset: [4, 5] }),
+      ],
+    }
+
+    const migrated = await up(project)
+
+    expect(migrated.nodes.map(n => n.data.inputs)).toEqual([{ offset: [1, 2] }, { offset: [4, 5] }])
+  })
+
   it('returns the same project when nothing needs migrating', async () => {
     const project = { ...baseProject, nodes: [node('/orbit', 'OrbitViewOp', {})] }
     expect(await up(project)).toBe(project)

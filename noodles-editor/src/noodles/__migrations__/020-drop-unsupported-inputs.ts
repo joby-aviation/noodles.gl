@@ -4,6 +4,9 @@ import type { NoodlesProjectJSON } from '../utils/serialization'
 // and drew 'X' exactly like 'Y'. 'X' is no longer a valid value, so saved 'X' becomes
 // 'Y' to keep the same camera.
 //
+// ColumnLayerOp offset was a 3D vector, but deck.gl's ColumnLayer reads only [x, y].
+// It is now 2D, so saved [x, y, z] values become [x, y].
+//
 // Inputs deck.gl never read are removed, along with their saved values and incoming edges:
 // - MapViewOp altitude: deck.gl derives altitude from fovy, which always has a value
 // - ScaleWidgetOp label: deck.gl's _ScaleWidget draws only the distance
@@ -25,6 +28,9 @@ function migrateNode(node: ProjectNode): ProjectNode {
 
   if (node.type === 'OrbitViewOp' && inputs.orbitAxis === 'X') {
     inputs = { ...inputs, orbitAxis: 'Y' }
+  }
+  if (node.type === 'ColumnLayerOp' && Array.isArray(inputs.offset) && inputs.offset.length > 2) {
+    inputs = { ...inputs, offset: inputs.offset.slice(0, 2) }
   }
   for (const key of REMOVED_INPUTS[node.type ?? ''] ?? []) {
     if (key in inputs) {
@@ -53,8 +59,8 @@ export async function up(project: NoodlesProjectJSON): Promise<NoodlesProjectJSO
   return changed ? { ...project, nodes, edges } : project
 }
 
-// 'Y' was always a valid value and the removed inputs had no effect, so there is nothing
-// to undo
+// 'Y' was always a valid value, the dropped z offset and removed inputs had no effect, and
+// a 2D offset is valid for the old 3D field, so there is nothing to undo
 export async function down(project: NoodlesProjectJSON): Promise<NoodlesProjectJSON> {
   return project
 }

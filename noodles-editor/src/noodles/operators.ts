@@ -11433,7 +11433,11 @@ export class ColumnLayerOp extends Operator<ColumnLayerOp> {
       opacity: new NumberField(1, { min: 0, max: 1, step: 0.01 }),
       diskResolution: new NumberField(20, { min: 3, softMax: 100, showByDefault: false }),
       vertices: new UnknownField(null, { optional: true, showByDefault: false }),
-      offset: new Vec3Field([0, 0, 0], { returnType: 'tuple', showByDefault: false }),
+      offset: new Vec2Field([0, 0], {
+        returnType: 'tuple',
+        showByDefault: false,
+        description: 'Shifts each column from its position, as [x, y] in fractions of the radius.',
+      }),
       coverage: new NumberField(1, { min: 0, max: 1, step: 0.01, showByDefault: false }),
       elevationScale: new NumberField(1, { min: 0, softMax: 100, showByDefault: false }),
       filled: new BooleanField(true),

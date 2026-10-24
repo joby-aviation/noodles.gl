@@ -16,6 +16,7 @@ import {
   CategoricalColorRampOp,
   ChartOp,
   CodeOp,
+  ColumnLayerOp,
   CompassWidgetOp,
   ConcatOp,
   CrossOp,
@@ -3838,6 +3839,15 @@ describe('Tile3DLayerOp', () => {
     const op = new Tile3DLayerOp('/tile3d-0')
     const values = op.inputs.provider.choices.map(c => c.value)
     expect(values).toContain('Generic')
+  })
+})
+
+describe('ColumnLayerOp', () => {
+  it('takes a 2D offset, the only components deck.gl ColumnLayer reads', () => {
+    const op = new ColumnLayerOp('/columns-0')
+    op.inputs.offset.setValue([0.5, -0.5])
+
+    expect(op.execute(op.data).layer.offset).toEqual([0.5, -0.5])
   })
 })
 

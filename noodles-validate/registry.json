@@ -1075,9 +1075,8 @@
           "default": null
         },
         "offset": {
-          "type": "Vec3Field",
+          "type": "Vec2Field",
           "default": [
-            0,
             0,
             0
           ]
