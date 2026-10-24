@@ -98,6 +98,18 @@
   padding: 0 6px;
 }
 
+/* Shown under the header for the node an example selects when it opens */
+.starterHint {
+  margin: -4px 6px 12px;
+  padding: 6px 8px;
+  border-left: 2px solid var(--color-primary, #3b82f6);
+  border-radius: 3px;
+  background: rgba(59, 130, 246, 0.1);
+  color: var(--color-text-secondary);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
 /* Edge inspector */
 .edgeTypeBadge {
   padding: 2px 6px;
@@ -902,9 +914,53 @@
   max-width: 120px;
 }
 
+/* Zero basis so text-like inputs split the free space with the label instead of
+   taking their full content width first and leaving the label a few pixels */
 .editableFieldContent:has(input[type="text"], input[type="number"], textarea, select) {
-  flex-grow: 1;
-  flex-shrink: 1;
+  flex: 1 1 0;
+}
+
+/* Field components size inputs for canvas nodes (number inputs have a 7.5rem min-width).
+   Let every level shrink to the panel column so the input doesn't overflow onto the label */
+.editableFieldContent div:has(input:not([type="checkbox"]), select) {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.editableFieldContent input:not([type="checkbox"]),
+.editableFieldContent select {
+  width: 100%;
+  min-width: 0;
+}
+
+/* Select text is right-aligned, so left padding only takes room from the value */
+.editableFieldContent select {
+  padding-left: 0;
+}
+
+/* The spin button reserves ~15px even when hidden, which clips values in narrow inputs.
+   Values are still changed by dragging or typing */
+.editableFieldContent input[type="number"] {
+  -moz-appearance: textfield;
+}
+
+.editableFieldContent input[type="number"]::-webkit-inner-spin-button,
+.editableFieldContent input[type="number"]::-webkit-outer-spin-button {
+  display: none;
+}
+
+/* Vector channels don't fit beside the label, so they wrap to a full-width line under it.
+   :has(input) matches the specificity of the text-input rule above so flex-basis wins */
+.propertyRow:has(> .vectorFieldContent) {
+  flex-wrap: wrap;
+}
+
+.propertyRow > .vectorFieldContent:has(input) {
+  flex-basis: 100%;
+  max-width: none;
+  box-sizing: border-box;
+  /* align with the label: remove button (18px) + port (8px) + two 6px gaps */
+  padding-left: 38px;
 }
 
 /* hide the duplicate label rendered by field components; the panel renders its own label */

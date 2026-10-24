@@ -1,5 +1,7 @@
 # Framework Developer Overview
 
+> Want to make maps with Noodles.gl rather than change its code? Go to [Start here](../intro.md) to open the editor or an example.
+
 Learn how to extend Noodles.gl by creating custom operators and fields. This guide is for developers who want to add new functionality to the framework.
 
 ## Architecture Overview

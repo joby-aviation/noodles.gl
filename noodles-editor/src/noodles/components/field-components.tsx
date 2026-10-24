@@ -9,7 +9,6 @@ import { Button } from 'primereact/button'
 import { InputText } from 'primereact/inputtext'
 import {
   Fragment,
-  lazy,
   Suspense,
   useCallback,
   useEffect,
@@ -22,7 +21,7 @@ import { createPortal } from 'react-dom'
 
 import { BasemapGallery } from './basemap-gallery'
 
-const CodeiumEditor = lazy(() =>
+const CodeiumEditor = lazyWithReload(() =>
   import('@codeium/react-code-editor').then(m => ({ default: m.CodeiumEditor }))
 )
 
@@ -31,6 +30,7 @@ import { VectorKeyframeIndicator } from '../../timeline/components/KeyframeIndic
 import { getFieldPath } from '../../timeline/field-bindings'
 import { useTimelineStore } from '../../timeline/timeline-store'
 import { analytics } from '../../utils/analytics'
+import { lazyWithReload } from '../../utils/stale-chunk'
 import {
   categoricalSchemesFixed,
   categoricalSchemesStepped,
@@ -68,6 +68,7 @@ import { getFriendlyErrorMessage } from '../operators'
 import { checkAssetExists, getAssetFileHandle, writeAsset } from '../storage'
 import { getOp, useEdgeConnectionStore } from '../store'
 import { type ExpressionContext, getExpressionContext } from '../utils/expression-context'
+import { FieldEditScope } from '../utils/field-edit-analytics'
 import { projectScheme } from '../utils/filesystem'
 import type { OpId } from '../utils/id-utils'
 import { computeRelativePath } from '../utils/path-utils'
@@ -2857,18 +2858,21 @@ export function FieldComponent({
             position={Position.Left}
           />
         ))}
-      {renderInput &&
-        (hasIncomingConnection ? (
-          <EmptyFieldComponent id={fieldId} field={field} />
-        ) : isDriven ? (
-          <ExpressionDrivenInput id={fieldId} field={field} disabled={disabled} />
-        ) : hasKeyframes ? (
-          <div className={s.keyframedFieldInput}>
+      {renderInput && (
+        <FieldEditScope field={field}>
+          {hasIncomingConnection ? (
+            <EmptyFieldComponent id={fieldId} field={field} />
+          ) : isDriven ? (
+            <ExpressionDrivenInput id={fieldId} field={field} disabled={disabled} />
+          ) : hasKeyframes ? (
+            <div className={s.keyframedFieldInput}>
+              <InputComp id={fieldId} field={field} disabled={disabled} />
+            </div>
+          ) : (
             <InputComp id={fieldId} field={field} disabled={disabled} />
-          </div>
-        ) : (
-          <InputComp id={fieldId} field={field} disabled={disabled} />
-        ))}
+          )}
+        </FieldEditScope>
+      )}
       {contextMenuPos && nid && (
         <FieldContextMenu
           field={field}

@@ -1,0 +1,228 @@
+{
+  "name": "Overpass API NYC Parks",
+  "edges": [
+    {
+      "id": "/bounds.out.bounds->/overpass-query.par.bbox",
+      "source": "/bounds",
+      "target": "/overpass-query",
+      "sourceHandle": "out.bounds",
+      "targetHandle": "par.bbox"
+    },
+    {
+      "id": "/overpass-query.out.data->/geojson-layer.par.data",
+      "source": "/overpass-query",
+      "target": "/geojson-layer",
+      "sourceHandle": "out.data",
+      "targetHandle": "par.data"
+    },
+    {
+      "id": "/geojson-layer.out.layer->/deck.par.layers",
+      "source": "/geojson-layer",
+      "target": "/deck",
+      "sourceHandle": "out.layer",
+      "targetHandle": "par.layers"
+    },
+    {
+      "id": "/deck.out.vis->/out.par.vis",
+      "source": "/deck",
+      "target": "/out",
+      "sourceHandle": "out.vis",
+      "targetHandle": "par.vis"
+    },
+    {
+      "source": "/maplibre-basemap",
+      "sourceHandle": "out.maplibre",
+      "target": "/deck",
+      "targetHandle": "par.basemap",
+      "id": "/maplibre-basemap.out.maplibre->/deck.par.basemap"
+    }
+  ],
+  "viewport": {
+    "x": 600,
+    "y": 400,
+    "zoom": 0.8
+  },
+  "version": 19,
+  "editorSettings": {
+    "showOverlay": true
+  },
+  "nodes": [
+    {
+      "id": "/bounds",
+      "type": "BoundsOp",
+      "data": {
+        "inputs": {
+          "southwest": [
+            -74.05,
+            40.68
+          ],
+          "northeast": [
+            -73.9,
+            40.82
+          ]
+        },
+        "locked": false
+      },
+      "position": {
+        "x": -600,
+        "y": -200
+      }
+    },
+    {
+      "id": "/overpass-query",
+      "type": "OverpassOp",
+      "data": {
+        "inputs": {
+          "query": [
+            "[out:json][timeout:25];",
+            "(",
+            "  way[\"leisure\"=\"park\"]({{bbox}});",
+            "  relation[\"leisure\"=\"park\"]({{bbox}});",
+            ");",
+            "out geom;"
+          ]
+        },
+        "locked": false
+      },
+      "position": {
+        "x": -300,
+        "y": -200
+      }
+    },
+    {
+      "id": "/geojson-layer",
+      "type": "GeoJsonLayerOp",
+      "data": {
+        "inputs": {
+          "filled": true,
+          "getFillColor": "#10b981",
+          "opacity": 0.7,
+          "stroked": true,
+          "getLineColor": "#059669",
+          "getLineWidth": 2
+        },
+        "locked": false
+      },
+      "position": {
+        "x": 200,
+        "y": -200
+      }
+    },
+    {
+      "id": "/deck",
+      "type": "DeckRendererOp",
+      "data": {
+        "inputs": {},
+        "locked": false
+      },
+      "position": {
+        "x": 500,
+        "y": -200
+      }
+    },
+    {
+      "id": "/out",
+      "type": "OutOp",
+      "data": {
+        "inputs": {
+          "display": "fixed",
+          "width": 1920,
+          "height": 1080,
+          "lod": 2,
+          "waitForData": true,
+          "codec": "avc",
+          "bitrateMbps": 10,
+          "bitrateMode": "constant",
+          "scaleControl": 0.3,
+          "framerate": 30,
+          "captureDelay": 50
+        },
+        "locked": false
+      },
+      "position": {
+        "x": 800,
+        "y": -200
+      }
+    },
+    {
+      "type": "MaplibreBasemapOp",
+      "id": "/maplibre-basemap",
+      "position": {
+        "x": 350,
+        "y": -430
+      },
+      "data": {
+        "inputs": {
+          "mapStyle": "https://basemaps.cartocdn.com/gl/positron-gl-style/style.json",
+          "viewState": {
+            "latitude": 40.75,
+            "longitude": -73.97,
+            "zoom": 13.5,
+            "pitch": 0,
+            "bearing": 0
+          }
+        },
+        "locked": false
+      }
+    },
+    {
+      "id": "/query-note",
+      "type": "CommentOp",
+      "position": {
+        "x": -300,
+        "y": -340
+      },
+      "data": {
+        "inputs": {
+          "text": "This asks OpenStreetMap for every park inside the box set by bounds. Change both park entries in query to playground to map playgrounds."
+        },
+        "locked": false
+      },
+      "width": 330,
+      "height": 110
+    },
+    {
+      "id": "/layer-note",
+      "type": "CommentOp",
+      "position": {
+        "x": 200,
+        "y": 130
+      },
+      "data": {
+        "inputs": {
+          "text": "This layer fills each park in green. Click it and pick a new getFillColor."
+        },
+        "locked": false
+      },
+      "width": 300,
+      "height": 80
+    },
+    {
+      "id": "/try-next-note",
+      "type": "CommentOp",
+      "position": {
+        "x": 800,
+        "y": -90
+      },
+      "data": {
+        "inputs": {
+          "text": "Try next:\n- Click maplibre-basemap and change zoom under viewState to see all the parks.\n- Click the diamond next to opacity on geojson-layer, pick a later time in the Timeline, and change it again.\n- Press Export and pick Image (PNG) to save the map."
+        },
+        "locked": false
+      },
+      "width": 340,
+      "height": 190
+    }
+  ],
+  "timeline": {
+    "sheetsById": {
+      "Noodles": {
+        "staticOverrides": {
+          "byObject": {}
+        }
+      }
+    },
+    "definitionVersion": "0.4.0",
+    "revisionHistory": []
+  }
+}

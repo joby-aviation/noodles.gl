@@ -1,7 +1,16 @@
 import { useEffect, useState } from 'react'
 import { type Observable, skip } from 'rxjs'
-import { DeckRendererOp, MaplibreBasemapOp, MapViewStateOp, RerouteOp } from '../operators'
+import {
+  ContainerOp,
+  DeckRendererOp,
+  GraphInputOp,
+  GraphOutputOp,
+  MaplibreBasemapOp,
+  MapViewStateOp,
+  RerouteOp,
+} from '../operators'
 import { getOp } from '../store'
+import { getParentPath } from './path-utils'
 
 export const CAMERA_INPUT_NAMES = ['longitude', 'latitude', 'zoom', 'pitch', 'bearing'] as const
 type CameraInputName = (typeof CAMERA_INPUT_NAMES)[number]
@@ -41,14 +50,27 @@ export function createCameraGestureHistory(
   commit: (before: string) => void
 ) {
   let before: string | null = null
+  let interacting = false
+  const begin = () => {
+    if (before === null) before = capture()
+  }
+  // Also call this when camera control turns off mid-gesture (playback, export, a selection
+  // change): neither the map nor deck reports the end of a gesture it stopped handling, and
+  // a pending snapshot would otherwise become the "before" of the next drag
+  const finish = () => {
+    interacting = false
+    if (before === null) return
+    commit(before)
+    before = null
+  }
   return {
-    begin() {
-      if (before === null) before = capture()
-    },
-    finish() {
-      if (before === null) return
-      commit(before)
-      before = null
+    begin,
+    finish,
+    // deck.gl reports gestures as interaction state rather than start and end events
+    setInteracting(active: boolean) {
+      if (active && !interacting) begin()
+      if (!active && interacting) finish()
+      interacting = active
     },
   }
 }
@@ -59,21 +81,52 @@ function findIncomingEdge(edges: readonly GraphEdge[], target: string, targetHan
   return edges.find(edge => edge.target === target && edge.targetHandle === targetHandle)
 }
 
-// Follow Reroute pass-throughs back to the edge leaving the operator that produced the value
+// The input an operator copies unchanged to the output this edge leaves from, or null when
+// the operator computes its output. Containers pass values across their boundary: out.out
+// is the value of the GraphOutputOp the container selected (ContainerOp.outputOp), and a
+// GraphInputOp's out.value is the container's par.in. Custom container inputs are typed
+// fields that can coerce a value, so they don't count as pass-throughs.
+function passThroughInput(edge: GraphEdge): { target: string; targetHandle: string } | null {
+  const op = getOp(edge.source)
+  const handle = edge.sourceHandle
+  if (op instanceof RerouteOp && handle === 'out.value') {
+    return { target: op.id, targetHandle: 'par.value' }
+  }
+  if (op instanceof GraphOutputOp && handle === 'out.propagatedValue') {
+    return { target: op.id, targetHandle: 'par.value' }
+  }
+  if (op instanceof ContainerOp && handle === 'par.in') {
+    return { target: op.id, targetHandle: 'par.in' }
+  }
+  if (op instanceof ContainerOp && handle === 'out.out') {
+    const output = op.outputOp
+    return output ? { target: output.id, targetHandle: 'par.value' } : null
+  }
+  if (op instanceof GraphInputOp && handle === 'out.value') {
+    const containerId = getParentPath(op.id)
+    if (!containerId || !(getOp(containerId) instanceof ContainerOp)) return null
+    return { target: containerId, targetHandle: 'par.in' }
+  }
+  return null
+}
+
+// Follow pass-throughs (Reroutes and container boundaries) back to the edge leaving the
+// operator that produced the value
 function resolveSourceEdge(
   edges: readonly GraphEdge[],
   edge: GraphEdge | undefined
 ): GraphEdge | undefined {
+  // Keyed by input rather than operator: a value can leave a container through out.out
+  // and enter it again through par.in
   const visited = new Set<string>()
   let current = edge
-  while (
-    current &&
-    current.sourceHandle === 'out.value' &&
-    getOp(current.source) instanceof RerouteOp &&
-    !visited.has(current.source)
-  ) {
-    visited.add(current.source)
-    current = findIncomingEdge(edges, current.source, 'par.value')
+  while (current) {
+    const input = passThroughInput(current)
+    if (!input) return current
+    const key = `${input.target}.${input.targetHandle}`
+    if (visited.has(key)) return undefined
+    visited.add(key)
+    current = findIncomingEdge(edges, input.target, input.targetHandle)
   }
   return current
 }

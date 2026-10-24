@@ -1209,6 +1209,19 @@
         }
       }
     },
+    "CommentOp": {
+      "name": "Comment",
+      "type": "CommentOp",
+      "category": "utility",
+      "description": "A note that explains the nodes beside it. Double-click to edit its text. Nothing connects to it",
+      "inputs": {
+        "text": {
+          "type": "StringField",
+          "default": ""
+        }
+      },
+      "outputs": {}
+    },
     "CompassWidgetOp": {
       "name": "CompassWidget",
       "type": "CompassWidgetOp",
@@ -6716,11 +6729,11 @@
         },
         "maxCacheSize": {
           "type": "NumberField",
-          "default": null
+          "defaultText": "Infinity"
         },
         "maxCacheByteSize": {
           "type": "NumberField",
-          "default": null
+          "defaultText": "Infinity"
         },
         "refinementStrategy": {
           "type": "StringLiteralField",
@@ -6735,12 +6748,7 @@
         },
         "extent": {
           "type": "UnknownField",
-          "default": [
-            null,
-            null,
-            null,
-            null
-          ]
+          "defaultText": "[-Infinity,-Infinity,Infinity,Infinity]"
         },
         "renderSubLayers": {
           "type": "FunctionField",

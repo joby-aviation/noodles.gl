@@ -91,7 +91,7 @@ See the [Screenshot Guide](screenshot-guide.md) for capturing consistent screens
 
 ## PR Description Template
 
-GitHub fills in [`.github/pull_request_template.md`](../.github/pull_request_template.md) when you open a PR. Keep its headings and remove the optional ones that don't apply:
+GitHub fills in [`.github/pull_request_template.md`](../.github/pull_request_template.md) when you open a PR. Keep its headings and remove the sections that don't apply:
 
 ```markdown
 Closes #123
@@ -111,7 +111,7 @@ Closes #123
 <details>
 <summary>Test runbook</summary>
 
-[Optional: runbook and noodles.json, see below]
+[Required for user-facing changes: runbook and noodles.json, see below]
 
 </details>
 ```
@@ -145,7 +145,7 @@ Adapted from the [deck.gl PR description guidelines](https://github.com/visgl/de
 ## Manual Testing in UI
 
 ### Setup
-Save this file as `public/noodles/test-feature.noodles.json` and open with `?project=test-feature`
+Save this file as `noodles-editor/src/examples/test-feature/noodles.json` and open `/examples/test-feature`
 
 [Include noodles.json content here]
 

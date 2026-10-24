@@ -1,17 +1,29 @@
 import { useState } from 'react'
-// The website's "Use with your AI agent" section copies the same prompts
-import agentPrompt from '../../../../website/static/agent-prompt.txt?raw'
-import claudeCodePrompt from '../../../../website/static/claude-code-prompt.txt?raw'
 import type { OpenRouterConnect } from '../../noodles/use-openrouter-connect'
 import { analytics } from '../../utils/analytics'
+import { useAgentModelStore } from '../agent/model-store'
+import { formatGb, WEBLLM_MODELS } from '../agent/providers/webllm'
+import { buildAgentPrompt, type CodingAgent } from './agent-prompts'
 import styles from './assistant-onboarding.module.css'
+
+// Quality first: it is the default and the only one that reliably makes edits.
+// The compatibility models stay in Settings for GPUs that cannot hold these.
+const LOCAL_MODELS = (['quality', 'fast'] as const).flatMap(tier =>
+  WEBLLM_MODELS.filter(model => model.tier === tier).map(model => ({
+    ...model,
+    tierLabel: tier === 'quality' ? 'Quality' : 'Fast',
+    name: model.label.replace(/^Local \w+: /, ''),
+  }))
+)
 
 interface AssistantOnboardingProps {
   connect: Pick<OpenRouterConnect, 'status' | 'error' | 'blockedUrl' | 'connect' | 'retryPopup'>
   webgpuReady: boolean
   openProviderSettings: () => void
   onClose: () => void
-  freeModels: Array<{ label: string }>
+  // The unsent draft, usually the quick start request. The panel shows it above
+  // this; here it goes into the coding agent prompts in place of the generic task.
+  request?: string
 }
 
 export function AssistantOnboarding({
@@ -19,25 +31,35 @@ export function AssistantOnboarding({
   webgpuReady,
   openProviderSettings,
   onClose,
-  freeModels,
+  request: draft,
 }: AssistantOnboardingProps) {
-  const freeModelName = freeModels[0]?.label ?? 'a free model'
+  const request = draft?.trim() || undefined
+  const setModel = useAgentModelStore(state => state.setModel)
   const [promptCopy, setPromptCopy] = useState<{
-    agent: 'claude_code' | 'other'
+    agent: CodingAgent
     status: 'copied' | 'failed'
   } | null>(null)
 
-  const copyPrompt = async (agent: 'claude_code' | 'other') => {
+  // Choosing a model is what arms the local provider, so this one click both picks
+  // it and starts the download the button names
+  const chooseLocalModel = (model: string) => {
+    setModel('webllm', model)
+    analytics.track('webllm_model_selected', { model, source: 'assistant_onboarding' })
+  }
+
+  const copyPrompt = async (agent: CodingAgent) => {
     try {
-      await navigator.clipboard.writeText(agent === 'claude_code' ? claudeCodePrompt : agentPrompt)
+      await navigator.clipboard.writeText(buildAgentPrompt(agent, request))
       setPromptCopy({ agent, status: 'copied' })
-      analytics.track('agent_prompt_copied', { agent, source: 'assistant_onboarding' })
+      analytics.track('agent_prompt_copied', {
+        agent,
+        source: 'assistant_onboarding',
+        withRequest: Boolean(request),
+      })
     } catch {
       setPromptCopy({ agent, status: 'failed' })
     }
   }
-  const copied = (agent: 'claude_code' | 'other') =>
-    promptCopy?.agent === agent && promptCopy.status === 'copied'
   const failedHref =
     promptCopy?.agent === 'other'
       ? 'https://noodles.gl/agent-prompt.txt'
@@ -47,18 +69,14 @@ export function AssistantOnboarding({
     <div className={styles.container}>
       <div className={styles.header}>
         <h3 className={styles.title}>Connect an AI provider</h3>
-        <p className={styles.subtitle}>The assistant needs an LLM to answer questions</p>
+        <p className={styles.subtitle}>Pick a model for the assistant to use</p>
       </div>
 
       <div className={styles.cardsContainer}>
-        {/* OpenRouter Card - Primary Option */}
         <div className={styles.card}>
-          <div className={styles.cardHeader}>
-            <h4 className={styles.cardTitle}>OpenRouter</h4>
-          </div>
+          <h4 className={styles.cardTitle}>OpenRouter</h4>
           <p className={styles.cardDescription}>
-            Cloud service with free tier. 50 messages/day on {freeModelName}, no credit card needed.
-            Sign in with GitHub, Google, or email.
+            Hosted models. The free tier allows 50 messages a day.
           </p>
           <button
             type="button"
@@ -66,7 +84,7 @@ export function AssistantOnboarding({
             className={styles.primaryButton}
             disabled={connect.status === 'connecting'}
           >
-            {connect.status === 'connecting' ? 'Connecting...' : 'Connect with OpenRouter'}
+            {connect.status === 'connecting' ? 'Connecting...' : 'Connect OpenRouter'}
           </button>
           {connect.blockedUrl && (
             <p className={styles.errorText}>
@@ -81,72 +99,83 @@ export function AssistantOnboarding({
           {connect.error && <p className={styles.errorText}>{connect.error}</p>}
         </div>
 
-        {/* WebLLM Card - Secondary Option */}
         {webgpuReady && (
           <div className={styles.card}>
-            <div className={styles.cardHeader}>
-              <h4 className={styles.cardTitle}>Local model</h4>
-            </div>
+            <h4 className={styles.cardTitle}>Local model</h4>
             <p className={styles.cardDescription}>
-              Runs entirely on your device. Requires a one-time download (0.9–5.6 GB) and a GPU.
-              Nothing sent to any server.
+              Runs on your GPU and nothing leaves the browser. Slower than hosted models.
             </p>
-            <button type="button" onClick={openProviderSettings} className={styles.secondaryButton}>
-              Choose a model
-            </button>
+            <div className={styles.modelButtons}>
+              {LOCAL_MODELS.map(model => (
+                <button
+                  key={model.id}
+                  type="button"
+                  onClick={() => chooseLocalModel(model.id)}
+                  className={styles.secondaryButton}
+                >
+                  <span className={styles.modelTier}>{model.tierLabel}</span>
+                  <span className={styles.modelMeta}>
+                    {model.name}, {formatGb(model.downloadMb)}
+                  </span>
+                </button>
+              ))}
+            </div>
           </div>
         )}
+      </div>
 
-        {/* Coding Agent Card - Tertiary Option */}
-        <div className={styles.card}>
-          <div className={styles.cardHeader}>
-            <h4 className={styles.cardTitle}>Use your coding agent</h4>
-          </div>
-          <p className={styles.cardDescription}>
-            Paste this prompt into Claude Code, Codex, Gemini CLI, Cursor, or another agent. It
-            installs Noodles.gl on your computer, opens an example map, changes it, and shows you a
-            screenshot. Then your agent can edit and export your maps.
-          </p>
+      <div className={styles.footer}>
+        <p className={styles.footerText}>
+          Have an API key?{' '}
+          <button type="button" onClick={openProviderSettings} className={styles.linkButton}>
+            Add it in Settings
+          </button>
+        </p>
+        <p className={styles.footerText}>
+          Using a coding agent? Copy the setup prompt for{' '}
           <button
             type="button"
             onClick={() => copyPrompt('claude_code')}
-            className={styles.tertiaryButton}
+            className={styles.linkButton}
           >
-            {copied('claude_code')
-              ? 'Copied. Paste it into Claude Code'
-              : 'Copy Claude Code prompt'}
+            Claude Code
+          </button>{' '}
+          or{' '}
+          <button type="button" onClick={() => copyPrompt('other')} className={styles.linkButton}>
+            other agents
           </button>
-          <button
-            type="button"
-            onClick={() => copyPrompt('other')}
-            className={`${styles.linkButton} ${styles.otherAgentButton}`}
-          >
-            {copied('other')
-              ? 'Copied. Paste it into your agent'
-              : 'Copy the prompt for other agents'}
-          </button>
-          {promptCopy?.status === 'failed' && (
+        </p>
+        {promptCopy?.status === 'copied' && (
+          <p className={styles.footerText} role="status">
+            Copied. Paste it into{' '}
+            {promptCopy.agent === 'claude_code' ? 'Claude Code' : 'your agent'}
+          </p>
+        )}
+        {/* The published prompt has no request in it, so with one the text
+            itself is the fallback */}
+        {promptCopy?.status === 'failed' &&
+          (request ? (
+            <>
+              <p className={styles.errorText}>Your browser blocked the copy. Copy it from here:</p>
+              <textarea
+                className={styles.promptText}
+                readOnly
+                rows={4}
+                value={buildAgentPrompt(promptCopy.agent, request)}
+                onFocus={e => e.currentTarget.select()}
+                aria-label="Coding agent prompt"
+              />
+            </>
+          ) : (
             <p className={styles.errorText}>
               Your browser blocked the copy. The prompt is at{' '}
               <a href={failedHref} target="_blank" rel="noreferrer">
                 {failedHref.replace('https://', '')}
               </a>
             </p>
-          )}
-        </div>
+          ))}
       </div>
 
-      {/* Footer Option - Bring Your Own Key */}
-      <div className={styles.footer}>
-        <p className={styles.footerText}>
-          Have an API key?{' '}
-          <button type="button" onClick={openProviderSettings} className={styles.linkButton}>
-            Configure Anthropic or OpenAI
-          </button>
-        </p>
-      </div>
-
-      {/* Close Button */}
       <div className={styles.closeContainer}>
         <button type="button" onClick={onClose} className={styles.closeButton}>
           Close

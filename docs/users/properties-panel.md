@@ -6,6 +6,10 @@ Configure operator inputs, manage field visibility, and access context actions i
 
 The Properties Panel appears on the right side of the editor when you select a node (operator) on the canvas. It displays the operator's name, type badge, description, and all configurable fields organized into **Inputs** and **Outputs** sections.
 
+When you open an example, its main map layer is already selected, so the panel starts with controls you can change.
+
+You can also click a point, line or shape on the map to select the node that draws it and edit its settings here.
+
 ![Properties Panel with a node selected](/img/properties-panel-overview.png)
 
 ## Inputs

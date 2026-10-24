@@ -33,6 +33,8 @@ export type Visualization = {
   onChangeShowOverlay?: (show: boolean) => void
   showDebugInfo?: boolean
   onChangeShowDebugInfo?: (show: boolean) => void
+  autoLayoutOnConnect?: boolean
+  onChangeAutoLayoutOnConnect?: (enabled: boolean) => void
   spreadsheetVisible?: boolean
   onChangeSpreadsheetVisible?: (visible: boolean) => void
   selectedNodeIds?: string[]

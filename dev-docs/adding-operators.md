@@ -100,7 +100,7 @@ export const categories = {
 5. **Register operator in `opTypes` object** in `operators.ts` (alphabetically)
 6. **Add to appropriate category** in `components/categories.ts` using display name without "Op" suffix (e.g., `'File'` not `'FileOp'`)
 7. **Write unit tests** (required for all operators)
-8. Document behavior and limitations if complex
+8. Run `npm run generate:registry` and `npm run generate:op-docs`, then write Remarks on the new page in `docs/reference/operators/` if the behavior needs explaining
 9. Test in UI with example projects
 
 **Important:** Steps 5 and 6 are critical - the operator will not appear in the Add Node menu without these registrations!
@@ -111,7 +111,7 @@ export const categories = {
 3. Consider migration if schema changes (see [Adding a Migration](#adding-a-migration))
 4. **Update tests** to cover new behavior
 5. Add tests for bug fixes to prevent regressions
-6. Update documentation if behavior changes
+6. Run `npm run generate:registry` and `npm run generate:op-docs`, and update the page's Remarks in `docs/reference/operators/` if behavior changes
 7. Test in UI with example projects
 
 ### Adding a Migration
@@ -119,6 +119,7 @@ Migrations live in `src/noodles/__migrations__/NNN-kebab-name.ts` with a co-loca
 1. Use the next number after the highest on main, with no gaps or duplicates
 2. Put the new basename (no extension) on the single line of `__migrations__/LATEST`. Two open migration PRs both change that line, so the second one gets a merge conflict and must rebase and renumber
 3. Bump the example projects to the new version (`npm run migrate-projects`)
+4. Regenerate the project JSON Schema (`npm run generate:schema`) and commit the new `website/static/schema/` files. CI runs `npm run generate:schema -- --check`, which fails until you do
 
 `utils/migration-numbering.test.ts` checks the numbering and `LATEST`, and `migrate-schema.ts` throws at load if two migrations share a number.
 

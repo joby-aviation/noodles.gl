@@ -1,12 +1,17 @@
 // Tests for PropertyPanel selection rendering and NodeProperties nodeId interface
-import { act, cleanup, render, screen } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import type { Edge, Node as ReactFlowNode } from '@xyflow/react'
 import { ReactFlowProvider } from '@xyflow/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { SheetContext } from '../../../utils/sheet-context'
 import { clearOps, getOpStore, useUIStore } from '../../store'
 import { transformGraph } from '../../transform-graph'
-import { formatEdgePreviewValue, NodeProperties, PropertyPanel } from '../node-properties'
+import {
+  formatEdgePreviewValue,
+  NodeProperties,
+  PropertyPanel,
+  STARTER_HINT_TEXT,
+} from '../node-properties'
 
 // Mock store state — controlled per test
 let mockNodes: ReactFlowNode[] = []
@@ -70,18 +75,6 @@ describe('PropertyPanel', () => {
     expect(screen.getByText('Select a node or edge to inspect it')).toBeInTheDocument()
   })
 
-  it('toggles auto-layout on connect from the page view', () => {
-    const onChangeAutoLayout = vi.fn()
-    wrapWithProviders(
-      <PropertyPanel autoLayout={{ enabled: false }} onChangeAutoLayout={onChangeAutoLayout} />
-    )
-
-    const toggle = screen.getByLabelText('Auto-layout when connecting nodes')
-    expect(toggle).not.toBeChecked()
-    act(() => toggle.click())
-    expect(onChangeAutoLayout).toHaveBeenCalledWith({ enabled: true })
-  })
-
   it('shows multi-select node count when multiple nodes are selected', () => {
     mockNodes = [
       { id: '/a', type: 'NumberOp', selected: true, position: { x: 0, y: 0 }, data: {} },
@@ -110,6 +103,92 @@ describe('PropertyPanel', () => {
     wrapWithProviders(<PropertyPanel />)
     expect(screen.getByText('2 nodes selected')).toBeInTheDocument()
     expect(screen.getByText('1 edge selected')).toBeInTheDocument()
+  })
+
+  describe('starter hint', () => {
+    const selectOnly = (id: string) => {
+      mockNodes = ['/layer', '/other'].map((nodeId, i) => ({
+        id: nodeId,
+        type: 'NumberOp',
+        selected: nodeId === id,
+        position: { x: i * 100, y: 0 },
+        data: {},
+      })) as ReactFlowNode[]
+    }
+
+    beforeEach(() => {
+      transformGraph({
+        nodes: [
+          { id: '/layer', type: 'NumberOp', position: { x: 0, y: 0 }, data: {} },
+          { id: '/other', type: 'NumberOp', position: { x: 100, y: 0 }, data: {} },
+        ],
+        edges: [],
+      })
+      selectOnly('/layer')
+      useUIStore.getState().setStarterHintNodeId('/layer')
+    })
+
+    afterEach(() => useUIStore.getState().setStarterHintNodeId(null))
+
+    it('shows the hint for the node the example selected', () => {
+      wrapWithProviders(<PropertyPanel />)
+      expect(screen.getByRole('status')).toHaveTextContent(STARTER_HINT_TEXT)
+    })
+
+    it('hides the hint once another node is selected, and does not bring it back', () => {
+      const { rerender } = wrapWithProviders(<PropertyPanel />)
+      selectOnly('/other')
+      rerender(
+        <SheetContext.Provider value={null}>
+          <ReactFlowProvider>
+            <PropertyPanel />
+          </ReactFlowProvider>
+        </SheetContext.Provider>
+      )
+      expect(screen.queryByRole('status')).not.toBeInTheDocument()
+      expect(useUIStore.getState().starterHintNodeId).toBeNull()
+
+      selectOnly('/layer')
+      rerender(
+        <SheetContext.Provider value={null}>
+          <ReactFlowProvider>
+            <PropertyPanel />
+          </ReactFlowProvider>
+        </SheetContext.Provider>
+      )
+      expect(screen.queryByRole('status')).not.toBeInTheDocument()
+    })
+
+    it('hides the hint after the first edit in the panel', () => {
+      const { container } = wrapWithProviders(<PropertyPanel />)
+      const input = container.querySelector('input')
+      expect(input).not.toBeNull()
+      act(() => {
+        fireEvent.input(input!, { target: { value: '5' } })
+      })
+      expect(screen.queryByRole('status')).not.toBeInTheDocument()
+    })
+
+    it('hides the hint after dragging a number field, which fires no input event', () => {
+      const { container } = wrapWithProviders(<PropertyPanel />)
+      const wrapper = container.querySelector('[role="list"] [role="group"]') as HTMLElement
+      expect(wrapper).not.toBeNull()
+      act(() => {
+        fireEvent.mouseDown(wrapper, { clientX: 100, clientY: 100 })
+        fireEvent.mouseMove(document, { clientX: 140, clientY: 100 })
+      })
+      expect(getOpStore().getOp('/layer')!.inputs.val.value).not.toBe(0)
+      act(() => {
+        fireEvent.mouseUp(document, { clientX: 140, clientY: 100 })
+      })
+      expect(screen.queryByRole('status')).not.toBeInTheDocument()
+    })
+
+    it('does not show the hint for other nodes', () => {
+      selectOnly('/other')
+      wrapWithProviders(<PropertyPanel />)
+      expect(screen.queryByRole('status')).not.toBeInTheDocument()
+    })
   })
 
   it('shows Page header when nothing is selected', () => {

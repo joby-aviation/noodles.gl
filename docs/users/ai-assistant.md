@@ -337,7 +337,7 @@ Conversations are automatically saved as you chat.
 ## Need More Help?
 
 - **Documentation:** Browse the [user guides](/users/getting-started)
-- **Examples:** Check the example projects in the public/noodles folder
+- **Examples:** Open the example projects from the Examples gallery
 - **GitHub Issues:** Report bugs or request features at [github.com/joby-aviation/noodles.gl/issues](https://github.com/joby-aviation/noodles.gl/issues)
 - **Discussions:** Ask questions in [GitHub Discussions](https://github.com/joby-aviation/noodles.gl/discussions)
 

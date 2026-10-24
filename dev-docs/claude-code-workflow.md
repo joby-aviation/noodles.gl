@@ -21,6 +21,8 @@ Project files (`noodles.json`) are plain JSON and can be read and written by Cla
 - Edge handles: `out.fieldName` (source) → `par.fieldName` (target)
 - Only non-default input values need to be serialized
 - The current version is the number of the latest migration in `src/noodles/__migrations__/`; `validate-projects` prints it. Write new files at the current version; older files are migrated when they load, so don't bump the version of an existing file by hand
+- The file shape is published as a JSON Schema at `https://noodles.gl/schema/noodles-project.schema.json` (generated from `src/noodles/utils/project-schema.ts`), with a fixed copy per version at `noodles-project.v<N>.schema.json`. It checks shape only; operator types, inputs and handles are left to `validate-projects`
+- Examples open with one node selected so the properties panel shows controls: the first layer feeding the DeckRenderer's `layers` input. To pick another root-level node, set `"editorSettings": { "startNode": "/node-id" }`. This is optional and needs no migration
 
 ### Looking Things Up Without a Browser
 
@@ -50,7 +52,7 @@ npm run validate:projects -- path/to/noodles.json
 
 From another directory, use `node noodles-validate/bin/validate-projects.ts <path>` with the path to this checkout. Don't run it as a bare `npx validate-projects`: the name isn't published on npm, so in a checkout without `node_modules` (a fresh clone, or a git worktree) npx would download and run whatever package someone publishes under it.
 
-It checks the schema version, operator types, input names, edge handles, duplicate edges and loops, and names the fix for each error. When it prints `OK` (or `validate_project` returns `"valid": true`), the file is valid. With no path it checks every project under `src/examples/` and `public/noodles/`; `npm run validate:examples` checks `src/examples/` only. See [noodles-validate](../noodles-validate/README.md) for the rules and exit codes.
+It checks the schema version, operator types, input names, edge handles, duplicate edges and loops, and names the fix for each error. When it prints `OK` (or `validate_project` returns `"valid": true`), the file is valid. With no path it checks every project under `src/examples/`, the same as `npm run validate:examples`. See [noodles-validate](../noodles-validate/README.md) for the rules and exit codes.
 
 It doesn't check the `timeline` key or run the project. Load it in the browser at `http://localhost:5173/examples/<project-name>` to visually verify.
 

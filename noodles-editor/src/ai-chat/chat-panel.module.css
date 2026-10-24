@@ -57,6 +57,52 @@
   color: #e0e0e0;
 }
 
+/* Quick start request held above the onboarding until a model is connected */
+.pendingRequest {
+  flex-shrink: 0;
+  margin: 16px 16px 0;
+  padding: 12px 14px;
+  border: 1px solid #333;
+  border-radius: 8px;
+  background: #252525;
+}
+
+.pendingRequestLabel {
+  margin-bottom: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #888;
+}
+
+.pendingRequestText {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.4;
+  color: #e0e0e0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 4;
+  line-clamp: 4;
+  overflow: hidden;
+}
+
+.pendingRequestNote {
+  margin: 8px 0 0;
+  font-size: 12px;
+  color: #aaa;
+}
+
+/* Gives the onboarding the height left under the request, so it scrolls
+   rather than pushing past the bottom of the panel */
+.onboardingBody {
+  flex: 1;
+  min-height: 0;
+}
+
 .chatPanelLoading {
   display: flex;
   flex-direction: column;

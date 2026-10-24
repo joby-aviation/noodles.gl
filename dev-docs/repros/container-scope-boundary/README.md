@@ -6,9 +6,9 @@
 
 ## Setup
 
-1. Copy `container-scope-boundary.json` into `noodles-editor/public/noodles/`
+1. Copy `container-scope-boundary.json` to `noodles-editor/src/examples/container-scope-boundary/noodles.json`
 2. Start the dev server: `cd noodles-editor && npm start`
-3. Open: `http://localhost:5173/noodles/container-scope-boundary`
+3. Open: `http://localhost:5173/examples/container-scope-boundary`
 
 ## Graph Structure
 

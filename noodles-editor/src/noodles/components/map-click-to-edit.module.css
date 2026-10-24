@@ -1,0 +1,20 @@
+/* "Click to edit" beside the pointer while it is over a feature a node drew */
+.label {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: var(--z-index-chrome);
+  padding: 3px 7px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 4px;
+  background: rgba(18, 24, 34, 0.88);
+  color: var(--color-text-secondary);
+  font-size: 11px;
+  white-space: nowrap;
+  pointer-events: none;
+  will-change: transform;
+}
+
+.label[hidden] {
+  display: none;
+}

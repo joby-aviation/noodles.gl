@@ -20,7 +20,6 @@ import {
   useTimelineStore,
 } from '../../timeline/timeline-store'
 import type { KeyframeValue } from '../../timeline/types'
-import { analytics } from '../../utils/analytics'
 import {
   CodeField,
   CompoundPropsField,
@@ -35,9 +34,17 @@ import {
 import { useObservable } from '../hooks/use-observable'
 import type { IOperator, OpType } from '../operators'
 import { Operator, OutOp } from '../operators'
-import { getOp, getOpStore, useNestingStore, useUIStore } from '../store'
+import {
+  dismissStarterHint,
+  getOp,
+  getOpStore,
+  getUIStore,
+  useNestingStore,
+  useUIStore,
+} from '../store'
 import type { ConnectionPlan } from '../utils/auto-connect'
 import { appendUniqueEdges } from '../utils/edge-integrity'
+import { FieldEditScope } from '../utils/field-edit-analytics'
 import { edgeId } from '../utils/id-utils'
 import {
   moveEdgeWithinGroup,
@@ -48,7 +55,6 @@ import { createNodesForType, type NodeType } from '../utils/node-creation-utils'
 import { computeRelativePath, getBaseName, parseHandleId } from '../utils/path-utils'
 import { captureOperatorInputs, firePropertyMutation } from '../utils/property-history'
 import { formatReference, parseReference, type ReferenceFormat } from '../utils/reference-utils'
-import type { AutoLayoutSettings } from '../utils/serialization'
 import { ErrorBoundary } from './error-boundary'
 import {
   BooleanFieldComponent,
@@ -328,14 +334,21 @@ function FieldInputWithHighlight({
       : (state.tracks.get(getFieldPath(opId, fieldName, subPath))?.keyframes.length ?? 0) > 0
   )
   return (
-    <div className={cx(s.editableFieldContent, { [s.keyframedField]: hasKeyframes })}>
-      <EditableFieldInput
-        fieldName={subPath?.[0] ?? fieldName}
-        field={field}
-        disabled={false}
-        opId={opId}
-        expandTimeline={expandTimeline}
-      />
+    <div
+      className={cx(s.editableFieldContent, {
+        [s.keyframedField]: hasKeyframes,
+        [s.vectorFieldContent]: channelKeys !== null,
+      })}
+    >
+      <FieldEditScope field={field}>
+        <EditableFieldInput
+          fieldName={subPath?.[0] ?? fieldName}
+          field={field}
+          disabled={false}
+          opId={opId}
+          expandTimeline={expandTimeline}
+        />
+      </FieldEditScope>
     </div>
   )
 }
@@ -461,6 +474,9 @@ function CompoundSubFields({
 }
 
 // Exported for testing
+export const STARTER_HINT_TEXT =
+  'Change a value to edit the map. Click any node to see its settings.'
+
 export function NodeProperties({ nodeId }: { nodeId: string }) {
   const { setEdges, addNodes, getEdges } = useReactFlow()
   const onEdgesChange = useStore(s => s.onEdgesChange)
@@ -477,6 +493,7 @@ export function NodeProperties({ nodeId }: { nodeId: string }) {
     return n ? { x: n.position.x, y: n.position.y } : { x: 0, y: 0 }
   })
   const currentContainerId = useNestingStore(state => state.currentContainerId)
+  const showStarterHint = useUIStore(state => state.starterHintNodeId === nodeId)
   const expandTimeline = useCallback(() => {
     useUIStore.getState().setTimelineExpanded(true)
   }, [])
@@ -760,13 +777,18 @@ export function NodeProperties({ nodeId }: { nodeId: string }) {
   }
 
   return (
-    <>
+    <FieldEditScope source="properties_panel" operatorType={nodeType}>
       <div className={s.header}>
         <div className={s.title}>
           {getBaseName(op.id)}
           <div className={cx(s.capsule, headerClass(nodeType))}>{typeCategory(nodeType)}</div>
         </div>
       </div>
+      {showStarterHint && (
+        <div className={s.starterHint} role="status">
+          {STARTER_HINT_TEXT}
+        </div>
+      )}
       {op instanceof OutOp && (
         <div className={s.section}>
           <div className={s.sectionTitle}>Render Settings</div>
@@ -906,7 +928,9 @@ export function NodeProperties({ nodeId }: { nodeId: string }) {
                       )}
                       <div className={cx(s.port, input.handleClass)} />
                       <span className={s.propertyLabel}>
-                        <span className={s.propertyLabelText}>{input.name}</span>
+                        <span className={s.propertyLabelText} title={input.name}>
+                          {input.name}
+                        </span>
                         {incomers.length > 0 && (
                           <Tooltip text="Field is connected" position="right">
                             <span className={s.connectedIcon}>
@@ -1330,7 +1354,7 @@ export function NodeProperties({ nodeId }: { nodeId: string }) {
           </div>,
           document.body
         )}
-    </>
+    </FieldEditScope>
   )
 }
 
@@ -1490,15 +1514,9 @@ export function EdgeProperties({ edge }: { edge: Edge }) {
 
 interface PropertyPanelProps {
   onAutoLayout?: () => void
-  autoLayout?: AutoLayoutSettings
-  onChangeAutoLayout?: (settings: AutoLayoutSettings) => void
 }
 
-export function PropertyPanel({
-  onAutoLayout,
-  autoLayout,
-  onChangeAutoLayout,
-}: PropertyPanelProps) {
+export function PropertyPanel({ onAutoLayout }: PropertyPanelProps) {
   // Only re-renders when selection changes, not on position updates during drag
   const { selectedNodeId, selectedNodeCount, selectedEdge, selectedEdgeCount } = useStore(
     s => {
@@ -1526,10 +1544,19 @@ export function PropertyPanel({
       : null
 
   const showLayoutButton = selectedNodeCount >= 2 && onAutoLayout !== undefined
-  const showAutoLayoutToggle = autoLayout !== undefined && onChangeAutoLayout !== undefined
 
+  // The starter hint goes away once the user selects something else or edits a value
+  const starterHintNodeId = useUIStore(state => state.starterHintNodeId)
+  const previousSelectedNodeIdRef = useRef(selectedNodeId)
+  useEffect(() => {
+    const previous = previousSelectedNodeIdRef.current
+    previousSelectedNodeIdRef.current = selectedNodeId
+    if (starterHintNodeId && previous === starterHintNodeId && selectedNodeId !== previous) {
+      getUIStore().setStarterHintNodeId(null)
+    }
+  }, [selectedNodeId, starterHintNodeId])
   return (
-    <div className={s.panel}>
+    <div className={s.panel} onChange={dismissStarterHint} onInput={dismissStarterHint}>
       {selectedNodeId != null ? (
         <NodeProperties nodeId={selectedNodeId} />
       ) : inspectedEdge != null ? (
@@ -1555,35 +1582,19 @@ export function PropertyPanel({
           ) : (
             <div className={s.opMeta}>Select a node or edge to inspect it</div>
           )}
-          {(showLayoutButton || showAutoLayoutToggle) && (
+          {showLayoutButton && (
             <div className={s.section}>
               <div className={s.sectionTitle}>Layout</div>
               <div className={s.layoutControls}>
-                {showLayoutButton && (
-                  <button
-                    type="button"
-                    className={s.layoutButton}
-                    onClick={onAutoLayout}
-                    title="Layout selected nodes (Cmd/Ctrl+L)"
-                  >
-                    <ViewGridIcon />
-                    <span>Layout selection</span>
-                  </button>
-                )}
-                {showAutoLayoutToggle && (
-                  <label className={s.checkboxLabel}>
-                    <input
-                      type="checkbox"
-                      className={s.checkbox}
-                      checked={autoLayout.enabled}
-                      onChange={e => {
-                        onChangeAutoLayout({ ...autoLayout, enabled: e.target.checked })
-                        analytics.track('auto_layout_toggled', { enabled: e.target.checked })
-                      }}
-                    />
-                    Auto-layout when connecting nodes
-                  </label>
-                )}
+                <button
+                  type="button"
+                  className={s.layoutButton}
+                  onClick={onAutoLayout}
+                  title="Layout selected nodes (Cmd/Ctrl+L)"
+                >
+                  <ViewGridIcon />
+                  <span>Layout selection</span>
+                </button>
               </div>
             </div>
           )}

@@ -3,6 +3,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import agentPrompt from '../../../../website/static/agent-prompt.txt?raw'
 import claudeCodePrompt from '../../../../website/static/claude-code-prompt.txt?raw'
 import { analytics } from '../../utils/analytics'
+import { useAgentModelStore } from '../agent/model-store'
+import { buildAgentPrompt } from './agent-prompts'
 import { AssistantOnboarding } from './assistant-onboarding'
 
 vi.mock('../../utils/analytics', () => ({
@@ -15,7 +17,7 @@ afterEach(() => {
   vi.mocked(analytics.track).mockClear()
 })
 
-function renderOnboarding(blockedUrl: string | null = null) {
+function renderOnboarding(blockedUrl: string | null = null, webgpuReady = false, request?: string) {
   const retryPopup = vi.fn()
   const view = render(
     <AssistantOnboarding
@@ -26,10 +28,10 @@ function renderOnboarding(blockedUrl: string | null = null) {
         connect: vi.fn(),
         retryPopup,
       }}
-      webgpuReady={false}
+      webgpuReady={webgpuReady}
       openProviderSettings={vi.fn()}
       onClose={vi.fn()}
-      freeModels={[]}
+      request={request}
     />
   )
   return { ...view, retryPopup }
@@ -60,21 +62,22 @@ describe('AssistantOnboarding with a blocked popup', () => {
   })
 })
 
-describe('AssistantOnboarding coding agent card', () => {
+describe('AssistantOnboarding coding agent prompts', () => {
   it('copies the shared quick start prompt and tracks the copy', async () => {
     const writeText = stubClipboard(() => Promise.resolve())
     renderOnboarding()
 
     await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: 'Copy Claude Code prompt' }))
+      fireEvent.click(screen.getByRole('button', { name: 'Claude Code' }))
     })
 
     expect(writeText).toHaveBeenCalledWith(claudeCodePrompt)
     expect(claudeCodePrompt).toContain('noodles-live')
-    expect(screen.getByRole('button', { name: 'Copied. Paste it into Claude Code' })).toBeTruthy()
+    expect(screen.getByRole('status').textContent).toBe('Copied. Paste it into Claude Code')
     expect(analytics.track).toHaveBeenCalledWith('agent_prompt_copied', {
       agent: 'claude_code',
       source: 'assistant_onboarding',
+      withRequest: false,
     })
   })
 
@@ -83,16 +86,16 @@ describe('AssistantOnboarding coding agent card', () => {
     renderOnboarding()
 
     await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: 'Copy the prompt for other agents' }))
+      fireEvent.click(screen.getByRole('button', { name: 'other agents' }))
     })
 
     expect(writeText).toHaveBeenCalledWith(agentPrompt)
     expect(agentPrompt).toContain('codex mcp add webmcp')
-    expect(screen.getByRole('button', { name: 'Copied. Paste it into your agent' })).toBeTruthy()
-    expect(screen.getByRole('button', { name: 'Copy Claude Code prompt' })).toBeTruthy()
+    expect(screen.getByRole('status').textContent).toBe('Copied. Paste it into your agent')
     expect(analytics.track).toHaveBeenCalledWith('agent_prompt_copied', {
       agent: 'other',
       source: 'assistant_onboarding',
+      withRequest: false,
     })
   })
 
@@ -101,10 +104,78 @@ describe('AssistantOnboarding coding agent card', () => {
     const { container } = renderOnboarding()
 
     await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: 'Copy Claude Code prompt' }))
+      fireEvent.click(screen.getByRole('button', { name: 'Claude Code' }))
     })
 
     expect(container.querySelector('a[href$="/claude-code-prompt.txt"]')).toBeTruthy()
     expect(analytics.track).not.toHaveBeenCalled()
+  })
+})
+
+describe('AssistantOnboarding local model card', () => {
+  afterEach(() => {
+    useAgentModelStore.getState().setModel('webllm', undefined)
+  })
+
+  it('is hidden without WebGPU', () => {
+    renderOnboarding(null, false)
+
+    expect(screen.queryByText('Local model')).toBeNull()
+  })
+
+  it('picks the model from the panel instead of opening Settings', () => {
+    renderOnboarding(null, true)
+
+    fireEvent.click(screen.getByRole('button', { name: /^Fast/ }))
+
+    expect(useAgentModelStore.getState().models.webllm).toBe('Qwen3.5-2B-q4f16_1-MLC')
+    expect(analytics.track).toHaveBeenCalledWith('webllm_model_selected', {
+      model: 'Qwen3.5-2B-q4f16_1-MLC',
+      source: 'assistant_onboarding',
+    })
+  })
+
+  it('names the download size on each choice', () => {
+    renderOnboarding(null, true)
+
+    expect(screen.getByRole('button', { name: /^Quality/ }).textContent).toContain('2.4 GB')
+    expect(screen.getByRole('button', { name: /^Fast/ }).textContent).toContain('1.1 GB')
+  })
+})
+
+describe('AssistantOnboarding with a request from the quick start', () => {
+  const question = 'Show taxi pickups as a heatmap'
+
+  it('copies a prompt that carries the question', async () => {
+    const writeText = stubClipboard(() => Promise.resolve())
+    renderOnboarding(null, false, question)
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Claude Code' }))
+    })
+
+    expect(writeText).toHaveBeenCalledWith(buildAgentPrompt('claude_code', question))
+    expect(writeText.mock.calls[0][0]).toContain(`> ${question}`)
+    expect(analytics.track).toHaveBeenCalledWith('agent_prompt_copied', {
+      agent: 'claude_code',
+      source: 'assistant_onboarding',
+      withRequest: true,
+    })
+  })
+
+  it('shows the prompt itself when the browser blocks the copy', async () => {
+    stubClipboard(() => Promise.reject(new DOMException('denied', 'NotAllowedError')))
+    const { container } = renderOnboarding(null, false, question)
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'other agents' }))
+    })
+
+    const textarea = screen.getByRole('textbox', {
+      name: 'Coding agent prompt',
+    }) as HTMLTextAreaElement
+    expect(textarea.value).toBe(buildAgentPrompt('other', question))
+    // The published prompt would drop the question
+    expect(container.querySelector('a[href$="/agent-prompt.txt"]')).toBeNull()
   })
 })

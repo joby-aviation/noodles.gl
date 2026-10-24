@@ -4,12 +4,17 @@ import { buildDocUrl } from './doc-url-builder'
 import type { DocsIndex, DocTopic } from './types'
 
 // Eagerly load all markdown files at startup
-// Vite will bundle these, but they're just raw text strings
-const mainDocs = import.meta.glob('../../../docs/**/*.md', {
-  eager: true,
-  query: '?raw',
-  import: 'default',
-})
+// Vite will bundle these, but they're just raw text strings. The generated
+// per-operator pages are left out: they would triple the bundled docs, and the
+// assistant reads operator fields from the registry instead
+const mainDocs = import.meta.glob(
+  ['../../../docs/**/*.md', '!../../../docs/reference/operators/**'],
+  {
+    eager: true,
+    query: '?raw',
+    import: 'default',
+  }
+)
 
 const aiChatDocs = import.meta.glob('./**/*.md', {
   eager: true,

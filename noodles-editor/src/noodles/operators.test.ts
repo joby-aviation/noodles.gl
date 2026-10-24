@@ -1113,6 +1113,21 @@ describe('FilterOp', () => {
 })
 
 describe('ChartOp', () => {
+  it('hides yField for histograms', () => {
+    const op = new ChartOp('/chart-1', { chartType: 'histogram' })
+    expect(op.isFieldVisible('yField')).toBe(false)
+
+    op.inputs.chartType.setValue('bar')
+    expect(op.isFieldVisible('yField')).toBe(true)
+  })
+
+  it('stops updating yField visibility once disposed', () => {
+    const op = new ChartOp('/chart-1')
+    op.dispose()
+    op.inputs.chartType.setValue('histogram')
+    expect(op.isFieldVisible('yField')).toBe(true)
+  })
+
   it('generates a bar chart from data', () => {
     const op = new ChartOp('/chart-1')
     const result = op.execute({

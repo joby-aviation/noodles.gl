@@ -10,11 +10,15 @@ import {
 
 // Mock the store module
 vi.mock('../store', () => ({
+  dismissStarterHint: vi.fn(),
   getAllOps: vi.fn(),
-  getOpStore: vi.fn(),
+  getGraphStore: vi.fn(),
+  useGraphStore: {
+    getState: vi.fn(),
+  },
 }))
 
-import { getAllOps, getOpStore } from '../store'
+import { getAllOps, getGraphStore } from '../store'
 
 // Helper to create a mock field with serialize/setValue
 function mockField(serializedValue: unknown) {
@@ -30,7 +34,7 @@ function mockOp(id: string, fields: Record<string, ReturnType<typeof mockField>>
 }
 
 const mockedGetAllOps = vi.mocked(getAllOps)
-const mockedGetOpStore = vi.mocked(getOpStore)
+const mockedGetGraphStore = vi.mocked(getGraphStore)
 
 describe('captureOperatorInputs', () => {
   it('serializes all operator field values using serialize()', () => {
@@ -97,7 +101,7 @@ describe('applyOperatorInputs', () => {
     const store = {
       getOp: vi.fn(),
     }
-    mockedGetOpStore.mockReturnValue(store as never)
+    mockedGetGraphStore.mockReturnValue(store as never)
   })
 
   it('restores field values by calling setValue for each field', () => {
@@ -105,7 +109,7 @@ describe('applyOperatorInputs', () => {
     const op = mockOp('/my-op', { value: field })
 
     const store = { getOp: vi.fn((id: string) => (id === '/my-op' ? op : undefined)) }
-    mockedGetOpStore.mockReturnValue(store as never)
+    mockedGetGraphStore.mockReturnValue(store as never)
 
     const snapshot = JSON.stringify({ '/my-op': { value: 99 } })
     applyOperatorInputs(snapshot)
@@ -115,7 +119,7 @@ describe('applyOperatorInputs', () => {
 
   it('skips operators that no longer exist in the store', () => {
     const store = { getOp: vi.fn(() => undefined) }
-    mockedGetOpStore.mockReturnValue(store as never)
+    mockedGetGraphStore.mockReturnValue(store as never)
 
     // Should not throw even though the op doesn't exist
     expect(() => {
@@ -127,7 +131,7 @@ describe('applyOperatorInputs', () => {
     const field = mockField(0)
     const op = mockOp('/op', { existingField: field })
     const store = { getOp: vi.fn(() => op) }
-    mockedGetOpStore.mockReturnValue(store as never)
+    mockedGetGraphStore.mockReturnValue(store as never)
 
     // Snapshot has a field that doesn't exist on the op
     applyOperatorInputs(JSON.stringify({ '/op': { existingField: 5, ghostField: 99 } }))
@@ -138,7 +142,7 @@ describe('applyOperatorInputs', () => {
 
   it('handles invalid JSON gracefully', () => {
     const store = { getOp: vi.fn() }
-    mockedGetOpStore.mockReturnValue(store as never)
+    mockedGetGraphStore.mockReturnValue(store as never)
 
     expect(() => {
       applyOperatorInputs('not valid json {{{')
@@ -159,7 +163,7 @@ describe('applyOperatorInputs', () => {
         return undefined
       }),
     }
-    mockedGetOpStore.mockReturnValue(store as never)
+    mockedGetGraphStore.mockReturnValue(store as never)
 
     applyOperatorInputs(JSON.stringify({ '/op1': { x: 42 }, '/op2': { text: 'hello' } }))
 
@@ -172,7 +176,7 @@ describe('applyOperatorInputs', () => {
     const op = { id: '/number', inputs: { val: field } }
     const observed: Array<number | undefined> = []
     const subscription = field.stepOverride$.subscribe(step => observed.push(step))
-    mockedGetOpStore.mockReturnValue({ getOp: vi.fn(() => op) } as never)
+    mockedGetGraphStore.mockReturnValue({ getOp: vi.fn(() => op) } as never)
 
     applyOperatorInputs(
       JSON.stringify({
@@ -190,7 +194,7 @@ describe('applyOperatorInputs', () => {
     const field = new NumberField(0.25, { step: 1, deriveStepFromValue: true })
     field.setStepOverride(0.001)
     const op = { id: '/number', inputs: { val: field } }
-    mockedGetOpStore.mockReturnValue({ getOp: vi.fn(() => op) } as never)
+    mockedGetGraphStore.mockReturnValue({ getOp: vi.fn(() => op) } as never)
 
     applyOperatorInputs(JSON.stringify({ '/number': { val: 0.25 } }))
 
@@ -505,7 +509,7 @@ describe('captureOperatorInputs + applyOperatorInputs round-trip', () => {
 
     // Restore from snapshot
     const store = { getOp: vi.fn(() => op) }
-    mockedGetOpStore.mockReturnValue(store as never)
+    mockedGetGraphStore.mockReturnValue(store as never)
     applyOperatorInputs(snapshot)
 
     // setValue should be called with the original value (42)
@@ -516,7 +520,7 @@ describe('captureOperatorInputs + applyOperatorInputs round-trip', () => {
     const field = new NumberField(0.25, { step: 1, deriveStepFromValue: true })
     const op = { id: '/number', inputs: { val: field } }
     mockedGetAllOps.mockReturnValue([op as never])
-    mockedGetOpStore.mockReturnValue({ getOp: vi.fn(() => op) } as never)
+    mockedGetGraphStore.mockReturnValue({ getOp: vi.fn(() => op) } as never)
 
     const automatic = captureOperatorInputs() as string
     field.setStepOverride(0.001)

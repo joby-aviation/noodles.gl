@@ -1,7 +1,7 @@
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { ReactFlowProvider } from '@xyflow/react'
 import { Temporal } from 'temporal-polyfill'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   BezierCurveField,
   BooleanField,
@@ -17,9 +17,10 @@ import {
   Vec2Field,
   Vec3Field,
 } from '../fields'
-import { NumberOp, StringOp } from '../operators'
+import { BitmapLayerOp, NumberOp, StringOp } from '../operators'
 import { clearOps, setOp } from '../store'
-import { registerPropertyMutationCallback } from '../utils/property-history'
+import { FieldEditScope } from '../utils/field-edit-analytics'
+import { applyOperatorInputs, registerPropertyMutationCallback } from '../utils/property-history'
 import {
   BezierCurveFieldComponent,
   BooleanFieldComponent,
@@ -27,6 +28,7 @@ import {
   CompoundFieldComponent,
   DateFieldComponent,
   EmptyFieldComponent,
+  FieldComponent,
   NumberFieldComponent,
   TextFieldComponent,
   VectorFieldComponent,
@@ -991,6 +993,32 @@ describe('ColorFieldComponent', () => {
     expect(label).toBeInTheDocument()
   })
 
+  // BitmapLayerOp's transparentColor and tintColor are optional and default to no value.
+  // Showing one in the properties panel used to throw "value is not iterable".
+  it('renders an optional color with no value set', () => {
+    const field = new BitmapLayerOp('/bitmap-layer').inputs.tintColor
+    expect(field.value ?? null).toBeNull()
+
+    render(<ColorFieldComponent id="tintColor" field={field} disabled={false} />)
+
+    const inner = document.querySelector('[class*="colorSwatchInner"]') as HTMLElement
+    expect(inner).toBeInTheDocument()
+    expect(inner.style.getPropertyValue('--color-value')).toBe('#00000000')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open color picker' }))
+    expect(document.querySelector('.chrome-picker')).toBeInTheDocument()
+
+    // The picker starts at opaque black: ChromePicker only shows the hex input
+    // when alpha is 1, and switches to r/g/b/a inputs otherwise
+    const hexInput = screen.getByLabelText('hex') as HTMLInputElement
+    expect(hexInput.value).toBe('#000000')
+    expect(screen.queryByLabelText('a')).not.toBeInTheDocument()
+
+    // The first pick keeps full opacity
+    fireEvent.change(hexInput, { target: { value: 'ff0000' } })
+    expect(field.value).toEqual([255, 0, 0, 255])
+  })
+
   it('updates when field value changes externally', () => {
     const field = new ColorField('#ff0000ff')
     render(<ColorFieldComponent id="test-field" field={field} disabled={false} />)
@@ -1137,5 +1165,125 @@ describe('NumberFieldComponent editing behavior', () => {
     fireEvent.change(input, { target: { value: '0.5' } })
 
     expect(field.value).toBe(0.5)
+  })
+})
+
+describe('undo history for a focused field', () => {
+  let text: StringOp
+  let other: NumberOp
+  let onMutation: ReturnType<typeof vi.fn>
+
+  beforeEach(() => {
+    text = new StringOp('/label')
+    other = new NumberOp('/animated')
+    setOp(text.id, text)
+    setOp(other.id, other)
+    onMutation = vi.fn()
+    registerPropertyMutationCallback(onMutation)
+    render(
+      <ReactFlowProvider>
+        <FieldEditScope source="properties_panel" operatorType="StringOp">
+          <FieldComponent id="val" field={text.inputs.val} disabled={false} />
+        </FieldEditScope>
+      </ReactFlowProvider>
+    )
+  })
+
+  afterEach(() => {
+    cleanup()
+    clearOps()
+    registerPropertyMutationCallback(undefined)
+  })
+
+  it('records no undo step when only another input changed while focused', () => {
+    const textbox = screen.getByRole('textbox')
+    fireEvent.focus(textbox)
+    // Keyframe playback moves another operator's input while the text field has focus
+    act(() => other.inputs.val.setValue(42))
+    fireEvent.blur(textbox)
+
+    expect(onMutation).not.toHaveBeenCalled()
+  })
+
+  it('records one undo step for an edit of the focused field', () => {
+    const textbox = screen.getByRole('textbox')
+    fireEvent.focus(textbox)
+    act(() => other.inputs.val.setValue(42))
+    fireEvent.change(textbox, { target: { value: 'hello' } })
+    fireEvent.blur(textbox)
+
+    expect(onMutation).toHaveBeenCalledTimes(1)
+    const [, before, after] = onMutation.mock.calls[0]
+
+    // Playback keeps moving the other input; undo and redo leave it where playback put it
+    act(() => other.inputs.val.setValue(7))
+    act(() => applyOperatorInputs(before))
+    expect(text.inputs.val.value).toBe('')
+    expect(other.inputs.val.value).toBe(7)
+    act(() => applyOperatorInputs(after))
+    expect(text.inputs.val.value).toBe('hello')
+    expect(other.inputs.val.value).toBe(7)
+  })
+})
+
+describe('undo history for a focused compound child', () => {
+  let op: StringOp
+  let padding: CompoundPropsField
+  let top: StringField
+  let right: StringField
+  let onMutation: ReturnType<typeof vi.fn>
+
+  beforeEach(() => {
+    op = new StringOp('/box')
+    top = new StringField('')
+    right = new StringField('')
+    padding = new CompoundPropsField({ top, right })
+    for (const field of [padding, top, right]) field.op = op
+    ;(op.inputs as unknown as { padding: CompoundPropsField }).padding = padding
+    setOp(op.id, op)
+    onMutation = vi.fn()
+    registerPropertyMutationCallback(onMutation)
+    render(
+      <ReactFlowProvider>
+        <FieldEditScope source="properties_panel" operatorType="StringOp">
+          <FieldComponent id="padding" field={padding} disabled={false} />
+        </FieldEditScope>
+      </ReactFlowProvider>
+    )
+  })
+
+  afterEach(() => {
+    cleanup()
+    clearOps()
+    registerPropertyMutationCallback(undefined)
+  })
+
+  it('records no undo step when only a sibling changed while focused', () => {
+    const [topInput] = screen.getAllByRole('textbox')
+    fireEvent.focus(topInput)
+    // Keyframe playback moves the sibling while the child has focus
+    act(() => right.setValue('animated'))
+    fireEvent.blur(topInput)
+
+    expect(onMutation).not.toHaveBeenCalled()
+  })
+
+  it('undoes an edit of the focused child without touching its sibling', () => {
+    const [topInput] = screen.getAllByRole('textbox')
+    fireEvent.focus(topInput)
+    act(() => right.setValue('animated'))
+    fireEvent.change(topInput, { target: { value: 'hello' } })
+    fireEvent.blur(topInput)
+
+    expect(onMutation).toHaveBeenCalledTimes(1)
+    const [, before, after] = onMutation.mock.calls[0]
+
+    act(() => right.setValue('later'))
+    act(() => applyOperatorInputs(before))
+    expect(top.value).toBe('')
+    expect(right.value).toBe('later')
+    act(() => applyOperatorInputs(after))
+    expect(top.value).toBe('hello')
+    expect(right.value).toBe('later')
   })
 })

@@ -60,7 +60,7 @@ ExpressionOps are a special type of Operator that allows you to write custom jav
 
 Savefiles are in JSON format and are based on [react-flow's savefile types](https://reactflow.dev/api-reference/types/react-flow-json-object) with additions to support Noodles.gl timeline data and operator configurations.
 
-Projects stored in the `src/examples` directory can be loaded from the URL: **http://localhost:5173/examples/nyc-taxis**, imported from the filesystem with the Menu on the bottom of the screen (File > Import), or saved to / loaded from the browser's OPFS storage by name.
+Projects stored in the `src/examples` directory can be loaded from the URL: **http://localhost:5173/examples/nyc-taxis**, imported from the filesystem with the Menu on the bottom of the screen (File > Import), or saved to / loaded from the browser's OPFS storage by name. Ids listed in `src/examples/hidden.json` still load by URL but are left out of the Examples gallery and the `list_examples` tools; use it for test fixtures and feature demos.
 
 The main info relevant to Noodles.gl is the `type` of the [Node object](https://reactflow.dev/api-reference/types/node) which determines which Operator type it creates, and the `data` property which is a JSON object that contains the inputs for the Operator.
 

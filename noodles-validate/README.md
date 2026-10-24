@@ -16,7 +16,7 @@ node /path/to/noodles.gl/noodles-validate/bin/validate-projects.ts path/to/noodl
 
 Don't run it as a bare `npx validate-projects`: the name isn't published on npm, so in a checkout without `node_modules` (a fresh clone, or a git worktree) npx would download and run whatever package someone publishes under it.
 
-With no paths it checks `noodles-editor/src/examples` and `noodles-editor/public/noodles`. A directory is searched for `noodles.json` files and other `.json` files shaped like a project.
+With no paths it checks `noodles-editor/src/examples`. A directory is searched for `noodles.json` files and other `.json` files shaped like a project.
 
 ```
 noodles-editor/src/examples/quakes/noodles.json

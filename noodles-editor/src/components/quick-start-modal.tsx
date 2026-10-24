@@ -9,22 +9,35 @@ import {
   detectFileCoordinates,
   hasCoordinates,
 } from '../noodles/components/tools/detect-coordinates'
-import { detectFormat, extensionOf } from '../noodles/components/tools/import-pipelines'
+import {
+  detectFormat,
+  extensionOf,
+  FILE_INPUT_ACCEPT,
+  isBinaryFormat,
+  isImportable,
+} from '../noodles/components/tools/import-pipelines'
 import { analytics } from '../utils/analytics'
 import { CURATED_EXAMPLES, ExamplesView } from './examples-view'
-import { ProjectsView, useRecentProjects } from './projects-view'
+import {
+  ProjectActionsMenu,
+  ProjectsView,
+  prepareProjectOpen,
+  useRecentProjects,
+} from './projects-view'
 import s from './quick-start-modal.module.css'
 
 export type ModalView = 'home' | 'projects' | 'examples'
 
-const DEFAULT_EXAMPLE = 'nyc-taxis'
+// Opened when the dialog is closed without a choice: the smallest of the featured
+// examples, so a first look at the graph isn't overwhelming
+const DEFAULT_EXAMPLE = 'california-earthquakes'
 
 // Store for pending quick start actions (file upload or LLM question)
 // These can be picked up by the main app after navigating to a project
 interface PendingQuickStartAction {
   type: 'file' | 'llm'
   file?: File
-  // map: build the map from detected coordinates. chat: ask the AI assistant.
+  // Both import the file. chat also opens the AI assistant to help map it.
   mode?: 'map' | 'chat'
   question?: string
 }
@@ -39,6 +52,36 @@ export function getPendingQuickStartAction(): PendingQuickStartAction | null {
 
 export function setPendingQuickStartAction(action: PendingQuickStartAction | null) {
   pendingAction = action
+}
+
+export interface QuickStartPlan {
+  // Handed to CanvasDropImport, which imports it into the open project
+  importFile?: File
+  // Pre-filled in the AI assistant, which opens when this is set
+  chatMessage?: string
+  event: 'quick_start_llm_action_handled' | 'quick_start_file_action_handled'
+  mode?: 'map' | 'chat'
+}
+
+// What the editor does with a pending action once a project is loaded. A file is
+// always imported, so choosing the assistant can't leave it behind.
+export function planQuickStartAction(action: PendingQuickStartAction): QuickStartPlan | null {
+  if (action.type === 'llm' && action.question) {
+    return { chatMessage: action.question, event: 'quick_start_llm_action_handled' }
+  }
+  if (action.type === 'file' && action.file) {
+    const mode = action.mode ?? 'map'
+    return {
+      importFile: action.file,
+      chatMessage:
+        mode === 'chat'
+          ? `I imported "${action.file.name}" into this project. Help me make a map from it.`
+          : undefined,
+      event: 'quick_start_file_action_handled',
+      mode,
+    }
+  }
+  return null
 }
 
 function formatDate(timestamp?: number): string | null {
@@ -69,6 +112,8 @@ export function QuickStartModal({
   const [detection, setDetection] = useState<CoordinateDetection | null>()
   const [llmQuestion, setLlmQuestion] = useState('')
   const [error, setError] = useState<string | null>(null)
+  // A problem from a recent project's actions menu
+  const [projectError, setProjectError] = useState<string | null>(null)
 
   // View state managed locally, initialized from prop
   const [view, setView] = useState<ModalView>(initialView)
@@ -84,12 +129,9 @@ export function QuickStartModal({
   const MAX_FILE_SIZE = 50 * 1024 * 1024 // 50MB
 
   const validateFile = useCallback((file: File): string | null => {
-    const validExtensions = ['.csv', '.json', '.geojson']
-    const fileName = file.name.toLowerCase()
-    const hasValidExtension = validExtensions.some(ext => fileName.endsWith(ext))
-
-    if (!hasValidExtension) {
-      return 'Please upload a CSV, JSON, or GeoJSON file.'
+    // Same formats as dropping a file on the canvas
+    if (!isImportable(file.name)) {
+      return 'Please upload a CSV, TSV, JSON, GeoJSON, Shapefile, GeoParquet, or PMTiles file.'
     }
 
     if (file.size > MAX_FILE_SIZE) {
@@ -109,6 +151,11 @@ export function QuickStartModal({
     // Ignore the result if another file was dropped while this one was being read
     const settle = (found: CoordinateDetection | null) => {
       if (latestFileRef.current === file) setDetection(found)
+    }
+    // Binary formats carry their own geometry and can't be read as text
+    if (isBinaryFormat(detectFormat(file.name))) {
+      settle(null)
+      return
     }
     file
       .text()
@@ -206,9 +253,9 @@ export function QuickStartModal({
       // Store the file for the main app to pick up
       setPendingQuickStartAction({ type: 'file', file: uploadedFile, mode })
 
-      // Mapping starts from a blank project; the AI path opens an example to work from
+      // Either way the file is imported into a blank project, so it is never lost
       onOpenChange(false)
-      navigate(mode === 'map' ? '/projects/new' : `/examples/${DEFAULT_EXAMPLE}`)
+      navigate('/projects/new')
     },
     [uploadedFile, detection, onOpenChange, navigate]
   )
@@ -221,9 +268,9 @@ export function QuickStartModal({
     // Store the question for the main app to pick up
     setPendingQuickStartAction({ type: 'llm', question: llmQuestion })
 
-    // Navigate to an example - the main app can detect the pending action and open chat
+    // Build from a blank project rather than editing an unrelated example
     onOpenChange(false)
-    navigate(`/examples/${DEFAULT_EXAMPLE}`)
+    navigate('/projects/new')
   }, [llmQuestion, onOpenChange, navigate])
 
   const handleExampleClick = useCallback(
@@ -236,8 +283,10 @@ export function QuickStartModal({
   )
 
   const handleProjectClick = useCallback(
-    (path: string) => {
+    async (path: string, handle: FileSystemDirectoryHandle) => {
       analytics.track('quick_start_project_selected', { path })
+      // Recent projects are all remembered local folders
+      await prepareProjectOpen({ storageType: 'fileSystemAccess', handle })
       onOpenChange(false)
       navigate(path)
     },
@@ -274,14 +323,15 @@ export function QuickStartModal({
     if (detection === undefined) {
       return <span className={s.detectionText}>Looking for coordinates…</span>
     }
-    const mappable = hasCoordinates(detection ?? undefined)
+    // null: a binary format or a file we couldn't read ahead, mapped on import
+    const mappable = detection === null || hasCoordinates(detection)
     const message =
       detection && detection.kind !== 'geojson' ? describeDetection(detection, 'found') : null
     return (
       <>
         {message && (
           <span className={s.detectionText}>
-            {mappable ? message : `${message}. The AI assistant can help map it.`}
+            {mappable ? message : `${message}. It will open as a table you can place on the map.`}
           </span>
         )}
         <button
@@ -289,23 +339,21 @@ export function QuickStartModal({
           className={s.createButton}
           onClick={e => {
             e.stopPropagation()
-            handleCreateFromFile(mappable ? 'map' : 'chat')
+            handleCreateFromFile('map')
           }}
         >
-          {mappable ? 'Show on map' : 'Ask AI to map it'}
+          {mappable ? 'Show on map' : 'Open in editor'}
         </button>
-        {mappable && (
-          <button
-            type="button"
-            className={s.secondaryLink}
-            onClick={e => {
-              e.stopPropagation()
-              handleCreateFromFile('chat')
-            }}
-          >
-            Ask AI instead
-          </button>
-        )}
+        <button
+          type="button"
+          className={s.secondaryLink}
+          onClick={e => {
+            e.stopPropagation()
+            handleCreateFromFile('chat')
+          }}
+        >
+          {mappable ? 'Open with the AI assistant' : 'Ask AI to map it'}
+        </button>
       </>
     )
   }
@@ -334,7 +382,7 @@ export function QuickStartModal({
           <input
             ref={fileInputRef}
             type="file"
-            accept=".csv,.json,.geojson"
+            accept={FILE_INPUT_ACCEPT}
             onChange={handleFileSelect}
             style={{ display: 'none' }}
           />
@@ -349,7 +397,7 @@ export function QuickStartModal({
             <>
               <i className={`pi pi-cloud-upload ${s.uploadIcon}`} />
               <p className={s.uploadText}>Drop your data file here</p>
-              <p className={s.uploadHint}>CSV, JSON, or GeoJSON (max 50MB)</p>
+              <p className={s.uploadHint}>CSV, GeoJSON, Parquet, Shapefile and more (max 50MB)</p>
             </>
           )}
         </div>
@@ -421,20 +469,34 @@ export function QuickStartModal({
           </div>
           <div className={s.examplesGrid}>
             {recentProjects.map(project => (
-              <button
-                key={project.projectName}
-                type="button"
-                className={s.exampleCard}
-                onClick={() => handleProjectClick(`/projects/${project.projectName}`)}
-              >
-                <i className={`pi pi-folder ${s.exampleIcon}`} />
-                <div className={s.exampleInfo}>
-                  <h4>{project.projectName}</h4>
-                  {project.cachedAt && <p>{formatDate(project.cachedAt)}</p>}
-                </div>
-              </button>
+              <div key={project.projectName} className={s.cardWithMenu}>
+                <button
+                  type="button"
+                  className={s.exampleCard}
+                  onClick={() =>
+                    handleProjectClick(`/projects/${project.projectName}`, project.handle)
+                  }
+                >
+                  <i className={`pi pi-folder ${s.exampleIcon}`} />
+                  <div className={s.exampleInfo}>
+                    <h4>{project.projectName}</h4>
+                    {project.cachedAt && <p>{formatDate(project.cachedAt)}</p>}
+                  </div>
+                </button>
+                <ProjectActionsMenu
+                  projectName={project.projectName}
+                  handle={project.handle}
+                  source="recent_projects"
+                  onError={setProjectError}
+                />
+              </div>
             ))}
           </div>
+          {projectError && (
+            <div role="alert" className={s.error}>
+              {projectError}
+            </div>
+          )}
         </div>
       )}
 

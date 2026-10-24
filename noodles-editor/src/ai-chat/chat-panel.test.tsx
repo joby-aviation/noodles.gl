@@ -352,3 +352,178 @@ describe('ChatPanel load reports', () => {
     track.mockRestore()
   })
 })
+
+describe('ChatPanel onboarding with a quick start request', () => {
+  const REQUEST = 'Map the bike stations in this file'
+
+  beforeEach(() => {
+    vi.spyOn(globalContextManager, 'waitForReady').mockResolvedValue({} as ContextLoader)
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL) =>
+        String(input).startsWith('https://openrouter.ai/api/v1/models')
+          ? catalogueResponse()
+          : new Response('', { status: 404 })
+      )
+    )
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  function renderOnboarding({
+    onClose = () => {},
+    // null for none: an undefined here would take the default
+    request = REQUEST as string | null,
+  } = {}) {
+    return render(
+      <ReactFlowProvider>
+        <ChatPanel
+          project={{ nodes: [], edges: [] } as NoodlesProject}
+          onClose={onClose}
+          isVisible
+          initialMessage={request ?? undefined}
+        />
+      </ReactFlowProvider>
+    )
+  }
+
+  it('shows the request above the onboarding', async () => {
+    renderOnboarding()
+    await act(() => vi.advanceTimersByTimeAsync(0))
+
+    expect(screen.getByText('Connect an AI provider')).toBeTruthy()
+    const request = screen.getByRole('region', { name: 'Your request' })
+    expect(request.textContent).toContain(REQUEST)
+    expect(request.textContent).toContain('it will be waiting in the message box')
+  })
+
+  it('leaves out the request block when there is none', async () => {
+    renderOnboarding({ request: null })
+    await act(() => vi.advanceTimersByTimeAsync(0))
+
+    expect(screen.getByText('Connect an AI provider')).toBeTruthy()
+    expect(screen.queryByRole('region', { name: 'Your request' })).toBeNull()
+  })
+
+  it('puts the request in the input once OpenRouter connects', async () => {
+    renderOnboarding()
+    await act(() => vi.advanceTimersByTimeAsync(0))
+    expect(screen.getByRole('region', { name: 'Your request' })).toBeTruthy()
+
+    act(() => postKeyFromPopup())
+
+    await vi.waitFor(() =>
+      expect((screen.getByRole('textbox') as HTMLTextAreaElement).value).toBe(REQUEST)
+    )
+    expect(screen.queryByText('Connect an AI provider')).toBeNull()
+  })
+
+  it('puts the request in the input once a local model is chosen', async () => {
+    renderOnboarding()
+    await act(() => vi.advanceTimersByTimeAsync(0))
+    expect(screen.getByRole('region', { name: 'Your request' })).toBeTruthy()
+
+    // What picking a model in Settings does
+    act(() => useAgentModelStore.getState().setModel('webllm', WEBLLM_MODELS[0].id))
+
+    await vi.waitFor(() =>
+      expect((screen.getByRole('textbox') as HTMLTextAreaElement).value).toBe(REQUEST)
+    )
+  })
+
+  it('reports when onboarding is shown and when it is closed', async () => {
+    const track = vi.spyOn(analytics, 'track')
+    const onClose = vi.fn()
+    renderOnboarding({ onClose })
+    await act(() => vi.advanceTimersByTimeAsync(0))
+
+    expect(track.mock.calls.filter(([event]) => event === 'assistant_onboarding_shown')).toEqual([
+      ['assistant_onboarding_shown', { hasPendingRequest: true }],
+    ])
+
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }))
+
+    expect(track).toHaveBeenCalledWith('assistant_onboarding_closed', { hasPendingRequest: true })
+    expect(onClose).toHaveBeenCalledTimes(1)
+  })
+
+  // Connected, the user reworks the quick start request, then disconnects
+  async function editThenDisconnect(draft: string) {
+    getKeysStore().setBrowserKey('openrouter', 'sk-or-v1-test')
+    renderOnboarding()
+    await vi.waitFor(() =>
+      expect((screen.getByRole('textbox') as HTMLTextAreaElement).value).toBe(REQUEST)
+    )
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: draft } })
+    act(() => getKeysStore().clearBrowserKey('openrouter'))
+    await vi.waitFor(() => expect(screen.getByText('Connect an AI provider')).toBeTruthy())
+  }
+
+  it('previews the edited draft after a disconnect, not the original request', async () => {
+    const track = vi.spyOn(analytics, 'track')
+    await editThenDisconnect('Map only the stations in Brooklyn')
+
+    const request = screen.getByRole('region', { name: 'Your request' })
+    expect(request.textContent).toContain('Map only the stations in Brooklyn')
+    expect(request.textContent).not.toContain(REQUEST)
+    expect(track).toHaveBeenLastCalledWith('assistant_onboarding_shown', {
+      hasPendingRequest: true,
+    })
+  })
+
+  it('leaves out the request block after a disconnect when the draft was cleared', async () => {
+    const track = vi.spyOn(analytics, 'track')
+    await editThenDisconnect('')
+
+    expect(screen.queryByRole('region', { name: 'Your request' })).toBeNull()
+    expect(track).toHaveBeenLastCalledWith('assistant_onboarding_shown', {
+      hasPendingRequest: false,
+    })
+  })
+
+  it('reports a shown onboarding with no request', async () => {
+    const track = vi.spyOn(analytics, 'track')
+    renderOnboarding({ request: null })
+    await act(() => vi.advanceTimersByTimeAsync(0))
+
+    expect(track).toHaveBeenCalledWith('assistant_onboarding_shown', { hasPendingRequest: false })
+  })
+})
+
+describe('ChatPanel onboarding coding agent prompts', () => {
+  beforeEach(() => {
+    vi.spyOn(globalContextManager, 'waitForReady').mockResolvedValue({} as ContextLoader)
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  it('copies a prompt carrying the draft as it stands, edits included', async () => {
+    const writeText = vi.fn(async (_text: string) => {})
+    vi.stubGlobal('navigator', { ...navigator, clipboard: { writeText } })
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => new Response('', { status: 404 }))
+    )
+    render(
+      <ReactFlowProvider>
+        <ChatPanel
+          project={{ nodes: [], edges: [] } as NoodlesProject}
+          onClose={() => {}}
+          isVisible
+          initialMessage="Map the bike stations"
+        />
+      </ReactFlowProvider>
+    )
+    await act(() => vi.advanceTimersByTimeAsync(0))
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Claude Code' }))
+    })
+
+    expect(writeText.mock.calls[0][0]).toContain('> Map the bike stations')
+  })
+})

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { extractDescription, listExamples } from './runtime-examples-loader'
+import hiddenExamples from '../examples/hidden.json'
+import { extractDescription, getExample, listExamples } from './runtime-examples-loader'
 
 describe('extractDescription', () => {
   it('skips headings and attribution lines', () => {
@@ -38,5 +39,13 @@ describe('listExamples', () => {
       expect(example.description).not.toMatch(/^(#|_|Example project:)/)
       expect(example.name).not.toBe('')
     }
+  })
+
+  it('leaves out hidden examples, which still load by id', async () => {
+    const ids = listExamples().map(example => example.id)
+    expect(ids).not.toContain('table-editor-demo')
+    expect(hiddenExamples).toContain('table-editor-demo')
+    const demo = await getExample('table-editor-demo')
+    expect(demo?.name).toBe('Table Editor Demo')
   })
 })

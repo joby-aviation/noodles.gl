@@ -147,6 +147,7 @@ export const categories = {
   utility: [
     'Blending',
     'Boolean',
+    'Comment',
     'Console',
     'LayerProps',
     'MapStyleConfigurator',

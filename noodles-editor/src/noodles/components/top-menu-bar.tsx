@@ -14,6 +14,12 @@ import { useRenderSettings } from '../hooks/use-render-settings'
 import { ContainerOp } from '../operators'
 import { getOpStore, type MapMode, useNestingStore, useUIStore } from '../store'
 import { directoryHandleCache } from '../utils/directory-handle-cache'
+import {
+  trackChatClosed,
+  trackChatOpened,
+  trackMapModeChanged,
+  trackPanelToggled,
+} from '../utils/editor-analytics'
 import { shouldBlockKeyboardShortcut } from '../utils/input-detection'
 import { getParentPath, splitPath } from '../utils/path-utils'
 import { Breadcrumbs } from './breadcrumbs'
@@ -52,6 +58,8 @@ interface TopMenuBarProps {
   onChangeShowOverlay?: (show: boolean) => void
   showDebugInfo?: boolean
   onChangeShowDebugInfo?: (show: boolean) => void
+  autoLayoutOnConnect?: boolean
+  onChangeAutoLayoutOnConnect?: (enabled: boolean) => void
   spreadsheetVisible?: boolean
   onChangeSpreadsheetVisible?: (show: boolean) => void
   reactFlowRef?: RefObject<HTMLDivElement>
@@ -80,6 +88,8 @@ export function TopMenuBar({
   onChangeShowOverlay,
   showDebugInfo,
   onChangeShowDebugInfo,
+  autoLayoutOnConnect,
+  onChangeAutoLayoutOnConnect,
   spreadsheetVisible,
   onChangeSpreadsheetVisible,
   reactFlowRef,
@@ -101,12 +111,15 @@ export function TopMenuBar({
   const activeOutOp = useActiveOutOp()
   const renderSettings = useRenderSettings()
 
-  // Load recent projects on mount
+  // Load recent projects on mount, and again when one is removed or its folder changes
   useEffect(() => {
-    directoryHandleCache
-      .getAllProjectNames()
-      .then(names => setRecentProjects(names))
-      .catch(err => debugUI('Failed to load recent projects:', err))
+    const loadRecent = () =>
+      directoryHandleCache
+        .getAllProjectNames()
+        .then(names => setRecentProjects(names))
+        .catch(err => debugUI('Failed to load recent projects:', err))
+    loadRecent()
+    return directoryHandleCache.subscribe(loadRecent)
   }, [])
 
   // Keyboard shortcuts
@@ -296,13 +309,6 @@ export function TopMenuBar({
                         </DropdownMenu.SubTrigger>
                         <DropdownMenu.Portal>
                           <DropdownMenu.SubContent className={s.dropdownContent} sideOffset={2}>
-                            <DropdownMenu.Item
-                              className={s.dropdownItem}
-                              onSelect={() => navigate('/projects')}
-                            >
-                              View Recent...
-                            </DropdownMenu.Item>
-                            <DropdownMenu.Separator className={s.dropdownSeparator} />
                             {recentProjects.length === 0 ? (
                               <DropdownMenu.Item className={s.dropdownItem} disabled>
                                 No recent projects
@@ -321,6 +327,12 @@ export function TopMenuBar({
                           </DropdownMenu.SubContent>
                         </DropdownMenu.Portal>
                       </DropdownMenu.Sub>
+                      <DropdownMenu.Item
+                        className={s.dropdownItem}
+                        onSelect={() => navigate('/projects')}
+                      >
+                        Manage Projects...
+                      </DropdownMenu.Item>
                       <DropdownMenu.Separator className={s.dropdownSeparator} />
                       <DropdownMenu.Item
                         className={s.dropdownItem}
@@ -455,12 +467,25 @@ export function TopMenuBar({
                       <DropdownMenu.CheckboxItem
                         className={s.dropdownItem}
                         checked={spreadsheetVisible}
-                        onCheckedChange={onChangeSpreadsheetVisible}
+                        onCheckedChange={visible => {
+                          trackPanelToggled('spreadsheet', visible)
+                          onChangeSpreadsheetVisible?.(visible)
+                        }}
                       >
                         <DropdownMenu.ItemIndicator className={s.itemIndicator}>
                           <i className="pi pi-check" style={{ fontSize: '12px' }} />
                         </DropdownMenu.ItemIndicator>
                         Show spreadsheet
+                      </DropdownMenu.CheckboxItem>
+                      <DropdownMenu.CheckboxItem
+                        className={s.dropdownItem}
+                        checked={autoLayoutOnConnect}
+                        onCheckedChange={onChangeAutoLayoutOnConnect}
+                      >
+                        <DropdownMenu.ItemIndicator className={s.itemIndicator}>
+                          <i className="pi pi-check" style={{ fontSize: '12px' }} />
+                        </DropdownMenu.ItemIndicator>
+                        Auto-layout when connecting nodes
                       </DropdownMenu.CheckboxItem>
                       <DropdownMenu.Separator className={s.dropdownSeparator} />
 
@@ -476,7 +501,10 @@ export function TopMenuBar({
                           <DropdownMenu.SubContent className={s.dropdownContent} sideOffset={2}>
                             <DropdownMenu.RadioGroup
                               value={mapMode}
-                              onValueChange={value => setMapMode(value as MapMode)}
+                              onValueChange={value => {
+                                if (value !== mapMode) trackMapModeChanged(value as MapMode)
+                                setMapMode(value as MapMode)
+                              }}
                             >
                               <DropdownMenu.RadioItem className={s.dropdownItem} value="docked">
                                 <DropdownMenu.ItemIndicator className={s.itemIndicator}>
@@ -592,7 +620,11 @@ export function TopMenuBar({
           {onChangeShowChatPanel && (
             <button
               type="button"
-              onClick={() => onChangeShowChatPanel(!showChatPanel)}
+              onClick={() => {
+                if (showChatPanel) trackChatClosed('toolbar')
+                else trackChatOpened('toolbar')
+                onChangeShowChatPanel(!showChatPanel)
+              }}
               className={s.assistantButton}
               title="Toggle Noodles AI Assistant"
             >

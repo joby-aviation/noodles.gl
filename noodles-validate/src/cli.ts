@@ -10,9 +10,7 @@ export const EXIT_INVALID = 1
 export const EXIT_USAGE = 2
 
 const REPO_ROOT = fileURLToPath(new URL('../..', import.meta.url))
-const DEFAULT_PATHS = ['noodles-editor/src/examples', 'noodles-editor/public/noodles'].map(p =>
-  join(REPO_ROOT, p)
-)
+const DEFAULT_PATHS = ['noodles-editor/src/examples'].map(p => join(REPO_ROOT, p))
 const SKIP_DIRS = new Set(['node_modules', '.git', 'dist'])
 // Data files sit next to projects; don't parse big ones to find out they aren't
 const MAX_SNIFF_BYTES = 2 * 1024 * 1024
@@ -23,7 +21,7 @@ Checks noodles.json project files against the operator registry: schema
 version, operator types, input names, edge handles, duplicate edges.
 
   path     A project file, or a directory to search for them. Defaults to
-           noodles-editor/src/examples and noodles-editor/public/noodles.
+           noodles-editor/src/examples.
   --json   Print results as JSON.
 
 Exit status: 0 when every file is valid (warnings allowed), 1 when any file
@@ -101,7 +99,7 @@ export function run(argv: string[], io: Io, registry: Registry = loadRegistry())
 }
 
 // Every noodles.json, plus other .json files shaped like a project (e.g.
-// public/noodles/table-editor-demo.json)
+// dev-docs/repros/container-scope-boundary/container-scope-boundary.json)
 function findProjects(dir: string): string[] {
   const found: string[] = []
   const entries = readdirSync(dir, { withFileTypes: true }).sort((a, b) =>

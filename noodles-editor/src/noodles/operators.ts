@@ -2722,6 +2722,18 @@ export class ChartOp extends Operator<ChartOp> {
   static displayName = 'Chart'
   static description = 'Create charts using Observable Plot (bar, histogram, scatter)'
 
+  // Subscribe here, not in createInputs: chartType emits on subscribe, and this.inputs
+  // doesn't exist until createInputs returns
+  constructor(id: OpId, inputs?: unknown, locked?: boolean) {
+    super(id, inputs, locked)
+
+    const sub = this.inputs.chartType.subscribe(type => {
+      // Hide yField for histogram (only needs x-axis)
+      this.setFieldVisibility('yField', type !== 'histogram')
+    })
+    this.subs.push(sub)
+  }
+
   createInputs() {
     const data = new DataField()
     const chartType = new StringLiteralField('bar', { values: ['bar', 'histogram', 'scatter'] })
@@ -2735,12 +2747,6 @@ export class ChartOp extends Operator<ChartOp> {
         xField.updateChoices(keys)
         yField.updateChoices(keys)
       }
-    })
-
-    // Field visibility based on chart type
-    chartType.subscribe(type => {
-      // Hide yField for histogram (only needs x-axis)
-      this.setFieldVisibility('yField', type !== 'histogram')
     })
 
     return {
@@ -5556,6 +5562,25 @@ export class ConsoleOp extends Operator<ConsoleOp> {
   }
 }
 
+// A note shown in the graph to explain the nodes beside it. It has no handles,
+// so nothing connects to it, and running it does nothing.
+export class CommentOp extends Operator<CommentOp> {
+  static displayName = 'Comment'
+  static description =
+    'A note that explains the nodes beside it. Double-click to edit its text. Nothing connects to it'
+  createInputs() {
+    return {
+      text: new StringField(''),
+    }
+  }
+  createOutputs() {
+    return {}
+  }
+  execute(_: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    return {}
+  }
+}
+
 export class RerouteOp extends Operator<RerouteOp> {
   static displayName = 'Reroute'
   static description = 'Pass-through for organizing graph layout'
@@ -7590,13 +7615,21 @@ export class ContainerOp extends Operator<ContainerOp> {
     this.markDirty()
   }
 
+  // The GraphOutputOp whose value this container's out port carries: the one transformGraph
+  // selected, else the first direct child in the store
+  get outputOp(): GraphOutputOp | undefined {
+    return (
+      this.graphOutputOp ??
+      getAllOps().find(
+        (op): op is GraphOutputOp => op instanceof GraphOutputOp && isDirectChild(op.id, this.id)
+      )
+    )
+  }
+
   execute(_: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     // The 'in' port of ContainerOp drives its execution.
     // The 'out' port should reflect the value from a GraphOutputOp inside it.
-    const output =
-      this.graphOutputOp ??
-      getAllOps().find(op => op instanceof GraphOutputOp && isDirectChild(op.id, this.id))
-    return { out: output?.outputs.propagatedValue.value ?? null }
+    return { out: this.outputOp?.outputs.propagatedValue.value ?? null }
   }
 
   dispose() {
@@ -10768,6 +10801,7 @@ export const opTypes = {
   ColumnLayerOp,
   CombineRGBAOp,
   CombineXYOp,
+  CommentOp,
   ConcatOp,
   CustomMapLibreLayerOp,
   ConsoleOp,

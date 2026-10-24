@@ -399,7 +399,7 @@ function CTASection() {
 							"button button--secondary button--lg",
 							styles.secondaryButton,
 						)}
-						to="/users/getting-started"
+						to="/intro"
 					>
 						Get Started →
 					</Link>

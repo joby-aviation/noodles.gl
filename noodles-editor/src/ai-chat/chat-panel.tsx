@@ -419,6 +419,26 @@ export const ChatPanel: FC<ChatPanelProps> = ({
     }
   }, [initialMessage, isVisible, messages.length])
 
+  // The unsent draft, previewed while onboarding hides the input. Read from the
+  // input rather than initialMessage: the effect above puts the quick start
+  // request there, but the user may have edited or cleared it since.
+  const pendingRequest = input.trim() ? input : null
+
+  // Show onboarding when no provider is ready. Chrome counts only when it was
+  // chosen, since resolveProviderId never picks it on its own.
+  const shouldShowOnboarding = isVisible && !contextLoading && !providerReady
+
+  // Read when onboarding appears rather than tracked as a dependency, so a
+  // request arriving while it is open does not count it twice
+  const hasPendingRequestRef = useRef(false)
+  hasPendingRequestRef.current = pendingRequest !== null
+  useEffect(() => {
+    if (!shouldShowOnboarding) return
+    analytics.track('assistant_onboarding_shown', {
+      hasPendingRequest: hasPendingRequestRef.current,
+    })
+  }, [shouldShowOnboarding])
+
   // Auto-scroll to bottom
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -677,20 +697,26 @@ export const ChatPanel: FC<ChatPanelProps> = ({
 
   if (!isVisible) return null
 
-  // Show onboarding when no provider is ready. Chrome counts only when it was
-  // chosen, since resolveProviderId never picks it on its own.
-  const shouldShowOnboarding = !contextLoading && !providerReady
-
   if (shouldShowOnboarding) {
+    // Its Close only shows while nothing is connected
+    const closeOnboarding = () => {
+      analytics.track('assistant_onboarding_closed', {
+        hasPendingRequest: pendingRequest !== null,
+      })
+      handleClose()
+    }
     return (
       <div className={styles.chatPanel}>
-        <AssistantOnboarding
-          connect={connect}
-          webgpuReady={webgpuReady}
-          openProviderSettings={openProviderSettings}
-          onClose={handleClose}
-          freeModels={freeModels}
-        />
+        {pendingRequest && <PendingRequest text={pendingRequest} />}
+        <div className={styles.onboardingBody}>
+          <AssistantOnboarding
+            connect={connect}
+            webgpuReady={webgpuReady}
+            openProviderSettings={openProviderSettings}
+            onClose={closeOnboarding}
+            request={pendingRequest ?? undefined}
+          />
+        </div>
       </div>
     )
   }
@@ -1153,6 +1179,18 @@ function formatUsage(usage: AgentUsage): string {
 function formatTokens(count: number): string {
   return count >= 1000 ? `${(count / 1000).toFixed(1)}k` : String(count)
 }
+
+// The draft in the input, usually the quick start request, shown while
+// onboarding covers the input so it does not look lost
+const PendingRequest: FC<{ text: string }> = ({ text }) => (
+  <section className={styles.pendingRequest} aria-label="Your request">
+    <div className={styles.pendingRequestLabel}>Your request</div>
+    <p className={styles.pendingRequestText}>{text}</p>
+    <p className={styles.pendingRequestNote}>
+      Connect a model below and it will be waiting in the message box.
+    </p>
+  </section>
+)
 
 // Render message content with full markdown support
 const MessageContent: FC<{ content: string }> = ({ content }) => {
