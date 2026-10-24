@@ -7193,7 +7193,8 @@ export class PathStyleExtensionOp extends Operator<PathStyleExtensionOp> {
       extension: {
         type: 'PathStyleExtension',
         dash,
-        dashMode: highPrecisionDash ? 'path' : dashMode,
+        // deck.gl turns dashes on whenever dashMode is set, so only pass it with dash on
+        ...(dash ? { dashMode: highPrecisionDash ? 'path' : dashMode } : {}),
         offset,
       },
       props,
