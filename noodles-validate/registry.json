@@ -455,42 +455,6 @@
         }
       }
     },
-    "BoundingBoxOp": {
-      "name": "BoundingBox",
-      "type": "BoundingBoxOp",
-      "category": "host",
-      "description": "Calculate the geographic bounds of your points (with lat/lng keys) or GeoJSON and get a camera position (center, zoom) that fits them all in view.",
-      "inputs": {},
-      "outputs": {
-        "bounds": {
-          "type": "value"
-        },
-        "longitude": {
-          "type": "number"
-        },
-        "latitude": {
-          "type": "number"
-        },
-        "zoom": {
-          "type": "number"
-        },
-        "viewState": {
-          "type": "value"
-        }
-      },
-      "params": {
-        "data": {
-          "kind": "field",
-          "default": [],
-          "portType": "value"
-        },
-        "padding": {
-          "kind": "field",
-          "default": 0,
-          "portType": "number"
-        }
-      }
-    },
     "brightness-contrast": {
       "name": "Brightness / Contrast",
       "type": "brightness-contrast",
@@ -1806,45 +1770,6 @@
         }
       }
     },
-    "FileOp": {
-      "name": "File",
-      "type": "FileOp",
-      "category": "host",
-      "description": "Fetch a file from a URL or text. Supports csv, tsv, json, text, and binary formats",
-      "inputs": {},
-      "outputs": {
-        "data": {
-          "type": "table"
-        }
-      },
-      "params": {
-        "format": {
-          "kind": "field",
-          "default": "json",
-          "portType": "value"
-        },
-        "url": {
-          "kind": "field",
-          "default": "",
-          "portType": "value"
-        },
-        "text": {
-          "kind": "field",
-          "default": "",
-          "portType": "value"
-        },
-        "autoType": {
-          "kind": "field",
-          "default": true,
-          "portType": "value"
-        },
-        "pulse": {
-          "kind": "field",
-          "default": 0,
-          "portType": "number"
-        }
-      }
-    },
     "fill-style": {
       "name": "Fill Style",
       "type": "fill-style",
@@ -2045,6 +1970,45 @@
             "pitch": 0
           },
           "portType": "value"
+        }
+      }
+    },
+    "fit-bounds": {
+      "name": "Fit Bounds",
+      "type": "fit-bounds",
+      "category": "output",
+      "description": "The camera that fits rows into the render surface: wire its view state into the deck, or its longitude, latitude and zoom into a View State. The bounds are computed in DuckDB.",
+      "inputs": {},
+      "outputs": {
+        "viewState": {
+          "type": "value"
+        },
+        "longitude": {
+          "type": "number"
+        },
+        "latitude": {
+          "type": "number"
+        },
+        "zoom": {
+          "type": "number"
+        },
+        "bounds": {
+          "type": "value"
+        }
+      },
+      "params": {
+        "data": {
+          "kind": "field",
+          "default": null,
+          "portType": "table"
+        },
+        "position": {
+          "kind": "expr",
+          "default": "[lng, lat]"
+        },
+        "padding": {
+          "kind": "float",
+          "default": 0
         }
       }
     },
@@ -3254,11 +3218,11 @@
         }
       }
     },
-    "LayerPropsOp": {
-      "name": "LayerProps",
-      "type": "LayerPropsOp",
-      "category": "host",
-      "description": "Add additional props to a layer (e.g., operation: \"mask\" for mask layers, beforeId for maplibre layer ordering)",
+    "layer-props": {
+      "name": "Layer Props",
+      "type": "layer-props",
+      "category": "output",
+      "description": "Props added to a layer: operation \"mask\" for a mask layer, beforeId to draw under a MapLibre layer, or any others as JSON.",
       "inputs": {},
       "outputs": {
         "layer": {
@@ -3268,22 +3232,26 @@
       "params": {
         "layer": {
           "kind": "field",
+          "default": null,
           "portType": "layer"
         },
         "operation": {
-          "kind": "field",
+          "kind": "menu",
           "default": "",
-          "portType": "value"
+          "options": [
+            "",
+            "draw",
+            "mask",
+            "terrain"
+          ]
         },
         "beforeId": {
-          "kind": "field",
-          "default": "",
-          "portType": "value"
+          "kind": "string",
+          "default": ""
         },
         "additionalProps": {
-          "kind": "field",
-          "default": {},
-          "portType": "value"
+          "kind": "code",
+          "default": "{}"
         }
       }
     },
@@ -3829,21 +3797,21 @@
         }
       }
     },
-    "MergeOp": {
+    "merge": {
       "name": "Merge",
-      "type": "MergeOp",
-      "category": "host",
-      "description": "Merge multiple objects into one (think Object.assign)",
+      "type": "merge",
+      "category": "output",
+      "description": "One object from several, later ones winning, as Object.assign does: view states, layer props.",
       "inputs": {},
       "outputs": {
         "object": {
-          "type": "table"
+          "type": "value"
         }
       },
       "params": {
         "objects": {
           "kind": "field",
-          "default": [],
+          "default": null,
           "portType": "value"
         }
       }
@@ -3967,15 +3935,18 @@
         }
       }
     },
-    "MouseOp": {
+    "mouse": {
       "name": "Mouse",
-      "type": "MouseOp",
-      "category": "host",
-      "description": "Get the current mouse position on the screen",
+      "type": "mouse",
+      "category": "number",
+      "description": "The pointer over the map, in pixels from its top left. Wire x or y into a parameter; expressions can read MX and MY too.",
       "inputs": {},
       "outputs": {
-        "position": {
-          "type": "value"
+        "x": {
+          "type": "number"
+        },
+        "y": {
+          "type": "number"
         }
       },
       "params": {}
@@ -6772,6 +6743,9 @@
     "BlendingOp": [
       "deck"
     ],
+    "BoundingBoxOp": [
+      "fit-bounds"
+    ],
     "BrightnessContrastExtensionOp": [
       "brightness-contrast"
     ],
@@ -6966,6 +6940,9 @@
     "KmlToGeoJsonOp": [
       "geojson"
     ],
+    "LayerPropsOp": [
+      "layer-props"
+    ],
     "LegendWidgetOp": [
       "legend-widget"
     ],
@@ -7007,6 +6984,12 @@
     ],
     "MathOp": [
       "math"
+    ],
+    "MergeOp": [
+      "merge"
+    ],
+    "MouseOp": [
+      "mouse"
     ],
     "MVTLayerOp": [
       "mvt"

@@ -5,7 +5,17 @@
 // operator classes of the same name, keeping their parameter names, so a document's values
 // carry over as they are.
 
-import { type OpDef, type ParamDef, type PortType, registerOperator } from '@noodles.gl/planner'
+import { fitBounds } from '@math.gl/web-mercator'
+import {
+  type OpDef,
+  type ParamDef,
+  type PortType,
+  parseExpr,
+  quoteIdent,
+  type RelShape,
+  registerOperator,
+  toSql,
+} from '@noodles.gl/planner'
 import * as d3 from 'd3'
 import { toMaskTargetPosition } from '../noodles/extensions/mask-3d-extension'
 import { applyStyleOverrides } from '../utils/map-style-utils'
@@ -17,7 +27,18 @@ export interface DeckOp {
   noodles: string
   // Parameters that take several edges, in order: a layer's extensions
   lists?: string[]
-  build: (p: Record<string, unknown>, id: string) => unknown | Promise<unknown>
+  build: (p: Record<string, unknown>, id: string, env: BuildEnv) => unknown | Promise<unknown>
+  // A statistic of the table wired into `param`, computed in DuckDB so only its one row
+  // reaches the main thread: the parameter's value is that row
+  aggregate?: { param: string; select: (p: Record<string, unknown>, shape: RelShape) => string }
+  // Rebuilt when the render surface resizes, which `env.surface` holds
+  surface?: boolean
+  // `build` returns a value per output port, not the first port's value
+  ports?: boolean
+}
+
+export interface BuildEnv {
+  surface: { width: number; height: number }
 }
 
 const label = (name: string) => name.replace(/([A-Z])/g, ' $1').replace(/^./, c => c.toUpperCase())
@@ -74,6 +95,28 @@ const field = (noodles: string, name: string, value: unknown, port = false): Par
 })
 
 const PLACEMENTS = ['top-left', 'top-right', 'bottom-left', 'bottom-right']
+
+// A JSON object written as text or kept as one; anything else is no props
+function jsonObject(value: unknown): Record<string, unknown> {
+  if (value && typeof value === 'object' && !Array.isArray(value)) {
+    return value as Record<string, unknown>
+  }
+  if (typeof value !== 'string' || !value.trim()) return {}
+  const parsed = JSON.parse(value)
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    throw new Error('Additional props must be a JSON object')
+  }
+  return parsed
+}
+
+// A built deck layer is cloned with the props; a layer description (`{ type, ...props }`) a
+// host operator made takes them as more props
+function withLayerProps(layer: unknown, props: Record<string, unknown>): unknown {
+  if (!layer || typeof layer !== 'object') return layer
+  const clone = (layer as { clone?: (p: Record<string, unknown>) => unknown }).clone
+  if (typeof clone === 'function') return clone.call(layer, props)
+  return { ...(layer as Record<string, unknown>), ...props }
+}
 
 // #rrggbb or #rrggbbaa as deck's [r, g, b, a]
 function rgba(hex: unknown): number[] | undefined {
@@ -240,7 +283,161 @@ function fetchStyle(url: string): Promise<Record<string, unknown>> {
   return style
 }
 
+// SQL for the west, east, south and north of a position over a relation's rows: a geometry
+// column, a vector stored as components, or an expression such as `[lng, lat]`
+export function boundsSelect(position: string, shape: RelShape): string {
+  // Doubles: a DECIMAL column would come back as something other than a number
+  const span = (x: string, y: string) => {
+    const [dx, dy] = [x, y].map(c => `CAST(${c} AS DOUBLE)`)
+    return `min(${dx}) AS west, max(${dx}) AS east, min(${dy}) AS south, max(${dy}) AS north`
+  }
+  const name = position.trim()
+  const column = shape.columns.find(c => c.name === name)
+  if (column && /^GEOMETRY/i.test(column.duckType)) {
+    const g = quoteIdent(name)
+    return `min(ST_XMin(${g})) AS west, max(ST_XMax(${g})) AS east, min(ST_YMin(${g})) AS south, max(ST_YMax(${g})) AS north`
+  }
+  if (shape.vectors.some(v => v.name === name)) {
+    return span(quoteIdent(`${name}_0`), quoteIdent(`${name}_1`))
+  }
+  const tree = parseExpr(name)
+  // `[lng, lat]`: each component; a list column: its first two items
+  if (tree.kind === 'vec') {
+    const [x, y] = tree.components.map(c => `(${toSql(c).code})`)
+    return span(x, y)
+  }
+  const code = `(${toSql(tree).code})`
+  return span(`${code}[1]`, `${code}[2]`)
+}
+
+// The camera that fits the bounds a row of `boundsSelect` holds into the render surface
+export function fitRow(
+  row: Record<string, unknown> | undefined,
+  padding: number,
+  surface: { width: number; height: number }
+) {
+  const n = (k: string, fallback: number) => {
+    const v = Number(row?.[k])
+    return row?.[k] === null || row?.[k] === undefined || !Number.isFinite(v) ? fallback : v
+  }
+  // No rows: the whole world
+  const bounds: [[number, number], [number, number]] = [
+    [n('west', -180), n('south', -85)],
+    [n('east', 180), n('north', 85)],
+  ]
+  const { longitude, latitude, zoom } = fitBounds({
+    bounds,
+    width: surface.width,
+    height: surface.height,
+    padding: Math.max(0, Math.min(padding, surface.width / 2 - 1, surface.height / 2 - 1)),
+  })
+  return {
+    bounds,
+    longitude,
+    latitude,
+    zoom,
+    viewState: { longitude, latitude, zoom },
+  }
+}
+
+// A wired-only parameter: the pane shows where it comes from
+const wired = (name: string, portType: PortType): ParamDef => ({
+  name,
+  label: label(name),
+  kind: 'field',
+  default: null as unknown as ParamDef['default'],
+  port: true,
+  portType,
+  field: { wired: portType },
+})
+
 export const DECK_OPS: DeckOp[] = [
+  // --- values ---------------------------------------------------------------------------
+  {
+    noodles: 'BoundingBoxOp',
+    def: {
+      type: 'fit-bounds',
+      label: 'Fit Bounds',
+      category: 'output',
+      description:
+        'The camera that fits rows into the render surface: wire its view state into the deck, or its longitude, latitude and zoom into a View State. The bounds are computed in DuckDB.',
+      inputs: [],
+      outputs: [
+        { name: 'viewState', type: 'value' },
+        { name: 'longitude', type: 'number' },
+        { name: 'latitude', type: 'number' },
+        { name: 'zoom', type: 'number' },
+        { name: 'bounds', type: 'value' },
+      ],
+      params: [
+        wired('data', 'table'),
+        {
+          name: 'position',
+          label: 'Position',
+          kind: 'expr',
+          default: '[lng, lat]',
+          help: 'A position column, a geometry column, or an expression such as [lng, lat].',
+        },
+        num('padding', 0, { min: 0, max: 1000, step: 1 }),
+      ],
+    },
+    aggregate: { param: 'data', select: (p, shape) => boundsSelect(String(p.position), shape) },
+    surface: true,
+    ports: true,
+    build: (p, _id, env) =>
+      fitRow(p.data as Record<string, unknown> | undefined, Number(p.padding) || 0, env.surface),
+  },
+  {
+    noodles: 'MergeOp',
+    def: {
+      type: 'merge',
+      label: 'Merge',
+      category: 'output',
+      description:
+        'One object from several, later ones winning, as Object.assign does: view states, layer props.',
+      inputs: [],
+      outputs: [{ name: 'object', type: 'value' }],
+      params: [wired('objects', 'value')],
+    },
+    lists: ['objects'],
+    build: p =>
+      Object.assign(
+        {},
+        ...((p.objects as unknown[] | undefined) ?? []).filter(o => o && typeof o === 'object')
+      ),
+  },
+  {
+    noodles: 'LayerPropsOp',
+    def: {
+      type: 'layer-props',
+      label: 'Layer Props',
+      category: 'output',
+      description:
+        'Props added to a layer: operation "mask" for a mask layer, beforeId to draw under a MapLibre layer, or any others as JSON.',
+      inputs: [],
+      outputs: [{ name: 'layer', type: 'layer' }],
+      params: [
+        wired('layer', 'layer'),
+        menu('operation', '', ['', 'draw', 'mask', 'terrain']),
+        text('beforeId', ''),
+        {
+          name: 'additionalProps',
+          label: 'Additional props',
+          kind: 'code',
+          language: 'js',
+          default: '{}',
+          help: 'A JSON object of deck props.',
+        },
+      ],
+    },
+    build: p =>
+      withLayerProps(p.layer, {
+        ...(p.operation ? { operation: p.operation } : {}),
+        ...(p.beforeId ? { beforeId: p.beforeId } : {}),
+        ...jsonObject(p.additionalProps),
+      }),
+  },
+
   // --- views ---------------------------------------------------------------------------
   viewOp(
     'map-view',

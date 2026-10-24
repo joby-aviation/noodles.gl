@@ -110,6 +110,10 @@ export class RuntimeProxy {
     return this.request({ type: 'preview', nodeId, limit })
   }
 
+  nodeSql(nodeId: string): Promise<NodeSql | undefined> {
+    return this.request({ type: 'nodeSql', nodeId })
+  }
+
   query(sql: string): Promise<Record<string, unknown>[]> {
     return this.request({ type: 'query', sql })
   }

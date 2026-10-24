@@ -5,6 +5,7 @@ import { ReactFlowProvider } from '@xyflow/react'
 import type { CustomLayerInterface, Map as MapLibre } from 'maplibre-gl'
 import {
   forwardRef,
+  type PointerEvent as ReactPointerEvent,
   useCallback,
   useEffect,
   useLayoutEffect,
@@ -14,6 +15,7 @@ import {
 } from 'react'
 import ReactMapGL, { type MapProps, useControl } from 'react-map-gl/maplibre'
 import { cameraControlOf, cameraGesture, writeCamera } from './editor/camera-control'
+import { currentEngine } from './editor/doc-engine'
 import { useDocNoodles } from './editor/doc-noodles'
 import { docStore, useEditor } from './editor/doc-store'
 import { useUIStore } from './editor/ui-store'
@@ -865,7 +867,7 @@ export default function TimelineEditor() {
       <div
         ref={renderSurfaceRef}
         style={{ position: 'relative', width: '100%', height: '100%' }}
-        {...clickToEdit.surfaceHandlers}
+        onPointerMove={trackPointer}
       >
         {content}
       </div>
@@ -954,4 +956,21 @@ export default function TimelineEditor() {
       </ExportActionsProvider>
     </ReactFlowProvider>
   )
+}
+
+let pointerFrame = 0
+
+// The pointer, for a document that reads it (a Mouse node, MX or MY), in the render surface's
+// own pixels: the surface may be drawn scaled to fit the pane
+function trackPointer(e: ReactPointerEvent<HTMLDivElement>) {
+  const engine = currentEngine()
+  if (!engine?.readsPointer()) return
+  const el = e.currentTarget
+  const rect = el.getBoundingClientRect()
+  const scaleX = el.offsetWidth ? rect.width / el.offsetWidth : 1
+  const scaleY = el.offsetHeight ? rect.height / el.offsetHeight : 1
+  const x = (e.clientX - rect.left) / scaleX
+  const y = (e.clientY - rect.top) / scaleY
+  cancelAnimationFrame(pointerFrame)
+  pointerFrame = requestAnimationFrame(() => void engine.setPointer(x, y))
 }

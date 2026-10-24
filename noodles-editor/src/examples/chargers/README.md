@@ -6,7 +6,7 @@ This example fetches live EV charging station data from the Open Charge Map API 
 ## Nodes
 - **`centroid`** (`GeocoderOp`, a host operator) turns `query: "Denver, CO"` into a location
 - **`charger-query`** (DuckDB SQL) reads up to 1000 stations from the Open Charge Map API in a box 0.5 degrees around the geocoded point, as `lat` and `lng` columns
-- **`charger-bounds`** (`BoundingBoxOp`, a host operator) computes the data's extent with `padding: 200`
+- **`charger-bounds`** (`fit-bounds`) computes the chargers' extent in DuckDB and fits the camera to it, with `padding: 200`
 - **`auto-view`** (View State) takes `longitude` and `latitude` from `charger-bounds`, with `zoom: 10.8`, and drives the deck's camera
 - **`charger-position`** (Attribute Create) writes `charger_position` as `[lng, lat]`
 - **`charger-points`** (Scatterplot Layer) draws each station in orange

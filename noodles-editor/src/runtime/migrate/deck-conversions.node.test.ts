@@ -48,8 +48,11 @@ describe('deck operators', () => {
     expect(lowerDocument(orbit).errors).toEqual([])
     const chargers = toEditorDoc(example('chargers')).doc
     expect(chargers.nodes.find(n => n.id === '/auto-view')?.op).toBe('view-state')
-    // BoundingBox reads the canvas size, so it stays on the host
-    expect(chargers.nodes.find(n => n.id === '/charger-bounds')?.op).toBe('BoundingBoxOp')
+    // BoundingBox is a camera fit: its extent in DuckDB, the fit on the render surface
+    expect(chargers.nodes.find(n => n.id === '/charger-bounds')).toMatchObject({
+      op: 'fit-bounds',
+      params: { padding: 200 },
+    })
     expect(chargers.edges).toContainEqual(
       expect.objectContaining({
         source: '/charger-bounds',
@@ -198,5 +201,142 @@ describe('values', () => {
     expect(
       at('bezier-curve', { factor: 1, curve: '{"points":[{"x":0,"y":0},{"x":1,"y":1}]}' })
     ).toBe(1)
+  })
+})
+
+describe('the small Noodles values, as planner and deck operators', () => {
+  const quakes = op('/quakes', 'FileOp', { url: '@/quakes.geojson', format: 'json' })
+
+  it('converts BoundingBox into a camera fit of a GeoJSON file, by its geometry', () => {
+    const { doc } = toEditorDoc(
+      deck(
+        [quakes, op('/fit', 'BoundingBoxOp', { padding: 20 }), op('/camera', 'MapViewStateOp')],
+        [wire('/quakes', 'data', '/fit', 'data'), wire('/fit', 'viewState', '/deck', 'viewState')]
+      )
+    )
+    expect(doc.nodes.find(n => n.id === '/fit')).toMatchObject({
+      op: 'fit-bounds',
+      params: { padding: 20, position: 'geom' },
+    })
+    expect(doc.nodes.find(n => n.id === '/quakes')?.op).toBe('geojson')
+    expect(doc.edges).toContainEqual(
+      expect.objectContaining({ source: '/quakes', sourcePort: 'features', target: '/fit' })
+    )
+    expect(doc.edges).toContainEqual(
+      expect.objectContaining({ source: '/fit', target: '/deck', targetPort: 'viewState' })
+    )
+  })
+
+  it('converts Merge into a merge of the same objects, in order', () => {
+    const { doc } = toEditorDoc(
+      deck(
+        [
+          op('/a', 'MapViewStateOp', { zoom: 3 }),
+          op('/b', 'MapViewStateOp', { pitch: 45 }),
+          op('/both', 'MergeOp'),
+        ],
+        [
+          wire('/a', 'viewState', '/both', 'objects'),
+          wire('/b', 'viewState', '/both', 'objects'),
+          wire('/both', 'object', '/deck', 'viewState'),
+        ]
+      )
+    )
+    expect(doc.nodes.find(n => n.id === '/both')?.op).toBe('merge')
+    const into = doc.edges.filter(e => e.target === '/both').map(e => [e.source, e.index])
+    expect(into).toEqual([
+      ['/a', 0],
+      ['/b', 1],
+    ])
+  })
+
+  it('converts LayerProps into props on the planner layer it wraps', () => {
+    const { doc } = toEditorDoc(
+      deck(
+        [
+          op('/rows', 'DuckDbOp', { query: 'SELECT 1.0 AS lng, 2.0 AS lat' }),
+          op('/where', 'AccessorOp', { expression: '[d.lng, d.lat]' }),
+          op('/points', 'ScatterplotLayerOp'),
+          op('/mask', 'LayerPropsOp', { operation: 'mask' }),
+        ],
+        [
+          wire('/rows', 'data', '/points', 'data'),
+          wire('/where', 'accessor', '/points', 'getPosition'),
+          wire('/points', 'layer', '/mask', 'layer'),
+          wire('/mask', 'layer', '/deck', 'layers'),
+        ]
+      )
+    )
+    expect(doc.nodes.find(n => n.id === '/mask')).toMatchObject({
+      op: 'layer-props',
+      params: { operation: 'mask' },
+    })
+    expect(doc.nodes.find(n => n.id === '/points')?.op).toBe('scatter')
+    expect(doc.edges).toContainEqual(
+      expect.objectContaining({ source: '/points', target: '/mask', targetPort: 'par:layer' })
+    )
+    expect(doc.edges).toContainEqual(
+      expect.objectContaining({ source: '/mask', sourcePort: 'layer', targetPort: 'layers' })
+    )
+    // The layer the props wrap is compiled though only the props node draws it
+    const lowered = lowerDocument(doc)
+    expect(lowered.errors).toEqual([])
+    expect(lowered.graph.nodes.find(n => n.type === 'deck')).toMatchObject({
+      inputs: ['/points'],
+    })
+  })
+
+  it('converts a Mouse a query reads into a mouse node, and refuses a wired position', () => {
+    const query = 'SELECT {{/pointer.out.position.x}} AS x'
+    const { doc } = toEditorDoc(
+      deck(
+        [
+          op('/pointer', 'MouseOp'),
+          op('/rows', 'DuckDbOp', { query }),
+          op('/where', 'AccessorOp', { expression: '[d.x, d.x]' }),
+          op('/points', 'ScatterplotLayerOp'),
+        ],
+        [
+          wire('/rows', 'data', '/points', 'data'),
+          wire('/where', 'accessor', '/points', 'getPosition'),
+          wire('/points', 'layer', '/deck', 'layers'),
+        ]
+      )
+    )
+    expect(doc.nodes.find(n => n.id === '/pointer')?.op).toBe('mouse')
+    expect(String(doc.nodes.find(n => n.id === '/rows')?.params.query)).toContain(
+      "ch('pointer/out.x')"
+    )
+    const wired = deck(
+      [op('/pointer', 'MouseOp'), op('/camera', 'MapViewStateOp')],
+      [
+        wire('/pointer', 'position', '/camera', 'zoom'),
+        wire('/camera', 'viewState', '/deck', 'viewState'),
+      ]
+    )
+    expect(() => toEditorDoc(wired)).toThrow(/wired Mouse position is not converted/)
+  })
+})
+
+describe('a file a host operator reads', () => {
+  it('is the planner file node, whose rows the host operator reads', () => {
+    const { doc } = toEditorDoc(
+      deck(
+        [
+          op('/sales', 'FileOp', { url: '@/sales.csv', format: 'csv' }),
+          // Code reading op() stays on the host
+          op('/chart', 'CodeOp', { code: ['op("/sales"); return []'] }),
+        ],
+        [wire('/sales', 'data', '/chart', 'data'), wire('/chart', 'data', '/deck', 'layers')]
+      )
+    )
+    expect(doc.nodes.find(n => n.id === '/sales')).toMatchObject({
+      op: 'file',
+      params: { url: '@/sales.csv', format: 'csv' },
+    })
+    expect(doc.edges).toContainEqual(
+      expect.objectContaining({ source: '/sales', target: '/chart', targetPort: 'par:data' })
+    )
+    expect(doc.nodes.some(n => n.op === 'FileOp')).toBe(false)
   })
 })

@@ -20,12 +20,14 @@ import {
   lowerDocument,
   OPERATOR_INDEX,
   parameterValues,
+  type RelShape as RelationShape,
   type SqlEngine,
   targetCaps,
 } from '@noodles.gl/planner'
 import { DeckLayerBuilder } from './deck-layers'
 import { flatRow, isFeatureCollection } from './plain-rows'
 import {
+  type NodeSql,
   type Preview,
   ProgramRuntime,
   type RuntimeCounters,
@@ -117,6 +119,8 @@ export interface RuntimeLike {
   view(): Record<string, number>
   error(): string | undefined
   preview(nodeId: string, limit?: number): Promise<Preview>
+  /** A SELECT of a node's rows, and their shape: its relation, or row-wise nodes over one. */
+  nodeSql(nodeId: string): Promise<NodeSql | undefined>
   /** Rows of a query as plain objects. */
   query(sql: string): Promise<Record<string, unknown>[]>
   /** A relation's rows as plain objects, decimals and 64-bit integers as numbers. */
@@ -138,6 +142,7 @@ export class Engine {
   private lowered?: Lowered
   private structure?: string
   private time = 0
+  private pointer?: { x: number; y: number }
   private slots: ReadonlyMap<string, unknown> = new Map()
   private pending: Promise<unknown> = Promise.resolve()
   private built = new Map<string, Layer[]>()
@@ -197,7 +202,20 @@ export class Engine {
     if (!this.doc) return
     this.lowered = lowerDocument(this.doc, {
       hostTable: (nodeId, port) => this.hostTables.get(`${nodeId}.${port}`),
+      external: this.hostValues(),
     })
+  }
+
+  /** Whether the document reads the pointer: a Mouse node, or MX or MY in an expression. */
+  readsPointer(): boolean {
+    return !!this.lowered?.scalars.readsPointer()
+  }
+
+  /** Move the pointer, in CSS pixels over the map. Like the playhead, it only re-evaluates. */
+  setPointer(x: number, y: number): Promise<void> {
+    if (this.pointer?.x === x && this.pointer.y === y) return this.pending.then(() => undefined)
+    this.pointer = { x, y }
+    return this.update()
   }
 
   /** Move the playhead. Only the scalar program re-evaluates; routes decide the rest. */
@@ -342,7 +360,12 @@ export class Engine {
       const structural = key !== this.structure
       if (structural) await this.registerAssets()
       const fps = this.doc?.timeline?.fps ?? 30
-      const clock = { T: this.time, F: Math.round(this.time * fps) }
+      const clock = {
+        T: this.time,
+        F: Math.round(this.time * fps),
+        MX: this.pointer?.x ?? 0,
+        MY: this.pointer?.y ?? 0,
+      }
       const { values, slots } = parameterValues(lowered, clock, this.hostValues())
       this.slots = slots
       if (structural) {
@@ -353,6 +376,15 @@ export class Engine {
       }
       await this.runtime.idle()
       await this.runHost(true)
+      // Host and deck operators that read planner output (a camera fit to the rows) ran
+      // just now: values that read them are evaluated again, once
+      const again = parameterValues(lowered, clock, this.hostValues())
+      this.slots = again.slots
+      if (Object.keys(again.values).some(k => !sameValue(again.values[k], values[k]))) {
+        await this.runtime.setValues(again.values)
+        await this.runtime.idle()
+        this.emit()
+      }
     })()
     this.pending = all.catch(() => undefined)
     return all
@@ -438,13 +470,69 @@ export class Engine {
         if (!afterPlanner) return PENDING
         const ir = this.lowered?.outputs[nodeId]?.[port] ?? nodeId
         const layer = this.built.get(ir)?.[0]
-        return layer ?? this.rowsOf(ir)
+        if (layer) return layer
+        // A GeoJSON file's features reach a host operator as the FeatureCollection it was
+        const op = this.doc?.nodes.find(n => n.id === nodeId)?.op
+        return op === 'geojson' && port === 'features' ? this.featuresOf(ir) : this.rowsOf(ir)
       },
       slots: this.slots,
       time: this.time,
+      aggregate: (nodeId, port, select) =>
+        afterPlanner ? this.aggregate(nodeId, port, select) : PENDING,
     })
     this.hostErrors = report.errors
     if (afterPlanner) this.emit()
+  }
+
+  private readonly aggregates = new Map<string, Promise<Record<string, unknown> | undefined>>()
+
+  /**
+   * One row of SQL over a planner node's rows, read once per state of those rows and query:
+   * the statistic a deck operator needs (a camera fit's bounds), not the rows themselves.
+   */
+  private aggregate(
+    nodeId: string,
+    port: string,
+    select: (shape: RelationShape) => string
+  ): Promise<Record<string, unknown> | undefined> | typeof PENDING {
+    const ir = this.lowered?.outputs[nodeId]?.[port] ?? nodeId
+    return this.runtime.nodeSql(ir).then(rows => {
+      if (!rows) return undefined
+      const sql = `SELECT ${select(rows.shape)} FROM (${rows.sql})`
+      const key = `${rows.hash}\n${sql}`
+      let row = this.aggregates.get(key)
+      if (!row) {
+        if (this.aggregates.size > 64) this.aggregates.clear()
+        row = this.runtime.query(sql).then(result => result[0])
+        this.aggregates.set(key, row)
+        row.catch(() => this.aggregates.delete(key))
+      }
+      return row
+    })
+  }
+
+  private readonly features = new Map<string, Promise<GeoJSON.FeatureCollection>>()
+
+  /** A features relation as GeoJSON, read once per relation hash. */
+  private featuresOf(relationId: string): Promise<GeoJSON.FeatureCollection> | typeof PENDING {
+    const rel = this.runtime.program()?.relations.find(r => r.id === relationId)
+    if (!rel) return PENDING
+    let fc = this.features.get(rel.hash)
+    if (!fc) {
+      fc = this.runtime
+        .query(`SELECT ST_AsGeoJSON(geom) AS __geometry, * EXCLUDE (geom) FROM ${rel.ref}`)
+        .then(rows => ({
+          type: 'FeatureCollection' as const,
+          features: rows.map(({ __geometry, ...properties }) => ({
+            type: 'Feature' as const,
+            geometry: __geometry ? JSON.parse(String(__geometry)) : null,
+            properties,
+          })),
+        }))
+      this.features.set(rel.hash, fc)
+      fc.catch(() => this.features.delete(rel.hash))
+    }
+    return fc
   }
 
   private readonly rows = new Map<string, Promise<unknown[]>>()
@@ -534,3 +622,6 @@ function styleOf(deck: DocNode): string | undefined {
   const named = String(deck.params.basemap ?? 'dark-matter')
   return named in BASEMAPS ? BASEMAPS[named] : named
 }
+
+// NaN is NaN: a value that is still missing has not changed
+const sameValue = (a: unknown, b: unknown) => Object.is(a, b) || a === b

@@ -211,7 +211,9 @@ describe('createImportDoc', () => {
 
   it('fits the camera to the rows when nothing gave bounds', () => {
     const { nodes, edges } = build('csv')
-    const bbox = nodes.find(n => n.op === 'BoundingBoxOp')
+    const bbox = nodes.find(n => n.op === 'fit-bounds')
+    // Fit to the same position the points draw at
+    expect(bbox?.params.position).toBe(nodes.find(n => n.op === 'scatter')?.params.position)
     expect(edges).toContainEqual(
       expect.objectContaining({
         source: bbox?.id,

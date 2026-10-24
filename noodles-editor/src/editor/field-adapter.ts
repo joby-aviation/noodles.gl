@@ -21,6 +21,7 @@ import {
   BooleanField,
   CodeField,
   ColorField,
+  DataField,
   ExtensionField,
   type Field,
   ListField,
@@ -153,9 +154,13 @@ export class NodeFields {
    * `{ list: 'extensions' }` is a list of extensions, edited by wiring.
    */
   private ownedField(def: ParamDef): AnyField | undefined {
-    const ref = def.field as { op?: string; input?: string; list?: string } | undefined
+    const ref = def.field as
+      | { op?: string; input?: string; list?: string; wired?: string }
+      | undefined
     if (def.kind !== 'field' || !ref) return undefined
     if (ref.list === 'extensions') return new ListField(new ExtensionField()) as unknown as AnyField
+    // Set by wiring only: rows, a layer, objects
+    if (ref.wired) return new DataField() as unknown as AnyField
     const Class = ref.op ? (opTypes as unknown as Record<string, OperatorClass>)[ref.op] : undefined
     if (!Class || !ref.op || !ref.input) return undefined
     let owner = this.owners.get(ref.op)

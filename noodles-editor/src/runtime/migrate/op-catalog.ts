@@ -105,7 +105,7 @@ export const OP_CATALOG: Record<string, OpPlan> = {
 
   // --- data ------------------------------------------------------------------------------
   ArcOp: code(['code']),
-  BoundingBoxOp: host('fits the camera to the canvas, whose size only the page knows'),
+  BoundingBoxOp: { becomes: 'deck', ops: ['fit-bounds'] },
   BoundsOp: { becomes: 'folded' },
   ChartOp: host('draws an Observable Plot chart into the page'),
   ConcatOp: planner(['union']),
@@ -113,14 +113,11 @@ export const OP_CATALOG: Record<string, OpPlan> = {
   DateTimeOp: { becomes: 'folded' },
   DeckRendererOp: deck(),
   DirectionsOp: host('calls the Google Directions API with the user’s key'),
-  FileOp: {
-    ...planner(['file', 'geojson', 'code']),
-    hostWhen: 'a host operator reads it as the object FileOp parsed',
-  },
+  FileOp: planner(['file', 'geojson', 'code']),
   FilterOp: planner(['filter', 'sql']),
   GeocoderOp: host('calls a geocoding API with the user’s key'),
   GeoParquetOp: planner(['sql']),
-  MergeOp: host('merges JavaScript objects (layer props, view states), which are not rows'),
+  MergeOp: { becomes: 'deck', ops: ['merge'] },
   NetworkOp: planner(['sql']),
   OutOp: deck(),
   OverpassOp: planner(['overpass']),
@@ -254,9 +251,9 @@ export const OP_CATALOG: Record<string, OpPlan> = {
   // --- utility ---------------------------------------------------------------------------
   BlendingOp: deck(),
   ConsoleOp: dropped('logs a value in the old editor'),
-  LayerPropsOp: host('overrides arbitrary props of a built layer object'),
+  LayerPropsOp: { becomes: 'deck', ops: ['layer-props'] },
   MapStyleConfiguratorOp: { becomes: 'deck', ops: ['map-style'] },
-  MouseOp: host('reads the pointer'),
+  MouseOp: planner(['mouse']),
   ProjectOp: { becomes: 'folded' },
   UnprojectOp: { becomes: 'folded' },
   RerouteOp: dropped('a wire bend; the migrator wires through it'),

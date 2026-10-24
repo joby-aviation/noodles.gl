@@ -32,6 +32,7 @@ import {
   type ProgramPlan,
   quoteIdent,
   type RelColumn,
+  type RelShape,
   type ResolvedProp,
   resolveProps,
   resolveView,
@@ -79,6 +80,12 @@ export interface RuntimeOptions {
   caps?: TargetCaps
   costs?: CostConstants
   capacity?: number
+}
+
+export interface NodeSql {
+  sql: string
+  shape: RelShape
+  hash: string
 }
 
 export interface Preview {
@@ -402,17 +409,62 @@ export class ProgramRuntime {
     this.states.set(lp.id, state)
   }
 
+  // A node nothing draws is not compiled: compile it now, and keep it so it stays readable
+  private async compiled(nodeId: string): Promise<void> {
+    if (this.programPlan?.nodes[nodeId]?.role === 'dead' && !this.kept.has(nodeId)) {
+      this.kept.add(nodeId)
+      await this.enqueue(() => this.rebuild('graph'))
+    }
+  }
+
+  /**
+   * A SELECT of the rows at a node and their shape, for a statistic of them (a camera fit's
+   * extent): its relation, or the row-wise nodes over it lowered to SQL. `hash` changes when
+   * the rows can.
+   */
+  async nodeSql(nodeId: string): Promise<NodeSql | undefined> {
+    await this.compiled(nodeId)
+    const program = this.programPlan
+    const graph = this.graph
+    const relationId = program?.nodes[nodeId]?.relation
+    const relation = program?.relations.find(r => r.id === relationId)
+    if (!program || !graph || !relation) return undefined
+    if (relation.id === nodeId) {
+      return { sql: `SELECT * FROM ${relation.ref}`, shape: relation.shape, hash: relation.hash }
+    }
+    const byId = new Map(graph.nodes.map(n => [n.id, n]))
+    const chain: GraphNode[] = []
+    const walk = (id: string) => {
+      if (id === relation.id || chain.some(n => n.id === id)) return
+      const n = byId.get(id)
+      if (!n) return
+      for (const i of inputsOf(n)) walk(i)
+      chain.push(n)
+    }
+    walk(nodeId)
+    const { sql, vectors, params } = rowwiseSql(
+      chain,
+      relation.ref,
+      relation.shape,
+      this.values,
+      graph,
+      nodeId
+    )
+    const values = params.map(k => `${k}=${this.values[k]}`)
+    return {
+      sql,
+      shape: { columns: relation.shape.columns, vectors },
+      hash: `${relation.hash}:${chain.map(n => n.id).join(',')}:${values.join(',')}`,
+    }
+  }
+
   /**
    * Rows at a node, for the spreadsheet. A relation is read directly; a row-wise node is
    * lowered to SQL over its relation when it can be, and otherwise shows its relation's rows
    * with a note saying why.
    */
   async preview(nodeId: string, limit = 100): Promise<Preview> {
-    // A node nothing draws is not compiled: compile it now, and keep it so it stays readable
-    if (this.programPlan?.nodes[nodeId]?.role === 'dead' && !this.kept.has(nodeId)) {
-      this.kept.add(nodeId)
-      await this.enqueue(() => this.rebuild('graph'))
-    }
+    await this.compiled(nodeId)
     const program = this.programPlan
     const graph = this.graph
     if (!program || !graph) return { columns: [], rows: [], total: 0, note: 'not compiled yet' }

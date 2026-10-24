@@ -229,7 +229,7 @@ describe('toEditorDoc', () => {
     )
     // The query binds the geocoder's location as a parameter, a value from the host.
     expect(lowered.slotParams['/centroid.out.location.lat']).toHaveLength(1)
-    expect(op('/charger-bounds')).toBe('BoundingBoxOp')
+    expect(op('/charger-bounds')).toBe('fit-bounds')
     expect(doc.edges).toContainEqual(
       expect.objectContaining({
         source: '/charger-query',

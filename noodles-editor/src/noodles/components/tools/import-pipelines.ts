@@ -274,7 +274,7 @@ export function createImportDoc({
 
   // A new deck with no known bounds fits its camera to the rows when they arrive
   if (!existingDeck && !viewState) {
-    const bbox = add('BoundingBoxOp', 'bbox', 300, 400, {})
+    const bbox = add('fit-bounds', 'fit', 300, 400, { position })
     wire(rows.id, rows.port, bbox, 'par:data')
     wire(bbox, 'viewState', deckId, 'viewState')
   }

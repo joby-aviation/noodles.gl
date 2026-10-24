@@ -57,7 +57,6 @@ vi.mock('../noodles/hooks/use-render-settings', () => ({
 // TimelineEditor only needs these symbols while rendering this empty scene. Keeping
 // the full operator registry out of the test also avoids eagerly starting DuckDB.
 vi.mock('../noodles/operators', () => ({
-  BoundingBoxOp: class BoundingBoxOp {},
   ContainerOp: class ContainerOp {},
   DeckRendererOp: class DeckRendererOp {},
   GraphInputOp: class GraphInputOp {},
@@ -66,6 +65,7 @@ vi.mock('../noodles/operators', () => ({
   MapViewStateOp: class MapViewStateOp {},
   RerouteOp: class RerouteOp {},
   fnWithSource: () => () => ({}),
+  opTypes: {},
 }))
 
 vi.mock('../noodles/hooks/use-active-outop', () => ({ useActiveOutOp: () => null }))

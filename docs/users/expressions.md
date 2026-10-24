@@ -44,6 +44,7 @@ Right-click a number parameter in the parameter pane and choose **Set expression
 |------|-------|
 | `T` | Seconds on the timeline |
 | `F` | The frame number |
+| `MX`, `MY` | The pointer over the map, in pixels from its top left |
 | `ch('node/param')` | Another parameter's value, by path (`ch('../controls/size')` reaches up out of a subnet) |
 
 The math functions above work here too:
@@ -53,7 +54,7 @@ The math functions above work here too:
 ch('threshold/value') * 2
 ```
 
-An expression updates when the playhead moves or when a parameter it reads changes. A name other than `T`, `F` or a `ch()` reference is an error on the node.
+An expression updates when the playhead or the pointer moves, or when a parameter it reads changes. A name other than `T`, `F`, `MX`, `MY` or a `ch()` reference is an error on the node.
 
 ## References
 
