@@ -1,0 +1,244 @@
+.container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+}
+
+.search {
+  position: relative;
+  flex-shrink: 0;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.searchInput {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 4px 24px 4px 8px;
+  background: var(--color-bg-base);
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  color: var(--color-text-primary);
+  font-size: 12px;
+  outline: none;
+}
+
+.searchInput:focus {
+  border-color: var(--color-text-accent);
+}
+
+.searchClear {
+  position: absolute;
+  top: 50%;
+  right: 14px;
+  display: flex;
+  align-items: center;
+  padding: 0;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  color: var(--color-text-secondary);
+  font-size: 10px;
+  cursor: pointer;
+}
+
+.list {
+  flex: 1;
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding-bottom: 8px;
+}
+
+.empty {
+  padding: 24px 16px;
+  color: var(--color-text-secondary);
+  font-size: 12px;
+  line-height: 1.5;
+  text-align: center;
+}
+
+/* A layer and the nodes nested under it */
+.layer {
+  position: relative;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.dragging {
+  opacity: 0.5;
+}
+
+.dropBefore::before,
+.dropAfter::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: var(--color-text-accent, #3b82f6);
+  pointer-events: none;
+}
+
+.dropBefore::before {
+  top: -1px;
+}
+
+.dropAfter::after {
+  bottom: -1px;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  min-height: 26px;
+  padding: 0 4px 0 8px;
+  border-left: 3px solid transparent;
+  user-select: none;
+}
+
+.row:hover {
+  background: var(--color-bg-hover);
+}
+
+.layerRow {
+  min-height: 32px;
+  padding-left: 2px;
+  cursor: grab;
+}
+
+.layerRow:active {
+  cursor: grabbing;
+}
+
+.selected,
+.selected:hover {
+  background: var(--color-bg-selected, rgba(59, 130, 246, 0.18));
+}
+
+.rowMain {
+  display: flex;
+  flex: 1;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+  padding: 4px 0;
+  background: none;
+  border: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.name {
+  overflow: hidden;
+  color: var(--color-text-primary);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.layerRow .name {
+  font-weight: 600;
+}
+
+.hidden {
+  color: var(--color-text-secondary);
+  text-decoration: line-through;
+}
+
+.type {
+  flex-shrink: 0;
+  color: var(--color-text-secondary);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.chevron,
+.eye,
+.rowAction {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  background: none;
+  border: none;
+  border-radius: 3px;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+}
+
+.chevron:disabled {
+  visibility: hidden;
+}
+
+.chevron i,
+.rowAction i {
+  font-size: 9px;
+}
+
+.eye i {
+  font-size: 12px;
+}
+
+.eye:hover,
+.rowAction:hover,
+.chevron:hover {
+  color: var(--color-text-primary);
+}
+
+.eyeOff {
+  opacity: 0.6;
+}
+
+.rowAction {
+  opacity: 0;
+}
+
+.row:hover .rowAction,
+.rowAction:focus-visible {
+  opacity: 1;
+}
+
+.shared {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  padding: 0 4px;
+  color: var(--color-text-secondary);
+  font-size: 10px;
+}
+
+.section {
+  border-bottom: 1px solid var(--color-border);
+}
+
+.sectionHeader {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 6px 8px;
+  background: none;
+  border: none;
+  color: var(--color-text-secondary);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-align: left;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.sectionHeader i {
+  font-size: 9px;
+}
+
+.count {
+  margin-left: auto;
+  font-weight: 400;
+}

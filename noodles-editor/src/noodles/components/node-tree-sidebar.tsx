@@ -23,7 +23,7 @@ const CATEGORY_COLORS: Record<string, string> = {
 }
 
 // A host operator's color is its Noodles category's, by display name
-function getOperatorCategory(op: string): string | null {
+export function getOperatorCategory(op: string): string | null {
   const def = OPERATOR_INDEX.get(op)
   if (def && def.category !== 'host') return CATEGORY_COLORS[def.category] ?? null
   const displayName = def?.label ?? op.replace(/Op$/, '')
