@@ -152,7 +152,12 @@ import {
 import { DEFAULT_LATITUDE, DEFAULT_LONGITUDE, safeMode } from './globals'
 import { getKeysStore } from './keys-store'
 import { getAllOps, getOp } from './store'
-import { prepareTableDataForOutput, type TableSchema, validateTableData } from './table-schema'
+import {
+  inferSchema,
+  prepareTableDataForOutput,
+  type TableSchema,
+  validateTableData,
+} from './table-schema'
 import type { ExtensionConstructorArgs, LayerPropsValue } from './types'
 import { composeAccessor, isAccessor } from './utils/accessor-helpers'
 import {
@@ -2738,7 +2743,7 @@ export class TableEditorOp extends Operator<TableEditorOp> {
 
     return {
       data: outputData,
-      schema: schema || null,
+      schema: schema || inferSchema(data),
     }
   }
 }

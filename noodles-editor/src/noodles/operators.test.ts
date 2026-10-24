@@ -111,6 +111,19 @@ describe('TableEditorOp', () => {
     expect(result.data).toEqual([{ anchor: 'start', offset2d: [64, 0], offset3d: [64, 0, 10] }])
   })
 
+  it('outputs a schema inferred from the data when none is set', () => {
+    const operator = new TableEditorOp('/table')
+
+    const result = operator.execute({ data: [{ name: 'a', count: 1 }], schema: null })
+
+    expect(result.schema).toEqual({
+      columns: [
+        expect.objectContaining({ name: 'name', type: 'string' }),
+        expect.objectContaining({ name: 'count', type: 'number' }),
+      ],
+    })
+  })
+
   it('preserves date-time values when TableEditors are chained', () => {
     const first = new TableEditorOp('/first')
     const second = new TableEditorOp('/second')
