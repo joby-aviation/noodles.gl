@@ -87,6 +87,8 @@ function NodeParams({ node, doc, multi }: { node: DocNode; doc: EditorDoc; multi
   const [folded, setFolded] = useState<Set<string>>(new Set())
   const [name, setName] = useState(nameOf(node))
   useEffect(() => setName(nameOf(node)), [node])
+  // A long description shows two lines until clicked
+  const [descOpen, setDescOpen] = useState(false)
   if (!op) return <div className={s.empty}>Unknown operator {node.op}</div>
 
   const replaced = PANE_EDITORS[node.op]?.replaces ?? []
@@ -154,7 +156,16 @@ function NodeParams({ node, doc, multi }: { node: DocNode; doc: EditorDoc; multi
           {nodePath(doc, node)}
           {multi ? '  · first of the selection' : ''}
         </div>
-        {op.description && <div className={s.paneDesc}>{op.description}</div>}
+        {op.description && (
+          <button
+            type="button"
+            className={cx(s.paneDesc, descOpen && s.paneDescOpen)}
+            title={descOpen ? undefined : op.description}
+            onClick={() => setDescOpen(o => !o)}
+          >
+            {op.description}
+          </button>
+        )}
       </div>
       {showStarterHint && (
         <div className={s.starterHint} role="status">
