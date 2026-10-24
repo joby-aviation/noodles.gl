@@ -38,7 +38,10 @@ export type EditorSettings = {
 export type { RenderSettings } from './render-settings-constants'
 export { DEFAULT_RENDER_SETTINGS } from './render-settings-constants'
 
-export type NoodlesProjectJSON = ReactFlowJsonObject & {
+export type NoodlesProjectJSON = Omit<ReactFlowJsonObject, 'viewport'> & {
+  // Older files carry the graph viewport. It is ignored on load, which fits the graph
+  // instead, and never written.
+  viewport?: ReactFlowJsonObject['viewport']
   version: number
   timeline: Record<string, unknown>
   name?: string
@@ -59,7 +62,6 @@ export const EMPTY_PROJECT: NoodlesProjectJSON = {
   timeline: {},
   nodes: [],
   edges: [],
-  viewport: { x: 0, y: 0, zoom: 1 },
   editorSettings: {},
 }
 

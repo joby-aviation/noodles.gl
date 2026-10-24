@@ -190,7 +190,10 @@ export function projectSchema(version: number) {
     name: z.string().optional(),
     nodes: z.array(node),
     edges: z.array(edge),
-    viewport: z.strictObject({ x: z.number(), y: z.number(), zoom: z.number() }).optional(),
+    viewport: z
+      .strictObject({ x: z.number(), y: z.number(), zoom: z.number() })
+      .optional()
+      .describe('Ignored, and no longer written: the editor fits the graph when a project opens'),
     timeline: timelineSchema.optional(),
     editorSettings: z
       .looseObject({

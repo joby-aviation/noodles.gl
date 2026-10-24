@@ -1,7 +1,7 @@
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
 import { useReactFlow } from '@xyflow/react'
 import cx from 'classnames'
-import { type FC, Fragment, useCallback, useEffect } from 'react'
+import { type FC, Fragment, useCallback, useEffect, useRef } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { analytics } from '../../utils/analytics'
 import { useKeyboardShortcut } from '../hooks/use-keyboard-shortcut'
@@ -51,8 +51,13 @@ export const Breadcrumbs: FC<BreadcrumbsProps> = ({ projectName, hasUnsavedChang
     [allContainerOps]
   )
 
-  // biome-ignore lint/correctness/useExhaustiveDependencies: We fit the view when the current container changes
+  // Fit the view when the current container changes. Not on mount: a fitView queued
+  // before the nodes mount resolves on the first measured node and zooms all the way in
+  // on it, and ProjectLoadView already frames the graph once a project loads.
+  const previousContainerIdRef = useRef(currentContainerId)
   useEffect(() => {
+    if (previousContainerIdRef.current === currentContainerId) return
+    previousContainerIdRef.current = currentContainerId
     reactFlow.fitView()
   }, [reactFlow.fitView, currentContainerId])
 

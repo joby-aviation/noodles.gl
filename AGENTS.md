@@ -149,8 +149,7 @@ Projects are stored as JSON files with this structure:
       "sourceHandle": "out.data",
       "targetHandle": "par.data"
     }
-  ],
-  "viewport": {"x": 0, "y": 0, "zoom": 1}
+  ]
 }
 ```
 

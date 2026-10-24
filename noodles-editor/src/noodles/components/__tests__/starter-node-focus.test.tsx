@@ -1,12 +1,19 @@
-// Tests that StarterNodeFocus pans to the starter node once per project load, and that
-// MapPickFocus pans to and pulses a node picked on the map
+// Tests that ProjectLoadView fits the graph on a fresh load and then pans to the starter
+// node, and that MapPickFocus pans to and pulses a node picked on the map
 import { act, cleanup, render } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useUIStore } from '../../store'
-import { MAP_PICK_PULSE_MS, MapPickFocus, StarterNodeFocus } from '../starter-node-focus'
+import {
+  LOAD_FIT_VIEW_OPTIONS,
+  MAP_PICK_PULSE_MS,
+  MapPickFocus,
+  ProjectLoadView,
+} from '../starter-node-focus'
 import s from '../starter-node-focus.module.css'
 
 const setViewport = vi.fn()
+const fitView = vi.fn(() => Promise.resolve(true))
+let measured = true
 // Far outside a 1000x500 pane at zoom 1, so every check pans
 const flush = () => act(() => vi.advanceTimersByTimeAsync(20))
 
@@ -22,8 +29,15 @@ vi.mock('@xyflow/react', () => ({
   // The graph store (loaded through ../../store) imports these
   applyEdgeChanges: (_changes: unknown, edges: unknown) => edges,
   applyNodeChanges: (_changes: unknown, nodes: unknown) => nodes,
-  useNodesInitialized: () => true,
+  useNodesInitialized: () => measured,
+  useStoreApi: () => ({
+    getState: () => ({
+      nodeLookup: new Map([['/scatterplot-layer', offscreenNode]]),
+      nodesInitialized: measured,
+    }),
+  }),
   useReactFlow: () => ({
+    fitView,
     getInternalNode: () => offscreenNode,
     getViewport: () => ({ x: 0, y: 0, zoom: 1 }),
     setViewport,
@@ -47,12 +61,20 @@ vi.mock('@xyflow/react', () => ({
     }),
 }))
 
-describe('StarterNodeFocus', () => {
+describe('ProjectLoadView', () => {
+  // The fit takes a frame, and the starter pan runs a frame after it
+  const settle = async () => {
+    await flush()
+    await flush()
+  }
+
   beforeEach(() => {
     // setupTests turns on fake timers; route animation frames through them
     vi.stubGlobal('requestAnimationFrame', (cb: FrameRequestCallback) => setTimeout(() => cb(0), 0))
     vi.stubGlobal('cancelAnimationFrame', (id: number) => clearTimeout(id))
     setViewport.mockClear()
+    fitView.mockClear()
+    measured = true
     useUIStore.getState().setStarterHintNodeId('/scatterplot-layer')
   })
 
@@ -62,21 +84,49 @@ describe('StarterNodeFocus', () => {
     useUIStore.getState().setStarterHintNodeId(null)
   })
 
-  it('pans once for a load, even across re-renders', async () => {
-    const { rerender } = render(<StarterNodeFocus loadId={1} />)
-    await flush()
+  it('fits the whole graph on a fresh load, then pans to the starter node', async () => {
+    render(<ProjectLoadView loadId={1} fitView />)
+    await settle()
+    expect(fitView).toHaveBeenCalledWith(LOAD_FIT_VIEW_OPTIONS)
     expect(setViewport).toHaveBeenCalledTimes(1)
-    rerender(<StarterNodeFocus loadId={1} />)
-    await flush()
+    expect(fitView.mock.invocationCallOrder[0]).toBeLessThan(
+      setViewport.mock.invocationCallOrder[0]
+    )
+  })
+
+  it('waits until every node is measured before fitting', async () => {
+    measured = false
+    const { rerender } = render(<ProjectLoadView loadId={1} fitView />)
+    await settle()
+    expect(fitView).not.toHaveBeenCalled()
+    measured = true
+    rerender(<ProjectLoadView loadId={1} fitView />)
+    await settle()
+    expect(fitView).toHaveBeenCalledTimes(1)
+  })
+
+  it('keeps the view without fitView, still showing the starter node', async () => {
+    render(<ProjectLoadView loadId={1} fitView={false} />)
+    await settle()
+    expect(fitView).not.toHaveBeenCalled()
     expect(setViewport).toHaveBeenCalledTimes(1)
   })
 
-  it('pans again when the next example starts on the same node id', async () => {
-    const { rerender } = render(<StarterNodeFocus loadId={1} />)
-    await flush()
+  it('runs once for a load, even across re-renders', async () => {
+    const { rerender } = render(<ProjectLoadView loadId={1} fitView />)
+    await settle()
+    rerender(<ProjectLoadView loadId={1} fitView />)
+    await settle()
+    expect(fitView).toHaveBeenCalledTimes(1)
     expect(setViewport).toHaveBeenCalledTimes(1)
-    rerender(<StarterNodeFocus loadId={2} />)
-    await flush()
+  })
+
+  it('runs again when the next example starts on the same node id', async () => {
+    const { rerender } = render(<ProjectLoadView loadId={1} fitView />)
+    await settle()
+    rerender(<ProjectLoadView loadId={2} fitView />)
+    await settle()
+    expect(fitView).toHaveBeenCalledTimes(2)
     expect(setViewport).toHaveBeenCalledTimes(2)
   })
 })
