@@ -26,8 +26,9 @@ import { Breadcrumbs } from './breadcrumbs'
 import type { CopyControlsRef } from './copy-controls'
 import { ExportButton } from './export-button'
 import { DataImporterTool } from './tools/data-importer-tool'
-import type { GeoRecipe } from './tools/geo-recipes'
+import { type GeoRecipe, getRecipe } from './tools/geo-recipes'
 import { GeoToolWizard } from './tools/geo-tool-wizard'
+import { useMapToolStore } from './tools/map-tool-store'
 import { PointWizardTool } from './tools/point-wizard-tool'
 import { ToolShelf } from './tools/tool-shelf'
 import s from './top-menu-bar.module.css'
@@ -105,6 +106,10 @@ export function TopMenuBar({
   const [showPointWizard, setShowPointWizard] = useState(false)
   const [showDataImporter, setShowDataImporter] = useState(false)
   const [activeRecipe, setActiveRecipe] = useState<GeoRecipe | null>(null)
+  // Recipes opened from the Draw tool arrive with the drawing already wired in
+  const recipeRequest = useMapToolStore(state => state.recipeRequest)
+  const requestRecipe = useMapToolStore(state => state.requestRecipe)
+  const requestedRecipe = recipeRequest ? (getRecipe(recipeRequest.recipeId) ?? null) : null
   const currentContainerId = useNestingStore(state => state.currentContainerId)
   const setCurrentContainerId = useNestingStore(state => state.setCurrentContainerId)
   const reactFlow = useReactFlow()
@@ -650,9 +655,12 @@ export function TopMenuBar({
           />
 
           <GeoToolWizard
-            recipe={activeRecipe}
+            recipe={requestedRecipe ?? activeRecipe}
+            presetSources={requestedRecipe ? recipeRequest?.sources : undefined}
             onOpenChange={open => {
-              if (!open) setActiveRecipe(null)
+              if (open) return
+              setActiveRecipe(null)
+              requestRecipe(null)
             }}
             reactFlowRef={reactFlowRef}
           />

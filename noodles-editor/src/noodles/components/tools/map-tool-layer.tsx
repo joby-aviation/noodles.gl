@@ -1,6 +1,7 @@
 import type { Map as MapLibre } from 'maplibre-gl'
 import { type RefObject, useEffect } from 'react'
 import { useMapToolGraph } from '../../hooks/use-map-tool-graph'
+import { useUIStore } from '../../store'
 import { MapToolOverlay } from './map-tool-overlay'
 import { useMapToolStore } from './map-tool-store'
 
@@ -17,7 +18,8 @@ interface MapToolLayerProps {
 export function MapToolLayer({ mapRef, basemapEnabled, isRendering }: MapToolLayerProps) {
   const activeTool = useMapToolStore(state => state.activeTool)
   const setActiveTool = useMapToolStore(state => state.setActiveTool)
-  const { saveDrawing, saveMeasurement } = useMapToolGraph()
+  const { saveDrawing, saveMeasurement, sendDrawingTo } = useMapToolGraph()
+  const mapMode = useUIStore(state => state.mapMode)
 
   // Disarm rather than silently ignore clicks when the tool cannot work here,
   // so the shelf button never stays lit with nothing happening.
@@ -32,6 +34,8 @@ export function MapToolLayer({ mapRef, basemapEnabled, isRendering }: MapToolLay
       mapRef={mapRef}
       onSaveDrawing={saveDrawing}
       onSaveMeasurement={saveMeasurement}
+      onSendDrawing={sendDrawingTo}
+      detached={mapMode === 'underlay'}
     />
   )
 }

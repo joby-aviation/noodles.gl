@@ -35,6 +35,8 @@ export interface MapToolGraphOptions {
   // Line colour for the generated layer, as hex
   strokeColor?: string
   fillColor?: string
+  // Off when the drawing feeds another operator whose output gets its own layer
+  addLayer?: boolean
 }
 
 const COLUMN_GAP = 450
@@ -94,21 +96,25 @@ export function createDrawingGraph({
   rendererId,
   strokeColor = '#1e40af',
   fillColor = '#3b82f6',
+  addLayer = true,
 }: MapToolGraphOptions): BuiltMapToolGraph {
   const editorId = makeNodeId('geo-editor')
-  const layerId = makeNodeId('drawn-layer')
 
-  const nodes: BuiltNode[] = [
-    {
-      id: editorId,
-      type: 'GeoEditorOp',
-      data: {
-        inputs: {
-          geojson: JSON.stringify({ type: 'FeatureCollection', features }, null, 2),
-        },
+  const editor: BuiltNode = {
+    id: editorId,
+    type: 'GeoEditorOp',
+    data: {
+      inputs: {
+        geojson: JSON.stringify({ type: 'FeatureCollection', features }, null, 2),
       },
-      position: basePosition,
     },
+    position: basePosition,
+  }
+  if (!addLayer) return { nodes: [editor], edges: [], primaryNodeId: editorId }
+
+  const layerId = makeNodeId('drawn-layer')
+  const nodes: BuiltNode[] = [
+    editor,
     {
       id: layerId,
       type: 'GeoJsonLayerOp',
