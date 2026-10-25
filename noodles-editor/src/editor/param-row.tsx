@@ -19,6 +19,7 @@ import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { inputComponents } from '../noodles/components/field-components'
 import type { Field } from '../noodles/fields'
+import { ChannelInput, isChannel } from './channel-input'
 import s from './doc-editor.module.css'
 import { type EngineState, useEngineState } from './doc-engine'
 import { clearTrack, pathTo, promote, removeKey, setKey, setParam } from './doc-ops'
@@ -311,6 +312,14 @@ export function ParamRow({
             />
             {value !== undefined && <span className={s.evaluated}>{fmt(value)}</span>}
           </div>
+        ) : isChannel(def) ? (
+          <ChannelInput
+            label={label ?? def.label}
+            def={def}
+            value={String(raw ?? def.default ?? '')}
+            // A channel set back to its default leaves the document, as defaults do
+            onCommit={t => set(t === def.default ? undefined : t)}
+          />
         ) : (
           Widget && (
             // A Noodles widget labels itself with its id: a host operator's input name, else the

@@ -252,34 +252,26 @@
 }
 
 .folderHead {
-  position: sticky;
-  top: 0;
-  z-index: 1;
   display: flex;
   align-items: center;
   gap: 6px;
   width: 100%;
-  height: 24px;
-  margin: 0 0 4px;
-  padding: 0 10px;
+  margin: 0;
+  padding: 8px 10px 4px;
   border: 0;
-  border-top: 1px solid var(--color-border, #333);
-  border-bottom: 1px solid var(--color-border, #333);
-  background: var(--color-bg-base, #1b1d21);
-  color: var(--color-text-primary, #ddd);
+  background: transparent;
+  color: rgb(255 255 255 / 50%);
   font: inherit;
   font-size: 11px;
   font-weight: 600;
+  letter-spacing: 0.5px;
   text-align: left;
+  text-transform: uppercase;
   cursor: pointer;
 }
 
-.folder:first-child .folderHead {
-  border-top: 0;
-}
-
 .folderHead:hover {
-  color: #fff;
+  color: rgb(255 255 255 / 75%);
 }
 
 .folderChevron {
@@ -314,8 +306,8 @@
   white-space: nowrap;
 }
 
-/* Every widget's control is a filled box with its text at the left, as Cavalry and Kepler draw
-   them, instead of bare right-aligned text */
+/* Every widget's control lines up at the left of its column and ends at the same edge. Values
+   stay flat, as Noodles draws them, and show a box only on hover and while editing. */
 .paramRow
   :global(.field-row)
   > :last-child
@@ -329,7 +321,7 @@
   padding: 0 6px;
   border: 1px solid transparent;
   border-radius: 3px;
-  background: rgb(255 255 255 / 5%);
+  background: transparent;
   font-size: 11.5px;
   font-variant-numeric: tabular-nums;
   line-height: 18px;
@@ -342,7 +334,7 @@
   input:not([type="checkbox"]):not([type="color"]):not([type="range"]):hover,
 .paramRow :global(.field-row) > :last-child select:hover,
 .paramRow :global(.field-row) > :last-child textarea:hover {
-  background: rgb(255 255 255 / 8%);
+  background: var(--node-input-hover-color, rgb(255 255 255 / 5%));
 }
 
 .paramRow
@@ -375,6 +367,69 @@
   overflow: auto;
   border-radius: 3px;
   background: rgb(0 0 0 / 20%);
+}
+
+/* A channel's value, marked by what it holds: an attribute (teal, after a column glyph), a row
+   expression (violet, monospace, after ƒ), or nothing, so the layer's own value applies */
+.channel {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  height: 20px;
+  padding: 0 6px;
+  border: 1px solid transparent;
+  border-radius: 3px;
+}
+
+.channel:hover {
+  background: var(--node-input-hover-color, rgb(255 255 255 / 5%));
+}
+
+.channel:focus-within {
+  border-color: var(--color-text-accent, #4a9eff);
+  background: rgb(0 0 0 / 25%);
+}
+
+.channel input {
+  flex: 1;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+}
+
+.channel input::placeholder {
+  color: var(--color-text-disabled, #666);
+  font-style: italic;
+}
+
+.channelBadge {
+  flex: none;
+  font-size: 10px;
+  opacity: 0.8;
+}
+
+.channel_attribute {
+  color: #7fd6c8;
+}
+
+.channel_attribute .channelBadge {
+  font-size: 11px;
+}
+
+.channel_expression {
+  color: #c9a8ff;
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 11px;
+}
+
+.channel_expression .channelBadge {
+  font-family: Georgia, serif;
+  font-style: italic;
 }
 
 /* A one-line text parameter (a column, an expression) stays one line, with no resize grip */
