@@ -118,6 +118,7 @@ Opening a saved project by its URL (`/projects/:name`, which is where Recent pro
 | `area_edited` | `action, editor` | layout.tsx: an area's editor changed (`editor`), or it was split or closed (`split`, `close`) |
 | `layer_panel_toggle_visible` | `visible` | layer-stack.tsx, the eye on a layer |
 | `layer_reordered` | `from, to, layers` | layer-stack.tsx: a layer dragged, or moved with Alt+Up/Down; positions count from the top |
+| `param_linked` | `via, kind` | link-drag.tsx: a parameter linked by dragging, from its port (`port`) or through a node (`node`); `kind` is the target's parameter kind |
 | `map_interacted` | `kind` | editor-analytics.ts (from timeline-editor.tsx) |
 | `chat_opened` | `source` | top-menu-bar.tsx, doc-noodles.tsx |
 | `chat_closed` | `source` | top-menu-bar.tsx, doc-noodles.tsx |

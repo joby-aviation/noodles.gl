@@ -242,3 +242,11 @@
   margin-left: auto;
   font-weight: 400;
 }
+
+/* A node that can take the property port being dragged: drop to pick which of its
+   properties reads it, or rest on it to show it in Properties */
+.linkTarget,
+.linkTarget:hover {
+  background: rgb(159 192 255 / 12%);
+  box-shadow: inset 2px 0 0 #9fc0ff;
+}

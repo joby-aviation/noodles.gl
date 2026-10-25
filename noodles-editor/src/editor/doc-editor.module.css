@@ -290,7 +290,7 @@
 
 .paramRow {
   position: relative;
-  padding: 1px 4px 1px 10px;
+  padding: 1px 4px 1px 16px;
 }
 
 .paramRow:hover {
@@ -411,6 +411,54 @@
 .paramRow :global(.field-input) > :global(.p-inputtext) {
   width: 100%;
   min-width: 0;
+}
+
+/* A property's port, at the row's left edge: drag it onto another property or a node to make
+   that read this one. Hollow until the property reads something; filled when it does. */
+.port {
+  position: absolute;
+  top: 50%;
+  left: 5px;
+  width: 7px;
+  height: 7px;
+  box-sizing: border-box;
+  transform: translateY(-50%);
+  border: 1.5px solid var(--color-text-disabled, #555);
+  border-radius: 50%;
+  background: var(--color-bg-base, #1b1d21);
+  cursor: grab;
+  opacity: 0.6;
+}
+
+.paramRow:hover .port {
+  opacity: 1;
+}
+
+.port:hover {
+  border-color: #9fc0ff;
+  transform: translateY(-50%) scale(1.3);
+}
+
+.portLinked {
+  border-color: #9fc0ff;
+  background: #9fc0ff;
+  opacity: 1;
+}
+
+.portWired {
+  border-color: #ff9d9d;
+  background: #ff9d9d;
+  opacity: 1;
+}
+
+/* A property that can take the link being dragged */
+.paramRowLinkTarget {
+  background: rgb(159 192 255 / 10%);
+  box-shadow: inset 2px 0 0 #9fc0ff;
+}
+
+.paramRowLinkTarget:hover {
+  background: rgb(159 192 255 / 22%);
 }
 
 /* Linking a parameter to another: the button appears on hover */
