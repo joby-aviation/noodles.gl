@@ -152,12 +152,7 @@ import {
 import { DEFAULT_LATITUDE, DEFAULT_LONGITUDE, safeMode } from './globals'
 import { getKeysStore } from './keys-store'
 import { getAllOps, getOp } from './store'
-import {
-  inferSchema,
-  prepareTableDataForOutput,
-  type TableSchema,
-  validateTableData,
-} from './table-schema'
+import { prepareTableDataForOutput, type TableSchema, validateTableData } from './table-schema'
 import type { ExtensionConstructorArgs, LayerPropsValue } from './types'
 import { composeAccessor, isAccessor } from './utils/accessor-helpers'
 import {
@@ -2961,7 +2956,7 @@ export class TableEditorOp extends Operator<TableEditorOp> {
         description: 'The rows, checked against the schema, with date-time cells as dates.',
       }),
       schema: new UnknownField(null, {
-        description: 'The schema input, or one inferred from the data when none is set.',
+        description: 'The column schema in use, or null when none is set.',
       }), // Computed schema (inferred or explicit)
     }
   }
@@ -2976,7 +2971,7 @@ export class TableEditorOp extends Operator<TableEditorOp> {
 
     return {
       data: outputData,
-      schema: schema || inferSchema(data),
+      schema: schema || null,
     }
   }
 }
