@@ -32,7 +32,13 @@ export const IMPORTABLE_EXTENSIONS = [
   'pmtiles',
 ]
 
-export const FILE_INPUT_ACCEPT = IMPORTABLE_EXTENSIONS.map(ext => `.${ext}`).join(',')
+// A shapefile is several files: GDAL reads its index, attributes, projection and encoding
+// from these beside the .shp, so they are picked and dropped with it and copied along
+export const SHAPEFILE_SIDECARS = ['shx', 'dbf', 'prj', 'cpg']
+
+export const FILE_INPUT_ACCEPT = [...IMPORTABLE_EXTENSIONS, ...SHAPEFILE_SIDECARS]
+  .map(ext => `.${ext}`)
+  .join(',')
 
 const EXTENSION_FORMATS: Record<string, DetectedFormat> = {
   csv: 'csv',
@@ -59,6 +65,22 @@ export function extensionOf(filename: string): string {
 
 export function isImportable(filename: string): boolean {
   return IMPORTABLE_EXTENSIONS.includes(extensionOf(filename))
+}
+
+// A file's name without its extension, as a shapefile's files share it
+const stemOf = (filename: string) =>
+  filename.slice(0, filename.length - extensionOf(filename).length - 1).toLowerCase()
+
+/** The files that came with a .shp: its name, a sidecar extension. */
+export function sidecarsOf<F extends { name: string }>(shp: string, files: F[]): F[] {
+  return files.filter(
+    f => SHAPEFILE_SIDECARS.includes(extensionOf(f.name)) && stemOf(f.name) === stemOf(shp)
+  )
+}
+
+/** Whether a file came with a .shp in the same pick or drop, to be copied rather than imported. */
+export function isSidecar<F extends { name: string }>(file: F, files: F[]): boolean {
+  return files.some(f => extensionOf(f.name) === 'shp' && sidecarsOf(f.name, [file]).length > 0)
 }
 
 export function detectFormat(filename: string, contents?: string): DetectedFormat {

@@ -41,6 +41,8 @@ Use a **GeoJSON** node (`geojson`) for GeoJSON, and for any vector file DuckDB s
 - `polygons`, `lines`, `points`: one row per vertex, with `lng` and `lat` columns.
 - `all`: every vertex row, with a `kind` column.
 
+A shapefile is several files with one name. Import or drop the `.shp` together with its `.shx` and `.dbf` (and its `.prj` and `.cpg` if it has them): the `.shx` is required, and the `.dbf` holds the attributes that become columns.
+
 ### Geospatial Data
 
 **Overture Maps**: Global datasets (places, buildings, roads) via a `sql` node. Best for large-scale analytics. Query Parquet files on S3 with SQL. See [docs.overturemaps.org](https://docs.overturemaps.org/).

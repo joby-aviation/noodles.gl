@@ -8,6 +8,7 @@ import {
 } from '../../../render/render-surface-size'
 import { hasCoordinates, viewStateForBounds } from '../../components/tools/detect-coordinates'
 import { useFileSystemStore } from '../../filesystem-store'
+import { readAssetBinary } from '../../storage'
 import { useFileImport } from '../use-file-import'
 
 const flow = vi.hoisted(() => ({
@@ -75,5 +76,43 @@ describe('useFileImport', () => {
     expect(viewState).toEqual(fit(size))
     // A tall surface frames the same points differently from the default one
     expect(viewState).not.toEqual(fit(defaultSize))
+  })
+
+  describe('a shapefile', () => {
+    const bytes = (n: number) => new File([new Uint8Array(n)], 'x')
+    const named = (name: string, n: number) => new File([new Uint8Array(n)], name)
+    const hook = () =>
+      renderHook(() => useFileImport({ getBasePosition: () => ({ x: 0, y: 0 }) })).result
+
+    it('copies the .shx, .dbf and .prj picked with the .shp, under its name', async () => {
+      const shp = named('Places.shp', 100)
+      const files = [shp, named('Places.SHX', 8), named('places.dbf', 33), named('Places.prj', 5)]
+      const imported = await hook().current.importFile(shp, { x: 0, y: 0 }, 'test', [
+        ...files,
+        bytes(1),
+      ])
+      expect(imported.format).toBe('shapefile')
+      // Where the engine looks for them: beside the .shp, extensions in lower case
+      for (const [name, size] of [
+        ['Places.shx', 8],
+        ['Places.dbf', 33],
+        ['Places.prj', 5],
+      ] as const) {
+        const read = await readAssetBinary('memory', 'import-test', name)
+        expect(read.success && read.data.byteLength, name).toBe(size)
+      }
+      const source = docStore()
+        .get()
+        .doc.nodes.find(n => n.op === 'geojson')
+      expect(source?.params.url).toBe('@/Places.shp')
+    })
+
+    it('asks for the .shx when it is missing, and imports nothing', async () => {
+      const shp = named('roads.shp', 100)
+      await expect(
+        hook().current.importFile(shp, { x: 0, y: 0 }, 'test', [shp, named('roads.dbf', 33)])
+      ).rejects.toThrow('roads.shp needs the .shx beside it')
+      expect(docStore().get().doc.nodes).toEqual([])
+    })
   })
 })

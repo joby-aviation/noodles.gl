@@ -10,6 +10,8 @@ import {
   detectFormatFromUrl,
   isBinaryFormat,
   isImportable,
+  isSidecar,
+  sidecarsOf,
 } from './import-pipelines'
 
 const basePosition = { x: 100, y: 200 }
@@ -237,5 +239,32 @@ describe('createImportDoc', () => {
 
   it('keeps a PMTiles reader on its own', () => {
     expect(build('pmtiles').nodes.map(n => n.op)).toEqual(['pmtiles'])
+  })
+})
+
+describe('shapefile sidecars', () => {
+  const files = [
+    { name: 'Places.shp' },
+    { name: 'Places.SHX' },
+    { name: 'places.dbf' },
+    { name: 'Places.prj' },
+    { name: 'roads.dbf' },
+    { name: 'notes.txt' },
+  ]
+
+  it('are the files picked with a .shp under its name', () => {
+    expect(sidecarsOf('Places.shp', files).map(f => f.name)).toEqual([
+      'Places.SHX',
+      'places.dbf',
+      'Places.prj',
+    ])
+  })
+
+  it('are copied rather than imported, while a file of another name is not one', () => {
+    expect(files.filter(f => isSidecar(f, files)).map(f => f.name)).toEqual([
+      'Places.SHX',
+      'places.dbf',
+      'Places.prj',
+    ])
   })
 })

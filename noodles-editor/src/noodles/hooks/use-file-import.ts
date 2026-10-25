@@ -16,6 +16,7 @@ import {
   detectFormatFromUrl,
   extensionOf,
   isBinaryFormat,
+  sidecarsOf,
 } from '../components/tools/import-pipelines'
 import { useFileSystemStore } from '../filesystem-store'
 import { writeAsset } from '../storage'
@@ -78,7 +79,9 @@ export function useFileImport({ getBasePosition, onImported }: UseFileImportOpti
     async (
       file: File,
       basePosition: { x: number; y: number },
-      source: string
+      source: string,
+      // The other files picked or dropped with it: a shapefile's .shx, .dbf, .prj, .cpg
+      siblings: File[] = []
     ): Promise<FileImportResult> => {
       const fileType = extensionOf(file.name) || 'unknown'
       let analyticsTracked = false
@@ -99,6 +102,31 @@ export function useFileImport({ getBasePosition, onImported }: UseFileImportOpti
 
         // Binary formats have to round-trip as a Blob; reading them as text corrupts them
         const probableFormat = detectFormat(file.name)
+        if (probableFormat === 'shapefile') {
+          // Copied first, under the .shp's own name, which is where the engine looks for them
+          const sidecars = sidecarsOf(file.name, siblings)
+          if (!sidecars.some(f => extensionOf(f.name) === 'shx')) {
+            analytics.track('file_import_failed', {
+              fileType,
+              attemptedFormat: probableFormat,
+              reason: 'missing_sidecar',
+              source,
+              fileSize: file.size,
+            })
+            analyticsTracked = true
+            throw new Error(
+              `${file.name} needs the .shx beside it: import the .shp, .shx and .dbf together`
+            )
+          }
+          const stem = file.name.slice(0, -'.shp'.length)
+          for (const sidecar of sidecars) {
+            const name = `${stem}.${extensionOf(sidecar.name)}`
+            const written = await writeAsset(activeStorageType, currentProjectName, name, sidecar)
+            if (!written.success) {
+              throw new Error(written.error?.message || `Failed to write file: ${name}`)
+            }
+          }
+        }
         const binary = isBinaryFormat(probableFormat)
         const contents = binary ? file : await file.text()
 

@@ -92,7 +92,12 @@ export function DataImporterTool({ open, onOpenChange, reactFlowRef }: DataImpor
       const basePosition = getBasePosition()
       return runImport(async () => {
         for (const [index, file] of supported.entries()) {
-          await importFile(file, { x: basePosition.x, y: basePosition.y + index * 700 }, source)
+          await importFile(
+            file,
+            { x: basePosition.x, y: basePosition.y + index * 700 },
+            source,
+            files
+          )
         }
       })
     },
