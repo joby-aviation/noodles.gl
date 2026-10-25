@@ -9,7 +9,7 @@ import { useLocation, useParams } from 'wouter'
 import { getPendingQuickStartAction } from '../components/quick-start-modal'
 import { CreateFromSQLDialog } from '../noodles/components/create-from-sql-dialog'
 import { ErrorBoundary } from '../noodles/components/error-boundary'
-import { LayerPanel } from '../noodles/components/layer-panel'
+import { LayerStack } from '../noodles/components/layer-stack'
 import { NodeTreeSidebar } from '../noodles/components/node-tree-sidebar'
 import { SidebarTabs } from '../noodles/components/sidebar-tabs'
 import { CanvasDropImport } from '../noodles/components/tools/canvas-drop-import'
@@ -455,8 +455,8 @@ export function useDocNoodles(): Visualization {
       <ErrorBoundary title="Sidebar Error">
         <SidebarTabs
           tabs={[
+            { id: 'layers', label: 'Layers', icon: 'pi-clone', content: <LayerStack /> },
             { id: 'nodes', label: 'Nodes', icon: 'pi-sitemap', content: <NodeTreeSidebar /> },
-            { id: 'layers', label: 'Layers', icon: 'pi-clone', content: <LayerPanel /> },
           ]}
         />
       </ErrorBoundary>
