@@ -24,6 +24,7 @@ import { type EngineState, useEngineState } from './doc-engine'
 import { clearTrack, pathTo, promote, removeKey, setKey, setParam } from './doc-ops'
 import { docStore, useEditor } from './doc-store'
 import { NodeFields } from './field-adapter'
+import { startLinkDrag, useParamLinkTarget } from './link-drag'
 import { ContextMenu, type MenuItem } from './menus'
 import { RefPicker, referenceable } from './ref-picker'
 
@@ -131,6 +132,7 @@ export function ParamRow({
   // What a change costs is the planner's business; debug mode shows it
   const routes = debug ? routesOf(def, key, engine) : []
   const numeric = KEYABLE.has(def.kind)
+  const linkTarget = useParamLinkTarget(node, def)
 
   // What this parameter reads, and what reads it
   const source = (() => {
@@ -242,9 +244,9 @@ export function ParamRow({
   ]
 
   return (
-    // biome-ignore lint/a11y/noStaticElementInteractions: right-click opens the parameter's menu
+    // biome-ignore lint/a11y/noStaticElementInteractions: right-click opens the parameter's menu; a dragged port drops here
     <div
-      className={s.paramRow}
+      className={cx(s.paramRow, linkTarget.accepts && s.paramRowLinkTarget)}
       // A field label's tooltip opens when keyboard focus reaches this row's input
       data-field-row
       title={`${def.help ?? def.label}\n${key}`}
@@ -253,7 +255,20 @@ export function ParamRow({
         e.stopPropagation()
         setMenu({ x: e.clientX, y: e.clientY })
       }}
+      {...linkTarget.props}
     >
+      {referenceable(def) && (
+        // biome-ignore lint/a11y/noStaticElementInteractions: dragging the port is the pointer gesture; the link button and the right-click menu make the same link from the keyboard
+        <span
+          className={cx(s.port, mode === 'ref' && s.portLinked, wire && s.portWired)}
+          draggable
+          onDragStart={e => {
+            e.stopPropagation()
+            startLinkDrag(e, { kind: 'param', key })
+          }}
+          title="Drag onto another property or node to link it to this one"
+        />
+      )}
       <div className={s.paramMain}>
         {wire ? (
           <div className={s.paramDriven}>
@@ -369,6 +384,7 @@ export function ParamRow({
           }}
         />
       )}
+      {linkTarget.picker}
       {routes.length > 0 && (
         <div className={s.routes}>
           {routes.map(r => (

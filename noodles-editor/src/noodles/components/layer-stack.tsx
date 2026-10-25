@@ -4,9 +4,10 @@
 
 import { nameOf, OPERATOR_INDEX } from '@noodles.gl/planner'
 import cx from 'classnames'
-import { type DragEvent, useEffect, useMemo, useRef, useState } from 'react'
+import { type DragEvent, type ReactNode, useEffect, useMemo, useRef, useState } from 'react'
 import { docStore, useEditor } from '../../editor/doc-store'
 import { layerStack, moveLayer } from '../../editor/layer-stack'
+import { startLinkDrag, useNodeLinkTarget } from '../../editor/link-drag'
 import { useUIStore } from '../../editor/ui-store'
 import { setEditorShown } from '../../editor/workspace-store'
 import { analytics } from '../../utils/analytics'
@@ -193,65 +194,69 @@ export function LayerStack() {
                 onDrop()
               }}
             >
-              {/* biome-ignore lint/a11y/noStaticElementInteractions: dragging is the pointer gesture; Alt+Up and Alt+Down on the name move a layer from the keyboard */}
-              <div
-                className={cx(s.row, s.layerRow, selection.includes(layer.id) && s.selected)}
-                style={{ borderLeftColor: category ? `var(--node-${category}-color)` : undefined }}
-                draggable={!q}
-                onDragStart={e => {
-                  e.dataTransfer.effectAllowed = 'move'
-                  e.dataTransfer.setData('text/plain', layer.id)
-                  setDrag({ id: layer.id, to: index })
-                }}
-                onDragEnd={() => setDrag(null)}
-              >
-                <button
-                  type="button"
-                  className={s.chevron}
-                  onClick={() => toggle(layer.id)}
-                  title={expanded ? 'Hide its nodes' : 'Show its nodes'}
-                  disabled={layer.upstream.length === 0}
-                >
-                  <i className={cx('pi', expanded ? 'pi-chevron-down' : 'pi-chevron-right')} />
-                </button>
-                <button
-                  type="button"
-                  className={s.rowMain}
-                  onClick={() => select(layer.id)}
-                  onKeyDown={e => {
-                    if (!e.altKey || (e.key !== 'ArrowUp' && e.key !== 'ArrowDown')) return
-                    e.preventDefault()
-                    const to = index + (e.key === 'ArrowUp' ? -1 : 1)
-                    if (to < 0 || to >= stack.layers.length) return
-                    docStore().edit(d => moveLayer(d, layer.id, to), 'layer-order')
-                    analytics.track('layer_reordered', {
-                      from: index,
-                      to,
-                      layers: stack.layers.length,
-                    })
+              <LinkZone nodeId={layer.id}>
+                {/* biome-ignore lint/a11y/noStaticElementInteractions: dragging is the pointer gesture; Alt+Up and Alt+Down on the name move a layer from the keyboard */}
+                <div
+                  className={cx(s.row, s.layerRow, selection.includes(layer.id) && s.selected)}
+                  style={{
+                    borderLeftColor: category ? `var(--node-${category}-color)` : undefined,
                   }}
-                  title="Alt+Up or Alt+Down moves the layer"
+                  draggable={!q}
+                  onDragStart={e => {
+                    // Dropped in the stack it moves; dropped on a property it links
+                    startLinkDrag(e, { kind: 'node', id: layer.id })
+                    setDrag({ id: layer.id, to: index })
+                  }}
+                  onDragEnd={() => setDrag(null)}
                 >
-                  <span className={cx(s.name, !layer.visible && s.hidden)}>{nameOf(n)}</span>
-                  <span className={s.type}>{OPERATOR_INDEX.get(n.op)?.label ?? n.op}</span>
-                </button>
-                <button
-                  type="button"
-                  className={s.rowAction}
-                  onClick={() => showInGraph(layer.id)}
-                  title="Show in node graph"
-                >
-                  <i className="pi pi-sitemap" />
-                </button>
-                <button
-                  type="button"
-                  className={cx(s.eye, !layer.visible && s.eyeOff)}
-                  onClick={() => toggleVisible(layer.id, layer.visible)}
-                  title={layer.visible ? 'Hide layer' : 'Show layer'}
-                >
-                  <i className={layer.visible ? 'pi pi-eye' : 'pi pi-eye-slash'} />
-                </button>
-              </div>
+                  <button
+                    type="button"
+                    className={s.chevron}
+                    onClick={() => toggle(layer.id)}
+                    title={expanded ? 'Hide its nodes' : 'Show its nodes'}
+                    disabled={layer.upstream.length === 0}
+                  >
+                    <i className={cx('pi', expanded ? 'pi-chevron-down' : 'pi-chevron-right')} />
+                  </button>
+                  <button
+                    type="button"
+                    className={s.rowMain}
+                    onClick={() => select(layer.id)}
+                    onKeyDown={e => {
+                      if (!e.altKey || (e.key !== 'ArrowUp' && e.key !== 'ArrowDown')) return
+                      e.preventDefault()
+                      const to = index + (e.key === 'ArrowUp' ? -1 : 1)
+                      if (to < 0 || to >= stack.layers.length) return
+                      docStore().edit(d => moveLayer(d, layer.id, to), 'layer-order')
+                      analytics.track('layer_reordered', {
+                        from: index,
+                        to,
+                        layers: stack.layers.length,
+                      })
+                    }}
+                    title="Alt+Up or Alt+Down moves the layer"
+                  >
+                    <span className={cx(s.name, !layer.visible && s.hidden)}>{nameOf(n)}</span>
+                    <span className={s.type}>{OPERATOR_INDEX.get(n.op)?.label ?? n.op}</span>
+                  </button>
+                  <button
+                    type="button"
+                    className={s.rowAction}
+                    onClick={() => showInGraph(layer.id)}
+                    title="Show in node graph"
+                  >
+                    <i className="pi pi-sitemap" />
+                  </button>
+                  <button
+                    type="button"
+                    className={cx(s.eye, !layer.visible && s.eyeOff)}
+                    onClick={() => toggleVisible(layer.id, layer.visible)}
+                    title={layer.visible ? 'Hide layer' : 'Show layer'}
+                  >
+                    <i className={layer.visible ? 'pi pi-eye' : 'pi pi-eye-slash'} />
+                  </button>
+                </div>
+              </LinkZone>
               {expanded &&
                 children.map(id =>
                   row(id, 1, { sharedWith: stack.shared.get(id)?.filter(l => l !== layer.id) })
@@ -284,10 +289,15 @@ function NodeRow({
   selected: boolean
   shared?: string
 }) {
+  const link = useNodeLinkTarget(id)
   return (
+    // biome-ignore lint/a11y/noStaticElementInteractions: dragging a node onto a property links it; the property's link button does the same from the keyboard
     <div
-      className={cx(s.row, selected && s.selected)}
+      className={cx(s.row, selected && s.selected, link.accepts && s.linkTarget)}
       style={{ paddingLeft: 8 + depth * 18, borderLeftColor: color }}
+      draggable
+      onDragStart={e => startLinkDrag(e, { kind: 'node', id })}
+      {...link.props}
     >
       <button type="button" className={s.rowMain} onClick={() => select(id)}>
         <span className={s.name}>{name}</span>
@@ -306,6 +316,18 @@ function NodeRow({
       >
         <i className="pi pi-sitemap" />
       </button>
+      {link.picker}
+    </div>
+  )
+}
+
+// A layer row as a drop target for a dragged property port
+function LinkZone({ nodeId, children }: { nodeId: string; children: ReactNode }) {
+  const link = useNodeLinkTarget(nodeId)
+  return (
+    <div className={cx(link.accepts && s.linkTarget)} {...link.props}>
+      {children}
+      {link.picker}
     </div>
   )
 }

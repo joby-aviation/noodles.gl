@@ -39,6 +39,16 @@ A parameter can take its value from somewhere other than its editor:
 
 A parameter that other nodes reference lists them under "used by". Click one to go to it.
 
+### Linking Parameters by Dragging
+
+Each parameter that can follow another has a **port**, the small circle at the left of its row, as in Cavalry. The port is hollow for a plain value, blue when the parameter reads another, and red when a wire drives it.
+
+- **Port onto a parameter**: drag a port onto another parameter's row. That parameter now reads this one. Rows that can take the link light up while you drag; a color only links to a color, a number to a number.
+- **Port onto a node**: drop it on a node in the Layers list and pick which of the node's parameters reads it. Rest on the node for a moment instead, and Properties switches to it, so you can drop on the exact parameter.
+- **Node onto a parameter**: drag a node from the Layers list onto a parameter's row to make it read one of the node's parameters. A node with one matching parameter links straight away; otherwise pick one.
+
+A link is a reference, so it shows as a chip and breaks with ×, and Cmd+Z undoes it. Links that would loop back on themselves are refused.
+
 ### Keyframes
 
 The **diamond icon** (◇) next to a number parameter is its keyframe indicator. Click it to add a keyframe at the playhead, and click it again on a keyframe to remove it. See [Animation and Rendering](./animation-and-rendering.md) for details.
