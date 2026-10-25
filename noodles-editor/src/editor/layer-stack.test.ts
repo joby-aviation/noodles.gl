@@ -1,6 +1,6 @@
 import type { DocEdge, DocNode, EditorDoc } from '@noodles.gl/planner'
 import { describe, expect, it } from 'vitest'
-import { dependencies, layerStack, moveLayer } from './layer-stack'
+import { dependencies, layerStack, moveLayer, nodeOfKey } from './layer-stack'
 
 const node = (
   id: string,
@@ -64,6 +64,54 @@ describe('dependencies', () => {
       node('expr', 'number', { value: { expr: "ch('ctl/value') * 2 + ch('gone/x')" } })
     )
     expect(dependencies(doc).get('expr')).toEqual(['ctl'])
+  })
+})
+
+describe('host outputs and subnets', () => {
+  it('names the node of a reference to a host output, whose path has dots', () => {
+    const doc = fixture()
+    doc.nodes.push(
+      node('geo', 'geocoder'),
+      node('pin', 'number', { value: { expr: "ch('geo/out.location.lat')" } })
+    )
+    expect(nodeOfKey(doc, 'geo.out.location.lat')).toBe('geo')
+    expect(dependencies(doc).get('pin')).toEqual(['geo'])
+  })
+
+  // quakes → group[in0 → filter → out0] → dots: the filter was collapsed into a subnet
+  function collapsed(): EditorDoc {
+    const doc = fixture()
+    doc.nodes.push(
+      node('group', 'subnet'),
+      node('group-in', 'subnet-input', { index: 0 }, { parent: 'group' }),
+      node('inner', 'filter', {}, { parent: 'group' }),
+      node('group-out', 'subnet-output', { index: 0 }, { parent: 'group' })
+    )
+    doc.edges = doc.edges.filter(e => !(e.source === 'quakes' && e.target === 'filter'))
+    doc.edges = doc.edges.filter(e => !(e.source === 'filter' && e.target === 'ramp'))
+    doc.nodes = doc.nodes.filter(n => n.id !== 'filter')
+    doc.edges.push(
+      edge('quakes', 'group', 'in0'),
+      edge('group-in', 'inner', 'in'),
+      edge('inner', 'group-out', 'in'),
+      { ...edge('group', 'ramp', 'in'), sourcePort: 'out0' }
+    )
+    return doc
+  }
+
+  it('lists the nodes inside a subnet under the layer they feed, after the subnet', () => {
+    const dots = layerStack(collapsed()).layers.find(l => l.id === 'dots')
+    expect(dots?.upstream).toEqual(['quakes', 'group', 'inner', 'ramp', 'radius'])
+  })
+
+  it('lists what feeds a subnet drawn as a layer', () => {
+    const doc = collapsed()
+    // The deck draws the subnet itself: its output is the ramp-colored rows' layer
+    doc.edges = doc.edges.map(e =>
+      e.source === 'dots' && e.target === 'deck' ? { ...e, source: 'group' } : e
+    )
+    const group = layerStack(doc).layers.find(l => l.id === 'group')
+    expect(group?.upstream).toEqual(['quakes', 'inner'])
   })
 })
 
