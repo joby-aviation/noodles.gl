@@ -1178,7 +1178,7 @@
         },
         "a": {
           "type": "NumberField",
-          "default": 1
+          "default": 255
         }
       },
       "outputs": {
@@ -6225,9 +6225,7 @@
       "inputs": {
         "color": {
           "type": "ColorField",
-          "default": {
-            "accessor": true
-          }
+          "default": "#0000ffff"
         }
       },
       "outputs": {

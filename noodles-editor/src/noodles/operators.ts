@@ -6,7 +6,7 @@ import type {
   HexagonLayerProps,
   ScreenGridLayerProps,
 } from '@deck.gl/aggregation-layers'
-import { LayerExtension, type LayerProps, WebMercatorViewport } from '@deck.gl/core'
+import { type Color, LayerExtension, type LayerProps, WebMercatorViewport } from '@deck.gl/core'
 import {
   BrushingExtension,
   ClipExtension,
@@ -2038,23 +2038,26 @@ export class CombineRGBAOp extends Operator<CombineRGBAOp> {
       r: new NumberField(0, {
         accessor: true,
         label: 'Red',
-        description: 'Red channel, 0 to 255 (whole numbers). Can be a per-item accessor.',
+        description:
+          'Red channel, 0 to 255. Fractions round and values outside the range clamp. Can be a per-item accessor.',
       }),
       g: new NumberField(0, {
         accessor: true,
         label: 'Green',
-        description: 'Green channel, 0 to 255 (whole numbers). Can be a per-item accessor.',
+        description:
+          'Green channel, 0 to 255. Fractions round and values outside the range clamp. Can be a per-item accessor.',
       }),
       b: new NumberField(0, {
         accessor: true,
         label: 'Blue',
-        description: 'Blue channel, 0 to 255 (whole numbers). Can be a per-item accessor.',
+        description:
+          'Blue channel, 0 to 255. Fractions round and values outside the range clamp. Can be a per-item accessor.',
       }),
-      a: new NumberField(1, {
+      a: new NumberField(255, {
         accessor: true,
         label: 'Alpha',
         description:
-          'Opacity, 0 (clear) to 255 (opaque), whole numbers. Can be a per-item accessor.',
+          'Opacity, 0 (clear) to 255 (opaque). Fractions round and values outside the range clamp. Can be a per-item accessor.',
       }),
     }
   }
@@ -2066,6 +2069,10 @@ export class CombineRGBAOp extends Operator<CombineRGBAOp> {
     }
   }
   execute({ r, g, b, a }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    // Hex digits need whole numbers in 0-255
+    const toHex = (channels: number[]) =>
+      colorToHex(channels.map(c => Math.min(255, Math.max(0, Math.round(c)))) as Color)
+
     // Check if any inputs are accessor functions
     const rIsAccessor = isAccessor(r)
     const gIsAccessor = isAccessor(g)
@@ -2074,7 +2081,7 @@ export class CombineRGBAOp extends Operator<CombineRGBAOp> {
 
     if (!rIsAccessor && !gIsAccessor && !bIsAccessor && !aIsAccessor) {
       // All static values
-      return { color: colorToHex([r as number, g as number, b as number, a as number]) }
+      return { color: toHex([r as number, g as number, b as number, a as number]) }
     }
 
     // At least one is an accessor - return accessor function
@@ -2083,7 +2090,7 @@ export class CombineRGBAOp extends Operator<CombineRGBAOp> {
       const gVal = gIsAccessor ? (g as (...args: unknown[]) => unknown)(...args) : (g as number)
       const bVal = bIsAccessor ? (b as (...args: unknown[]) => unknown)(...args) : (b as number)
       const aVal = aIsAccessor ? (a as (...args: unknown[]) => unknown)(...args) : (a as number)
-      return colorToHex([rVal as number, gVal as number, bVal as number, aVal as number])
+      return toHex([rVal as number, gVal as number, bVal as number, aVal as number])
     }
     return { color } as ExtractProps<typeof this.outputs>
   }
@@ -2094,10 +2101,10 @@ export class SplitRGBAOp extends Operator<SplitRGBAOp> {
   static description = 'Split a color into its red, green, blue, and alpha components (range 0-255)'
   createInputs() {
     return {
-      color: new ColorField(
-        { accessor: true },
-        { description: 'Hex color to split into channels. Can be a per-item accessor.' }
-      ),
+      color: new ColorField(undefined, {
+        accessor: true,
+        description: 'Hex color to split into channels. Can be a per-item accessor.',
+      }),
     }
   }
   createOutputs() {
@@ -2114,8 +2121,6 @@ export class SplitRGBAOp extends Operator<SplitRGBAOp> {
   execute({ color }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     const parseColor = (c: string) => {
       const [r, g, b, a] = hexToColor(c)
-        .split(',')
-        .map((v: string) => parseInt(v, 10))
       return { r, g, b, a }
     }
 

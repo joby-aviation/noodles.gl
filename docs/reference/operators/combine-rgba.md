@@ -29,7 +29,7 @@ Expressions and code read its fields as `op('/combine-rgba').par.r` (an input) a
 | `r` | `NumberField` | `0` |
 | `g` | `NumberField` | `0` |
 | `b` | `NumberField` | `0` |
-| `a` | `NumberField` | `1` |
+| `a` | `NumberField` | `255` |
 <!-- gen:end inputs -->
 
 ## Outputs
@@ -41,6 +41,10 @@ Expressions and code read its fields as `op('/combine-rgba').par.r` (an input) a
 <!-- gen:end outputs -->
 
 <!-- Add hand-written "## Remarks" and "## Examples" sections here. See the operator reference index for what goes in them. -->
+
+## Remarks
+
+Each channel, alpha included, runs from 0 to 255. Fractions round to the nearest whole number and values outside 0 to 255 clamp, so `127.6` becomes `128` and `300` becomes `255`. Alpha defaults to 255, which is opaque.
 
 ## Details
 
