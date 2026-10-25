@@ -432,6 +432,119 @@
   font-style: italic;
 }
 
+/* A compound control (compound-rows.tsx): a color's mode, with the rows for that mode nested
+   under it, and a value's units on the value's row */
+.compound {
+  padding-bottom: 2px;
+}
+
+/* The group's own row lines up with the rows around it */
+.compound > .paramDriven {
+  padding: 1px calc(var(--pane-gutter) + 4px) 1px 16px;
+}
+
+.compoundBody {
+  margin-left: 10px;
+  border-left: 1px solid rgb(255 255 255 / 8%);
+}
+
+.compoundBody > .paramRow,
+.compoundBody > .paramDriven {
+  padding-left: 12px;
+}
+
+.compoundBody > .paramDriven {
+  padding-right: calc(var(--pane-gutter) + 4px);
+}
+
+.compoundNote {
+  margin: 2px 0 4px 22px;
+  color: var(--color-text-secondary, #888);
+  font-size: 11px;
+}
+
+.segmented {
+  display: flex;
+  min-width: 0;
+  margin: 0;
+  padding: 1px;
+  border: 1px solid var(--color-border, #333);
+  border-radius: 4px;
+}
+
+.segment {
+  flex: 1;
+  min-width: 0;
+  height: 18px;
+  padding: 0 4px;
+  overflow: hidden;
+  border: 0;
+  border-radius: 3px;
+  background: transparent;
+  color: var(--color-text-secondary, #888);
+  font: inherit;
+  font-size: 10.5px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  cursor: pointer;
+}
+
+.segment:hover {
+  color: var(--color-text-primary, #ddd);
+}
+
+.segmentOn,
+.segmentOn:hover {
+  background: rgb(255 255 255 / 10%);
+  color: var(--color-text-primary, #ddd);
+}
+
+.compoundSelect,
+.rangeInput,
+.unitsSelect {
+  min-width: 0;
+  height: 20px;
+  padding: 0 4px;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+}
+
+.compoundSelect:hover,
+.rangeInput:hover,
+.unitsSelect:hover {
+  background: var(--node-input-hover-color, rgb(255 255 255 / 5%));
+}
+
+.compoundSelect:focus,
+.rangeInput:focus,
+.unitsSelect:focus {
+  border-color: var(--color-text-accent, #4a9eff);
+  outline: none;
+}
+
+.range {
+  display: flex;
+  gap: 4px;
+  min-width: 0;
+}
+
+.rangeInput {
+  flex: 1;
+  width: 0;
+}
+
+/* A value's units sit after the value, before the link and keyframe gutter */
+.unitsSelect {
+  flex: none;
+  max-width: 72px;
+  color: var(--color-text-secondary, #888);
+}
+
 /* A one-line text parameter (a column, an expression) stays one line, with no resize grip */
 /* One line high, except a text parameter whose value has several lines: that grows with them */
 .paramRow

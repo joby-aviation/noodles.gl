@@ -5,7 +5,7 @@
 
 import type { ParamDef } from '@noodles.gl/planner'
 import cx from 'classnames'
-import { useEffect, useState } from 'react'
+import { useEffect, useId, useState } from 'react'
 import s from './doc-editor.module.css'
 
 export type ChannelKind = 'default' | 'attribute' | 'expression'
@@ -39,12 +39,18 @@ export function ChannelInput({
   def,
   value,
   onCommit,
+  suggestions,
+  placeholder,
 }: {
   label: string
   def: ParamDef
   value: string
   onCommit: (text: string) => void
+  // Attribute names to offer while typing
+  suggestions?: string[]
+  placeholder?: string
 }) {
+  const listId = useId()
   const [draft, setDraft] = useState(value)
   useEffect(() => setDraft(value), [value])
   const kind = channelKind(draft)
@@ -58,7 +64,8 @@ export function ChannelInput({
           spellCheck={false}
           aria-label={label}
           value={draft}
-          placeholder={channelDefault(def)}
+          placeholder={placeholder ?? channelDefault(def)}
+          list={suggestions?.length ? listId : undefined}
           onChange={e => setDraft(e.target.value)}
           onBlur={() => {
             if (draft !== value) onCommit(draft)
@@ -68,6 +75,13 @@ export function ChannelInput({
             if (e.key === 'Escape') setDraft(value)
           }}
         />
+        {suggestions && suggestions.length > 0 && (
+          <datalist id={listId}>
+            {suggestions.map(c => (
+              <option key={c} value={c} />
+            ))}
+          </datalist>
+        )}
       </span>
     </div>
   )

@@ -13,6 +13,8 @@ import {
 } from '@noodles.gl/planner'
 import cx from 'classnames'
 import { useEffect, useRef, useState } from 'react'
+import { compoundsOf } from './compound-params'
+import { ColorGroupRows, UnitsSelect } from './compound-rows'
 import s from './doc-editor.module.css'
 import { type EngineState, useEngineState } from './doc-engine'
 import { headerOf } from './doc-node'
@@ -92,7 +94,13 @@ function NodeParams({ node, doc, multi }: { node: DocNode; doc: EditorDoc; multi
 
   const replaced = PANE_EDITORS[node.op]?.replaces ?? []
   const visible = op.params.filter(p => shown(p, node, op) && !replaced.includes(p.name))
-  const folders = [...new Set(visible.map(p => p.folder ?? 'Parameters'))]
+  // Units, solid colors and the ramp are drawn inside the control they belong to
+  const compounds = compoundsOf(op)
+  const folders = [
+    ...new Set(
+      visible.filter(p => !compounds.absorbed.has(p.name)).map(p => p.folder ?? 'Parameters')
+    ),
+  ]
   const wired = new Set(doc.edges.filter(e => e.target === node.id).map(e => e.targetPort))
   const errors = errorsFor(node.id, engine)
 
@@ -204,9 +212,25 @@ function NodeParams({ node, doc, multi }: { node: DocNode; doc: EditorDoc; multi
                 )}
                 {open &&
                   visible
-                    .filter(p => (p.folder ?? 'Parameters') === f)
+                    .filter(
+                      p => (p.folder ?? 'Parameters') === f && !compounds.absorbed.has(p.name)
+                    )
                     .map(def => {
+                      const color = compounds.colors.find(c => c.channel === def.name)
+                      if (color)
+                        return (
+                          <ColorGroupRows
+                            key={def.name}
+                            node={node}
+                            doc={doc}
+                            group={color}
+                            fields={fields}
+                            wired={wired}
+                          />
+                        )
                       const b = fields.bindings.get(def.name)
+                      const units = compounds.units.find(u => u.value === def.name)
+                      const unitsDef = units && op.params.find(p => p.name === units.units)
                       return b ? (
                         <ParamRow
                           key={def.name}
@@ -214,6 +238,7 @@ function NodeParams({ node, doc, multi }: { node: DocNode; doc: EditorDoc; multi
                           def={def}
                           field={b.field}
                           wired={wired.has(`par:${def.name}`)}
+                          inline={unitsDef && <UnitsSelect node={node} def={unitsDef} />}
                         />
                       ) : null
                     })}
