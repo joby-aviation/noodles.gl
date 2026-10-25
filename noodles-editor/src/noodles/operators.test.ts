@@ -71,6 +71,7 @@ import {
   ScreenshotWidgetOp,
   SelectOp,
   SmoothOp,
+  SortOp,
   SwitchOp,
   TableEditorOp,
   Tile3DLayerOp,
@@ -112,6 +113,17 @@ describe('TableEditorOp', () => {
     const result = operator.execute({ data: [{}], schema })
 
     expect(result.data).toEqual([{ anchor: 'start', offset2d: [64, 0], offset3d: [64, 0, 10] }])
+  })
+
+  it('keeps every value when TableEditors without a schema are chained', () => {
+    const first = new TableEditorOp('/first')
+    const second = new TableEditorOp('/second')
+    const data = [{ count: null }, { count: 5, extra: 'x' }]
+
+    const firstResult = first.execute({ data, schema: null })
+    const secondResult = second.execute({ data: firstResult.data, schema: firstResult.schema })
+
+    expect(secondResult.data).toEqual(data)
   })
 
   it('preserves date-time values when TableEditors are chained', () => {
@@ -1113,6 +1125,52 @@ describe('FilterOp', () => {
     ]
     operator.inputs.data.setValue(data)
     expect(operator.inputs.columnName.choices.map(c => c.value)).toEqual(['a', 'b'])
+  })
+})
+
+describe('SortOp', () => {
+  it('sorts string keys', () => {
+    const operator = new SortOp('/sort')
+    const data = [{ n: 'b' }, { n: 'c' }, { n: 'a' }]
+
+    expect(operator.execute({ data, key: 'n', order: 'asc' }).data).toEqual([
+      { n: 'a' },
+      { n: 'b' },
+      { n: 'c' },
+    ])
+    expect(operator.execute({ data, key: 'n', order: 'desc' }).data).toEqual([
+      { n: 'c' },
+      { n: 'b' },
+      { n: 'a' },
+    ])
+  })
+
+  it('leaves the input array in its original order', () => {
+    const operator = new SortOp('/sort')
+    const data = [{ n: 3 }, { n: 1 }, { n: 2 }]
+
+    const result = operator.execute({ data, key: 'n', order: 'asc' })
+
+    expect(result.data).toEqual([{ n: 1 }, { n: 2 }, { n: 3 }])
+    expect(data).toEqual([{ n: 3 }, { n: 1 }, { n: 2 }])
+  })
+
+  it('puts missing values last in either order', () => {
+    const operator = new SortOp('/sort')
+    const data = [{ n: 2 }, {}, { n: 1 }, { n: null }]
+
+    expect(operator.execute({ data, key: 'n', order: 'asc' }).data).toEqual([
+      { n: 1 },
+      { n: 2 },
+      {},
+      { n: null },
+    ])
+    expect(operator.execute({ data, key: 'n', order: 'desc' }).data).toEqual([
+      { n: 2 },
+      { n: 1 },
+      {},
+      { n: null },
+    ])
   })
 })
 

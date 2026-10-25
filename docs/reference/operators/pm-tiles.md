@@ -27,6 +27,7 @@ Expressions and code read its fields as `op('/pm-tiles').par.url` (an input) and
 | Name | Type | Default |
 |------|------|---------|
 | `url` | `FileUrlField` | `""` |
+| `tileType` | `StringLiteralField` | `"vector"` |
 | `sourceLayer` | `StringField` | `""` |
 | `minZoom` | `NumberField` | `0` |
 | `maxZoom` | `NumberField` | `14` |

@@ -4851,6 +4851,10 @@
           "type": "FileUrlField",
           "default": ""
         },
+        "tileType": {
+          "type": "StringLiteralField",
+          "default": "vector"
+        },
         "sourceLayer": {
           "type": "StringField",
           "default": ""
@@ -5896,7 +5900,7 @@
       "name": "Shapefile",
       "type": "ShapefileOp",
       "category": "data",
-      "description": "Load a Shapefile (.shp) and convert to GeoJSON",
+      "description": "Load a Shapefile (.shp) and convert to GeoJSON, with attributes from the .dbf file beside it",
       "inputs": {
         "url": {
           "type": "FileUrlField",

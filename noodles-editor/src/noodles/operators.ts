@@ -4617,7 +4617,8 @@ export class SortOp extends Operator<SortOp> {
         description: 'Array of rows (objects) to sort by the Key column.',
       }),
       key: new StringField('', {
-        description: 'Column to sort by. Works with numeric values only.',
+        description:
+          'Column to sort by. Numbers, text and dates all sort; rows missing it go last.',
       }),
       order: new StringLiteralField('asc', {
         values: ['asc', 'desc'],
@@ -4637,11 +4638,15 @@ export class SortOp extends Operator<SortOp> {
     key,
     order,
   }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
-    const sorted = data.sort((a, b) => {
-      if (order === 'asc') {
-        return a[key] - b[key]
-      }
-      return b[key] - a[key]
+    const direction = order === 'asc' ? 1 : -1
+    // Copy first: Array.sort works in place and would reorder the upstream data
+    const sorted = [...data].sort((a, b) => {
+      const x = a[key]
+      const y = b[key]
+      // Missing values go last in either order
+      if (x == null || y == null) return (x == null ? 1 : 0) - (y == null ? 1 : 0)
+      // < compares strings and dates as well as numbers
+      return (x < y ? -1 : x > y ? 1 : 0) * direction
     })
     return { data: sorted }
   }
@@ -9528,7 +9533,8 @@ export class GeoParquetOp extends Operator<GeoParquetOp> {
 
 export class ShapefileOp extends Operator<ShapefileOp> {
   static displayName = 'Shapefile'
-  static description = 'Load a Shapefile (.shp) and convert to GeoJSON'
+  static description =
+    'Load a Shapefile (.shp) and convert to GeoJSON, with attributes from the .dbf file beside it'
   asDownload = () => this.outputData
   createInputs() {
     return {
@@ -9536,7 +9542,7 @@ export class ShapefileOp extends Operator<ShapefileOp> {
         description: 'URL or project path of the .shp file to load.',
       }),
       encoding: new StringField('utf-8', {
-        description: 'Text encoding for attribute data, such as utf-8.',
+        description: 'Text encoding of the .dbf attribute file, such as utf-8 or windows-1252.',
       }),
     }
   }
@@ -9553,9 +9559,18 @@ export class ShapefileOp extends Operator<ShapefileOp> {
   }: ExtractProps<typeof this.inputs>): Promise<ExtractProps<typeof this.outputs>> {
     if (!url) return { featureCollection: { type: 'FeatureCollection', features: [] } }
     const shapefile = await import('shapefile')
-    const response = await fetch(url)
-    const buffer = await response.arrayBuffer()
-    const geojson = await shapefile.read(buffer, undefined, { encoding })
+    // Feature attributes live in a .dbf file next to the .shp. Without it, features have
+    // no properties and encoding (which decodes the .dbf text) does nothing
+    const dbfUrl = url.replace(/\.shp(?=$|[?#])/i, '.dbf')
+    const [shp, dbf] = await Promise.all([
+      fetch(url).then(response => response.arrayBuffer()),
+      dbfUrl === url
+        ? undefined
+        : fetch(dbfUrl)
+            .then(response => (response.ok ? response.arrayBuffer() : undefined))
+            .catch(() => undefined),
+    ])
+    const geojson = await shapefile.read(shp, dbf, { encoding })
     return { featureCollection: geojson }
   }
 }
@@ -9568,8 +9583,13 @@ export class PMTilesOp extends Operator<PMTilesOp> {
       url: new FileUrlField(undefined, {
         description: 'URL of the .pmtiles archive. Empty outputs no source.',
       }),
+      tileType: new StringLiteralField('vector', {
+        values: ['vector', 'raster'],
+        description: 'Whether the archive holds vector or raster (image) tiles.',
+      }),
       sourceLayer: new StringField('', {
-        description: 'Name of the vector layer inside the archive. Left out when empty.',
+        description:
+          'Name of the vector layer inside the archive. Left out when empty or for raster tiles.',
       }),
       minZoom: new NumberField(0, {
         min: 0,
@@ -9586,12 +9606,14 @@ export class PMTilesOp extends Operator<PMTilesOp> {
   createOutputs() {
     return {
       sourceConfig: new UnknownField(null, {
-        description: 'MapLibre vector source config with a pmtiles:// URL, or null without a URL.',
+        description:
+          'MapLibre vector or raster source config with a pmtiles:// URL, or null without a URL.',
       }),
     }
   }
   execute({
     url,
+    tileType,
     sourceLayer,
     minZoom,
     maxZoom,
@@ -9599,11 +9621,12 @@ export class PMTilesOp extends Operator<PMTilesOp> {
     if (!url) return { sourceConfig: null }
     return {
       sourceConfig: {
-        type: 'vector',
+        type: tileType,
         url: `pmtiles://${url}`,
         minzoom: minZoom,
         maxzoom: maxZoom,
-        ...(sourceLayer ? { sourceLayer } : {}),
+        // Raster tiles have no layers to pick from
+        ...(sourceLayer && tileType === 'vector' ? { sourceLayer } : {}),
       },
     }
   }
@@ -10545,14 +10568,15 @@ export class PolygonToLineOp extends Operator<PolygonToLineOp> {
   execute({ geojson }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     if (!geojson?.features?.length)
       return { featureCollection: { type: 'FeatureCollection', features: [] } }
-    const features = geojson.features.map((f: GeoJSON.Feature) => {
+    const features = geojson.features.flatMap((f: GeoJSON.Feature) => {
       if (f.geometry.type === 'Polygon' || f.geometry.type === 'MultiPolygon') {
-        return turf.polygonToLine(f)
+        // MultiPolygons come back as a FeatureCollection with one line feature per polygon
+        const lines = turf.polygonToLine(f)
+        return lines.type === 'FeatureCollection' ? lines.features : lines
       }
       return f
     })
-    const flat = features.flat ? features.flat() : features
-    return { featureCollection: { type: 'FeatureCollection', features: flat } }
+    return { featureCollection: { type: 'FeatureCollection', features } }
   }
 }
 
