@@ -1049,7 +1049,7 @@ export class PathStyleExtensionOp extends Operator<PathStyleExtensionOp> {
       dashMode: new StringLiteralField('segment', {
         values: ['segment', 'path'],
         description:
-          "'segment' restarts dashes at each segment; 'path' keeps them continuous along the path.",
+          "'segment' restarts dashes at each segment; 'path' keeps them continuous. Needs Dash on.",
       }),
       dashJustified: new BooleanField(false, {
         description: 'When on, adjusts gaps so dashes line up with both ends of each path.',
@@ -1090,7 +1090,8 @@ export class PathStyleExtensionOp extends Operator<PathStyleExtensionOp> {
       extension: {
         type: 'PathStyleExtension',
         dash,
-        dashMode: highPrecisionDash ? 'path' : dashMode,
+        // deck.gl turns dashes on whenever dashMode is set, so only pass it with dash on
+        ...(dash ? { dashMode: highPrecisionDash ? 'path' : dashMode } : {}),
         offset,
       },
       props,
@@ -1311,19 +1312,37 @@ export class TerrainLayerOp extends Operator<TerrainLayerOp> {
   static description = 'Render a terrain mesh from heightmap tiles'
   createInputs() {
     return {
-      elevationData: new StringField('https://example.com/elevation/{z}/{x}/{y}.png'),
+      elevationData: new StringField('https://example.com/elevation/{z}/{x}/{y}.png', {
+        description:
+          'Heightmap image URL, or a tile URL template with {z}, {x} and {y}. Pixel colors become heights.',
+      }),
       texture: new StringField('', { optional: true }),
       visible: new BooleanField(true),
       opacity: new NumberField(1, { min: 0, max: 1, step: 0.01 }),
-      meshMaxError: new NumberField(4, { min: 0, softMax: 100, showByDefault: false }),
-      elevationDecoder: new CompoundPropsField({
-        rScaler: new NumberField(1),
-        gScaler: new NumberField(0),
-        bScaler: new NumberField(0),
-        offset: new NumberField(0),
+      meshMaxError: new NumberField(4, {
+        min: 0,
+        softMax: 100,
+        showByDefault: false,
+        description:
+          'Allowed error when building the terrain mesh, in meters. Lower values give more detail.',
       }),
+      elevationDecoder: new CompoundPropsField(
+        {
+          rScaler: new NumberField(1),
+          gScaler: new NumberField(0),
+          bScaler: new NumberField(0),
+          offset: new NumberField(0),
+        },
+        {
+          description:
+            'Turns heightmap colors into meters: R * R scaler + G * G scaler + B * B scaler + Offset.',
+        }
+      ),
       bounds: new BboxField(null, { optional: true, returnType: 'tuple' }),
-      color: new ColorField('#ffffff', { transform: hexToColor }),
+      color: new ColorField('#ffffff', {
+        transform: hexToColor,
+        description: 'Color of the terrain surface, used when no Texture is loaded.',
+      }),
       wireframe: new BooleanField(false, { showByDefault: false }),
       parameters: new CompoundPropsField(
         {
@@ -1360,18 +1379,42 @@ export class TileLayerOp extends Operator<TileLayerOp> {
       minZoom: new NumberField(0, { min: 0, max: 24 }),
       maxZoom: new NumberField(24, { min: 0, max: 24 }),
       tileSize: new NumberField(256, { min: 1, softMax: 1024, showByDefault: false }),
-      maxCacheSize: new NumberField(Infinity, { optional: true, showByDefault: false }),
-      maxCacheByteSize: new NumberField(Infinity, { optional: true, showByDefault: false }),
+      maxCacheSize: new NumberField(Infinity, {
+        optional: true,
+        showByDefault: false,
+        description:
+          'Most tiles kept in memory after they leave the view. Infinity keeps them all.',
+      }),
+      maxCacheByteSize: new NumberField(Infinity, {
+        optional: true,
+        showByDefault: false,
+        description: 'Most memory, in bytes, used to keep loaded tiles. Infinity sets no limit.',
+      }),
       refinementStrategy: new StringLiteralField('best-available', {
         values: ['best-available', 'no-overlap', 'never'],
         showByDefault: false,
+        description:
+          "What shows while tiles load: 'best-available' uses other zooms, 'no-overlap' avoids overlap, 'never' waits.",
       }),
-      zRange: new UnknownField([0, 24], { optional: true, showByDefault: false }),
+      zRange: new UnknownField([0, 24], {
+        optional: true,
+        showByDefault: false,
+        label: 'Height range',
+        description:
+          'Lowest and highest heights in the tiles as [min, max], in meters. Helps pick visible tiles in 3D.',
+      }),
       extent: new UnknownField([-Infinity, -Infinity, Infinity, Infinity], {
         optional: true,
         showByDefault: false,
+        description:
+          'Area that has tiles, as [minX, minY, maxX, maxY] (longitude and latitude). Tiles outside are not loaded.',
       }),
-      renderSubLayers: new FunctionField(null, { optional: true, showByDefault: false }),
+      renderSubLayers: new FunctionField(null, {
+        optional: true,
+        showByDefault: false,
+        description:
+          "Function that takes each tile's props, including its data, and returns the layer that draws it.",
+      }),
       parameters: new CompoundPropsField(
         {
           depthTest: new BooleanField(true),

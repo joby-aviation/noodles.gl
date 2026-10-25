@@ -75,6 +75,7 @@ export const LAYER_FIELD_DOCS: Record<string, Partial<FieldDocs>> = {
     description: 'Low-level GPU draw settings, such as depth testing.',
   },
   extensions: { description: 'Add deck.gl extensions, such as data filtering or dashed lines.' },
+  layer: { description: "The configured layer. Connect it to a Deck renderer's Layers input." },
 
   // Position and geometry
   getPosition: { description: 'Where each item is placed, as [longitude, latitude, altitude].' },
