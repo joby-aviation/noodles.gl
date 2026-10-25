@@ -155,12 +155,7 @@
       "id": "/color-ramp.out.color->/scatterplot-layer.par.getFillColor"
     }
   ],
-  "viewport": {
-    "x": 371.10759039675463,
-    "y": 461.29570352289136,
-    "zoom": 0.5265126624852493
-  },
-  "version": 19,
+  "version": 20,
   "name": "World Flights",
   "editorSettings": {
     "layoutMode": "noodles-on-top",

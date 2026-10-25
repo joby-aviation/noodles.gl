@@ -1,10 +1,5 @@
 {
-  "viewport": {
-    "x": 1304.5705824698812,
-    "y": 562.2542727922879,
-    "zoom": 0.5709600637849074
-  },
-  "version": 19,
+  "version": 20,
   "name": "EV Chargers with Live API Data",
   "edges": [
     {

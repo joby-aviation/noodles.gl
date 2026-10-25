@@ -902,6 +902,13 @@ export const GEO_RECIPES: GeoRecipe[] = [
         default: '',
         placeholder: 'https://…/tiles.pmtiles',
       },
+      {
+        key: 'tileType',
+        label: 'Tile type',
+        type: 'select',
+        default: 'vector',
+        options: ['vector', 'raster'],
+      },
       { key: 'sourceLayer', label: 'Source layer', type: 'text', default: '' },
       { key: 'minZoom', label: 'Min zoom', type: 'number', default: 0, min: 0, max: 22, step: 1 },
       { key: 'maxZoom', label: 'Max zoom', type: 'number', default: 14, min: 0, max: 22, step: 1 },

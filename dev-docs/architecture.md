@@ -82,7 +82,7 @@ Defined in `packages/planner/src/doc.ts`:
   or `{ ref }` (another node's parameter).
 - `timeline`: tracks keyed `nodeId.param`, with keyframes.
 
-Projects in the older operator-graph format (`noodles.json` schema 1–19) are migrated through
+Projects in the older operator-graph format (`noodles.json` schema 1–20) are migrated through
 `src/noodles/__migrations__/` and converted on load by `src/runtime/migrate/to-editor-doc.ts`.
 `op-catalog.ts` says what each Noodles operator type becomes; anything the
 conversion cannot express is a `MigrationError` that names the node and why.

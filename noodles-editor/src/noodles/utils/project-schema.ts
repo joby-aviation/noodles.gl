@@ -4,7 +4,7 @@
 // - https://noodles.gl/schema/noodles-project.schema.json: a document, the format the editor
 //   saves (EditorDoc in packages/planner/src/doc.ts), with a pinned copy per document
 //   version at noodles-document.v<N>.schema.json
-// - noodles-project.v<N>.schema.json: an older operator-graph project (schema 1 to 19),
+// - noodles-project.v<N>.schema.json: an older operator-graph project (schema 1 to 20),
 //   which the editor converts to a document when it opens one
 //
 // Both cover file shape only. Whether a node's operator is real, and whether its parameters
@@ -37,7 +37,7 @@ const handle = z
   .describe('Field handle: out.<field> for an output, par.<field> for an input')
 
 // ============================================================================
-// Operator-graph projects (schema 1 to 19)
+// Operator-graph projects (schema 1 to 20)
 // ============================================================================
 
 // Objects accept keys they don't list: React Flow added its own node and edge props, and
@@ -229,7 +229,7 @@ export function projectSchema(version: number) {
 }
 
 // The published JSON Schema for an operator-graph project, at noodles-project.v<N>.schema.json.
-// Its text is what main published for version 19, so that file stays as it is.
+// Its text is what main publishes for each version, so a published file never changes.
 export function projectJsonSchema(version: number): Record<string, unknown> {
   const { $schema, ...rest } = z.toJSONSchema(projectSchema(version), {
     // The meta id names the $defs entry, but zod also copies it into the definition

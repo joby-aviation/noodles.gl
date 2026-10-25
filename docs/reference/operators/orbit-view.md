@@ -36,7 +36,7 @@ This operator has no input ports.
 | `clearColor` | `color` | `"#00000000"` |  |
 | `parameters` | `field` | `{}` |  |
 | `orthographic` | `toggle` | `false` |  |
-| `orbitAxis` | `menu` | `"Z"` | `X`, `Y`, `Z` |
+| `orbitAxis` | `menu` | `"Z"` | `Y`, `Z` |
 | `near` | `float` | `0.1` |  |
 | `far` | `float` | `100000` |  |
 | `fovy` | `float` | `40` |  |

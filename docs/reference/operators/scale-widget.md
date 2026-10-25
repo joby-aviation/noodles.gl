@@ -28,7 +28,6 @@ This operator has no input ports.
 | Parameter | Kind | Default | Choices |
 |-----------|------|---------|---------|
 | `placement` | `menu` | `"bottom-left"` | `top-left`, `top-right`, `bottom-left`, `bottom-right` |
-| `label` | `string` | `"Scale"` |  |
 | `viewId` | `string` | `""` |  |
 <!-- gen:end params -->
 

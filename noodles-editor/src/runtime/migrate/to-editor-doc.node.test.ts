@@ -485,7 +485,7 @@ describe('toEditorDoc with time', () => {
 describe('toEditorDoc with an operator this build does not know', () => {
   it('keeps it as it was, so the project opens and saves it back', () => {
     const { doc, warnings } = toEditorDoc({
-      version: 19,
+      version: CONVERTED_SCHEMA,
       timeline: {},
       nodes: [
         {

@@ -78,12 +78,7 @@
       "targetHandle": "par.vis"
     }
   ],
-  "viewport": {
-    "x": 534.0033593826707,
-    "y": 343.55942368830074,
-    "zoom": 0.3391789834557667
-  },
-  "version": 19,
+  "version": 20,
   "name": "Flight Tracks",
   "editorSettings": {
     "showOverlay": true

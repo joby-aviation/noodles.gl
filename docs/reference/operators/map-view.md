@@ -38,7 +38,6 @@ This operator has no input ports.
 | `orthographic` | `toggle` | `false` |  |
 | `fovy` | `float` | `40` |  |
 | `repeat` | `toggle` | `false` |  |
-| `altitude` | `float` | `1.5` |  |
 | `nearZMultiplier` | `float` | `0.1` |  |
 | `farZMultiplier` | `float` | `1.01` |  |
 | `viewState` | `field` | `{"latitude":40.7128,"longitude":-74.006,"zoom":12,"bearing":0,"pitch":0,"position":[0,0,0]}` |  |

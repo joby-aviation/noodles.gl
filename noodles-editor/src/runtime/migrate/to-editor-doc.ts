@@ -1,4 +1,4 @@
-// noodles.json (schema 19) -> the planner's EditorDoc.
+// noodles.json (schema 20) -> the planner's EditorDoc.
 //
 // Noodles graphs pass JS rows between operators, and a layer's per-row values arrive as accessor
 // functions built by AccessorOp, MapRange, ColorRamp and Math. The planner passes tables, and a
@@ -71,9 +71,9 @@ export class MigrationError extends Error {}
 
 // ---------------------------------------------------------------------------
 /** The operator-graph schema this conversion reads: the latest migration's. */
-export const CONVERTED_SCHEMA = 19
+export const CONVERTED_SCHEMA = 20
 
-// Noodles defaults (schema 19), for the inputs this conversion reads
+// Noodles defaults (schema 20), for the inputs this conversion reads
 // ---------------------------------------------------------------------------
 
 export const DEFAULTS: Record<string, Record<string, unknown>> = {
@@ -2310,8 +2310,9 @@ export function toEditorDoc(original: NoodlesProject): Migrated {
           break
         case 'CombineRGBAOp':
           {
+            // Opaque unless alpha is set, each channel a whole number from 0 to 255
             const [r, g, b, a] = ['r', 'g', 'b', 'a'].map((c, i) =>
-              Math.round(n0(c, i === 3 ? 1 : 0))
+              Math.min(255, Math.max(0, Math.round(n0(c, i === 3 ? 255 : 0))))
             )
             value = colorToHex([r, g, b, a])
           }

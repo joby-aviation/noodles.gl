@@ -34,7 +34,6 @@ This operator has no input ports.
 | `flatLighting` | `toggle` | `true` |  |
 | `throttleRequests` | `toggle` | `false` |  |
 | `pointSize` | `float` | `1` |  |
-| `maxLodMetricValue` | `float` | `2` |  |
 | `maxScreenSpaceError` | `float` | `50` |  |
 | `maxMemoryUsage` | `float` | `2024` |  |
 | `visible` | `toggle` | `true` |  |

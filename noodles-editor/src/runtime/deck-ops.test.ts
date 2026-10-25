@@ -44,3 +44,22 @@ describe('tile-3d', () => {
     expect(built.loadOptions).toBeNull()
   })
 })
+
+describe('pmtiles', () => {
+  const source = (params: Record<string, unknown>) =>
+    DECK_OP_INDEX.get('pmtiles')?.build(
+      { url: 'https://x/t.pmtiles', minZoom: 0, maxZoom: 14, ...params },
+      'tiles',
+      env
+    ) as Record<string, unknown>
+
+  it('is a vector source by default, with its source layer', () => {
+    expect(source({ sourceLayer: 'roads' })).toMatchObject({ type: 'vector', sourceLayer: 'roads' })
+  })
+
+  it('is a raster source when asked, which has no source layer', () => {
+    const raster = source({ tileType: 'raster', sourceLayer: 'roads' })
+    expect(raster.type).toBe('raster')
+    expect(raster).not.toHaveProperty('sourceLayer')
+  })
+})

@@ -7,6 +7,7 @@ import { type NodeDuck, openNodeDuck } from '../__tests__/duckdb-node'
 import { ProgramRuntime } from '../program-runtime'
 import { registerNoodlesRamps } from '../ramps'
 import {
+  CONVERTED_SCHEMA,
   type NoodlesEdge,
   type NoodlesNode,
   type NoodlesProject,
@@ -64,7 +65,7 @@ function layer(
     nodes.push(op(`/${field}-of`, 'AccessorOp', { expression }))
     edges.push(wire(`/${field}-of`, 'accessor', '/layer', field))
   }
-  return { version: 19, nodes, edges } as NoodlesProject
+  return { version: CONVERTED_SCHEMA, nodes, edges } as NoodlesProject
 }
 
 const POINTS =

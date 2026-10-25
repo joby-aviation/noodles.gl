@@ -1,6 +1,6 @@
 {
   "documentVersion": 1,
-  "convertsFrom": 19,
+  "convertsFrom": 20,
   "categories": [
     "data",
     "table",
@@ -3758,10 +3758,6 @@
           "kind": "toggle",
           "default": false
         },
-        "altitude": {
-          "kind": "float",
-          "default": 1.5
-        },
         "nearZMultiplier": {
           "kind": "float",
           "default": 0.1
@@ -4094,10 +4090,6 @@
             "meters"
           ]
         },
-        "autoLabels": {
-          "kind": "toggle",
-          "default": false
-        },
         "visible": {
           "kind": "toggle",
           "default": true
@@ -4220,7 +4212,6 @@
           "kind": "menu",
           "default": "Z",
           "options": [
-            "X",
             "Y",
             "Z"
           ]
@@ -4567,6 +4558,14 @@
         "url": {
           "kind": "url",
           "default": ""
+        },
+        "tileType": {
+          "kind": "menu",
+          "default": "vector",
+          "options": [
+            "vector",
+            "raster"
+          ]
         },
         "sourceLayer": {
           "kind": "string",
@@ -5163,10 +5162,6 @@
             "bottom-left",
             "bottom-right"
           ]
-        },
-        "label": {
-          "kind": "string",
-          "default": "Scale"
         },
         "viewId": {
           "kind": "string",
@@ -6107,10 +6102,6 @@
         "pointSize": {
           "kind": "float",
           "default": 1
-        },
-        "maxLodMetricValue": {
-          "kind": "float",
-          "default": 2
         },
         "maxScreenSpaceError": {
           "kind": "float",

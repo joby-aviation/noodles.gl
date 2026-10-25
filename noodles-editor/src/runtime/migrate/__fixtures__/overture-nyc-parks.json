@@ -49,12 +49,7 @@
       "targetHandle": "par.query"
     }
   ],
-  "viewport": {
-    "x": 485.32201531005217,
-    "y": 329.36769008427984,
-    "zoom": 0.4400549765402036
-  },
-  "version": 19,
+  "version": 20,
   "editorSettings": {
     "showOverlay": true
   },

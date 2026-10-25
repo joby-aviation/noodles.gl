@@ -13,10 +13,19 @@ function validateProperty(
   }
 }
 
-function validateSingleViewState(viewState: Record<string, unknown>, viewKey?: string): void {
+type ValidateViewStateOptions = {
+  // Map views can't look up past the horizon; first-person views can look down to -90
+  minPitch?: number
+}
+
+function validateSingleViewState(
+  viewState: Record<string, unknown>,
+  { minPitch = 0 }: ValidateViewStateOptions,
+  viewKey?: string
+): void {
   validateProperty(viewState.latitude, 'latitude', -90, 90, viewKey)
   validateProperty(viewState.longitude, 'longitude', -180, 180, viewKey)
-  validateProperty(viewState.pitch, 'pitch', 0, 90, viewKey)
+  validateProperty(viewState.pitch, 'pitch', minPitch, 90, viewKey)
 
   if (typeof viewState.zoom === 'number') {
     const hasLatLng = 'latitude' in viewState || 'longitude' in viewState
@@ -26,18 +35,21 @@ function validateSingleViewState(viewState: Record<string, unknown>, viewKey?: s
   }
 }
 
-export function validateViewState(viewState: unknown): void {
+export function validateViewState(
+  viewState: unknown,
+  options: ValidateViewStateOptions = {}
+): void {
   if (!viewState || typeof viewState !== 'object') {
     return
   }
 
   const vs = viewState as Record<string, unknown>
 
-  validateSingleViewState(vs)
+  validateSingleViewState(vs, options)
 
   for (const [key, value] of Object.entries(vs)) {
     if (value && typeof value === 'object' && !Array.isArray(value)) {
-      validateSingleViewState(value as Record<string, unknown>, key)
+      validateSingleViewState(value as Record<string, unknown>, options, key)
     }
   }
 }

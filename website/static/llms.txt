@@ -21,7 +21,7 @@ Key Features:
 - Quick start prompt for other agents (Codex, Gemini CLI, Cursor, VS Code, any MCP client): https://noodles.gl/agent-prompt.txt. Same steps, with one restart after the relay is registered.
 - Driving a running editor: the `noodles-live` skill at https://github.com/joby-aviation/noodles.gl/blob/main/.claude/skills/noodles-live/SKILL.md
 - Writing and validating noodles.json without a browser: the `noodles` MCP server at https://github.com/joby-aviation/noodles.gl/blob/main/noodles-mcp/README.md and the validator at https://github.com/joby-aviation/noodles.gl/blob/main/noodles-validate/README.md
-- JSON Schema for noodles.json (file shape only; the validator checks operators and connections): https://noodles.gl/schema/noodles-project.schema.json, with a copy per version at https://noodles.gl/schema/noodles-document.v<N>.schema.json (projects saved before documents: https://noodles.gl/schema/noodles-project.v19.schema.json)
+- JSON Schema for noodles.json (file shape only; the validator checks operators and connections): https://noodles.gl/schema/noodles-project.schema.json, with a copy per version at https://noodles.gl/schema/noodles-document.v<N>.schema.json (projects saved before documents: https://noodles.gl/schema/noodles-project.v20.schema.json)
 - WebMCP setup and tool list: https://github.com/joby-aviation/noodles.gl/blob/main/dev-docs/claude-code-workflow.md
 
 ## Primary Documentation

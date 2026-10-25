@@ -134,12 +134,7 @@
       "id": "/blending.out.parameters->/dropoff-layer.par.parameters"
     }
   ],
-  "viewport": {
-    "x": 172.53317127277438,
-    "y": 204.01752158305402,
-    "zoom": 0.467987771000214
-  },
-  "version": 19,
+  "version": 20,
   "name": "NYC Taxis",
   "editorSettings": {
     "layoutMode": "noodles-on-top",

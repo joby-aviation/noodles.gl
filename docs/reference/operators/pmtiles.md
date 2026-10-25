@@ -28,6 +28,7 @@ This operator has no input ports.
 | Parameter | Kind | Default | Choices |
 |-----------|------|---------|---------|
 | `url` | `url` | `""` |  |
+| `tileType` | `menu` | `"vector"` | `vector`, `raster` |
 | `sourceLayer` | `string` | `""` |  |
 | `minZoom` | `float` | `0` |  |
 | `maxZoom` | `float` | `14` |  |

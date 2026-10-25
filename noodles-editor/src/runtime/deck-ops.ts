@@ -448,7 +448,6 @@ export const DECK_OPS: DeckOp[] = [
       toggle('orthographic', false),
       num('fovy', 40, { min: 0.1, max: 179.9, step: 0.1 }),
       toggle('repeat', false),
-      num('altitude', 1.5, { step: 0.1 }),
       num('nearZMultiplier', 0.1, { min: 0, step: 0.1 }),
       num('farZMultiplier', 1.01, { min: 0, step: 0.1 }),
     ],
@@ -479,7 +478,8 @@ export const DECK_OPS: DeckOp[] = [
     'A deck.gl orbit view.',
     [
       toggle('orthographic', false),
-      menu('orbitAxis', 'Z', ['X', 'Y', 'Z']),
+      // deck.gl's OrbitView orbits Y or Z only
+      menu('orbitAxis', 'Z', ['Y', 'Z']),
       num('near', 0.1, { min: 0, step: 0.1 }),
       num('far', 100000, { min: 0, step: 0.1 }),
       num('fovy', 40, { min: 0.1, max: 179.9, step: 0.1 }),
@@ -569,8 +569,7 @@ export const DECK_OPS: DeckOp[] = [
     '_ScaleWidget',
     'Scale Widget',
     'Display a map distance scale widget',
-    'bottom-left',
-    [text('label', 'Scale')]
+    'bottom-left'
   ),
   widgetOp(
     'screenshot-widget',
@@ -857,7 +856,6 @@ export const DECK_OPS: DeckOp[] = [
       num('getLineWidth', 1, { min: 0, step: 0.1 }),
       num('getPointRadius', 1, { step: 0.1 }),
       menu('pointRadiusUnits', 'pixels', ['pixels', 'meters']),
-      toggle('autoLabels', false),
     ],
     (p, id) =>
       layerOf('MVTLayer', id, {
@@ -924,7 +922,6 @@ export const DECK_OPS: DeckOp[] = [
       toggle('flatLighting', true),
       toggle('throttleRequests', false),
       num('pointSize', 1, { min: 0, step: 0.1 }),
-      num('maxLodMetricValue', 2, { min: 0, step: 0.1 }),
       num('maxScreenSpaceError', 50, { min: 0, step: 0.1 }),
       num('maxMemoryUsage', 2024, { min: 0, step: 0.1 }),
     ],
@@ -1029,6 +1026,7 @@ export const DECK_OPS: DeckOp[] = [
       outputs: [{ name: 'sourceConfig', type: 'value' }],
       params: [
         url('url'),
+        menu('tileType', 'vector', ['vector', 'raster']),
         text('sourceLayer', ''),
         num('minZoom', 0, { min: 0, max: 22, step: 0.1 }),
         num('maxZoom', 14, { min: 0, max: 22, step: 0.1 }),
@@ -1037,11 +1035,12 @@ export const DECK_OPS: DeckOp[] = [
     build: p =>
       p.url
         ? {
-            type: 'vector',
+            type: p.tileType === 'raster' ? 'raster' : 'vector',
             url: `pmtiles://${p.url}`,
             minzoom: p.minZoom,
             maxzoom: p.maxZoom,
-            ...(p.sourceLayer ? { sourceLayer: p.sourceLayer } : {}),
+            // A raster source has no layers to pick from
+            ...(p.sourceLayer && p.tileType !== 'raster' ? { sourceLayer: p.sourceLayer } : {}),
           }
         : null,
   },

@@ -4,7 +4,13 @@ import { beforeAll, describe, expect, it } from 'vitest'
 import { type NodeDuck, openNodeDuck } from '../__tests__/duckdb-node'
 import { ProgramRuntime } from '../program-runtime'
 import { registerNoodlesRamps } from '../ramps'
-import { MigrationError, type NoodlesEdge, type NoodlesNode, toEditorDoc } from './to-editor-doc'
+import {
+  CONVERTED_SCHEMA,
+  MigrationError,
+  type NoodlesEdge,
+  type NoodlesNode,
+  toEditorDoc,
+} from './to-editor-doc'
 
 let duck: NodeDuck
 beforeAll(async () => {
@@ -70,7 +76,7 @@ function project(
   out = 'featureCollection'
 ) {
   return {
-    version: 19,
+    version: CONVERTED_SCHEMA,
     nodes: [
       ...nodes,
       op('/layer', 'GeoJsonLayerOp'),

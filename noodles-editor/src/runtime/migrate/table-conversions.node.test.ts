@@ -5,6 +5,7 @@ import { type NodeDuck, openNodeDuck } from '../__tests__/duckdb-node'
 import { ProgramRuntime } from '../program-runtime'
 import { registerNoodlesRamps } from '../ramps'
 import {
+  CONVERTED_SCHEMA,
   MigrationError,
   type NoodlesEdge,
   type NoodlesNode,
@@ -47,7 +48,7 @@ async function scatter(
   { out = 'data', position = '[d.lng, d.lat]' } = {}
 ) {
   const project: NoodlesProject = {
-    version: 19,
+    version: CONVERTED_SCHEMA,
     nodes: [
       ...nodes,
       op('/where', 'AccessorOp', { expression: position }),
@@ -241,7 +242,7 @@ describe('rows from parameters', () => {
     const fetch = vi.fn(async () => new Response(JSON.stringify(osm)))
     vi.stubGlobal('fetch', fetch)
     const project: NoodlesProject = {
-      version: 19,
+      version: CONVERTED_SCHEMA,
       nodes: [
         op('/bounds', 'BoundsOp', { southwest: [-74.05, 40.68], northeast: [-73.9, 40.82] }),
         op('/parks', 'OverpassOp'),
@@ -274,7 +275,7 @@ describe('rows from parameters', () => {
 
   it('reads GeoParquet and shapefiles as features', () => {
     const project = (source: NoodlesNode): NoodlesProject => ({
-      version: 19,
+      version: CONVERTED_SCHEMA,
       nodes: [source, op('/layer', 'GeoJsonLayerOp'), op('/deck', 'DeckRendererOp')],
       edges: [
         wire(source.id, 'featureCollection', '/layer', 'data'),
@@ -310,7 +311,7 @@ describe('rows from parameters', () => {
 
 describe('BrushableHistogramOp', () => {
   const histogram = (extra: NoodlesEdge[] = []): NoodlesProject => ({
-    version: 19,
+    version: CONVERTED_SCHEMA,
     nodes: [
       op('/rows', 'DuckDbOp', { query: 'SELECT 1.0 AS lng, 2.0 AS lat, 3.0 AS mag' }),
       op('/hist', 'BrushableHistogramOp', {
@@ -366,7 +367,7 @@ describe('TableEditorOp cell keyframes', () => {
 
   it('convert to tracks on the table rows, text included', () => {
     const project: NoodlesProject = {
-      version: 19,
+      version: CONVERTED_SCHEMA,
       nodes: [
         op('/table', 'TableEditorOp', {
           data: [

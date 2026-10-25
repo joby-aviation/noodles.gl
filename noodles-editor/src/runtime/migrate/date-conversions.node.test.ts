@@ -6,6 +6,7 @@ import { type NodeDuck, openNodeDuck } from '../__tests__/duckdb-node'
 import { ProgramRuntime } from '../program-runtime'
 import { registerNoodlesRamps } from '../ramps'
 import {
+  CONVERTED_SCHEMA,
   MigrationError,
   type NoodlesEdge,
   type NoodlesNode,
@@ -43,7 +44,7 @@ function project(
   layer = 'TextLayerOp'
 ): NoodlesProject {
   return {
-    version: 19,
+    version: CONVERTED_SCHEMA,
     nodes: [
       op('/rows', 'DuckDbOp', { query: QUERY }),
       op('/when', 'AccessorOp', { expression: 'd.ts' }),

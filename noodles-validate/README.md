@@ -39,7 +39,7 @@ Exit status: `0` when every file is valid (warnings allowed), `1` when any file 
 | `invalid-json` | error | The file doesn't parse |
 | `project-shape` | error | `version`, `name`, `nodes` or `edges` is missing or the wrong type, or a node has no `op`, `x` or `y` |
 | `version` | error | `version` is neither 1 (a document) nor an operator-graph schema the editor converts |
-| `operator-graph` | warning | The file is an operator-graph file (schema 1 to 19, nodes with `type` and edges with handles). The editor converts it when it opens; nothing else is checked |
+| `operator-graph` | warning | The file is an operator-graph file (schema 1 to 20, nodes with `type` and edges with handles). The editor converts it when it opens; nothing else is checked |
 | `node-id` | error | A node id is missing or empty |
 | `duplicate-node-id` | error | Two nodes share an id |
 | `unknown-operator` | error | A node's `op` isn't a registered operator. An operator class from an older file (`ScatterplotLayerOp`) gets the operator it is now |

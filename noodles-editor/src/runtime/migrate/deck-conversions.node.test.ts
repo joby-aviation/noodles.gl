@@ -6,6 +6,7 @@ import { beforeAll, describe, expect, it } from 'vitest'
 import { registerDeckOperators } from '../deck-ops'
 import { VALUE_OPS } from '../value-ops'
 import {
+  CONVERTED_SCHEMA,
   MigrationError,
   type NoodlesEdge,
   type NoodlesNode,
@@ -32,7 +33,7 @@ const wire = (source: string, out: string, target: string, field: string): Noodl
   targetHandle: `par.${field}`,
 })
 const deck = (nodes: NoodlesNode[], edges: NoodlesEdge[], timeline?: unknown): NoodlesProject => ({
-  version: 19,
+  version: CONVERTED_SCHEMA,
   nodes: [...nodes, op('/deck', 'DeckRendererOp'), op('/out', 'OutOp')],
   edges: [...edges, wire('/deck', 'vis', '/out', 'vis')],
   ...(timeline ? { timeline } : {}),
@@ -132,6 +133,19 @@ describe('values', () => {
     expect(doc.nodes.find(n => n.id === '/bg')?.params.clearColor).toBe('#00ff00')
     expect(doc.nodes.map(n => n.id)).not.toContain('/split')
     expect(doc.nodes.map(n => n.id)).not.toContain('/xy')
+  })
+
+  it('make an opaque color from RGBA channels, each clamped to a whole 0 to 255', () => {
+    const color = (inputs: Record<string, unknown>) =>
+      toEditorDoc(
+        deck(
+          [op('/rgba', 'CombineRGBAOp', inputs), op('/bg', 'OrthographicViewOp')],
+          [wire('/rgba', 'color', '/bg', 'clearColor'), wire('/bg', 'view', '/deck', 'views')]
+        )
+      ).doc.nodes.find(n => n.id === '/bg')?.params.clearColor
+    // Alpha left alone is opaque, not 1 of 255
+    expect(color({ r: 255, g: 128, b: 0 })).toBe('#ff8000ff')
+    expect(color({ r: 300, g: 127.6, b: -4, a: 128 })).toBe('#ff800080')
   })
 
   it('refuse a value that a keyframed Number changes while playing', () => {

@@ -39,7 +39,6 @@ This operator has no input ports.
 | `getLineWidth` | `float` | `1` |  |
 | `getPointRadius` | `float` | `1` |  |
 | `pointRadiusUnits` | `menu` | `"pixels"` | `pixels`, `meters` |
-| `autoLabels` | `toggle` | `false` |  |
 | `visible` | `toggle` | `true` |  |
 | `opacity` | `float` | `1` |  |
 | `parameters` | `field` | `{"depthTest":true}` |  |
