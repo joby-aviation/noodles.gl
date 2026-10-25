@@ -6,6 +6,7 @@ import * as turf from '@turf/turf'
 import { Temporal } from 'temporal-polyfill'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { NumberField, StringField } from './fields'
+import { useFileSystemStore } from './filesystem-store'
 import { getKeysStore } from './keys-store'
 import {
   A5LayerOp,
@@ -82,6 +83,7 @@ import {
 import { deleteOp, getOpStore, setOp } from './store'
 import { isAccessor } from './utils/accessor-helpers'
 import { canConnect, validateConnection } from './utils/can-connect'
+import { memoryProjectStore } from './utils/memory-project-store'
 
 describe('basic Operators', () => {
   it('creates an Operator', () => {
@@ -1444,9 +1446,9 @@ describe('deck.gl 9.4 properties', () => {
     ['S2Layer', S2LayerOp, 'lineAntialiasing'],
     ['QuadkeyLayer', QuadkeyLayerOp, 'lineAntialiasing'],
     ['MVTLayer', MVTLayerOp, 'lineAntialiasing'],
-  ])('forwards %s shader antialiasing', (_name, OperatorType, propName) => {
+  ])('forwards %s shader antialiasing', async (_name, OperatorType, propName) => {
     const operator = new OperatorType('/layer-0')
-    const { layer } = operator.execute({ [propName]: true })
+    const { layer } = await operator.execute({ [propName]: true })
 
     expect(layer[propName]).toBe(true)
   })
@@ -2110,6 +2112,67 @@ describe('LayerPropsOp', () => {
     })
     expect(layer.operation).toBeUndefined()
     expect(layer.beforeId).toBeUndefined()
+  })
+})
+
+describe('GeoJsonLayerOp icons', () => {
+  it('draws markers from the default icon atlas', async () => {
+    const op = new GeoJsonLayerOp('/geojson-0')
+    op.inputs.pointType.setValue('icon')
+
+    const { layer } = await op.execute(op.data)
+
+    expect(layer).toMatchObject({
+      pointType: 'icon',
+      iconAtlas: expect.stringContaining('icon-atlas.png'),
+      iconMapping: expect.stringContaining('icon-atlas.json'),
+      getIcon: 'marker',
+      getIconSize: 32,
+    })
+  })
+
+  it('passes a null atlas when cleared, so getIcon can return image objects', async () => {
+    const op = new GeoJsonLayerOp('/geojson-0')
+    const getIcon = (f: { properties: { icon: unknown } }) => f.properties.icon
+    op.inputs.iconAtlas.setValue('')
+    op.inputs.getIcon.setValue(getIcon)
+
+    const { layer } = await op.execute(op.data)
+
+    const icon = { url: 'https://example.com/pin.png', width: 64, height: 64, id: 'pin' }
+    expect(layer.iconAtlas).toBeNull()
+    expect((layer.getIcon as typeof getIcon)({ properties: { icon } })).toEqual(icon)
+  })
+
+  it('resolves an uploaded atlas and mapping, reusing the atlas URL', async () => {
+    const mapping = { pin: { x: 0, y: 0, width: 32, height: 32, mask: true } }
+    const previousState = useFileSystemStore.getState()
+    useFileSystemStore.setState({
+      currentProjectName: 'icons-project',
+      activeStorageType: 'memory',
+    })
+    memoryProjectStore.writeAsset(
+      'icons-project',
+      'icons.png',
+      new Blob([new Uint8Array([1, 2, 3])])
+    )
+    memoryProjectStore.writeAsset('icons-project', 'icons.json', JSON.stringify(mapping))
+
+    try {
+      const op = new GeoJsonLayerOp('/geojson-0')
+      op.inputs.iconAtlas.setValue('@/icons.png')
+      op.inputs.iconMapping.setValue('@/icons.json')
+
+      const { layer } = await op.execute(op.data)
+      expect(layer.iconAtlas).toMatch(/^blob:/)
+      expect(layer.iconMapping).toEqual(mapping)
+
+      op.inputs.getIconSize.setValue(48)
+      expect((await op.execute(op.data)).layer.iconAtlas).toBe(layer.iconAtlas)
+    } finally {
+      memoryProjectStore.deleteProject('icons-project')
+      useFileSystemStore.setState(previousState)
+    }
   })
 })
 

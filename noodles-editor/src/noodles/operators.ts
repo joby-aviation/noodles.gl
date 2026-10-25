@@ -7188,6 +7188,76 @@ export class TextLayerOp extends Operator<TextLayerOp> {
   }
 }
 
+// Resolves an @/ project file to a blob URL with its MIME type. Other URLs pass through
+async function resolveProjectUrl(url: string): Promise<string> {
+  if (!url?.startsWith(projectScheme)) {
+    return url
+  }
+
+  const { readAssetBinary } = await import('./storage')
+  const { useFileSystemStore } = await import('./filesystem-store')
+
+  const { currentProjectName, activeStorageType } = useFileSystemStore.getState()
+  if (!currentProjectName) {
+    throw new Error('No project loaded. Please save or load a project first.')
+  }
+
+  const fileName = url.substring(projectScheme.length)
+  const result = await readAssetBinary(activeStorageType, currentProjectName, fileName)
+  if (!result.success) {
+    throw new Error(result.error.message)
+  }
+
+  // Infer MIME type from file extension for loaders.gl
+  const ext = fileName.toLowerCase().split('.').pop()
+  const mimeTypes: Record<string, string> = {
+    png: 'image/png',
+    jpg: 'image/jpeg',
+    jpeg: 'image/jpeg',
+    gif: 'image/gif',
+    webp: 'image/webp',
+    svg: 'image/svg+xml',
+  }
+  const mimeType = mimeTypes[ext || ''] || 'application/octet-stream'
+
+  const blob = new Blob([result.data], { type: mimeType })
+  return URL.createObjectURL(blob)
+}
+
+// Reads an @/ project JSON file into an object. Other values (URLs, parsed JSON) pass through
+async function resolveIconMapping(
+  mapping: string | Record<string, unknown>
+): Promise<string | Record<string, unknown>> {
+  if (typeof mapping !== 'string' || !mapping.startsWith(projectScheme)) {
+    return mapping
+  }
+
+  const { readAsset } = await import('./storage')
+  const { useFileSystemStore } = await import('./filesystem-store')
+
+  const { currentProjectName, activeStorageType } = useFileSystemStore.getState()
+  if (!currentProjectName) {
+    throw new Error('No project loaded. Please save or load a project first.')
+  }
+
+  const fileName = mapping.substring(projectScheme.length)
+  const result = await readAsset(activeStorageType, currentProjectName, fileName)
+  if (!result.success) {
+    throw new Error(result.error.message)
+  }
+
+  try {
+    const parsed = JSON.parse(result.data)
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      throw new Error('icon mapping must be a JSON object')
+    }
+    return parsed as Record<string, unknown>
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    throw new Error(`Unable to parse icon mapping "${mapping}": ${message}`)
+  }
+}
+
 export class IconLayerOp extends Operator<IconLayerOp> {
   static displayName = 'IconLayer'
   static description = 'Render a set of icons on the map'
@@ -7259,75 +7329,6 @@ export class IconLayerOp extends Operator<IconLayerOp> {
     _props: ExtractProps<typeof this.inputs>
   ): Promise<ExtractProps<typeof this.outputs>> {
     const { getIcon, iconMapping, iconAtlas, sizeMaxPixels, ...rest } = _props
-
-    // Helper to resolve @/ URLs to blob URLs with proper MIME type
-    const resolveProjectUrl = async (url: string): Promise<string> => {
-      if (!url?.startsWith(projectScheme)) {
-        return url
-      }
-
-      const { readAssetBinary } = await import('./storage')
-      const { useFileSystemStore } = await import('./filesystem-store')
-
-      const { currentProjectName, activeStorageType } = useFileSystemStore.getState()
-      if (!currentProjectName) {
-        throw new Error('No project loaded. Please save or load a project first.')
-      }
-
-      const fileName = url.substring(projectScheme.length)
-      const result = await readAssetBinary(activeStorageType, currentProjectName, fileName)
-      if (!result.success) {
-        throw new Error(result.error.message)
-      }
-
-      // Infer MIME type from file extension for loaders.gl
-      const ext = fileName.toLowerCase().split('.').pop()
-      const mimeTypes: Record<string, string> = {
-        png: 'image/png',
-        jpg: 'image/jpeg',
-        jpeg: 'image/jpeg',
-        gif: 'image/gif',
-        webp: 'image/webp',
-        svg: 'image/svg+xml',
-      }
-      const mimeType = mimeTypes[ext || ''] || 'application/octet-stream'
-
-      const blob = new Blob([result.data], { type: mimeType })
-      return URL.createObjectURL(blob)
-    }
-
-    const resolveIconMapping = async (
-      mapping: string | Record<string, unknown>
-    ): Promise<string | Record<string, unknown>> => {
-      if (typeof mapping !== 'string' || !mapping.startsWith(projectScheme)) {
-        return mapping
-      }
-
-      const { readAsset } = await import('./storage')
-      const { useFileSystemStore } = await import('./filesystem-store')
-
-      const { currentProjectName, activeStorageType } = useFileSystemStore.getState()
-      if (!currentProjectName) {
-        throw new Error('No project loaded. Please save or load a project first.')
-      }
-
-      const fileName = mapping.substring(projectScheme.length)
-      const result = await readAsset(activeStorageType, currentProjectName, fileName)
-      if (!result.success) {
-        throw new Error(result.error.message)
-      }
-
-      try {
-        const parsed = JSON.parse(result.data)
-        if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-          throw new Error('icon mapping must be a JSON object')
-        }
-        return parsed as Record<string, unknown>
-      } catch (error) {
-        const message = error instanceof Error ? error.message : String(error)
-        throw new Error(`Unable to parse icon mapping "${mapping}": ${message}`)
-      }
-    }
 
     // Helper to resolve image URL and extract dimensions
     const resolveImageWithDimensions = async (
@@ -7701,6 +7702,8 @@ export class HeatmapLayerOp extends Operator<HeatmapLayerOp> {
 export class GeoJsonLayerOp extends Operator<GeoJsonLayerOp> {
   static displayName = 'GeoJsonLayer'
   static description = 'Render GeoJSON data with points, lines, and polygons'
+  private _iconAtlasSource: string | undefined
+  private _iconAtlasUrl: string | null = null
   createInputs() {
     return {
       // Core fields (visible by default)
@@ -7750,6 +7753,42 @@ export class GeoJsonLayerOp extends Operator<GeoJsonLayerOp> {
       }),
 
       // pointType: icon
+      iconAtlas: new FileUrlField(
+        'https://raw.githubusercontent.com/visgl/deck.gl-data/master/website/icon-atlas.png',
+        {
+          showByDefault: false,
+          accept: '.png,.jpg,.jpeg,.gif,.webp,.svg',
+          description:
+            'Image holding every icon, laid out by Icon mapping. Clear it to load each icon from its own URL.',
+        }
+      ),
+      iconMapping: new MapStyleField(
+        'https://raw.githubusercontent.com/visgl/deck.gl-data/master/website/icon-atlas.json',
+        {
+          showByDefault: false,
+          accept: '.json',
+          description: "JSON, or a URL to it, giving each icon's name and position in the atlas.",
+        }
+      ),
+      getIcon: new StringField('marker', {
+        accessor: true,
+        showByDefault: false,
+        description:
+          'Icon for each point: a name from Icon mapping, or with no atlas an object {url, width, height, id}.',
+      }),
+      getIconSize: new NumberField(32, {
+        min: 0,
+        softMax: 256,
+        accessor: true,
+        showByDefault: false,
+        description: 'Icon height for each point, in pixels.',
+      }),
+      getIconColor: new ColorField('#fff', {
+        accessor: true,
+        transform: hexToColor,
+        showByDefault: false,
+        description: "Tint for each icon. Applies to icons marked 'mask' in Icon mapping.",
+      }),
 
       // pointType: text (hidden by default)
       getText: new StringField('', { accessor: true, showByDefault: false }),
@@ -7899,9 +7938,23 @@ export class GeoJsonLayerOp extends Operator<GeoJsonLayerOp> {
       layer: new LayerField<GeoJsonLayerProps>(),
     }
   }
-  execute(props: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+  async execute({
+    iconAtlas,
+    iconMapping,
+    ...props
+  }: ExtractProps<typeof this.inputs>): Promise<ExtractProps<typeof this.outputs>> {
+    // Uploaded @/ files need resolving; keep the atlas blob URL so deck.gl doesn't reload it
+    if (iconAtlas !== this._iconAtlasSource) {
+      const url = iconAtlas ? await resolveProjectUrl(iconAtlas) : null
+      if (this._iconAtlasUrl?.startsWith('blob:')) URL.revokeObjectURL(this._iconAtlasUrl)
+      this._iconAtlasSource = iconAtlas
+      this._iconAtlasUrl = url
+    }
     const layer = {
       ...parseLayerProps<GeoJsonLayerProps>(props),
+      // Without an atlas, deck.gl packs icons from the {url, width, height} objects getIcon returns
+      iconAtlas: this._iconAtlasUrl,
+      iconMapping: await resolveIconMapping(iconMapping),
       type: 'GeoJsonLayer' as const,
       id: this.id,
       updateTriggers: gatherTriggers(this.inputs, props),
