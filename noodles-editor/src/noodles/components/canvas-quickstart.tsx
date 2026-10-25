@@ -1,4 +1,5 @@
 import { ControlButton, Panel } from '@xyflow/react'
+import { useEffect } from 'react'
 import { create } from 'zustand'
 import { analytics } from '../../utils/analytics'
 import s from './canvas-quickstart.module.css'
@@ -26,15 +27,34 @@ function saveDismissed() {
 
 interface QuickstartState {
   open: boolean
+  // Whether this page load has counted a showing of the card, so the first-visit
+  // showing is counted once even if the canvas remounts
+  shownTracked: boolean
   setOpen: (open: boolean) => void
+  trackFirstShow: () => void
 }
 
-export const useCanvasQuickstart = create<QuickstartState>(set => ({
-  open: !canvasQuickstartDismissed(),
+// The state a page load starts from; tests reset the store with it
+export function initialQuickstartState() {
+  return { open: !canvasQuickstartDismissed(), shownTracked: false }
+}
+
+export const useCanvasQuickstart = create<QuickstartState>((set, get) => ({
+  ...initialQuickstartState(),
   setOpen: open => {
-    if (!open) saveDismissed()
-    set({ open })
-    analytics.track(open ? 'canvas_quickstart_opened' : 'canvas_quickstart_dismissed')
+    if (open) {
+      set({ open, shownTracked: true })
+      analytics.track('canvas_quickstart_opened', { trigger: 'button' })
+    } else {
+      saveDismissed()
+      set({ open })
+      analytics.track('canvas_quickstart_dismissed')
+    }
+  },
+  trackFirstShow: () => {
+    if (!get().open || get().shownTracked) return
+    set({ shownTracked: true })
+    analytics.track('canvas_quickstart_opened', { trigger: 'first_visit' })
   },
 }))
 
@@ -50,6 +70,9 @@ const TIPS: { action: string; result: string }[] = [
 export function CanvasQuickstart() {
   const open = useCanvasQuickstart(state => state.open)
   const setOpen = useCanvasQuickstart(state => state.setOpen)
+  useEffect(() => {
+    useCanvasQuickstart.getState().trackFirstShow()
+  }, [])
   if (!open) return null
 
   return (
