@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://noodles.gl/schema/noodles-project.schema.json",
-  "title": "Noodles.gl project file (version 19)",
+  "title": "Noodles.gl project file (version 20)",
   "description": "A noodles.json file. Covers file shape only; check operator types, inputs and edge handles with noodles-validate.",
   "type": "object",
   "properties": {
@@ -10,7 +10,7 @@
     },
     "version": {
       "type": "number",
-      "const": 19,
+      "const": 20,
       "description": "Schema version. Older files are migrated when the editor opens them"
     },
     "name": {

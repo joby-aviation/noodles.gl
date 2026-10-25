@@ -1,5 +1,5 @@
 {
-  "projectVersion": 19,
+  "projectVersion": 20,
   "customFieldTypes": [
     "number",
     "string",
@@ -1075,9 +1075,8 @@
           "default": null
         },
         "offset": {
-          "type": "Vec3Field",
+          "type": "Vec2Field",
           "default": [
-            0,
             0,
             0
           ]
@@ -4118,10 +4117,6 @@
           "type": "BooleanField",
           "default": false
         },
-        "altitude": {
-          "type": "NumberField",
-          "default": 1.5
-        },
         "nearZMultiplier": {
           "type": "NumberField",
           "default": 0.1
@@ -4350,10 +4345,6 @@
         "pointRadiusUnits": {
           "type": "StringLiteralField",
           "default": "pixels"
-        },
-        "autoLabels": {
-          "type": "BooleanField",
-          "default": false
         },
         "parameters": {
           "type": "CompoundPropsField",
@@ -5530,10 +5521,6 @@
           "type": "StringLiteralField",
           "default": "bottom-left"
         },
-        "label": {
-          "type": "StringField",
-          "default": "Scale"
-        },
         "viewId": {
           "type": "StringField",
           "default": ""
@@ -6691,10 +6678,6 @@
         "pointSize": {
           "type": "NumberField",
           "default": 1
-        },
-        "maxLodMetricValue": {
-          "type": "NumberField",
-          "default": 2
         },
         "maxScreenSpaceError": {
           "type": "NumberField",

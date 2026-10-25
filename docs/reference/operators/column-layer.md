@@ -31,7 +31,7 @@ Expressions and code read its fields as `op('/column-layer').par.data` (an input
 | `opacity` | `NumberField` | `1` |
 | `diskResolution` | `NumberField` | `20` |
 | `vertices` | `UnknownField` | `null` |
-| `offset` | `Vec3Field` | `[0,0,0]` |
+| `offset` | `Vec2Field` | `[0,0]` |
 | `coverage` | `NumberField` | `1` |
 | `elevationScale` | `NumberField` | `1` |
 | `filled` | `BooleanField` | `true` |
@@ -68,4 +68,9 @@ Expressions and code read its fields as `op('/column-layer').par.data` (an input
 <!-- gen:end details -->
 
 <!-- gen:begin history -->
+## History
+
+Schema migrations that changed this operator. Older project files go through them when they open.
+
+- Version 20: [`020-drop-unsupported-inputs`](https://github.com/joby-aviation/noodles.gl/blob/main/noodles-editor/src/noodles/__migrations__/020-drop-unsupported-inputs.ts)
 <!-- gen:end history -->

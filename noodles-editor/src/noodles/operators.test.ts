@@ -1,6 +1,6 @@
 import { LayerExtension } from '@deck.gl/core'
 import { PathStyleExtension } from '@deck.gl/extensions'
-import { TileLayer } from '@deck.gl/geo-layers'
+import { MVTLayer, TileLayer } from '@deck.gl/geo-layers'
 import * as deckWidgets from '@deck.gl/widgets'
 import * as turf from '@turf/turf'
 import { Temporal } from 'temporal-polyfill'
@@ -17,6 +17,7 @@ import {
   CategoricalColorRampOp,
   ChartOp,
   CodeOp,
+  ColumnLayerOp,
   CompassWidgetOp,
   ConcatOp,
   CrossOp,
@@ -1823,6 +1824,11 @@ describe('MapViewOp', () => {
     expect(view.clearColor).toEqual([127.5, 0, 127.5, 255])
   })
 
+  it('has no altitude input, since deck.gl derives altitude from fovy', () => {
+    expect(new MapViewOp('/map-0').inputs).not.toHaveProperty('altitude')
+    expect(new GlobeViewOp('/globe-0').inputs).toHaveProperty('altitude')
+  })
+
   it.each([
     [MapViewOp, 'MapView'],
     [GlobeViewOp, 'GlobeView'],
@@ -1838,7 +1844,34 @@ describe('MapViewOp', () => {
   })
 })
 
+describe('FirstPersonViewOp', () => {
+  it('accepts a camera looking down', () => {
+    const operator = new FirstPersonViewOp('/first-person-0')
+    operator.inputs.viewState.setValue({ ...operator.inputs.viewState.value, pitch: -30 })
+
+    const { view } = operator.execute(operator.data)
+    expect(view.viewState.pitch).toBe(-30)
+  })
+
+  it('leaves map views limited to pitch 0 and up', () => {
+    const operator = new MapViewOp('/map-0')
+    expect(() =>
+      operator.execute({ ...operator.data, viewState: { ...operator.data.viewState, pitch: -30 } })
+    ).toThrow(/pitch -30/)
+  })
+})
+
 describe('OrbitViewOp', () => {
+  it('offers only the orbit axes deck.gl supports', () => {
+    const operator = new OrbitViewOp('/orbit-0')
+    const { orbitAxis } = operator.inputs
+
+    orbitAxis.setValue('X')
+    expect(orbitAxis.value).toBe('Z')
+    orbitAxis.setValue('Y')
+    expect(orbitAxis.value).toBe('Y')
+  })
+
   it('accepts zoom outside 0..1', () => {
     const operator = new OrbitViewOp('/orbit-0')
     const { viewState } = operator.inputs
@@ -3938,10 +3971,32 @@ describe('Tile3DLayerOp', () => {
     expect(op.isFieldVisible('tilesetUrl')).toBe(false)
   })
 
+  it('has no maxLodMetricValue input, which deck.gl and loaders.gl do not read', async () => {
+    const op = new Tile3DLayerOp('/tile3d-0')
+    expect(op.inputs).not.toHaveProperty('maxLodMetricValue')
+    expect((await op.execute({})).layer).not.toHaveProperty('maxLodMetricValue')
+  })
+
   it('includes Generic in provider options', () => {
     const op = new Tile3DLayerOp('/tile3d-0')
     const values = op.inputs.provider.choices.map(c => c.value)
     expect(values).toContain('Generic')
+  })
+})
+
+describe('ColumnLayerOp', () => {
+  it('takes a 2D offset, the only components deck.gl ColumnLayer reads', () => {
+    const op = new ColumnLayerOp('/columns-0')
+    op.inputs.offset.setValue([0.5, -0.5])
+
+    expect(op.execute(op.data).layer.offset).toEqual([0.5, -0.5])
+  })
+})
+
+describe('MVTLayerOp', () => {
+  it('has no autoLabels input, which deck.gl MVTLayer does not read', () => {
+    expect(new MVTLayerOp('/mvt-0').inputs).not.toHaveProperty('autoLabels')
+    expect(MVTLayer.defaultProps).not.toHaveProperty('autoLabels')
   })
 })
 
@@ -4218,22 +4273,28 @@ describe('ScaleWidgetOp', () => {
       id: '/scale-widget-0',
       type: '_ScaleWidget',
       placement: 'bottom-left',
-      label: 'Scale',
     })
   })
 
   it('accepts custom scale widget properties', async () => {
     const op = new ScaleWidgetOp('/scale-widget-0')
     op.inputs.placement.setValue('top-right')
-    op.inputs.label.setValue('Distance')
     op.inputs.viewId.setValue('map-view')
     await op.pull()
 
     expect(op.outputData.widget).toMatchObject({
       placement: 'top-right',
-      label: 'Distance',
       viewId: 'map-view',
     })
+  })
+
+  it('has no label input, since deck.gl never draws the label', () => {
+    const op = new ScaleWidgetOp('/scale-widget-0')
+    expect(op.inputs).not.toHaveProperty('label')
+
+    const root = document.createElement('div')
+    new deckWidgets._ScaleWidget({ label: 'Distance' }).onRenderHTML(root)
+    expect(root.textContent).not.toContain('Distance')
   })
 
   it('excludes an empty viewId', async () => {

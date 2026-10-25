@@ -5482,13 +5482,6 @@ function createBaseViewFields() {
 
 function createGeoViewFields() {
   return {
-    altitude: new NumberField(1.5, {
-      softMin: -100_000,
-      softMax: 100_000,
-      step: 0.1,
-      showByDefault: false,
-      description: 'Camera distance from the screen, in multiples of the viewport height.',
-    }),
     nearZMultiplier: new NumberField(0.1, {
       min: 0,
       softMax: 1_000,
@@ -5526,6 +5519,7 @@ export class MapViewOp extends Operator<MapViewOp> {
         showByDefault: false,
         description: 'Use a flat orthographic projection instead of perspective.',
       }),
+      // No altitude input: deck.gl derives altitude from fovy whenever fovy is set
       fovy: new NumberField(40, {
         min: 0.1,
         max: 179.9,
@@ -5782,6 +5776,13 @@ export class GlobeViewOp extends Operator<GlobeViewOp> {
   createInputs() {
     return {
       ...createBaseViewFields(),
+      altitude: new NumberField(1.5, {
+        softMin: -100_000,
+        softMax: 100_000,
+        step: 0.1,
+        showByDefault: false,
+        description: 'Camera distance from the screen, in multiples of the viewport height.',
+      }),
       ...createGeoViewFields(),
       viewState: new CompoundPropsField(
         {
@@ -5985,9 +5986,6 @@ export class ScaleWidgetOp extends Operator<ScaleWidgetOp> {
         values: ['top-left', 'top-right', 'bottom-left', 'bottom-right'],
         description: 'Corner of the map where the distance scale bar appears.',
       }),
-      label: new StringField('Scale', {
-        description: 'Name for the scale widget. The bar shows its own distance text.',
-      }),
       viewId: new StringField('', {
         optional: true,
         description:
@@ -6006,14 +6004,12 @@ export class ScaleWidgetOp extends Operator<ScaleWidgetOp> {
 
   execute({
     placement,
-    label,
     viewId,
   }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     const widget = {
       id: this.id,
       type: '_ScaleWidget',
       placement,
-      label,
       ...(viewId && viewId !== '' ? { viewId } : {}),
     }
     return { widget }
@@ -6310,7 +6306,7 @@ export class FirstPersonViewOp extends Operator<FirstPersonViewOp> {
   }
 
   execute(props: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
-    validateViewState(props.viewState)
+    validateViewState(props.viewState, { minPitch: -90 })
     return { view: { type: 'FirstPersonView', id: this.id, ...props } }
   }
 }
@@ -6327,7 +6323,7 @@ export class OrbitViewOp extends Operator<OrbitViewOp> {
         description: 'Use a flat orthographic projection instead of perspective.',
       }),
       orbitAxis: new StringLiteralField('Z', {
-        values: ['X', 'Y', 'Z'],
+        values: ['Y', 'Z'],
         showByDefault: false,
         description: 'Axis the camera can spin all the way around.',
       }),
@@ -8282,7 +8278,6 @@ export class Tile3DLayerOp extends Operator<Tile3DLayerOp> {
           'Limit how many tile requests run at once. Loads more slowly but uses less bandwidth.',
       }),
       pointSize: new NumberField(1, { min: 0, softMax: 100 }), // Only applies when tile format is 'pnts'
-      maxLodMetricValue: new NumberField(2, { min: 0, softMax: 10, showByDefault: false }),
       maxScreenSpaceError: new NumberField(50, {
         min: 0,
         softMax: 1_000,
@@ -11790,7 +11785,11 @@ export class ColumnLayerOp extends Operator<ColumnLayerOp> {
         description:
           'Custom outline as [x, y] points in the unit circle, scaled by the radius. Replaces the round shape.',
       }),
-      offset: new Vec3Field([0, 0, 0], { returnType: 'tuple', showByDefault: false }),
+      offset: new Vec2Field([0, 0], {
+        returnType: 'tuple',
+        showByDefault: false,
+        description: 'Shifts each column from its position, as [x, y] in fractions of the radius.',
+      }),
       coverage: new NumberField(1, { min: 0, max: 1, step: 0.01, showByDefault: false }),
       elevationScale: new NumberField(1, { min: 0, softMax: 100, showByDefault: false }),
       filled: new BooleanField(true),
@@ -12410,7 +12409,6 @@ export class MVTLayerOp extends Operator<MVTLayerOp> {
         values: ['pixels', 'meters'],
         showByDefault: false,
       }),
-      autoLabels: new BooleanField(false, { optional: true }),
       parameters: new CompoundPropsField(
         {
           depthTest: new BooleanField(true),
