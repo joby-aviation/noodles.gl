@@ -605,15 +605,27 @@ export class Engine {
             : []
       for (const url of urls) {
         if (!url || this.registered.has(url)) continue
-        if (url.startsWith('@/')) {
-          if (!readAsset) continue
-          await registerFile(url, await readAsset(url.slice(2)))
-        } else if (n.op === 'geojson' || n.op === 'code') {
-          await registerFile(url, await fetchBytes(url))
-        } else {
-          continue
-        }
+        const read = url.startsWith('@/')
+          ? readAsset && ((u: string) => readAsset(u.slice(2)))
+          : n.op === 'geojson' || n.op === 'code'
+            ? fetchBytes
+            : undefined
+        if (!read) continue
+        await registerFile(url, await read(url))
         this.registered.add(url)
+        // GDAL reads a shapefile's index, attributes, projection and encoding from files beside
+        // it, which DuckDB-Wasm must hold too. A shapefile can go without all but its index.
+        if (!/\.shp$/i.test(url)) continue
+        for (const ext of ['.shx', '.dbf', '.prj', '.cpg']) {
+          const sidecar = url.replace(/\.shp$/i, ext)
+          if (this.registered.has(sidecar)) continue
+          try {
+            await registerFile(sidecar, await read(sidecar))
+          } catch {
+            // Missing: GDAL reports a missing index, and loads without the rest
+          }
+          this.registered.add(sidecar)
+        }
       }
     }
   }

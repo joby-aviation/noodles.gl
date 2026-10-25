@@ -44,7 +44,9 @@ An edge into it ends at `"targetPort": "in"`; one out of it starts at `"sourcePo
 | `features` | `table` |
 <!-- gen:end outputs -->
 
-<!-- Add hand-written "## Remarks" and "## Examples" sections here. See the operator reference index for what goes in them. -->
+## Remarks
+
+A URL ending in `.shp` reads a shapefile, which is several files side by side. The node also fetches the `.shx` (the index), `.dbf` (the attributes, which become columns), `.prj` (the projection) and `.cpg` (the text encoding) from beside it. The `.shx` is required. Without a `.dbf` the features have geometry and no columns; without a `.cpg`, GDAL takes the text encoding from the `.dbf` header.
 
 ## Details
 

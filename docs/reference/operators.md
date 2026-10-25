@@ -1,7 +1,7 @@
 # Operator Reference
 
 <!-- gen:begin coverage -->
-134 operators in 10 categories. 4 of 134 have written Remarks.
+134 operators in 10 categories. 5 of 134 have written Remarks.
 <!-- gen:end coverage -->
 
 One page per operator. The ports and parameters tables are generated from the operator catalog; Remarks and Examples are written by hand.
