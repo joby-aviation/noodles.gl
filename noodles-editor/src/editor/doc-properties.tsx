@@ -160,6 +160,7 @@ function NodeParams({ node, doc, multi }: { node: DocNode; doc: EditorDoc; multi
           <button
             type="button"
             className={cx(s.paneDesc, descOpen && s.paneDescOpen)}
+            aria-expanded={descOpen}
             title={descOpen ? undefined : op.description}
             onClick={() => setDescOpen(o => !o)}
           >
