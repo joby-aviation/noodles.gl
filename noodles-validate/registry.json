@@ -6214,9 +6214,7 @@
       "inputs": {
         "color": {
           "type": "ColorField",
-          "default": {
-            "accessor": true
-          }
+          "default": "#0000ffff"
         }
       },
       "outputs": {

@@ -9,7 +9,8 @@ describe('SplitRGBAOp', () => {
 
   it('splits accessor colors per item', () => {
     const op = new SplitRGBAOp('/split-rgba')
-    const { r, a } = op.execute({ color: (d: { c: string }) => d.c })
+    op.inputs.color.setValue((d: { c: string }) => d.c)
+    const { r, a } = op.execute(op.data)
     expect((r as (d: unknown) => number)({ c: '#10203040' })).toBe(16)
     expect((a as (d: unknown) => number)({ c: '#102030' })).toBe(255)
   })

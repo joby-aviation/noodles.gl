@@ -2101,10 +2101,10 @@ export class SplitRGBAOp extends Operator<SplitRGBAOp> {
   static description = 'Split a color into its red, green, blue, and alpha components (range 0-255)'
   createInputs() {
     return {
-      color: new ColorField(
-        { accessor: true },
-        { description: 'Hex color to split into channels. Can be a per-item accessor.' }
-      ),
+      color: new ColorField(undefined, {
+        accessor: true,
+        description: 'Hex color to split into channels. Can be a per-item accessor.',
+      }),
     }
   }
   createOutputs() {
