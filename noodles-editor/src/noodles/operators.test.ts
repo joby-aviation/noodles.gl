@@ -1402,6 +1402,19 @@ describe('deck.gl 9.4 properties', () => {
     })
   })
 
+  it('draws solid lines when dash is off', () => {
+    const operator = new PathStyleExtensionOp('/path-style-0')
+    const { extension } = operator.execute({
+      ...operator.data,
+      dash: false,
+      highPrecisionDash: true,
+      offset: true,
+    })
+
+    const instance = instantiateExtension(extension.extension) as PathStyleExtension
+    expect(instance.opts).toMatchObject({ dash: false, offset: true })
+  })
+
   it('maps the deprecated highPrecisionDash option to whole-path dash mode', () => {
     const operator = new PathStyleExtensionOp('/path-style-0')
     const { extension } = operator.execute({

@@ -8432,7 +8432,7 @@ export class PathStyleExtensionOp extends Operator<PathStyleExtensionOp> {
       dashMode: new StringLiteralField('segment', {
         values: ['segment', 'path'],
         description:
-          "'segment' restarts dashes at each segment; 'path' keeps them continuous along the path.",
+          "'segment' restarts dashes at each segment; 'path' keeps them continuous. Needs Dash on.",
       }),
       dashJustified: new BooleanField(false, {
         description: 'When on, adjusts gaps so dashes line up with both ends of each path.',
@@ -8478,7 +8478,8 @@ export class PathStyleExtensionOp extends Operator<PathStyleExtensionOp> {
       extension: {
         type: 'PathStyleExtension',
         dash,
-        dashMode: highPrecisionDash ? 'path' : dashMode,
+        // deck.gl turns dashes on whenever dashMode is set, so only pass it with dash on
+        ...(dash ? { dashMode: highPrecisionDash ? 'path' : dashMode } : {}),
         offset,
       },
       props,
