@@ -30,6 +30,10 @@ const GROUP: Record<string, string> = {
 
 export const referenceable = (def: ParamDef) => def.kind in GROUP
 
+/** Whether a value of `a` fits `b`, so one can reference the other. */
+export const sameKind = (a: ParamDef, b: ParamDef) =>
+  GROUP[a.kind] !== undefined && GROUP[a.kind] === GROUP[b.kind]
+
 export interface Candidate {
   key: string
   node: DocNode
@@ -65,6 +69,8 @@ export function RefPicker({
   y,
   onPick,
   onClose,
+  items,
+  placeholder,
 }: {
   doc: EditorDoc
   node: DocNode
@@ -73,11 +79,14 @@ export function RefPicker({
   y: number
   onPick: (key: string) => void
   onClose: () => void
+  /** The parameters to choose from, when not every one `def` could reference */
+  items?: Candidate[]
+  placeholder?: string
 }) {
   const [query, setQuery] = useState('')
   const [active, setActive] = useState(0)
   const ref = useRef<HTMLDivElement>(null)
-  const all = useMemo(() => candidates(doc, node, def), [doc, node, def])
+  const all = useMemo(() => items ?? candidates(doc, node, def), [items, doc, node, def])
   const shown = useMemo(() => {
     const q = query.trim().toLowerCase()
     return q ? all.filter(c => c.label.toLowerCase().includes(q)) : all
@@ -104,7 +113,7 @@ export function RefPicker({
         // biome-ignore lint/a11y/noAutofocus: the picker opens to be typed into
         autoFocus
         className={s.refPickerSearch}
-        placeholder={`Reference a ${def.kind === 'color' ? 'color' : 'parameter'}…`}
+        placeholder={placeholder ?? `Reference a ${def.kind === 'color' ? 'color' : 'parameter'}…`}
         value={query}
         onChange={e => {
           setQuery(e.target.value)
