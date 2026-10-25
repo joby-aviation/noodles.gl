@@ -5,13 +5,17 @@
 //
 // A node depends on what is wired into it (a table, or a number driving a parameter through a
 // `par:` edge) and on the parameters it references (`{ ref }` values and `ch()` in expressions).
+// Wires are followed through subnets' ports, so nodes collapsed into a subnet stay listed under
+// the layers they feed, each after the subnets that hold it.
 
 import {
   type DocNode,
   type EditorDoc,
+  flattenSubnets,
   isExpr,
   isRef,
   resolveRef,
+  SUBNET,
   SUBNET_INPUT,
   SUBNET_OUTPUT,
 } from '@noodles.gl/planner'
@@ -41,6 +45,17 @@ const HIDDEN_OPS = new Set(['comment', SUBNET_INPUT, SUBNET_OUTPUT])
 
 const CH = /\bch\(\s*(['"])(.*?)\1\s*\)/g
 
+// The node a resolved reference key (`nodeId.param`) names. A host output's parameter is a
+// path with dots of its own (`out.location.lat`), so the node is the longest id the key starts
+// with, not whatever comes before the last dot.
+export function nodeOfKey(doc: Pick<EditorDoc, 'nodes'>, key: string): string | undefined {
+  let best: string | undefined
+  for (const n of doc.nodes) {
+    if (key.startsWith(`${n.id}.`) && (!best || n.id.length > best.length)) best = n.id
+  }
+  return best
+}
+
 // The nodes whose parameters `node` references
 function referenced(doc: EditorDoc, node: DocNode): string[] {
   const paths: string[] = []
@@ -54,8 +69,8 @@ function referenced(doc: EditorDoc, node: DocNode): string[] {
   const ids: string[] = []
   for (const path of paths) {
     try {
-      const key = resolveRef(doc, node, path)
-      ids.push(key.slice(0, key.lastIndexOf('.')))
+      const id = nodeOfKey(doc, resolveRef(doc, node, path))
+      if (id) ids.push(id)
     } catch {
       // A reference to a node that is gone reads nothing
     }
@@ -66,14 +81,42 @@ function referenced(doc: EditorDoc, node: DocNode): string[] {
 // What each node reads directly, by id
 export function dependencies(doc: EditorDoc): Map<string, string[]> {
   const deps = new Map<string, string[]>(doc.nodes.map(n => [n.id, []]))
-  for (const e of doc.edges) deps.get(e.target)?.push(e.source)
-  for (const n of doc.nodes) deps.get(n.id)?.push(...referenced(doc, n))
+  // Flattening rewires each edge across a subnet's boundary to the real node on the other side
+  for (const e of flattenSubnets(doc).edges) deps.get(e.target)?.push(e.source)
+  for (const n of doc.nodes) {
+    deps.get(n.id)?.push(...referenced(doc, n))
+    if (n.op !== SUBNET) continue
+    // A subnet reads what feeds its outputs from inside, and a child it promotes a
+    // parameter of reads the subnet's value
+    for (const out of doc.nodes.filter(c => c.parent === n.id && c.op === SUBNET_OUTPUT)) {
+      for (const e of doc.edges) if (e.target === out.id) deps.get(n.id)?.push(e.source)
+    }
+    for (const p of n.promoted ?? []) deps.get(p.node)?.push(n.id)
+  }
   for (const [id, list] of deps)
     deps.set(
       id,
       [...new Set(list)].filter(d => d !== id)
     )
   return deps
+}
+
+// `ids` with the subnets that hold each node listed before it, outermost first, except `self`
+function withSubnets(ids: string[], byId: Map<string, DocNode>, self: string): string[] {
+  const out: string[] = []
+  const seen = new Set<string>([self])
+  const add = (id: string) => {
+    if (seen.has(id)) return
+    seen.add(id)
+    out.push(id)
+  }
+  for (const id of ids) {
+    const chain: string[] = []
+    for (let p = byId.get(id)?.parent; p; p = byId.get(p)?.parent) chain.unshift(p)
+    chain.forEach(add)
+    add(id)
+  }
+  return out
 }
 
 // Everything `id` depends on, sources first: each node after the nodes it reads
@@ -115,7 +158,7 @@ export function layerStack(doc: EditorDoc): LayerStack {
     .map(id => ({
       id,
       visible: !byId.get(id)?.flags?.bypass,
-      upstream: upstreamOf(id, deps).filter(shown),
+      upstream: withSubnets(upstreamOf(id, deps), byId, id).filter(shown),
     }))
 
   const usedBy = new Map<string, string[]>()
