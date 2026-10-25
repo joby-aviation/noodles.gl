@@ -61,6 +61,7 @@ import { TimelineProvider } from '../timeline/timeline-context'
 import { getTimelineStore } from '../timeline/timeline-store'
 import type { Visualization } from '../visualizations'
 import { BlockLibrary, type BlockLibraryRef } from './components/block-library'
+import { CanvasQuickstart, CanvasQuickstartButton } from './components/canvas-quickstart'
 import { categories, nodeTypeToDisplayName } from './components/categories'
 import { CopyControls, type CopyControlsRef } from './components/copy-controls'
 import { CreateFromSQLDialog } from './components/create-from-sql-dialog'
@@ -2023,7 +2024,10 @@ export function getNoodles(): Visualization {
                   onPendingFileHandled={clearPendingImportFile}
                 />
                 <Background />
-                <Controls position="bottom-right" />
+                <Controls position="bottom-right">
+                  <CanvasQuickstartButton />
+                </Controls>
+                <CanvasQuickstart />
                 <BlockLibrary ref={blockLibraryRef} reactFlowRef={reactFlowRef} />
                 <CopyControls ref={copyControlsRef} graphRef={graphRef} />
                 <UndoRedoHandler ref={undoRedoRef} graphRef={graphRef} />
