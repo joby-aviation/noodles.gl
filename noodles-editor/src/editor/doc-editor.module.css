@@ -325,7 +325,6 @@
   width: 100%;
   min-width: 0;
   max-width: none;
-  height: 20px;
   min-height: 20px;
   padding: 0 6px;
   border: 1px solid transparent;
@@ -379,6 +378,23 @@
 }
 
 /* A one-line text parameter (a column, an expression) stays one line, with no resize grip */
+/* One line high, except a text parameter whose value has several lines: that grows with them */
+.paramRow
+  :global(.field-row)
+  > :last-child
+  input:not([type="checkbox"]):not([type="color"]):not([type="range"]),
+.paramRow :global(.field-row) > :last-child select,
+.paramRow :global(.field-row) > :last-child textarea[rows="1"] {
+  height: 20px;
+}
+
+.paramRow :global(.field-row) > :last-child textarea:not([rows="1"]) {
+  height: auto;
+  padding: 1px 6px;
+  /* Its rows follow the value's line count; sized to content it would also shrink in width */
+  field-sizing: fixed;
+}
+
 .paramRow :global(.field-row) > :last-child textarea[rows="1"] {
   overflow: hidden;
   resize: none;
