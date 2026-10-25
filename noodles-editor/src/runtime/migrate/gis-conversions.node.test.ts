@@ -234,3 +234,27 @@ describe('turf operators as geometry operators', () => {
     expect(() => toEditorDoc(corner)).toThrow(/scaling about 'sw' is not converted/)
   })
 })
+
+describe('GeoJsonLayerOp icon points', () => {
+  it('draws a point a marker from the sample atlas when nothing else is set', async () => {
+    const p = project([file('/stops', 'stops.geojson')], [], '/stops', 'data')
+    const layer = p.nodes.find(n => n.id === '/layer')!
+    layer.data = { inputs: { pointType: 'circle+icon' } }
+    const { doc, layers } = await draw(p)
+    expect(layers['/layer-points']).toBe(3)
+    expect(layers['/layer-icons']).toBe(3)
+    const icons = doc.nodes.find(n => n.id === '/layer-icons')
+    expect(icons).toMatchObject({ op: 'icon', params: { position: 'geom', sizeScale: 32 } })
+    expect(String(icons?.params.iconAtlas)).toMatch(/icon-atlas\.png$/)
+    // One icon for every point: a column holding its name
+    const name = doc.nodes.find(n => n.id === '/layer-icon')
+    expect(name).toMatchObject({ op: 'attribute', params: { expression: "'marker'" } })
+    expect(icons?.params.icon).toBe(name?.params.name)
+  })
+
+  it('refuses an icon that is neither a name nor a property', () => {
+    const p = project([file('/stops', 'stops.geojson')], [], '/stops', 'data')
+    p.nodes.find(n => n.id === '/layer')!.data = { inputs: { pointType: 'icon', getIcon: '' } }
+    expect(() => toEditorDoc(p)).toThrow(MigrationError)
+  })
+})

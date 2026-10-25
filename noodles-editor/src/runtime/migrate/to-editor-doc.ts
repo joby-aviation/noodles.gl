@@ -105,6 +105,13 @@ export const DEFAULTS: Record<string, Record<string, unknown>> = {
     getTextSize: 32,
     getTextColor: '#000000',
     textSizeScale: 1,
+    // Icon points draw the marker from deck.gl's sample atlas, as an Icon Layer does
+    iconAtlas: 'https://raw.githubusercontent.com/visgl/deck.gl-data/master/website/icon-atlas.png',
+    iconMapping:
+      'https://raw.githubusercontent.com/visgl/deck.gl-data/master/website/icon-atlas.json',
+    getIcon: 'marker',
+    getIconSize: 32,
+    getIconColor: '#fff',
     filled: true,
     getFillColor: '#006ac6',
     stroked: true,
@@ -2686,7 +2693,48 @@ export function toEditorDoc(original: NoodlesProject): Migrated {
         3
       )
     }
-    if (pointType.includes('icon')) warnings.push(`${layer.id}: icon points are not converted`)
+    if (pointType.includes('icon')) {
+      const icon = v('getIcon')
+      let column: string
+      if (icon.kind === 'row') {
+        column = stringColumn(icon, layer.id, 'getIcon')
+      } else if (icon.kind === 'const' && typeof icon.value === 'string' && icon.value) {
+        // One icon for every point: a column holding its name, which the layer reads
+        column = `${segment(layer.id).replace(/\W/g, '_')}_icon`
+        chainOf(src).set(`${layer.id}#icon`, {
+          node: {
+            id: `${layer.id}-icon`,
+            op: 'attribute',
+            name: `${segment(layer.id)}-icon`,
+            ...at,
+            params: { name: column, expression: `'${icon.value.replace(/'/g, "''")}'` },
+          },
+          reads: new Set(),
+          attribute: column,
+        })
+      } else {
+        throw new MigrationError(`${layer.id}: point icons must be a name or a property`)
+      }
+      const size = v('getIconSize')
+      const iconColor = colorInput(colorChannel(v('getIconColor')), layer.id, 'getIconColor')
+      draw(
+        `${layer.id}-icons`,
+        'icon',
+        480,
+        {
+          ...geo,
+          icon: column,
+          size: size.kind === 'row' ? size.expr : '',
+          sizeScale: size.kind === 'row' ? 1 : constant(size, 'getIconSize'),
+          color: iconColor.channel ?? '',
+          ...(iconColor.color ? { iconColor: iconColor.color } : {}),
+          iconAtlas: String(i.iconAtlas ?? ''),
+          iconMapping:
+            typeof i.iconMapping === 'string' ? i.iconMapping : JSON.stringify(i.iconMapping ?? {}),
+        },
+        4
+      )
+    }
     dropUnmapped(layer, [
       'opacity',
       'visible',
@@ -2698,6 +2746,11 @@ export function toEditorDoc(original: NoodlesProject): Migrated {
       'getTextSize',
       'getTextColor',
       'textSizeScale',
+      'iconAtlas',
+      'iconMapping',
+      'getIcon',
+      'getIconSize',
+      'getIconColor',
       'filled',
       'getFillColor',
       'stroked',
