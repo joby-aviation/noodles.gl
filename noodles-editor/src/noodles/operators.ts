@@ -1429,9 +1429,14 @@ export class TileLayerOp extends Operator<TileLayerOp> {
       layer: new LayerField<TileLayerProps>(),
     }
   }
-  execute(props: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+  execute({
+    renderSubLayers,
+    ...props
+  }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     const layer = {
       ...parseLayerProps<TileLayerProps>(props),
+      // Passing null leaves deck.gl's TileLayer without its default GeoJsonLayer renderer
+      ...(renderSubLayers ? { renderSubLayers } : {}),
       type: 'TileLayer' as const,
       id: this.id,
     }

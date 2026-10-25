@@ -23,3 +23,24 @@ describe('path-style', () => {
     expect(build({ highPrecisionDash: true }).extension.dashMode).toBe('path')
   })
 })
+
+describe('tile-3d', () => {
+  it('asks for a tileset URL with the Generic provider, which sends no credentials', async () => {
+    const build = DECK_OP_INDEX.get('tile-3d')?.build(
+      { provider: 'Generic', tilesetUrl: '' },
+      'tiles',
+      env
+    )
+    await expect(build).rejects.toThrow('set Tileset URL')
+  })
+
+  it('loads a Generic tileset from its URL', async () => {
+    const built = (await DECK_OP_INDEX.get('tile-3d')?.build(
+      { provider: 'Generic', tilesetUrl: 'https://example.com/tileset.json' },
+      'tiles',
+      env
+    )) as { data: string; loadOptions: unknown }
+    expect(built.data).toBe('https://example.com/tileset.json')
+    expect(built.loadOptions).toBeNull()
+  })
+})

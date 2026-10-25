@@ -953,6 +953,10 @@ export const DECK_OPS: DeckOp[] = [
           'Tile3DLayer: Cesium Ion access token is not set (add it in Settings > API Keys)'
         )
       }
+      // Generic sends no credentials, so falling back to the Google tileset would fail
+      if (provider === 'Generic' && !tilesetUrl) {
+        throw new Error('Tile3DLayer: set Tileset URL to use the Generic provider')
+      }
       const fallback =
         provider === 'Cesium'
           ? 'https://assets.ion.cesium.com/242005/tileset.json'

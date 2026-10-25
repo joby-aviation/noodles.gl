@@ -1,8 +1,9 @@
+import { TileLayer } from '@deck.gl/geo-layers'
 import { Temporal } from 'temporal-polyfill'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { NumberField } from './fields'
 import { getKeysStore } from './keys-store'
-import { ChartOp, CodeOp, DirectionsOp, GeocoderOp } from './operators'
+import { ChartOp, CodeOp, DirectionsOp, GeocoderOp, TileLayerOp } from './operators'
 
 describe('CodeOp', () => {
   it('executes a CodeOp', async () => {
@@ -573,5 +574,21 @@ describe('GeocoderOp', () => {
       'Mapbox geocoding failed: 422 Query too long - 21/20 tokens'
     )
     getKeySpy.mockRestore()
+  })
+})
+
+describe('TileLayerOp', () => {
+  it("keeps deck.gl's default sublayer renderer when renderSubLayers is unset", () => {
+    const op = new TileLayerOp('/tile-0')
+    const { type: _type, ...props } = op.execute(op.data).layer
+    expect(props).not.toHaveProperty('renderSubLayers')
+    expect(new TileLayer(props).props.renderSubLayers).toBeTypeOf('function')
+  })
+
+  it('passes a connected renderSubLayers through', () => {
+    const op = new TileLayerOp('/tile-0')
+    const renderSubLayers = () => null
+    const { layer } = op.execute({ ...op.data, renderSubLayers })
+    expect(layer.renderSubLayers).toBe(renderSubLayers)
   })
 })
