@@ -7,25 +7,27 @@
 import {
   type DocNode,
   type EditorDoc,
-  isRef,
   nodePath,
   OPERATOR_INDEX,
   type ParamDef,
   resolveRef,
 } from '@noodles.gl/planner'
 import { pathTo, setParam } from './doc-ops'
-import { type Candidate, candidates, referenceable, sameKind } from './ref-picker'
+import { nodeOfKey, referencePaths } from './layer-stack'
+import { type Candidate, referenceable, sameKind } from './ref-picker'
 
 // What is being dragged toward a link: a parameter's port, or a node from a list
 export type LinkDrag = { kind: 'param'; key: string } | { kind: 'node'; id: string }
 
-const split = (key: string) => {
-  const dot = key.lastIndexOf('.')
-  return { nodeId: key.slice(0, dot), param: key.slice(dot + 1) }
+// A parameter key's node and parameter. A host output's parameter is a dotted path of its own,
+// so the node is found by id rather than at the last dot.
+const split = (doc: Pick<EditorDoc, 'nodes'>, key: string) => {
+  const nodeId = nodeOfKey(doc, key) ?? key.slice(0, key.lastIndexOf('.'))
+  return { nodeId, param: key.slice(nodeId.length + 1) }
 }
 
 export function paramDef(doc: EditorDoc, key: string): ParamDef | undefined {
-  const { nodeId, param } = split(key)
+  const { nodeId, param } = split(doc, key)
   const node = doc.nodes.find(n => n.id === nodeId)
   return node && OPERATOR_INDEX.get(node.op)?.params.find(p => p.name === param)
 }
@@ -36,23 +38,34 @@ export function linkable(doc: EditorDoc, node: DocNode, def: ParamDef): boolean 
   return !doc.edges.some(e => e.target === node.id && e.targetPort === `par:${def.name}`)
 }
 
-// Whether `target` reading `source` would make a reference loop: `source` reads `target`,
-// directly or through other references
+// The parameters `key` reads: what its `{ ref }` names, or each `ch()` in its expression
+function reads(doc: EditorDoc, key: string): string[] {
+  const { nodeId, param } = split(doc, key)
+  const node = doc.nodes.find(n => n.id === nodeId)
+  const value = node?.params[param]
+  if (!node || value === undefined) return []
+  const keys: string[] = []
+  for (const path of referencePaths(value)) {
+    try {
+      keys.push(resolveRef(doc, node, path))
+    } catch {
+      // A reference to a node that is gone reads nothing
+    }
+  }
+  return keys
+}
+
+// Whether `target` reading `source` would make a loop: `source` reads `target`, directly or
+// through other references and expressions
 function loops(doc: EditorDoc, source: string, target: string): boolean {
   const seen = new Set<string>()
-  let key: string | undefined = source
-  while (key && !seen.has(key)) {
+  const pending = [source]
+  while (pending.length > 0) {
+    const key = pending.pop() as string
     if (key === target) return true
+    if (seen.has(key)) continue
     seen.add(key)
-    const { nodeId, param } = split(key)
-    const node = doc.nodes.find(n => n.id === nodeId)
-    const value = node?.params[param]
-    if (!node || !isRef(value)) return false
-    try {
-      key = resolveRef(doc, node, value.ref)
-    } catch {
-      return false
-    }
+    pending.push(...reads(doc, key))
   }
   return false
 }
@@ -62,7 +75,7 @@ export function canLink(doc: EditorDoc, source: string, target: string): boolean
   if (source === target) return false
   const s = paramDef(doc, source)
   const t = paramDef(doc, target)
-  const node = doc.nodes.find(n => n.id === split(target).nodeId)
+  const node = doc.nodes.find(n => n.id === split(doc, target).nodeId)
   if (!s || !t || !node || !sameKind(s, t) || !linkable(doc, node, t)) return false
   return !loops(doc, source, target)
 }
@@ -70,19 +83,19 @@ export function canLink(doc: EditorDoc, source: string, target: string): boolean
 // Make parameter `target` read parameter `source`. False when it can't.
 export function linkParam(doc: EditorDoc, source: string, target: string): boolean {
   if (!canLink(doc, source, target)) return false
-  const { nodeId, param } = split(target)
+  const { nodeId, param } = split(doc, target)
   const node = doc.nodes.find(n => n.id === nodeId)
   if (!node) return false
   setParam(doc, nodeId, param, { ref: pathTo(doc, node, source) })
   return true
 }
 
-// The parameters on `nodeId` that parameter `source` could drive
-export function targetsOn(doc: EditorDoc, nodeId: string, source: string): Candidate[] {
+// `node`'s parameters that pass `keep`, as picker entries
+function paramsOf(doc: EditorDoc, nodeId: string, keep: (key: string) => boolean): Candidate[] {
   const node = doc.nodes.find(n => n.id === nodeId)
   if (!node) return []
   return (OPERATOR_INDEX.get(node.op)?.params ?? [])
-    .filter(p => canLink(doc, source, `${nodeId}.${p.name}`))
+    .filter(p => keep(`${nodeId}.${p.name}`))
     .map(p => ({
       key: `${nodeId}.${p.name}`,
       node,
@@ -91,11 +104,12 @@ export function targetsOn(doc: EditorDoc, nodeId: string, source: string): Candi
     }))
 }
 
+// The parameters on `nodeId` that parameter `source` could drive
+export function targetsOn(doc: EditorDoc, nodeId: string, source: string): Candidate[] {
+  return paramsOf(doc, nodeId, key => canLink(doc, source, key))
+}
+
 // The parameters on `nodeId` that parameter `target` could read
 export function sourcesOn(doc: EditorDoc, nodeId: string, target: string): Candidate[] {
-  const { nodeId: targetId } = split(target)
-  const node = doc.nodes.find(n => n.id === targetId)
-  const def = paramDef(doc, target)
-  if (!node || !def) return []
-  return candidates(doc, node, def).filter(c => c.node.id === nodeId && canLink(doc, c.key, target))
+  return paramsOf(doc, nodeId, key => canLink(doc, key, target))
 }

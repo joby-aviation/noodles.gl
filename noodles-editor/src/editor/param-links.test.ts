@@ -60,6 +60,24 @@ describe('linkParam', () => {
   })
 })
 
+describe('loops through expressions', () => {
+  it('refuses a link that would loop through a ch() expression', () => {
+    const doc = fixture()
+    doc.nodes.find(n => n.id === 'dots')!.params.opacity = { expr: "ch('rings/opacity') * 2" }
+    expect(canLink(doc, 'dots.opacity', 'rings.opacity')).toBe(false)
+    expect(linkParam(doc, 'dots.opacity', 'rings.opacity')).toBe(false)
+    expect(doc.nodes.find(n => n.id === 'rings')?.params.opacity).toBeUndefined()
+  })
+
+  it('follows a reference into an expression further along', () => {
+    const doc = fixture()
+    doc.nodes.find(n => n.id === 'dots')!.params.opacity = { ref: 'size/value' }
+    doc.nodes.find(n => n.id === 'size')!.params.value = { expr: "ch('rings/radiusScale') + 1" }
+    expect(canLink(doc, 'dots.opacity', 'rings.radiusScale')).toBe(false)
+    expect(canLink(doc, 'dots.opacity', 'rings.opacity')).toBe(true)
+  })
+})
+
 describe('targetsOn and sourcesOn', () => {
   it('lists the parameters of one node a number can drive', () => {
     const keys = targetsOn(fixture(), 'dots', 'size.value').map(c => c.key)
