@@ -1,6 +1,6 @@
 import { LayerExtension } from '@deck.gl/core'
 import { PathStyleExtension } from '@deck.gl/extensions'
-import { MVTLayer } from '@deck.gl/geo-layers'
+import { MVTLayer, TileLayer } from '@deck.gl/geo-layers'
 import * as deckWidgets from '@deck.gl/widgets'
 import * as turf from '@turf/turf'
 import { Temporal } from 'temporal-polyfill'
@@ -74,6 +74,7 @@ import {
   SwitchOp,
   TableEditorOp,
   Tile3DLayerOp,
+  TileLayerOp,
   TimeOp,
   TimeSeriesOp,
   TripsLayerOp,
@@ -3837,6 +3838,13 @@ describe('Tile3DLayerOp', () => {
     await expect(op.execute({ provider: 'Google' })).rejects.toThrow('Google Maps API key')
   })
 
+  it('throws when the Generic provider has no tilesetUrl', async () => {
+    const op = new Tile3DLayerOp('/tile3d-0')
+    await expect(op.execute({ provider: 'Generic', tilesetUrl: '' })).rejects.toThrow(
+      'set Tileset URL'
+    )
+  })
+
   it('hides tilesetUrl by default', () => {
     const op = new Tile3DLayerOp('/tile3d-0')
     expect(op.isFieldVisible('tilesetUrl')).toBe(false)
@@ -3868,6 +3876,23 @@ describe('MVTLayerOp', () => {
   it('has no autoLabels input, which deck.gl MVTLayer does not read', () => {
     expect(new MVTLayerOp('/mvt-0').inputs).not.toHaveProperty('autoLabels')
     expect(MVTLayer.defaultProps).not.toHaveProperty('autoLabels')
+  })
+})
+
+describe('TileLayerOp', () => {
+  it("keeps deck.gl's default sublayer renderer when renderSubLayers is unset", () => {
+    const op = new TileLayerOp('/tile-0')
+    const { type, ...props } = op.execute(op.data).layer
+
+    expect(props).not.toHaveProperty('renderSubLayers')
+    expect(new TileLayer(props).props.renderSubLayers).toBeTypeOf('function')
+  })
+
+  it('passes a connected renderSubLayers through', () => {
+    const op = new TileLayerOp('/tile-0')
+    const renderSubLayers = () => null
+    const { layer } = op.execute({ ...op.data, renderSubLayers })
+    expect(layer.renderSubLayers).toBe(renderSubLayers)
   })
 })
 

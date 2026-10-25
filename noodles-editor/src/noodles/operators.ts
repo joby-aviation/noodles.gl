@@ -8273,6 +8273,11 @@ export class Tile3DLayerOp extends Operator<Tile3DLayerOp> {
       )
     }
 
+    // Generic sends no credentials, so falling back to the Google tileset would fail
+    if (provider === 'Generic' && !tilesetUrl) {
+      throw new Error('Tile3DLayer: set Tileset URL to use the Generic provider')
+    }
+
     const defaultUrl = provider === 'Cesium' ? NYC_CESIUM_TILESET_URL : GOOGLE_TILESET_URL
     const data = tilesetUrl || defaultUrl
 
@@ -12475,9 +12480,14 @@ export class TileLayerOp extends Operator<TileLayerOp> {
       layer: new LayerField<TileLayerProps>(),
     }
   }
-  execute(props: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+  execute({
+    renderSubLayers,
+    ...props
+  }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     const layer = {
       ...parseLayerProps<TileLayerProps>(props),
+      // Passing null leaves deck.gl's TileLayer without its default GeoJsonLayer renderer
+      ...(renderSubLayers ? { renderSubLayers } : {}),
       type: 'TileLayer' as const,
       id: this.id,
       updateTriggers: gatherTriggers(this.inputs, props),
