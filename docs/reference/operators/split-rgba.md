@@ -26,7 +26,7 @@ Expressions and code read its fields as `op('/split-rgba').par.color` (an input)
 <!-- gen:begin inputs -->
 | Name | Type | Default |
 |------|------|---------|
-| `color` | `ColorField` | `{"accessor":true}` |
+| `color` | `ColorField` | `"#0000ffff"` |
 <!-- gen:end inputs -->
 
 ## Outputs
