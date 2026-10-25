@@ -116,6 +116,8 @@ Opening a saved project by its URL (`/projects/:name`, which is where Recent pro
 | `workspace_selected` | `workspace` | workspace-tabs.tsx |
 | `workspace_reset` | `workspace` | top-menu-bar.tsx |
 | `area_edited` | `action, editor` | layout.tsx: an area's editor changed (`editor`), or it was split or closed (`split`, `close`) |
+| `layer_panel_toggle_visible` | `visible` | layer-stack.tsx, the eye on a layer |
+| `layer_reordered` | `from, to, layers` | layer-stack.tsx: a layer dragged, or moved with Alt+Up/Down; positions count from the top |
 | `map_interacted` | `kind` | editor-analytics.ts (from timeline-editor.tsx) |
 | `chat_opened` | `source` | top-menu-bar.tsx, doc-noodles.tsx |
 | `chat_closed` | `source` | top-menu-bar.tsx, doc-noodles.tsx |
