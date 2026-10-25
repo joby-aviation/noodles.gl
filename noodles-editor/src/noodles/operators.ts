@@ -7750,6 +7750,40 @@ export class GeoJsonLayerOp extends Operator<GeoJsonLayerOp> {
       }),
 
       // pointType: icon
+      iconAtlas: new FileUrlField(
+        'https://raw.githubusercontent.com/visgl/deck.gl-data/master/website/icon-atlas.png',
+        {
+          showByDefault: false,
+          description:
+            'Image holding every icon, laid out by Icon mapping. Clear it to load each icon from its own URL.',
+        }
+      ),
+      iconMapping: new MapStyleField(
+        'https://raw.githubusercontent.com/visgl/deck.gl-data/master/website/icon-atlas.json',
+        {
+          showByDefault: false,
+          description: "JSON, or a URL to it, giving each icon's name and position in the atlas.",
+        }
+      ),
+      getIcon: new StringField('marker', {
+        accessor: true,
+        showByDefault: false,
+        description:
+          'Icon for each point: a name from Icon mapping, or with no atlas an object {url, width, height, id}.',
+      }),
+      getIconSize: new NumberField(32, {
+        min: 0,
+        softMax: 256,
+        accessor: true,
+        showByDefault: false,
+        description: 'Icon height for each point, in pixels.',
+      }),
+      getIconColor: new ColorField('#fff', {
+        accessor: true,
+        transform: hexToColor,
+        showByDefault: false,
+        description: "Tint for each icon. Applies to icons marked 'mask' in Icon mapping.",
+      }),
 
       // pointType: text (hidden by default)
       getText: new StringField('', { accessor: true, showByDefault: false }),
@@ -7899,9 +7933,14 @@ export class GeoJsonLayerOp extends Operator<GeoJsonLayerOp> {
       layer: new LayerField<GeoJsonLayerProps>(),
     }
   }
-  execute(props: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+  execute({
+    iconAtlas,
+    ...props
+  }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     const layer = {
       ...parseLayerProps<GeoJsonLayerProps>(props),
+      // Without an atlas, deck.gl packs icons from the {url, width, height} objects getIcon returns
+      iconAtlas: iconAtlas || null,
       type: 'GeoJsonLayer' as const,
       id: this.id,
       updateTriggers: gatherTriggers(this.inputs, props),

@@ -2111,6 +2111,36 @@ describe('LayerPropsOp', () => {
   })
 })
 
+describe('GeoJsonLayerOp icons', () => {
+  it('draws markers from the default icon atlas', () => {
+    const op = new GeoJsonLayerOp('/geojson-0')
+    op.inputs.pointType.setValue('icon')
+
+    const { layer } = op.execute(op.data)
+
+    expect(layer).toMatchObject({
+      pointType: 'icon',
+      iconAtlas: expect.stringContaining('icon-atlas.png'),
+      iconMapping: expect.stringContaining('icon-atlas.json'),
+      getIcon: 'marker',
+      getIconSize: 32,
+    })
+  })
+
+  it('passes a null atlas when cleared, so getIcon can return image objects', () => {
+    const op = new GeoJsonLayerOp('/geojson-0')
+    const getIcon = (f: { properties: { icon: unknown } }) => f.properties.icon
+    op.inputs.iconAtlas.setValue('')
+    op.inputs.getIcon.setValue(getIcon)
+
+    const { layer } = op.execute(op.data)
+
+    const icon = { url: 'https://example.com/pin.png', width: 64, height: 64, id: 'pin' }
+    expect(layer.iconAtlas).toBeNull()
+    expect((layer.getIcon as typeof getIcon)({ properties: { icon } })).toEqual(icon)
+  })
+})
+
 describe('GeoJsonTransformOp', () => {
   it('should return the same feature with default transform values', () => {
     const op = new GeoJsonTransformOp('/transform-0')

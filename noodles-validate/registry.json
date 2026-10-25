@@ -2359,6 +2359,26 @@
           "type": "BooleanField",
           "default": false
         },
+        "iconAtlas": {
+          "type": "FileUrlField",
+          "default": "https://raw.githubusercontent.com/visgl/deck.gl-data/master/website/icon-atlas.png"
+        },
+        "iconMapping": {
+          "type": "MapStyleField",
+          "default": "https://raw.githubusercontent.com/visgl/deck.gl-data/master/website/icon-atlas.json"
+        },
+        "getIcon": {
+          "type": "StringField",
+          "default": "marker"
+        },
+        "getIconSize": {
+          "type": "NumberField",
+          "default": 32
+        },
+        "getIconColor": {
+          "type": "ColorField",
+          "default": "#fff"
+        },
         "getText": {
           "type": "StringField",
           "default": ""

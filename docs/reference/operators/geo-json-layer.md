@@ -36,6 +36,11 @@ Expressions and code read its fields as `op('/geo-json-layer').par.data` (an inp
 | `pointRadiusMinPixels` | `NumberField` | `0` |
 | `pointRadiusMaxPixels` | `NumberField` | `100` |
 | `pointRadiusBillboard` | `BooleanField` | `false` |
+| `iconAtlas` | `FileUrlField` | `"https://raw.githubusercontent.com/visgl/deck.gl-data/master/website/icon-atlas.png"` |
+| `iconMapping` | `MapStyleField` | `"https://raw.githubusercontent.com/visgl/deck.gl-data/master/website/icon-atlas.json"` |
+| `getIcon` | `StringField` | `"marker"` |
+| `getIconSize` | `NumberField` | `32` |
+| `getIconColor` | `ColorField` | `"#fff"` |
 | `getText` | `StringField` | `""` |
 | `getTextSize` | `NumberField` | `32` |
 | `getTextColor` | `ColorField` | `"#000000"` |
