@@ -16,6 +16,7 @@ import {
   useReactFlow,
 } from '@xyflow/react'
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { CanvasQuickstart, CanvasQuickstartButton } from '../noodles/components/canvas-quickstart'
 import {
   MapPickFocus,
   mapPickPulseClass,
@@ -485,7 +486,10 @@ export function DocNetwork({ children }: { children?: ReactNode }) {
         onPaneClick={() => docStore().set({ selection: [] })}
       >
         <Background />
-        <Controls position="bottom-right" showInteractive={false} />
+        <Controls position="bottom-right" showInteractive={false}>
+          <CanvasQuickstartButton />
+        </Controls>
+        <CanvasQuickstart />
         {/* A load frames the graph once its nodes are measured; an empty one has nothing to fit */}
         <ProjectLoadView loadId={loadId} fitView={doc.nodes.length > 0} />
         <MapPickFocus />
