@@ -380,6 +380,7 @@ function parseHtmlTable(html: string): ParsedTableDataClipboard | undefined {
     })
     const table = fragment.querySelector('table')
     if (!table) return undefined
+    if (table.querySelector('table')) return undefined
     const tableRows = Array.from(table.querySelectorAll('tr'))
     if (tableRows.length === 0) return undefined
 

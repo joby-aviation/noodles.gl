@@ -345,6 +345,19 @@ describe('table data clipboard', () => {
     })
   })
 
+  it('rejects nested HTML tables and uses the plain-text fallback', () => {
+    expect(
+      parseTableClipboard({
+        plainText: 'outer\tfallback',
+        html: '<table><tr><td>outer<table><tr><td>inner</td></tr></table></td></tr></table>',
+      })
+    ).toMatchObject({
+      kind: 'table',
+      format: 'tsv',
+      rows: [['outer', 'fallback']],
+    })
+  })
+
   it('rejects truncated HTML and uses the complete plain-text fallback', () => {
     const oversizedColumns = parseTableClipboard({
       plainText: 'complete\tfallback',
