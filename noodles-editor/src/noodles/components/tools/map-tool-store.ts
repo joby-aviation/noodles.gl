@@ -26,6 +26,9 @@ export interface MapToolStoreState {
   // Set while Draw is editing an existing GeoEditor or Point node instead of making new
   // shapes. Cleared whenever the tool is disarmed or switched.
   editTarget: EditTarget | null
+  // Whether a map the tools can draw on is mounted. False with a blank map style (no
+  // basemap to project through) and during a video export.
+  mapReady: boolean
   recipeRequest: RecipeRequest | null
   setActiveTool: (tool: MapTool) => void
   // Arming the same tool twice disarms it, so the shelf button behaves like a toggle
@@ -36,6 +39,7 @@ export interface MapToolStoreState {
   // Arms Draw on an existing node's geometry
   startEditing: (target: EditTarget) => void
   requestRecipe: (request: RecipeRequest | null) => void
+  setMapReady: (ready: boolean) => void
 }
 
 export const useMapToolStore = create<MapToolStoreState>(set => ({
@@ -44,6 +48,7 @@ export const useMapToolStore = create<MapToolStoreState>(set => ({
   distanceUnit: 'kilometers',
   drawMode: 'polygon',
   editTarget: null,
+  mapReady: false,
   recipeRequest: null,
   setActiveTool: tool => set({ activeTool: tool, editTarget: null }),
   toggleTool: tool =>
@@ -58,4 +63,5 @@ export const useMapToolStore = create<MapToolStoreState>(set => ({
       drawMode: target.kind === 'point' ? 'point' : 'polygon',
     }),
   requestRecipe: request => set({ recipeRequest: request }),
+  setMapReady: ready => set({ mapReady: ready }),
 }))

@@ -177,6 +177,16 @@ export function MapToolOverlay({
     if (!activeTool) setShapes([])
   }, [activeTool, reset])
 
+  // Add and Remove need a line or polygon. Once the last one is deleted or cleared,
+  // go back to Move so clicks draw again.
+  const hasEditableShape = shapes.some(shape => {
+    const kind = shapeKind(shape.feature)
+    return kind === 'line' || kind === 'polygon'
+  })
+  useEffect(() => {
+    if (!hasEditableShape) setPointTool('move')
+  }, [hasEditableShape])
+
   // Editing starts from the node's own geometry. Runs after the reset above, so the
   // loaded shapes are not cleared again.
   // Any unfinished drawing is dropped too, so it can't be finished into the new node.
@@ -404,7 +414,8 @@ export function MapToolOverlay({
     }
 
     if (edge) {
-      const position = toLngLat(event)
+      // Insert where the preview showed it, on the edge, not at the raw pointer
+      const position = toLngLat({ clientX: edge.client.x, clientY: edge.client.y })
       if (!position) return
       updateShape(edge.shapeId, feature =>
         insertVertex(feature, edge.insertAt, [position.lng, position.lat])
@@ -651,13 +662,7 @@ export function MapToolOverlay({
   const features = shapes.map(shape => shape.feature)
   const followUps = followUpsFor(features)
   // Add and Remove only make sense with a line or polygon to change
-  const showPointTools =
-    showHandles &&
-    editSession?.kind !== 'point' &&
-    shapes.some(shape => {
-      const kind = shapeKind(shape.feature)
-      return kind === 'line' || kind === 'polygon'
-    })
+  const showPointTools = showHandles && editSession?.kind !== 'point' && hasEditableShape
   const cursor =
     hoverHandle === null
       ? pointTool === 'move'

@@ -334,9 +334,10 @@ describe('MapToolOverlay drawing', () => {
       fireEvent.mouseDown(overlay.surface, { clientX: 300, clientY: 250, button: 0 })
       overlay.clickAt(300, 250)
       expect(screen.queryByText(/more point/)).toBeNull()
+      // On the edge where the preview was, not at the pointer 4px off it
       expect(ring(overlay)).toEqual([
         [50, 50],
-        [90, 54],
+        [90, 50],
         [150, 50],
         [150, 150],
         [50, 50],
@@ -359,6 +360,15 @@ describe('MapToolOverlay drawing', () => {
         [50, 150],
         [50, 50],
       ])
+    })
+
+    it('goes back to Move once no line or polygon is left', () => {
+      const overlay = renderOverlay({ editSession: triangle() })
+      canvas = overlay.canvas
+      fireEvent.click(screen.getByText('Remove'))
+      fireEvent.click(screen.getByText('Clear all'))
+      overlay.clickAt(300, 250)
+      expect(screen.getByText('Add 2 more points')).toBeTruthy()
     })
 
     it('goes back to drawing when a shape type is picked', () => {

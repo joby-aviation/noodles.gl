@@ -33,6 +33,7 @@ export function EditOnMapButton({ nodeId, from, className }: EditOnMapButtonProp
   useTimelineStore(state => state.tracks)
   const editing = useMapToolStore(state => state.editTarget)
   const startEditing = useMapToolStore(state => state.startEditing)
+  const mapReady = useMapToolStore(state => state.mapReady)
   const target = resolveEditTarget(
     nodeId,
     id => getOp(id) as unknown as EditableOp | undefined,
@@ -43,13 +44,19 @@ export function EditOnMapButton({ nodeId, from, className }: EditOnMapButtonProp
 
   const active = editing?.opId === target.opId
   const label = target.opId === nodeId ? 'Edit on map' : 'Edit shapes on map'
+  // The tools draw through the basemap, so a blank map style leaves nothing to edit on
+  const unavailable = target.locked
+    ? `${target.locked}, so edits on the map would not stick`
+    : mapReady
+      ? undefined
+      : 'Needs a map: set a map style on the basemap to edit shapes on the map'
 
   return (
     <button
       type="button"
-      className={cx(s.button, { [s.active]: active || target.locked }, className)}
-      disabled={active || Boolean(target.locked)}
-      title={target.locked ? `${target.locked}, so edits on the map would not stick` : undefined}
+      className={cx(s.button, { [s.active]: active || unavailable }, className)}
+      disabled={active || Boolean(unavailable)}
+      title={unavailable}
       onClick={() => {
         startEditing(target)
         analytics.track('draw_edit_started', { kind: target.kind, from })

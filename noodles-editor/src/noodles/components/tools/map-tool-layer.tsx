@@ -36,6 +36,13 @@ export function MapToolLayer({ mapRef, basemapEnabled, isRendering }: MapToolLay
     }
   }, [editTarget])
 
+  const setMapReady = useMapToolStore(state => state.setMapReady)
+  const mapReady = basemapEnabled && !isRendering
+  useEffect(() => {
+    setMapReady(mapReady)
+    return () => setMapReady(false)
+  }, [mapReady, setMapReady])
+
   // Disarm rather than silently ignore clicks when the tool cannot work here,
   // so the shelf button never stays lit with nothing happening.
   useEffect(() => {
