@@ -494,6 +494,11 @@ describe('Execution indicator timing', () => {
 })
 
 describe('markDirty wave benchmarks', () => {
+  // setupTests freezes the clock; these timings need the real one
+  beforeEach(() => {
+    vi.useRealTimers()
+  })
+
   // The wave writes status through a single private helper; spying on it
   // counts wave visits exactly (a pruned mark performs zero status writes)
   const spyOnStatusWrites = () =>
@@ -514,33 +519,62 @@ describe('markDirty wave benchmarks', () => {
   }
 
   it('should prune repeated marks in O(1) regardless of closure size', () => {
-    const K = 1000
-    const chain50 = buildChain(50, '/wave-a50')
-    const chain500 = buildChain(500, '/wave-a500')
+    const ROUNDS = 9
+    const head50 = buildChain(50, '/wave-a50')[0]
+    const head500 = buildChain(500, '/wave-a500')[0]
 
-    const timeRepeatedMarks = (head: ChainOp) => {
-      head.markDirty() // stamp the closure in the current epoch
-      const spy = spyOnStatusWrites()
+    // Stamp both closures in the current epoch (building chains bumps it)
+    head50.markDirty()
+    head500.markDirty()
+
+    // One spy for the whole test: swapping the prototype method between
+    // samples can deopt markDirty and bill the recompile to one chain
+    const spy = spyOnStatusWrites()
+    const timeRepeatedMarks = (head: ChainOp, k: number) => {
       const start = performance.now()
-      for (let i = 0; i < K; i++) {
+      for (let i = 0; i < k; i++) {
         head.markDirty()
       }
-      const elapsed = performance.now() - start
-      expect(spy).toHaveBeenCalledTimes(0) // fully pruned: zero status writes
-      spy.mockRestore()
-      return elapsed
+      return performance.now() - start
     }
 
-    const time50 = timeRepeatedMarks(chain50[0])
-    const time500 = timeRepeatedMarks(chain500[0])
+    // Warm up so JIT tiering is not billed to whichever chain runs first
+    timeRepeatedMarks(head50, 1000)
+    timeRepeatedMarks(head500, 1000)
 
-    console.log(`${K} repeated marks, 50-op chain:`, time50.toFixed(2), 'ms')
-    console.log(`${K} repeated marks, 500-op chain:`, time500.toFixed(2), 'ms')
+    // Grow the batch until one sample is well above the browser's 0.1 ms
+    // timer resolution, so fast machines still compare real numbers
+    let K = 1000
+    while (K < 1_000_000 && timeRepeatedMarks(head50, K) < 2) {
+      K *= 2
+    }
+
+    // Interleave samples so a GC pause or noisy neighbor on a shared CI
+    // runner hits both chains alike, then compare medians
+    const samples50: number[] = []
+    const samples500: number[] = []
+    for (let r = 0; r < ROUNDS; r++) {
+      samples50.push(timeRepeatedMarks(head50, K))
+      samples500.push(timeRepeatedMarks(head500, K))
+    }
+    expect(spy).toHaveBeenCalledTimes(0) // fully pruned: zero status writes
+    spy.mockRestore()
+
+    const median = (xs: number[]) => [...xs].sort((a, b) => a - b)[Math.floor(xs.length / 2)]
+    const time50 = median(samples50)
+    const time500 = median(samples500)
+
+    console.log(`${K} repeated marks, 50-op chain (median of ${ROUNDS}):`, time50.toFixed(2), 'ms')
+    console.log(
+      `${K} repeated marks, 500-op chain (median of ${ROUNDS}):`,
+      time500.toFixed(2),
+      'ms'
+    )
     console.log('Ratio (500/50):', (time500 / Math.max(time50, 0.001)).toFixed(2), 'x')
 
     // Repeated-mark cost must not scale with closure size. The true ratio is
-    // ~1; allow 5x plus a small absolute floor to absorb CI timing noise
-    expect(time500).toBeLessThan(Math.max(time50 * 5, 5))
+    // ~1 and a walk of the closure would be ~10x
+    expect(time500).toBeLessThan(time50 * 3)
   })
 
   it('should walk the closure exactly once on the first mark after invalidation', () => {

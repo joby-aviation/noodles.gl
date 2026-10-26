@@ -74,21 +74,56 @@ VITE_GA_MEASUREMENT_ID=G-XXXXXXXXXX
 | `project_saved` | `storageType, isFirstSave` | menu.tsx |
 | `project_save_failed` | `storageType, error` | menu.tsx |
 | `project_exported` | `storageType` | menu.tsx |
-| `project_opened` | `storageType` | menu.tsx |
-| `project_open_failed` | `storageType, error` | menu.tsx |
+| `project_opened` | `storageType, source` | menu.tsx, noodles.tsx, project-not-found-dialog.tsx |
+| `project_open_failed` | `storageType, error` or `storageType, reason, source` | menu.tsx, noodles.tsx, project-not-found-dialog.tsx |
+| `project_permission_granted` | `source` | projects-view.tsx, project-not-found-dialog.tsx |
+| `project_permission_denied` | `source, state` | projects-view.tsx, project-not-found-dialog.tsx |
+| `project_removed_from_list` | `storageType, source` | projects-view.tsx |
+| `project_folder_reconnected` | `source, folderNameChanged` | projects-view.tsx |
+
+Opening a saved project by its URL (`/projects/:name`, which is where Recent projects and the Projects tab go) reports `source`. The Open menu sends no `source`, and its failures send `error` (`load_error`, `migration_error`, `unknown`) instead of `reason`.
+
+- `source`: `url` (the project page loaded the project from storage), `allow_button` (the "Allow access" button on the project page), `choose_folder` (the "Choose folder" button on the project page), `project_list` (a click in Recent projects or the Projects tab) or `project_menu` ("Allow access" in a project's "..." menu)
+- `project_removed_from_list` and `project_folder_reconnected` come from a project's "..." menu in the Projects tab or Recent projects. Their `source` is `projects_tab` or `recent_projects`. Removing forgets the remembered folder; it never deletes files. `project_folder_reconnected` is "Choose folder…" pointing the project at a folder with a `noodles.json`; `folderNameChanged` is true when that folder has a different name, which renames the project in the list
+- `reason`: the storage error type in snake_case: `permission_prompt` (the browser forgot the folder's permission, usually after a restart, and needs a click to ask again), `permission_denied`, `not_found` (no folder is remembered for the project, or it has no `noodles.json`), `migration_error`, or another storage error such as `security_error` or `unknown`
+- `state`: what the browser returned when asked for access: `prompt` (the user dismissed the prompt) or `denied` (blocked)
+- A local folder's permission is only requested during a click. The project page reads it without asking, so a `permission_prompt` failure is followed by the "Allow access" button, not a browser prompt.
+- Project and folder names are never sent
 
 ### Node Operations
 
 | Event | Properties | Location |
 |-------|-----------|----------|
-| `node_added` | `nodeType` | use-project-modifications.ts |
+| `node_added` | `nodeType` (`CommentOp` for a comment) | use-project-modifications.ts |
 | `node_deleted` | `count` | use-project-modifications.ts |
 | `edge_added` | `count` | use-project-modifications.ts |
 | `edge_deleted` | `count` | use-project-modifications.ts |
+| `starter_node_selected` | `operatorType` | noodles.tsx |
 | `ai_modification_proposed` | `provider, modificationCount` | chat-panel.tsx |
 | `ai_modification_proposal_resolved` | `provider, outcome, modificationCount` | chat-panel.tsx |
 
 - `outcome`: `accepted`, `rejected`, or `failed` (accepted, but the editor refused the batch)
+- `starter_node_selected`: an example opened and the editor selected a node for it (its main layer, or the example's `editorSettings.startNode`), so the properties panel shows controls. Sent once per example per page load, only for the bundled example file, and never with `?externalControl=true` or agent bench mode. `operatorType` is the operator class, such as `ScatterplotLayerOp`
+
+### Editor Interactions
+
+| Event | Properties | Location |
+|-------|-----------|----------|
+| `field_value_changed` | `fieldType, operatorType, source` (a comment edit is `operatorType: 'CommentOp'`, `source: 'node'`; the text isn't sent) | field-edit-analytics.tsx (from property-history.ts commitChange) |
+| `panel_toggled` | `panel, visible` | layout.tsx, timeline-editor.tsx, top-menu-bar.tsx |
+| `map_mode_changed` | `mode` | layout.tsx, top-menu-bar.tsx |
+| `map_interacted` | `kind` | editor-analytics.ts (from timeline-editor.tsx) |
+| `map_feature_clicked` | `operatorType, selected` | map-click-to-edit.tsx |
+| `chat_opened` | `source` | top-menu-bar.tsx, noodles.tsx |
+| `chat_closed` | `source` | top-menu-bar.tsx, noodles.tsx |
+
+- `field_value_changed` counts edits the user commits in a field's control, at the same point an undo step is recorded, and only when a value changed. Project loads, keyframe playback, upstream connections, undo/redo and AI modifications set values without a commit, so they are not counted. Commits to the same field less than 1 second apart are one edit and send one event after a second of quiet, so dragging a slider or typing sends one event, not one per frame or keystroke.
+- `fieldType`: the field's type (`number`, `color`, `boolean`, `string-literal`, `code`, ...), or `custom` for a node's own controls such as histogram brushes. `operatorType`: the node type (`ScatterplotLayerOp`). `source`: `node` or `properties_panel`. The value, field name, node id and code are never sent.
+- `panel`: `sidebar`, `properties`, `timeline` or `spreadsheet`. The sidebar and properties panel are tracked when a resize makes them appear or disappear (dragging the separator, the sidebar chevron, Cmd+F); the timeline when its tab or collapse button is clicked; the spreadsheet from Editor > Show spreadsheet. The timeline opening by itself for an animated project is not counted.
+- `mode`: `docked`, `floating` or `underlay` (the map behind the node graph)
+- `map_interacted` fires once per page load for each `kind`: `pan`, `zoom` or `rotate` (rotate includes pitch). Only user gestures count: deck's controller interaction state, or MapLibre events that carry the input event that caused them. Camera keyframes and programmatic camera moves are not counted.
+- `map_feature_clicked` fires when a click on the map lands on a feature, after the layer's own `onClick` (if any) passed on it. `selected` is true when the editor found the node that drew the feature and selected it; `operatorType` is that node's type (`ScatterplotLayerOp`), or `unknown` for a layer no node drew. Drags, clicks on empty map, and clicks while a map tool is armed, during an export, or with `?externalControl=true` are not counted. No ids, coordinates or feature data are sent.
+- `chat_opened` `source`: `toolbar` (the top bar's Assistant button) or `quick_start` (the Quick Start dialog's AI path). `chat_closed` `source`: `toolbar` (the same button, labeled Hide while the assistant is open) or `panel` (the panel's own close button).
 
 ### Rendering and Export
 
@@ -215,10 +250,6 @@ These properties are automatically removed:
 
 ```typescript
 import { analytics } from '../utils/analytics'
-
-// Panel toggle
-analytics.track('ai_panel_opened')
-analytics.track('ai_panel_closed')
 
 // Message sent
 analytics.track('ai_message_sent', {

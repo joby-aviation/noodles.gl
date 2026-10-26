@@ -1,5 +1,5 @@
 {
-  "version": 19,
+  "version": 20,
   "edges": [
     {
       "id": "/maplibre-basemap.maplibre->/deck-renderer.basemap",
@@ -23,11 +23,6 @@
       "targetHandle": "par.vis"
     }
   ],
-  "viewport": {
-    "x": 0,
-    "y": 0,
-    "zoom": 1
-  },
   "editorSettings": {
     "layoutMode": "noodles-on-top",
     "showOverlay": true

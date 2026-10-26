@@ -1,10 +1,12 @@
 import { LayerExtension } from '@deck.gl/core'
 import { PathStyleExtension } from '@deck.gl/extensions'
+import { MVTLayer, TileLayer } from '@deck.gl/geo-layers'
 import * as deckWidgets from '@deck.gl/widgets'
 import * as turf from '@turf/turf'
 import { Temporal } from 'temporal-polyfill'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { NumberField, StringField } from './fields'
+import { useFileSystemStore } from './filesystem-store'
 import { getKeysStore } from './keys-store'
 import {
   A5LayerOp,
@@ -15,6 +17,7 @@ import {
   CategoricalColorRampOp,
   ChartOp,
   CodeOp,
+  ColumnLayerOp,
   CompassWidgetOp,
   ConcatOp,
   CrossOp,
@@ -69,9 +72,11 @@ import {
   ScreenshotWidgetOp,
   SelectOp,
   SmoothOp,
+  SortOp,
   SwitchOp,
   TableEditorOp,
   Tile3DLayerOp,
+  TileLayerOp,
   TimeOp,
   TimeSeriesOp,
   TripsLayerOp,
@@ -80,6 +85,7 @@ import {
 import { deleteOp, getOpStore, setOp } from './store'
 import { isAccessor } from './utils/accessor-helpers'
 import { canConnect, validateConnection } from './utils/can-connect'
+import { memoryProjectStore } from './utils/memory-project-store'
 
 describe('basic Operators', () => {
   it('creates an Operator', () => {
@@ -108,6 +114,17 @@ describe('TableEditorOp', () => {
     const result = operator.execute({ data: [{}], schema })
 
     expect(result.data).toEqual([{ anchor: 'start', offset2d: [64, 0], offset3d: [64, 0, 10] }])
+  })
+
+  it('keeps every value when TableEditors without a schema are chained', () => {
+    const first = new TableEditorOp('/first')
+    const second = new TableEditorOp('/second')
+    const data = [{ count: null }, { count: 5, extra: 'x' }]
+
+    const firstResult = first.execute({ data, schema: null })
+    const secondResult = second.execute({ data: firstResult.data, schema: firstResult.schema })
+
+    expect(secondResult.data).toEqual(data)
   })
 
   it('preserves date-time values when TableEditors are chained', () => {
@@ -1112,7 +1129,68 @@ describe('FilterOp', () => {
   })
 })
 
+describe('SortOp', () => {
+  it('sorts string keys', () => {
+    const operator = new SortOp('/sort')
+    const data = [{ n: 'b' }, { n: 'c' }, { n: 'a' }]
+
+    expect(operator.execute({ data, key: 'n', order: 'asc' }).data).toEqual([
+      { n: 'a' },
+      { n: 'b' },
+      { n: 'c' },
+    ])
+    expect(operator.execute({ data, key: 'n', order: 'desc' }).data).toEqual([
+      { n: 'c' },
+      { n: 'b' },
+      { n: 'a' },
+    ])
+  })
+
+  it('leaves the input array in its original order', () => {
+    const operator = new SortOp('/sort')
+    const data = [{ n: 3 }, { n: 1 }, { n: 2 }]
+
+    const result = operator.execute({ data, key: 'n', order: 'asc' })
+
+    expect(result.data).toEqual([{ n: 1 }, { n: 2 }, { n: 3 }])
+    expect(data).toEqual([{ n: 3 }, { n: 1 }, { n: 2 }])
+  })
+
+  it('puts missing values last in either order', () => {
+    const operator = new SortOp('/sort')
+    const data = [{ n: 2 }, {}, { n: 1 }, { n: null }]
+
+    expect(operator.execute({ data, key: 'n', order: 'asc' }).data).toEqual([
+      { n: 1 },
+      { n: 2 },
+      {},
+      { n: null },
+    ])
+    expect(operator.execute({ data, key: 'n', order: 'desc' }).data).toEqual([
+      { n: 2 },
+      { n: 1 },
+      {},
+      { n: null },
+    ])
+  })
+})
+
 describe('ChartOp', () => {
+  it('hides yField for histograms', () => {
+    const op = new ChartOp('/chart-1', { chartType: 'histogram' })
+    expect(op.isFieldVisible('yField')).toBe(false)
+
+    op.inputs.chartType.setValue('bar')
+    expect(op.isFieldVisible('yField')).toBe(true)
+  })
+
+  it('stops updating yField visibility once disposed', () => {
+    const op = new ChartOp('/chart-1')
+    op.dispose()
+    op.inputs.chartType.setValue('histogram')
+    expect(op.isFieldVisible('yField')).toBe(true)
+  })
+
   it('generates a bar chart from data', () => {
     const op = new ChartOp('/chart-1')
     const result = op.execute({
@@ -1387,6 +1465,19 @@ describe('deck.gl 9.4 properties', () => {
     })
   })
 
+  it('draws solid lines when dash is off', () => {
+    const operator = new PathStyleExtensionOp('/path-style-0')
+    const { extension } = operator.execute({
+      ...operator.data,
+      dash: false,
+      highPrecisionDash: true,
+      offset: true,
+    })
+
+    const instance = instantiateExtension(extension.extension) as PathStyleExtension
+    expect(instance.opts).toMatchObject({ dash: false, offset: true })
+  })
+
   it('maps the deprecated highPrecisionDash option to whole-path dash mode', () => {
     const operator = new PathStyleExtensionOp('/path-style-0')
     const { extension } = operator.execute({
@@ -1414,9 +1505,9 @@ describe('deck.gl 9.4 properties', () => {
     ['S2Layer', S2LayerOp, 'lineAntialiasing'],
     ['QuadkeyLayer', QuadkeyLayerOp, 'lineAntialiasing'],
     ['MVTLayer', MVTLayerOp, 'lineAntialiasing'],
-  ])('forwards %s shader antialiasing', (_name, OperatorType, propName) => {
+  ])('forwards %s shader antialiasing', async (_name, OperatorType, propName) => {
     const operator = new OperatorType('/layer-0')
-    const { layer } = operator.execute({ [propName]: true })
+    const { layer } = await operator.execute({ [propName]: true })
 
     expect(layer[propName]).toBe(true)
   })
@@ -1733,6 +1824,11 @@ describe('MapViewOp', () => {
     expect(view.clearColor).toEqual([127.5, 0, 127.5, 255])
   })
 
+  it('has no altitude input, since deck.gl derives altitude from fovy', () => {
+    expect(new MapViewOp('/map-0').inputs).not.toHaveProperty('altitude')
+    expect(new GlobeViewOp('/globe-0').inputs).toHaveProperty('altitude')
+  })
+
   it.each([
     [MapViewOp, 'MapView'],
     [GlobeViewOp, 'GlobeView'],
@@ -1748,7 +1844,34 @@ describe('MapViewOp', () => {
   })
 })
 
+describe('FirstPersonViewOp', () => {
+  it('accepts a camera looking down', () => {
+    const operator = new FirstPersonViewOp('/first-person-0')
+    operator.inputs.viewState.setValue({ ...operator.inputs.viewState.value, pitch: -30 })
+
+    const { view } = operator.execute(operator.data)
+    expect(view.viewState.pitch).toBe(-30)
+  })
+
+  it('leaves map views limited to pitch 0 and up', () => {
+    const operator = new MapViewOp('/map-0')
+    expect(() =>
+      operator.execute({ ...operator.data, viewState: { ...operator.data.viewState, pitch: -30 } })
+    ).toThrow(/pitch -30/)
+  })
+})
+
 describe('OrbitViewOp', () => {
+  it('offers only the orbit axes deck.gl supports', () => {
+    const operator = new OrbitViewOp('/orbit-0')
+    const { orbitAxis } = operator.inputs
+
+    orbitAxis.setValue('X')
+    expect(orbitAxis.value).toBe('Z')
+    orbitAxis.setValue('Y')
+    expect(orbitAxis.value).toBe('Y')
+  })
+
   it('accepts zoom outside 0..1', () => {
     const operator = new OrbitViewOp('/orbit-0')
     const { viewState } = operator.inputs
@@ -2080,6 +2203,67 @@ describe('LayerPropsOp', () => {
     })
     expect(layer.operation).toBeUndefined()
     expect(layer.beforeId).toBeUndefined()
+  })
+})
+
+describe('GeoJsonLayerOp icons', () => {
+  it('draws markers from the default icon atlas', async () => {
+    const op = new GeoJsonLayerOp('/geojson-0')
+    op.inputs.pointType.setValue('icon')
+
+    const { layer } = await op.execute(op.data)
+
+    expect(layer).toMatchObject({
+      pointType: 'icon',
+      iconAtlas: expect.stringContaining('icon-atlas.png'),
+      iconMapping: expect.stringContaining('icon-atlas.json'),
+      getIcon: 'marker',
+      getIconSize: 32,
+    })
+  })
+
+  it('passes a null atlas when cleared, so getIcon can return image objects', async () => {
+    const op = new GeoJsonLayerOp('/geojson-0')
+    const getIcon = (f: { properties: { icon: unknown } }) => f.properties.icon
+    op.inputs.iconAtlas.setValue('')
+    op.inputs.getIcon.setValue(getIcon)
+
+    const { layer } = await op.execute(op.data)
+
+    const icon = { url: 'https://example.com/pin.png', width: 64, height: 64, id: 'pin' }
+    expect(layer.iconAtlas).toBeNull()
+    expect((layer.getIcon as typeof getIcon)({ properties: { icon } })).toEqual(icon)
+  })
+
+  it('resolves an uploaded atlas and mapping, reusing the atlas URL', async () => {
+    const mapping = { pin: { x: 0, y: 0, width: 32, height: 32, mask: true } }
+    const previousState = useFileSystemStore.getState()
+    useFileSystemStore.setState({
+      currentProjectName: 'icons-project',
+      activeStorageType: 'memory',
+    })
+    memoryProjectStore.writeAsset(
+      'icons-project',
+      'icons.png',
+      new Blob([new Uint8Array([1, 2, 3])])
+    )
+    memoryProjectStore.writeAsset('icons-project', 'icons.json', JSON.stringify(mapping))
+
+    try {
+      const op = new GeoJsonLayerOp('/geojson-0')
+      op.inputs.iconAtlas.setValue('@/icons.png')
+      op.inputs.iconMapping.setValue('@/icons.json')
+
+      const { layer } = await op.execute(op.data)
+      expect(layer.iconAtlas).toMatch(/^blob:/)
+      expect(layer.iconMapping).toEqual(mapping)
+
+      op.inputs.getIconSize.setValue(48)
+      expect((await op.execute(op.data)).layer.iconAtlas).toBe(layer.iconAtlas)
+    } finally {
+      memoryProjectStore.deleteProject('icons-project')
+      useFileSystemStore.setState(previousState)
+    }
   })
 })
 
@@ -3775,15 +3959,61 @@ describe('Tile3DLayerOp', () => {
     await expect(op.execute({ provider: 'Google' })).rejects.toThrow('Google Maps API key')
   })
 
+  it('throws when the Generic provider has no tilesetUrl', async () => {
+    const op = new Tile3DLayerOp('/tile3d-0')
+    await expect(op.execute({ provider: 'Generic', tilesetUrl: '' })).rejects.toThrow(
+      'set Tileset URL'
+    )
+  })
+
   it('hides tilesetUrl by default', () => {
     const op = new Tile3DLayerOp('/tile3d-0')
     expect(op.isFieldVisible('tilesetUrl')).toBe(false)
+  })
+
+  it('has no maxLodMetricValue input, which deck.gl and loaders.gl do not read', async () => {
+    const op = new Tile3DLayerOp('/tile3d-0')
+    expect(op.inputs).not.toHaveProperty('maxLodMetricValue')
+    expect((await op.execute({})).layer).not.toHaveProperty('maxLodMetricValue')
   })
 
   it('includes Generic in provider options', () => {
     const op = new Tile3DLayerOp('/tile3d-0')
     const values = op.inputs.provider.choices.map(c => c.value)
     expect(values).toContain('Generic')
+  })
+})
+
+describe('ColumnLayerOp', () => {
+  it('takes a 2D offset, the only components deck.gl ColumnLayer reads', () => {
+    const op = new ColumnLayerOp('/columns-0')
+    op.inputs.offset.setValue([0.5, -0.5])
+
+    expect(op.execute(op.data).layer.offset).toEqual([0.5, -0.5])
+  })
+})
+
+describe('MVTLayerOp', () => {
+  it('has no autoLabels input, which deck.gl MVTLayer does not read', () => {
+    expect(new MVTLayerOp('/mvt-0').inputs).not.toHaveProperty('autoLabels')
+    expect(MVTLayer.defaultProps).not.toHaveProperty('autoLabels')
+  })
+})
+
+describe('TileLayerOp', () => {
+  it("keeps deck.gl's default sublayer renderer when renderSubLayers is unset", () => {
+    const op = new TileLayerOp('/tile-0')
+    const { type, ...props } = op.execute(op.data).layer
+
+    expect(props).not.toHaveProperty('renderSubLayers')
+    expect(new TileLayer(props).props.renderSubLayers).toBeTypeOf('function')
+  })
+
+  it('passes a connected renderSubLayers through', () => {
+    const op = new TileLayerOp('/tile-0')
+    const renderSubLayers = () => null
+    const { layer } = op.execute({ ...op.data, renderSubLayers })
+    expect(layer.renderSubLayers).toBe(renderSubLayers)
   })
 })
 
@@ -4043,22 +4273,28 @@ describe('ScaleWidgetOp', () => {
       id: '/scale-widget-0',
       type: '_ScaleWidget',
       placement: 'bottom-left',
-      label: 'Scale',
     })
   })
 
   it('accepts custom scale widget properties', async () => {
     const op = new ScaleWidgetOp('/scale-widget-0')
     op.inputs.placement.setValue('top-right')
-    op.inputs.label.setValue('Distance')
     op.inputs.viewId.setValue('map-view')
     await op.pull()
 
     expect(op.outputData.widget).toMatchObject({
       placement: 'top-right',
-      label: 'Distance',
       viewId: 'map-view',
     })
+  })
+
+  it('has no label input, since deck.gl never draws the label', () => {
+    const op = new ScaleWidgetOp('/scale-widget-0')
+    expect(op.inputs).not.toHaveProperty('label')
+
+    const root = document.createElement('div')
+    new deckWidgets._ScaleWidget({ label: 'Distance' }).onRenderHTML(root)
+    expect(root.textContent).not.toContain('Distance')
   })
 
   it('excludes an empty viewId', async () => {

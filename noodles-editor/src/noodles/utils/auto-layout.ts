@@ -15,6 +15,12 @@ const DEFAULT_NODE_SPACING = 50
  * Returns new nodes with updated positions.
  */
 export function layoutNodes(nodes: Node[], edges: Edge[], options: LayoutOptions = {}): Node[] {
+  // Comments stay where the user put them, next to the nodes they describe
+  const comments = nodes.filter(node => node.type === 'CommentOp')
+  if (comments.length > 0) {
+    const others = nodes.filter(node => node.type !== 'CommentOp')
+    return [...layoutNodes(others, edges, options), ...comments]
+  }
   if (nodes.length === 0) return nodes
 
   const {

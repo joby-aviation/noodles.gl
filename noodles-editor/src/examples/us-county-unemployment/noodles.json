@@ -78,12 +78,7 @@
       "id": "/extent.out.max->/map-range.par.inMax"
     }
   ],
-  "viewport": {
-    "x": 32.46497320518563,
-    "y": 206.86749887589406,
-    "zoom": 0.6158038261288714
-  },
-  "version": 19,
+  "version": 20,
   "name": "US County Unemployment",
   "editorSettings": {
     "layoutMode": "noodles-on-top",
@@ -242,6 +237,70 @@
         },
         "locked": false
       }
+    },
+    {
+      "id": "/data-note",
+      "type": "CommentOp",
+      "position": {
+        "x": -756,
+        "y": -70
+      },
+      "data": {
+        "inputs": {
+          "text": "This loads every US county with its unemployment rate and labor force."
+        },
+        "locked": false
+      },
+      "width": 300,
+      "height": 80
+    },
+    {
+      "id": "/extent-note",
+      "type": "CommentOp",
+      "position": {
+        "x": -137,
+        "y": 160
+      },
+      "data": {
+        "inputs": {
+          "text": "This finds the highest rate, so the colors cover the full range from low to high."
+        },
+        "locked": false
+      },
+      "width": 300,
+      "height": 80
+    },
+    {
+      "id": "/rate-note",
+      "type": "CommentOp",
+      "position": {
+        "x": -600,
+        "y": 625
+      },
+      "data": {
+        "inputs": {
+          "text": "This reads each county's rate. Change unemployment_rate to labor_force in expression to map workforce size instead."
+        },
+        "locked": false
+      },
+      "width": 333,
+      "height": 90
+    },
+    {
+      "id": "/try-next-note",
+      "type": "CommentOp",
+      "position": {
+        "x": 1200,
+        "y": 270
+      },
+      "data": {
+        "inputs": {
+          "text": "Try next:\n- Click unemployment-color and pick a different colorScheme.\n- Click geojson-layer and turn on stroked to outline each county.\n- Press Export and pick Image (PNG) to save the map."
+        },
+        "locked": false
+      },
+      "width": 340,
+      "height": 170
     }
   ],
   "timeline": {

@@ -1,5 +1,5 @@
 import * as turf from '@turf/turf'
-import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import {
   AggregateOp,
   AlongOp,
@@ -429,6 +429,29 @@ describe('LineToPolygon / PolygonToLine', () => {
     const result = op.execute({ geojson: polygonFC })
     expect(result.featureCollection.features[0].geometry.type).toBe('LineString')
   })
+
+  it('converts a MultiPolygon to one line feature per polygon', () => {
+    const op = new PolygonToLineOp('/p2l')
+    const square = (x: number) => [
+      [
+        [x, 0],
+        [x + 1, 0],
+        [x + 1, 1],
+        [x, 1],
+        [x, 0],
+      ],
+    ]
+    const multi = turf.featureCollection([
+      turf.multiPolygon([square(0), square(5)], { name: 'pair' }),
+    ])
+
+    const { features } = op.execute({ geojson: multi }).featureCollection
+
+    expect(features.map(f => [f.type, f.geometry.type, f.properties])).toEqual([
+      ['Feature', 'LineString', { name: 'pair' }],
+      ['Feature', 'LineString', { name: 'pair' }],
+    ])
+  })
 })
 
 describe('Explode Operator', () => {
@@ -556,6 +579,7 @@ describe('Format Support Operators', () => {
     const op = new PMTilesOp('/pmtiles')
     const result = op.execute({
       url: 'https://example.com/tiles.pmtiles',
+      tileType: 'vector',
       sourceLayer: 'buildings',
       minZoom: 0,
       maxZoom: 14,
@@ -565,9 +589,36 @@ describe('Format Support Operators', () => {
     expect(result.sourceConfig.sourceLayer).toBe('buildings')
   })
 
+  it('PMTilesOp generates raster source config', () => {
+    const op = new PMTilesOp('/pmtiles')
+    const result = op.execute({
+      url: 'https://example.com/imagery.pmtiles',
+      tileType: 'raster',
+      sourceLayer: 'buildings',
+      minZoom: 0,
+      maxZoom: 14,
+    })
+    expect(result.sourceConfig).toEqual({
+      type: 'raster',
+      url: 'pmtiles://https://example.com/imagery.pmtiles',
+      minzoom: 0,
+      maxzoom: 14,
+    })
+  })
+
+  it('PMTilesOp defaults to vector tiles', () => {
+    expect(new PMTilesOp('/pmtiles').inputs.tileType.value).toBe('vector')
+  })
+
   it('PMTilesOp returns null for empty URL', () => {
     const op = new PMTilesOp('/pmtiles')
-    const result = op.execute({ url: '', sourceLayer: '', minZoom: 0, maxZoom: 14 })
+    const result = op.execute({
+      url: '',
+      tileType: 'vector',
+      sourceLayer: '',
+      minZoom: 0,
+      maxZoom: 14,
+    })
     expect(result.sourceConfig).toBeNull()
   })
 
@@ -612,6 +663,84 @@ describe('Format Support Operators', () => {
     const op = new ShapefileOp('/shp')
     const result = await op.execute({ url: '', encoding: 'utf-8' })
     expect(result.featureCollection.features).toHaveLength(0)
+  })
+
+  it('ShapefileOp reads attributes from the .dbf beside the .shp, in the given encoding', async () => {
+    // One point at (8.5, 47.4)
+    const shp = new DataView(new ArrayBuffer(128))
+    shp.setInt32(0, 9994) // file code
+    shp.setInt32(24, 64) // file length in 16-bit words
+    shp.setInt32(28, 1000, true) // version
+    shp.setInt32(32, 1, true) // shape type: point
+    for (const [offset, value] of [
+      [36, 8.5],
+      [44, 47.4],
+      [52, 8.5],
+      [60, 47.4],
+    ]) {
+      shp.setFloat64(offset, value, true) // bounding box
+    }
+    shp.setInt32(100, 1) // record number
+    shp.setInt32(104, 10) // content length in words
+    shp.setInt32(108, 1, true)
+    shp.setFloat64(112, 8.5, true)
+    shp.setFloat64(120, 47.4, true)
+
+    // One record with a 6-character 'name' column holding 'Zürich' in windows-1252
+    const name = [0x5a, 0xfc, 0x72, 0x69, 0x63, 0x68]
+    const dbf = new Uint8Array(65 + 1 + name.length + 1)
+    const dbfView = new DataView(dbf.buffer)
+    dbf[0] = 0x03
+    dbfView.setUint32(4, 1, true) // record count
+    dbfView.setUint16(8, 65, true) // header length
+    dbfView.setUint16(10, 1 + name.length, true) // record length
+    dbf.set([0x6e, 0x61, 0x6d, 0x65], 32) // field name 'name'
+    dbf[43] = 0x43 // field type 'C'
+    dbf[48] = name.length
+    dbf[64] = 0x0d // end of field descriptors
+    dbf[65] = 0x20 // record not deleted
+    dbf.set(name, 66)
+    dbf[66 + name.length] = 0x1a
+
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation(async input => {
+      const url = String(input)
+      if (url === 'https://example.com/places.shp') return new Response(shp.buffer)
+      if (url === 'https://example.com/places.dbf') return new Response(dbf.buffer)
+      return new Response(null, { status: 404 })
+    })
+
+    const op = new ShapefileOp('/shp')
+    const result = await op.execute({
+      url: 'https://example.com/places.shp',
+      encoding: 'windows-1252',
+    })
+
+    expect(fetchMock).toHaveBeenCalledWith('https://example.com/places.dbf')
+    expect(result.featureCollection.features).toEqual([
+      {
+        type: 'Feature',
+        properties: { name: 'Zürich' },
+        geometry: { type: 'Point', coordinates: [8.5, 47.4] },
+      },
+    ])
+  })
+
+  it('ShapefileOp still loads when the .dbf is missing', async () => {
+    const shp = new DataView(new ArrayBuffer(100))
+    shp.setInt32(0, 9994)
+    shp.setInt32(24, 50)
+    shp.setInt32(28, 1000, true)
+    shp.setInt32(32, 1, true)
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async input =>
+      String(input).endsWith('.shp')
+        ? new Response(shp.buffer)
+        : new Response(null, { status: 404 })
+    )
+
+    const op = new ShapefileOp('/shp')
+    const result = await op.execute({ url: 'https://example.com/empty.shp', encoding: 'utf-8' })
+
+    expect(result.featureCollection.features).toEqual([])
   })
 })
 

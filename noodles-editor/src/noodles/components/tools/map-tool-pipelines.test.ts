@@ -102,6 +102,17 @@ describe('createDrawingGraph', () => {
     expect(editor.position.x).toBeLessThan(layer.position.x)
     expect(layer.position.x).toBeLessThan(renderer.position.x)
   })
+  it('writes only the editor when the drawing feeds another operator', () => {
+    const { nodes, edges, primaryNodeId } = createDrawingGraph({
+      features: [square],
+      basePosition,
+      makeNodeId: makeCountingNodeId(),
+      addLayer: false,
+    })
+    expect(nodes.map(n => n.type)).toEqual(['GeoEditorOp'])
+    expect(edges).toEqual([])
+    expect(primaryNodeId).toBe('/geo-editor')
+  })
 })
 
 describe('createMeasurementGraph', () => {

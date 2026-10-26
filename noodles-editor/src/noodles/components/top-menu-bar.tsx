@@ -14,14 +14,21 @@ import { useRenderSettings } from '../hooks/use-render-settings'
 import { ContainerOp } from '../operators'
 import { getOpStore, type MapMode, useNestingStore, useUIStore } from '../store'
 import { directoryHandleCache } from '../utils/directory-handle-cache'
+import {
+  trackChatClosed,
+  trackChatOpened,
+  trackMapModeChanged,
+  trackPanelToggled,
+} from '../utils/editor-analytics'
 import { shouldBlockKeyboardShortcut } from '../utils/input-detection'
 import { getParentPath, splitPath } from '../utils/path-utils'
 import { Breadcrumbs } from './breadcrumbs'
 import type { CopyControlsRef } from './copy-controls'
 import { ExportButton } from './export-button'
 import { DataImporterTool } from './tools/data-importer-tool'
-import type { GeoRecipe } from './tools/geo-recipes'
+import { type GeoRecipe, getRecipe } from './tools/geo-recipes'
 import { GeoToolWizard } from './tools/geo-tool-wizard'
+import { useMapToolStore } from './tools/map-tool-store'
 import { PointWizardTool } from './tools/point-wizard-tool'
 import { ToolShelf } from './tools/tool-shelf'
 import s from './top-menu-bar.module.css'
@@ -99,18 +106,25 @@ export function TopMenuBar({
   const [showPointWizard, setShowPointWizard] = useState(false)
   const [showDataImporter, setShowDataImporter] = useState(false)
   const [activeRecipe, setActiveRecipe] = useState<GeoRecipe | null>(null)
+  // Recipes opened from the Draw tool arrive with the drawing already wired in
+  const recipeRequest = useMapToolStore(state => state.recipeRequest)
+  const requestRecipe = useMapToolStore(state => state.requestRecipe)
+  const requestedRecipe = recipeRequest ? (getRecipe(recipeRequest.recipeId) ?? null) : null
   const currentContainerId = useNestingStore(state => state.currentContainerId)
   const setCurrentContainerId = useNestingStore(state => state.setCurrentContainerId)
   const reactFlow = useReactFlow()
   const activeOutOp = useActiveOutOp()
   const renderSettings = useRenderSettings()
 
-  // Load recent projects on mount
+  // Load recent projects on mount, and again when one is removed or its folder changes
   useEffect(() => {
-    directoryHandleCache
-      .getAllProjectNames()
-      .then(names => setRecentProjects(names))
-      .catch(err => debugUI('Failed to load recent projects:', err))
+    const loadRecent = () =>
+      directoryHandleCache
+        .getAllProjectNames()
+        .then(names => setRecentProjects(names))
+        .catch(err => debugUI('Failed to load recent projects:', err))
+    loadRecent()
+    return directoryHandleCache.subscribe(loadRecent)
   }, [])
 
   // Keyboard shortcuts
@@ -300,13 +314,6 @@ export function TopMenuBar({
                         </DropdownMenu.SubTrigger>
                         <DropdownMenu.Portal>
                           <DropdownMenu.SubContent className={s.dropdownContent} sideOffset={2}>
-                            <DropdownMenu.Item
-                              className={s.dropdownItem}
-                              onSelect={() => navigate('/projects')}
-                            >
-                              View Recent...
-                            </DropdownMenu.Item>
-                            <DropdownMenu.Separator className={s.dropdownSeparator} />
                             {recentProjects.length === 0 ? (
                               <DropdownMenu.Item className={s.dropdownItem} disabled>
                                 No recent projects
@@ -325,6 +332,12 @@ export function TopMenuBar({
                           </DropdownMenu.SubContent>
                         </DropdownMenu.Portal>
                       </DropdownMenu.Sub>
+                      <DropdownMenu.Item
+                        className={s.dropdownItem}
+                        onSelect={() => navigate('/projects')}
+                      >
+                        Manage Projects...
+                      </DropdownMenu.Item>
                       <DropdownMenu.Separator className={s.dropdownSeparator} />
                       <DropdownMenu.Item
                         className={s.dropdownItem}
@@ -459,7 +472,10 @@ export function TopMenuBar({
                       <DropdownMenu.CheckboxItem
                         className={s.dropdownItem}
                         checked={spreadsheetVisible}
-                        onCheckedChange={onChangeSpreadsheetVisible}
+                        onCheckedChange={visible => {
+                          trackPanelToggled('spreadsheet', visible)
+                          onChangeSpreadsheetVisible?.(visible)
+                        }}
                       >
                         <DropdownMenu.ItemIndicator className={s.itemIndicator}>
                           <i className="pi pi-check" style={{ fontSize: '12px' }} />
@@ -490,7 +506,10 @@ export function TopMenuBar({
                           <DropdownMenu.SubContent className={s.dropdownContent} sideOffset={2}>
                             <DropdownMenu.RadioGroup
                               value={mapMode}
-                              onValueChange={value => setMapMode(value as MapMode)}
+                              onValueChange={value => {
+                                if (value !== mapMode) trackMapModeChanged(value as MapMode)
+                                setMapMode(value as MapMode)
+                              }}
                             >
                               <DropdownMenu.RadioItem className={s.dropdownItem} value="docked">
                                 <DropdownMenu.ItemIndicator className={s.itemIndicator}>
@@ -606,7 +625,11 @@ export function TopMenuBar({
           {onChangeShowChatPanel && (
             <button
               type="button"
-              onClick={() => onChangeShowChatPanel(!showChatPanel)}
+              onClick={() => {
+                if (showChatPanel) trackChatClosed('toolbar')
+                else trackChatOpened('toolbar')
+                onChangeShowChatPanel(!showChatPanel)
+              }}
               className={s.assistantButton}
               title="Toggle Noodles AI Assistant"
             >
@@ -632,9 +655,12 @@ export function TopMenuBar({
           />
 
           <GeoToolWizard
-            recipe={activeRecipe}
+            recipe={requestedRecipe ?? activeRecipe}
+            presetSources={requestedRecipe ? recipeRequest?.sources : undefined}
             onOpenChange={open => {
-              if (!open) setActiveRecipe(null)
+              if (open) return
+              setActiveRecipe(null)
+              requestRecipe(null)
             }}
             reactFlowRef={reactFlowRef}
           />

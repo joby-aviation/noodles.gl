@@ -1,5 +1,6 @@
 import * as Dialog from '@radix-ui/react-dialog'
 import {
+  ChevronRightIcon,
   Cross2Icon,
   EyeNoneIcon,
   EyeOpenIcon,
@@ -34,9 +35,18 @@ import {
 import { useObservable } from '../hooks/use-observable'
 import type { IOperator, OpType } from '../operators'
 import { Operator, OutOp } from '../operators'
-import { getOp, getOpStore, useNestingStore, useUIStore } from '../store'
+import {
+  dismissStarterHint,
+  getOp,
+  getOpStore,
+  getUIStore,
+  useNestingStore,
+  useUIStore,
+} from '../store'
 import type { ConnectionPlan } from '../utils/auto-connect'
 import { appendUniqueEdges } from '../utils/edge-integrity'
+import { getFieldDocs } from '../utils/field-docs'
+import { FieldEditScope } from '../utils/field-edit-analytics'
 import { edgeId } from '../utils/id-utils'
 import {
   moveEdgeWithinGroup,
@@ -60,6 +70,7 @@ import {
   toggleFieldExpression,
   VectorFieldComponent,
 } from './field-components'
+import { FieldTooltip } from './field-tooltip'
 import menuStyles from './menu.module.css'
 import s from './node-properties.module.css'
 import {
@@ -71,6 +82,7 @@ import {
 } from './op-components'
 import { RenderSettingsPanel } from './render-settings-panel'
 import { SuggestedNodesSection } from './SuggestedNodes'
+import { EditOnMapButton } from './tools/edit-on-map-button'
 
 // === Field Visibility Helper Functions ===
 
@@ -326,14 +338,21 @@ function FieldInputWithHighlight({
       : (state.tracks.get(getFieldPath(opId, fieldName, subPath))?.keyframes.length ?? 0) > 0
   )
   return (
-    <div className={cx(s.editableFieldContent, { [s.keyframedField]: hasKeyframes })}>
-      <EditableFieldInput
-        fieldName={subPath?.[0] ?? fieldName}
-        field={field}
-        disabled={false}
-        opId={opId}
-        expandTimeline={expandTimeline}
-      />
+    <div
+      className={cx(s.editableFieldContent, {
+        [s.keyframedField]: hasKeyframes,
+        [s.vectorFieldContent]: channelKeys !== null,
+      })}
+    >
+      <FieldEditScope field={field}>
+        <EditableFieldInput
+          fieldName={subPath?.[0] ?? fieldName}
+          field={field}
+          disabled={false}
+          opId={opId}
+          expandTimeline={expandTimeline}
+        />
+      </FieldEditScope>
     </div>
   )
 }
@@ -433,9 +452,19 @@ function CompoundSubFields({
         } catch {
           currentValue = subField.value as KeyframeValue
         }
+        const subDocs = getFieldDocs(subName, subField, field.op)
         return (
-          <div key={subName} className={s.compoundSubField}>
-            <span className={s.compoundSubFieldLabel}>{subName}</span>
+          <div key={subName} className={s.compoundSubField} data-field-row>
+            <FieldTooltip fieldKey={subName} description={subDocs.description} side="left">
+              <span
+                className={cx(s.compoundSubFieldLabel, {
+                  [s.hasDescription]: subDocs.description,
+                })}
+                data-field-key={subName}
+              >
+                {subDocs.label}
+              </span>
+            </FieldTooltip>
             <FieldInputWithHighlight
               opId={opId}
               fieldName={fieldName}
@@ -459,6 +488,9 @@ function CompoundSubFields({
 }
 
 // Exported for testing
+export const STARTER_HINT_TEXT =
+  'Change a value to edit the map. Click any node to see its settings.'
+
 export function NodeProperties({ nodeId }: { nodeId: string }) {
   const { setEdges, addNodes, getEdges } = useReactFlow()
   const onEdgesChange = useStore(s => s.onEdgesChange)
@@ -475,6 +507,7 @@ export function NodeProperties({ nodeId }: { nodeId: string }) {
     return n ? { x: n.position.x, y: n.position.y } : { x: 0, y: 0 }
   })
   const currentContainerId = useNestingStore(state => state.currentContainerId)
+  const showStarterHint = useUIStore(state => state.starterHintNodeId === nodeId)
   const expandTimeline = useCallback(() => {
     useUIStore.getState().setTimelineExpanded(true)
   }, [])
@@ -483,6 +516,7 @@ export function NodeProperties({ nodeId }: { nodeId: string }) {
   const [isTruncated, setIsTruncated] = useState(false)
   const [isResetDialogOpen, setIsResetDialogOpen] = useState(false)
   const [pendingHideField, setPendingHideField] = useState<string | null>(null)
+  const [showHiddenFields, setShowHiddenFields] = useState(false)
   const [contextMenu, setContextMenu] = useState<{
     x: number
     y: number
@@ -593,6 +627,7 @@ export function NodeProperties({ nodeId }: { nodeId: string }) {
       mustacheRef: `{{${op.id}.${IN_NS}.${name}}}`,
       handleClass: handleClass(input),
       field: input,
+      docs: getFieldDocs(name, input, op),
     }
   })
 
@@ -605,6 +640,7 @@ export function NodeProperties({ nodeId }: { nodeId: string }) {
       mustacheRef: `{{${op.id}.${OUT_NS}.${name}}}`,
       handleClass: handleClass(output),
       field: output,
+      docs: getFieldDocs(name, output, op),
     }
   })
 
@@ -758,13 +794,18 @@ export function NodeProperties({ nodeId }: { nodeId: string }) {
   }
 
   return (
-    <>
+    <FieldEditScope source="properties_panel" operatorType={nodeType}>
       <div className={s.header}>
         <div className={s.title}>
           {getBaseName(op.id)}
           <div className={cx(s.capsule, headerClass(nodeType))}>{typeCategory(nodeType)}</div>
         </div>
       </div>
+      {showStarterHint && (
+        <div className={s.starterHint} role="status">
+          {STARTER_HINT_TEXT}
+        </div>
+      )}
       {op instanceof OutOp && (
         <div className={s.section}>
           <div className={s.sectionTitle}>Render Settings</div>
@@ -799,6 +840,7 @@ export function NodeProperties({ nodeId }: { nodeId: string }) {
           )}
         </div>
       )}
+      <EditOnMapButton nodeId={nodeId} from="properties" className={s.editOnMap} />
       <div className={s.section}>
         <div className={s.sectionHeader}>
           <div className={s.sectionTitle}>Inputs</div>
@@ -869,6 +911,7 @@ export function NodeProperties({ nodeId }: { nodeId: string }) {
                   <div
                     key={input.name}
                     role="listitem"
+                    data-field-row
                     className={cx(s.property, s.propertyWithAction)}
                     onContextMenu={e => {
                       e.preventDefault()
@@ -904,7 +947,20 @@ export function NodeProperties({ nodeId }: { nodeId: string }) {
                       )}
                       <div className={cx(s.port, input.handleClass)} />
                       <span className={s.propertyLabel}>
-                        <span className={s.propertyLabelText}>{input.name}</span>
+                        <FieldTooltip
+                          fieldKey={input.name}
+                          description={input.docs.description}
+                          side="left"
+                        >
+                          <span
+                            className={cx(s.propertyLabelText, {
+                              [s.hasDescription]: input.docs.description,
+                            })}
+                            data-field-key={input.name}
+                          >
+                            {input.docs.label}
+                          </span>
+                        </FieldTooltip>
                         {incomers.length > 0 && (
                           <Tooltip text="Field is connected" position="right">
                             <span className={s.connectedIcon}>
@@ -914,16 +970,26 @@ export function NodeProperties({ nodeId }: { nodeId: string }) {
                         )}
                       </span>
                       {/* Value type, not connected: editable input + keyframe indicator */}
-                      {isValueField(input.field) && incomers.length === 0 && (
-                        <>
+                      {isValueField(input.field) &&
+                        incomers.length === 0 &&
+                        ((input.field.constructor as typeof Vec2Field).channelKeys ? (
+                          // Vec fields render per-channel indicators inside VectorFieldComponent
                           <FieldInputWithHighlight
                             opId={op.id}
                             fieldName={input.name}
                             field={input.field}
                             expandTimeline={expandTimeline}
                           />
-                          {/* Vec fields render per-channel indicators inside VectorFieldComponent */}
-                          {!(input.field.constructor as typeof Vec2Field).channelKeys && (
+                        ) : (
+                          // Input and keyframe button wrap under the label together when the
+                          // row is too narrow for both
+                          <div className={s.propertyControl}>
+                            <FieldInputWithHighlight
+                              opId={op.id}
+                              fieldName={input.name}
+                              field={input.field}
+                              expandTimeline={expandTimeline}
+                            />
                             <KeyframeIndicator
                               opId={op.id}
                               fieldName={input.name}
@@ -932,9 +998,8 @@ export function NodeProperties({ nodeId }: { nodeId: string }) {
                               size="small"
                               onKeyframeAdded={expandTimeline}
                             />
-                          )}
-                        </>
-                      )}
+                          </div>
+                        ))}
                     </div>
                     {/* Compound field: expand sub-fields inline */}
                     {input.field instanceof CompoundPropsField && (
@@ -972,7 +1037,33 @@ export function NodeProperties({ nodeId }: { nodeId: string }) {
                 )
               }
 
-              return <>{inputs.map(input => renderInput(input))}</>
+              const shownInputs = inputs.filter(input => op.isFieldVisible(input.name))
+              const hiddenInputs = inputs.filter(input => !op.isFieldVisible(input.name))
+
+              return (
+                <>
+                  {shownInputs.map(input => renderInput(input))}
+                  {hiddenInputs.length > 0 && (
+                    <>
+                      <button
+                        type="button"
+                        className={s.hiddenFieldsToggle}
+                        aria-expanded={showHiddenFields}
+                        onClick={() => setShowHiddenFields(!showHiddenFields)}
+                      >
+                        <ChevronRightIcon
+                          className={cx(s.hiddenFieldsChevron, {
+                            [s.hiddenFieldsChevronOpen]: showHiddenFields,
+                          })}
+                        />
+                        More settings
+                        <span className={s.hiddenFieldsCount}>{hiddenInputs.length}</span>
+                      </button>
+                      {showHiddenFields && hiddenInputs.map(input => renderInput(input))}
+                    </>
+                  )}
+                </>
+              )
             })()}
           </ErrorBoundary>
         </div>
@@ -986,6 +1077,7 @@ export function NodeProperties({ nodeId }: { nodeId: string }) {
             <div
               key={output.name}
               role="listitem"
+              data-field-row
               className={s.property}
               onContextMenu={e => {
                 e.preventDefault()
@@ -1008,7 +1100,22 @@ export function NodeProperties({ nodeId }: { nodeId: string }) {
             >
               <div className={cx(s.propertyRow, s.outputRow)}>
                 <div className={cx(s.port, output.handleClass)} />
-                <span className={s.propertyLabel}>{output.name}</span>
+                <span className={s.propertyLabel}>
+                  <FieldTooltip
+                    fieldKey={output.name}
+                    description={output.docs.description}
+                    side="left"
+                  >
+                    <span
+                      className={cx(s.propertyLabelText, {
+                        [s.hasDescription]: output.docs.description,
+                      })}
+                      data-field-key={output.name}
+                    >
+                      {output.docs.label}
+                    </span>
+                  </FieldTooltip>
+                </span>
               </div>
             </div>
           ))}
@@ -1328,7 +1435,7 @@ export function NodeProperties({ nodeId }: { nodeId: string }) {
           </div>,
           document.body
         )}
-    </>
+    </FieldEditScope>
   )
 }
 
@@ -1519,8 +1626,18 @@ export function PropertyPanel({ onAutoLayout }: PropertyPanelProps) {
 
   const showLayoutButton = selectedNodeCount >= 2 && onAutoLayout !== undefined
 
+  // The starter hint goes away once the user selects something else or edits a value
+  const starterHintNodeId = useUIStore(state => state.starterHintNodeId)
+  const previousSelectedNodeIdRef = useRef(selectedNodeId)
+  useEffect(() => {
+    const previous = previousSelectedNodeIdRef.current
+    previousSelectedNodeIdRef.current = selectedNodeId
+    if (starterHintNodeId && previous === starterHintNodeId && selectedNodeId !== previous) {
+      getUIStore().setStarterHintNodeId(null)
+    }
+  }, [selectedNodeId, starterHintNodeId])
   return (
-    <div className={s.panel}>
+    <div className={s.panel} onChange={dismissStarterHint} onInput={dismissStarterHint}>
       {selectedNodeId != null ? (
         <NodeProperties nodeId={selectedNodeId} />
       ) : inspectedEdge != null ? (

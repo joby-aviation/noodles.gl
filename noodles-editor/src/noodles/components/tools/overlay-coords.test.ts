@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { type Box, clientToMapPoint, mapPointToOverlay, type Point } from './overlay-coords'
+import {
+  type Box,
+  clientToMapPoint,
+  mapPointToOverlay,
+  nearestSegment,
+  type Point,
+} from './overlay-coords'
 
 // A map filling a 800x600 pane at the top-left of the window, no scaling
 const simpleRect: Box = { left: 0, top: 0, width: 800, height: 600 }
@@ -91,5 +97,35 @@ describe('mapPointToOverlay', () => {
         simpleSize
       )
     ).toBeNull()
+  })
+})
+
+describe('nearestSegment', () => {
+  const square: Point[] = [
+    { x: 0, y: 0 },
+    { x: 100, y: 0 },
+    { x: 100, y: 100 },
+    { x: 0, y: 100 },
+  ]
+
+  it('finds the closest edge and the closest point on it', () => {
+    expect(nearestSegment(square, false, { x: 50, y: 4 })).toEqual({
+      index: 0,
+      distance: 4,
+      point: { x: 50, y: 0 },
+    })
+  })
+
+  it('only checks the closing edge of a ring', () => {
+    expect(nearestSegment(square, true, { x: 3, y: 50 })?.index).toBe(3)
+    expect(nearestSegment(square, false, { x: 3, y: 50 })?.index).not.toBe(3)
+  })
+
+  it('clamps to the segment ends', () => {
+    expect(nearestSegment(square, false, { x: -10, y: -10 })?.point).toEqual({ x: 0, y: 0 })
+  })
+
+  it('needs two points', () => {
+    expect(nearestSegment([{ x: 0, y: 0 }], false, { x: 1, y: 1 })).toBeNull()
   })
 })

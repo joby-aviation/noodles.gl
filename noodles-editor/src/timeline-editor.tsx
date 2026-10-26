@@ -7,16 +7,24 @@ import { forwardRef, useCallback, useEffect, useLayoutEffect, useRef, useState }
 import ReactMapGL, { type MapProps, useControl } from 'react-map-gl/maplibre'
 import { Layout } from './layout'
 import { ErrorBoundary } from './noodles/components/error-boundary'
+import { useMapClickToEdit } from './noodles/components/map-click-to-edit'
 import { SpreadsheetPane } from './noodles/components/spreadsheet-pane/spreadsheet-pane'
 import { MapToolLayer } from './noodles/components/tools/map-tool-layer'
+import { useMapToolStore } from './noodles/components/tools/map-tool-store'
 import { TopMenuBar } from './noodles/components/top-menu-bar'
 import { ExportActionsProvider } from './noodles/contexts/export-actions-context'
 import { useActiveStorageType, useCurrentDirectory } from './noodles/filesystem-store'
+import { agentBench, externalControl } from './noodles/globals'
 import { useActiveOutOp } from './noodles/hooks/use-active-outop'
 import { useRenderSettings } from './noodles/hooks/use-render-settings'
 import { getNoodles } from './noodles/noodles'
 import { fnWithSource } from './noodles/operators'
 import { useUIStore } from './noodles/store'
+import {
+  trackDeckInteraction,
+  trackMapLibreGesture,
+  trackPanelToggled,
+} from './noodles/utils/editor-analytics'
 import {
   createCameraGestureHistory,
   updateCameraInputs,
@@ -242,11 +250,29 @@ export default function TimelineEditor() {
   // Counts drawn frames for get_render_stats
   const [frames] = useState(() => new FrameCounter())
 
+  // Click a feature to select the node that drew it. Off while a map tool owns clicks,
+  // during an export, and when an agent drives the editor.
+  const mapToolActive = useMapToolStore(state => state.activeTool !== null)
+  const clickToEdit = useMapClickToEdit(
+    !isRendering && !mapToolActive && !externalControl && !agentBench
+  )
+
   const visualizationDeckProps = visualization.deckProps
   const deckProps: DeckProps = {
     ...deckRenderingDefaults,
     ...visualizationDeckProps,
     controller: !basemapEnabled && cameraControl.enabled,
+    // A few pixels of slack so thin arcs and small points can be clicked
+    pickingRadius: visualizationDeckProps?.pickingRadius ?? 4,
+    getCursor: visualizationDeckProps?.getCursor ?? clickToEdit.getCursor,
+    onHover: (info, event) => {
+      visualizationDeckProps?.onHover?.(info, event)
+      clickToEdit.onHover(info, event)
+    },
+    onClick: (info, event) => {
+      visualizationDeckProps?.onClick?.(info, event)
+      clickToEdit.onClick(info)
+    },
     onViewStateChange: params => {
       const result = visualizationDeckProps?.onViewStateChange?.(params)
       if (!basemapEnabled) updateSelectedCamera(result ?? params.viewState)
@@ -254,6 +280,8 @@ export default function TimelineEditor() {
     },
     onInteractionStateChange: interactionState => {
       visualizationDeckProps?.onInteractionStateChange?.(interactionState)
+      // Only deck's controller sets these, so they always come from the user
+      trackDeckInteraction(interactionState)
       if (basemapEnabled || !cameraControl.enabled) return
       cameraHistoryRef.current.setInteracting(
         Boolean(
@@ -281,6 +309,10 @@ export default function TimelineEditor() {
     onMove: visualizationOnMove,
     onMoveStart: visualizationOnMoveStart,
     onMoveEnd: visualizationOnMoveEnd,
+    onDragStart: visualizationOnDragStart,
+    onZoomStart: visualizationOnZoomStart,
+    onRotateStart: visualizationOnRotateStart,
+    onPitchStart: visualizationOnPitchStart,
     ...basemapProps
   } = visualization.mapProps ?? {}
   const mapProps: MapProps = {
@@ -316,6 +348,22 @@ export default function TimelineEditor() {
     onMoveEnd: event => {
       visualizationOnMoveEnd?.(event)
       finishCameraGesture()
+    },
+    onDragStart: event => {
+      visualizationOnDragStart?.(event)
+      trackMapLibreGesture('pan', event)
+    },
+    onZoomStart: event => {
+      visualizationOnZoomStart?.(event)
+      trackMapLibreGesture('zoom', event)
+    },
+    onRotateStart: event => {
+      visualizationOnRotateStart?.(event)
+      trackMapLibreGesture('rotate', event)
+    },
+    onPitchStart: event => {
+      visualizationOnPitchStart?.(event)
+      trackMapLibreGesture('rotate', event)
     },
   }
 
@@ -819,6 +867,7 @@ export default function TimelineEditor() {
         ref={renderSurfaceRef}
         data-render-surface
         style={{ position: 'relative', width: '100%', height: '100%' }}
+        {...clickToEdit.surfaceHandlers}
       >
         {content}
       </div>
@@ -871,11 +920,19 @@ export default function TimelineEditor() {
           left={nodeSidebar}
           right={propertiesPanel}
           timeline={heightPx => (
-            <TimelinePanel height={heightPx} onCollapse={() => setTimelineExpanded(false)} />
+            <TimelinePanel
+              height={heightPx}
+              onCollapse={() => {
+                trackPanelToggled('timeline', false)
+                setTimelineExpanded(false)
+              }}
+            />
           )}
           flowGraph={flowGraph}
           spreadsheet={<SpreadsheetPane selectedNodeIds={selectedNodeIds ?? []} />}
         >
+          {/* Outside the scaled render surface, so the label keeps its size */}
+          {clickToEdit.label}
           {cameraControl.reason && (
             <div className={s.cameraControlStatus} role="status">
               {cameraControl.reason}

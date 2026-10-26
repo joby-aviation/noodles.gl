@@ -134,12 +134,7 @@
       "id": "/blending.out.parameters->/dropoff-layer.par.parameters"
     }
   ],
-  "viewport": {
-    "x": 172.53317127277438,
-    "y": 204.01752158305402,
-    "zoom": 0.467987771000214
-  },
-  "version": 19,
+  "version": 20,
   "name": "NYC Taxis",
   "editorSettings": {
     "layoutMode": "noodles-on-top",
@@ -333,6 +328,70 @@
         },
         "locked": false
       }
+    },
+    {
+      "id": "/data-note",
+      "type": "CommentOp",
+      "position": {
+        "x": 0,
+        "y": 390
+      },
+      "data": {
+        "inputs": {
+          "text": "This loads the taxi trips CSV. Click it to see its columns."
+        },
+        "locked": false
+      },
+      "width": 265,
+      "height": 80
+    },
+    {
+      "id": "/color-note",
+      "type": "CommentOp",
+      "position": {
+        "x": 352,
+        "y": -60
+      },
+      "data": {
+        "inputs": {
+          "text": "These two nodes set the pickup and drop-off colors. Click one to pick a new color."
+        },
+        "locked": false
+      },
+      "width": 290,
+      "height": 90
+    },
+    {
+      "id": "/arc-note",
+      "type": "CommentOp",
+      "position": {
+        "x": 898,
+        "y": -250
+      },
+      "data": {
+        "inputs": {
+          "text": "This layer draws an arc from each pickup to its drop-off. Click it and change getWidth."
+        },
+        "locked": false
+      },
+      "width": 300,
+      "height": 80
+    },
+    {
+      "id": "/try-next-note",
+      "type": "CommentOp",
+      "position": {
+        "x": 1200,
+        "y": 10
+      },
+      "data": {
+        "inputs": {
+          "text": "Try next:\n- Press the space bar to play the camera move on the Timeline.\n- Click arc-layer and change getHeight to raise or flatten the arcs.\n- Press Export and pick Video (MP4) to save the animation."
+        },
+        "locked": false
+      },
+      "width": 340,
+      "height": 170
     }
   ],
   "timeline": {

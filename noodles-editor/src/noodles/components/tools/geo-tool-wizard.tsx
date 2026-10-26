@@ -41,11 +41,18 @@ function parseNumberList(text: string): number[] {
 
 interface GeoToolWizardProps {
   recipe: GeoRecipe | null
+  // Inputs to wire before the user picks anything, keyed by recipe input
+  presetSources?: Record<string, SourceRef>
   onOpenChange: (open: boolean) => void
   reactFlowRef: React.RefObject<HTMLDivElement>
 }
 
-export function GeoToolWizard({ recipe, onOpenChange, reactFlowRef }: GeoToolWizardProps) {
+export function GeoToolWizard({
+  recipe,
+  presetSources,
+  onOpenChange,
+  reactFlowRef,
+}: GeoToolWizardProps) {
   const reactFlow = useReactFlow()
   const operators = useOperatorStore(state => state.operators)
   const currentContainerId = useNestingStore(state => state.currentContainerId)
@@ -59,10 +66,14 @@ export function GeoToolWizard({ recipe, onOpenChange, reactFlowRef }: GeoToolWiz
   useEffect(() => {
     if (!recipe) return
     setValues(defaultValuesFor(recipe))
-    setSources({})
+    const preset: Record<string, string> = {}
+    for (const [key, ref] of Object.entries(presetSources ?? {})) {
+      preset[key] = encodeSourceRef(ref)
+    }
+    setSources(preset)
     setAddLayer(recipe.layerable)
     setError(null)
-  }, [recipe])
+  }, [recipe, presetSources])
 
   // Every existing output that could plausibly carry geometry, so the user can
   // wire the new node into their graph without hunting for handles
@@ -78,8 +89,16 @@ export function GeoToolWizard({ recipe, onOpenChange, reactFlowRef }: GeoToolWiz
         })
       }
     }
+    // A preset can name a node created this same frame, before the operator store has
+    // it, so make sure the select can still show it
+    for (const ref of Object.values(presetSources ?? {})) {
+      const value = encodeSourceRef(ref)
+      if (options.some(option => option.value === value)) continue
+      const field = ref.sourceHandle.replace(/^out\./, '')
+      options.push({ value, label: `${getBaseName(ref.source) || ref.source} → ${field}` })
+    }
     return options.sort((a, b) => a.label.localeCompare(b.label))
-  }, [operators])
+  }, [operators, presetSources])
 
   const rendererId = useMemo(() => {
     for (const [id, op] of operators.entries()) {
