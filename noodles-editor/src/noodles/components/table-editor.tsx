@@ -1340,6 +1340,8 @@ export function TableEditor({
   const activeEdit = useActiveEdit()
   const previousDataRef = useRef(data)
   const previousSchemaRef = useRef(schema)
+  const schemaRef = useRef(schema)
+  schemaRef.current = schema
 
   const setActionMenuOpen = useCallback((label: string, open: boolean) => {
     setOpenActionMenu(current => (open ? label : current === label ? null : current))
@@ -1981,9 +1983,22 @@ export function TableEditor({
       anchor = activeCell ?? { row: 0, column: 0 }
     ) => {
       activeEdit.flush()
+      const targetSchema = schemaRef.current
+      const targetData = tableDataRef.current
       try {
         const clipboard = clipboardOverride ?? globalThis.navigator?.clipboard
         const input = await readTableClipboard(clipboard)
+        if (schemaRef.current !== targetSchema || tableDataRef.current !== targetData) {
+          setClipboardMessage('The table changed while the clipboard was being read. Paste again.')
+          analytics.track('table_data_pasted', {
+            actionSource,
+            format: 'stale',
+            rowCount: 0,
+            columnCount: 0,
+            success: false,
+          })
+          return
+        }
         routeTableClipboard(input, actionSource, anchor)
       } catch {
         dataPasteAnalyticsRef.current = {

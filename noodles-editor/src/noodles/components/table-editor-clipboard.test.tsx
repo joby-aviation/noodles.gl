@@ -288,6 +288,52 @@ describe('TableEditor spreadsheet clipboard', () => {
     expect(onDataChange).toHaveBeenCalledWith([{ value: 'First' }], 'Paste table data')
   })
 
+  it('rejects a menu paste when the table changes during the clipboard read', async () => {
+    let resolveRead: (value: string) => void = () => undefined
+    clipboard.readText.mockImplementation(() => new Promise(resolve => (resolveRead = resolve)))
+    const op = new TableEditorOp('/clipboard-race')
+    const onDataChange = vi.fn()
+    const onSchemaChange = vi.fn()
+    const initialSchema: TableSchema = {
+      columns: [{ name: 'oldName', type: 'string', defaultValue: '' }],
+    }
+    const renamedSchema: TableSchema = {
+      columns: [{ name: 'newName', type: 'string', defaultValue: '' }],
+    }
+    const view = render(
+      <TableEditor
+        op={op}
+        data={[]}
+        schema={initialSchema}
+        onDataChange={onDataChange}
+        onSchemaChange={onSchemaChange}
+        clipboard={clipboard}
+      />
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Paste Data' }))
+    view.rerender(
+      <TableEditor
+        op={op}
+        data={[]}
+        schema={renamedSchema}
+        onDataChange={onDataChange}
+        onSchemaChange={onSchemaChange}
+        clipboard={clipboard}
+      />
+    )
+    await act(async () => {
+      resolveRead('pasted value')
+      await Promise.resolve()
+    })
+
+    expect(onDataChange).not.toHaveBeenCalled()
+    expect(onSchemaChange).not.toHaveBeenCalled()
+    expect(
+      screen.getByText('The table changed while the clipboard was being read. Paste again.')
+    ).toBeInTheDocument()
+  })
+
   it('pastes an explicit one-row CSV range into an existing table', () => {
     const { onDataChange } = renderTable()
     const alice = screen.getByText('Alice').closest('[role="gridcell"]') as HTMLElement
