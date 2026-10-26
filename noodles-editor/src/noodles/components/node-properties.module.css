@@ -98,6 +98,12 @@
   padding: 0 6px;
 }
 
+/* Opens the Draw tool on the node's geometry, for GeoEditor, Point and their layers */
+.editOnMap {
+  margin: 0 6px 10px;
+  width: calc(100% - 12px);
+}
+
 /* Shown under the header for the node an example selects when it opens */
 .starterHint {
   margin: -4px 6px 12px;

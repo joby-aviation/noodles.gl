@@ -620,6 +620,12 @@
 
 /* --- custom editors above a node's parameters (pane-editors.tsx) ---------------------- */
 
+/* Opens the Draw tool on the node's geometry, for features, point and the layers drawing them */
+.editOnMap {
+  margin: 8px 12px 0;
+  width: calc(100% - 24px);
+}
+
 .paneEditor {
   display: flex;
   flex-direction: column;

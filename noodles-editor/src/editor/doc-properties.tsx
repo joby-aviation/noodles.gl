@@ -13,6 +13,7 @@ import {
 } from '@noodles.gl/planner'
 import cx from 'classnames'
 import { useEffect, useRef, useState } from 'react'
+import { EditOnMapButton } from '../noodles/components/tools/edit-on-map-button'
 import s from './doc-editor.module.css'
 import { type EngineState, useEngineState } from './doc-engine'
 import { headerOf } from './doc-node'
@@ -165,6 +166,7 @@ function NodeParams({ node, doc, multi }: { node: DocNode; doc: EditorDoc; multi
           {e}
         </div>
       ))}
+      <EditOnMapButton nodeId={node.id} from="properties" className={s.editOnMap} />
       <PaneEditorFor node={node} />
       <div className={s.params}>
         {fields &&

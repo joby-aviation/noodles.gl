@@ -1,11 +1,11 @@
-// Editors in the parameter pane for nodes whose value is easier drawn than typed: features on a
-// map, a basemap style, a ramp's stops, a table's rows, a histogram's brush. Each reads and writes the node's own
-// parameters, so undo, save and the engine see a plain parameter change; the parameters it
-// replaces are left out of the pane's list.
+// Editors in the parameter pane for nodes whose value is easier drawn than typed: a basemap
+// style, a ramp's stops, a table's rows, a histogram's brush. Each reads and writes the node's
+// own parameters, so undo, save and the engine see a plain parameter change; the parameters it
+// replaces are left out of the pane's list. Features and points are edited on the map itself
+// (EditOnMapButton).
 
 import { type DocNode, OPERATOR_INDEX, type ParamValue } from '@noodles.gl/planner'
 import { type ComponentType, useEffect, useRef, useState } from 'react'
-import { GeoEditorDialog } from '../noodles/components/geo-editor-dialog'
 import { MapStyleConfiguratorDialog } from '../noodles/components/map-style-configurator'
 import RampEditor, { type RampStop } from '../noodles/components/ramp-editor'
 import { type CellKeys, keyframeable } from '../noodles/components/table-cell-keyframe'
@@ -45,23 +45,6 @@ function parse<T>(text: unknown, fallback: T): T {
   } catch {
     return fallback
   }
-}
-
-function FeaturesEditor({ node }: { node: DocNode }) {
-  const [open, setOpen] = useState(false)
-  return (
-    <>
-      <button type="button" className={s.paneButton} onClick={() => setOpen(true)}>
-        Draw on a map
-      </button>
-      <GeoEditorDialog
-        open={open}
-        onOpenChange={setOpen}
-        value={String(param(node, 'geojson') ?? '')}
-        onSave={geojson => set(node, 'geojson', geojson)}
-      />
-    </>
-  )
 }
 
 function MapStyleEditor({ node }: { node: DocNode }) {
@@ -236,7 +219,6 @@ function RowsEditor({ node }: { node: DocNode }) {
 }
 
 export const PANE_EDITORS: Record<string, PaneEditor> = {
-  features: { Editor: FeaturesEditor, replaces: [] },
   'map-style': { Editor: MapStyleEditor, replaces: ['overrides'] },
   ramp: { Editor: RampStopsEditor, replaces: ['stops'] },
   table: { Editor: RowsEditor, replaces: ['rows', 'schema'] },

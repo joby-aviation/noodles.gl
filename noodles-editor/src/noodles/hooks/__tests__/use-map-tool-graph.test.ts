@@ -65,3 +65,31 @@ describe('sendDrawingTo', () => {
     expect(useMapToolStore.getState().recipeRequest).toBeNull()
   })
 })
+
+describe('saveEdits', () => {
+  beforeEach(() => docStore().load(EMPTY_DOC))
+
+  it('writes edited shapes back to their node as one undo step', () => {
+    docStore().edit(d => {
+      d.nodes.push({ id: 'f', op: 'features', x: 0, y: 0, params: {} })
+    })
+    const { result } = renderHook(() => useMapToolGraph())
+    expect(result.current.saveEdits({ nodeId: 'f', kind: 'features' }, [square(2)])).toBe(true)
+    const saved = JSON.parse(String(docStore().get().doc.nodes[0].params.geojson))
+    expect(saved.features).toEqual([square(2)])
+    docStore().undo()
+    expect(docStore().get().doc.nodes[0].params).toEqual({})
+  })
+
+  it('leaves no undo step when the node cannot take the edit', () => {
+    docStore().edit(d => {
+      d.nodes.push({ id: 'p', op: 'point', x: 0, y: 0, params: { lng: { expr: 'T' } } })
+    })
+    const { result } = renderHook(() => useMapToolGraph())
+    const before = docStore().get().doc
+    expect(result.current.saveEdits({ nodeId: 'p', kind: 'point' }, [square(0)])).toBe(false)
+    expect(docStore().get().doc).toBe(before)
+    docStore().undo()
+    expect(docStore().get().doc.nodes).toEqual([])
+  })
+})

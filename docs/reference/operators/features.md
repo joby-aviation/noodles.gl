@@ -40,6 +40,11 @@ This operator has no input ports.
 
 <!-- Add hand-written "## Remarks" and "## Examples" sections here. See the operator reference index for what goes in them. -->
 
+## Remarks
+
+- **Edit on map** in the parameter pane, on this node or on a layer that draws it, opens the Draw tool on the main map with these shapes loaded. Under **Edit points**, Move drags points, Add puts a point where you click an edge, and Remove deletes the point you click. **Save to** writes the shapes back to `geojson` as one undo step.
+- Edit on map is turned off while `geojson` comes from a connection, an expression, a reference or keyframes, since any of them would overwrite the saved shapes, and while it holds WKT.
+
 ## Details
 
 <!-- gen:begin details -->

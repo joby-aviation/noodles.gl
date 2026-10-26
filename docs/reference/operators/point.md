@@ -42,6 +42,10 @@ This operator has no input ports.
 
 <!-- Add hand-written "## Remarks" and "## Examples" sections here. See the operator reference index for what goes in them. -->
 
+## Remarks
+
+- **Edit on map** in the parameter pane, on this node or on a layer that draws it, opens the Draw tool on the main map; click to move the point, then **Save to** writes `lng` and `lat` as one undo step. It is turned off while either comes from a connection, an expression, a reference or keyframes.
+
 ## Details
 
 <!-- gen:begin details -->

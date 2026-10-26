@@ -4,6 +4,7 @@ import { docStore } from '../../editor/doc-store'
 import { drawingDoc, measurementDoc } from '../../editor/tool-docs'
 import { debugUI } from '../../utils/debug'
 import { type DrawFollowUp, featuresFor } from '../components/tools/draw-shapes'
+import { type EditTarget, writeTargetFeatures } from '../components/tools/edit-target'
 import { useMapToolStore } from '../components/tools/map-tool-store'
 import type { LngLat } from '../components/tools/measure-math'
 
@@ -41,5 +42,16 @@ export function useMapToolGraph() {
     })
   }, [])
 
-  return { saveDrawing, saveMeasurement, sendDrawingTo }
+  // Writes edited shapes back to the node they came from, as one undo step. A write that
+  // can't happen (the node is gone, or something now drives it) leaves no empty undo step.
+  const saveEdits = useCallback((target: EditTarget, features: GeoJSON.Feature[]) => {
+    const store = docStore()
+    if (!writeTargetFeatures(structuredClone(store.get().doc), target, features)) return false
+    store.edit(d => {
+      writeTargetFeatures(d, target, features)
+    })
+    return true
+  }, [])
+
+  return { saveDrawing, saveMeasurement, sendDrawingTo, saveEdits }
 }
