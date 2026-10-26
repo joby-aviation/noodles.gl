@@ -134,13 +134,19 @@ function NumberCellEditor({
 
   const handleNumberChange = (newValue: number) => {
     const prefix = seedPrefixRef.current
-    seedPrefixRef.current = undefined
     const prefixed = prefix === undefined ? newValue : Number(`${prefix}${newValue}`)
     onChange(applyConstraints(Number.isFinite(prefixed) ? prefixed : newValue))
   }
 
   const parseAndCommit = (inputValue: string, advance?: EditAdvance) => {
-    const parsed = Number.parseFloat(`${seedPrefixRef.current ?? ''}${inputValue}`)
+    const prefix = seedPrefixRef.current
+    const displayedValue = Number.parseFloat(inputValue)
+    // A controlled update may already have replaced the input text with the prefixed value.
+    // Only prepend the seed when the input still contains the unprefixed text.
+    const parsed =
+      prefix !== undefined && displayedValue !== value
+        ? Number.parseFloat(`${prefix}${inputValue}`)
+        : displayedValue
     seedPrefixRef.current = undefined
     handleNumberChange(Number.isNaN(parsed) ? defaultValue : parsed)
     onComplete(advance)

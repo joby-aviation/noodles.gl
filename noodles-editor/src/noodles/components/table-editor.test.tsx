@@ -1156,6 +1156,40 @@ describe('TableEditor', () => {
     )
   })
 
+  it('keeps a typed number prefix when the completed value matches the selected cell', () => {
+    const onDataChange = vi.fn()
+    render(
+      <TableEditor
+        op={mockOp}
+        data={[
+          { name: 'Alice', count: -5 },
+          { name: 'Bob', count: 0.5 },
+        ]}
+        schema={simpleSchema}
+        onDataChange={onDataChange}
+        onSchemaChange={vi.fn()}
+      />
+    )
+
+    const negative = screen.getByText('-5').closest('[role="gridcell"]') as HTMLElement
+    fireEvent.click(negative)
+    fireEvent.keyDown(negative, { key: '-' })
+    const negativeEditor = screen.getByRole('spinbutton', { name: 'Edit count' })
+    fireEvent.change(negativeEditor, { target: { value: '5' } })
+    fireEvent.keyDown(negativeEditor, { key: 'Enter' })
+    expect(onDataChange).not.toHaveBeenCalled()
+    expect(screen.getByText('-5')).toBeInTheDocument()
+
+    const fraction = screen.getByText('0.5').closest('[role="gridcell"]') as HTMLElement
+    fireEvent.click(fraction)
+    fireEvent.keyDown(fraction, { key: '.' })
+    const fractionEditor = screen.getByRole('spinbutton', { name: 'Edit count' })
+    fireEvent.change(fractionEditor, { target: { value: '5' } })
+    fireEvent.keyDown(fractionEditor, { key: 'Enter' })
+    expect(onDataChange).not.toHaveBeenCalled()
+    expect(screen.getByText('0.5')).toBeInTheDocument()
+  })
+
   it('applies the column default when Tab commits a cleared number cell', () => {
     const onDataChange = vi.fn()
     render(
