@@ -1,3 +1,4 @@
+import * as turf from '@turf/turf'
 import type { DrawMode } from './map-tool-store'
 import { formatArea, formatDistance, type LngLat, pathLength, polygonArea } from './measure-math'
 
@@ -93,11 +94,15 @@ export interface DrawFollowUp {
   // The recipe only reads these kinds of geometry; other shapes are left out of
   // the GeoEditor it receives
   kinds: ShapeKind[]
+  // The recipe reads only the first feature of this input, so several shapes are
+  // merged into one boundary before they reach it
+  singleFeature?: boolean
 }
 
 export const DRAW_FOLLOW_UPS: DrawFollowUp[] = [
   {
     id: 'clip',
+    singleFeature: true,
     label: 'Clip data to shape',
     icon: 'pi pi-crop',
     recipeId: 'clip',
@@ -106,6 +111,7 @@ export const DRAW_FOLLOW_UPS: DrawFollowUp[] = [
   },
   {
     id: 'points-inside',
+    singleFeature: true,
     label: 'Find points inside',
     icon: 'pi pi-check-circle',
     recipeId: 'point-in-polygon',
@@ -136,11 +142,32 @@ export function followUpsFor(features: GeoJSON.Feature[]): DrawFollowUp[] {
   return DRAW_FOLLOW_UPS.filter(followUp => followUp.kinds.some(kind => kinds.has(kind)))
 }
 
-export function featuresFor(followUp: DrawFollowUp, features: GeoJSON.Feature[]) {
-  return features.filter(feature => {
+export function featuresFor(
+  followUp: DrawFollowUp,
+  features: GeoJSON.Feature[]
+): GeoJSON.Feature[] {
+  const relevant = features.filter(feature => {
     const kind = shapeKind(feature)
     return kind !== null && followUp.kinds.includes(kind)
   })
+  if (!followUp.singleFeature || relevant.length < 2) return relevant
+  return [mergePolygons(relevant as GeoJSON.Feature<GeoJSON.Polygon>[])]
+}
+
+// Unions the polygons so overlaps don't double up; disjoint ones become a
+// MultiPolygon. Falls back to stacking the rings if the union fails on bad geometry.
+export function mergePolygons(polygons: GeoJSON.Feature<GeoJSON.Polygon>[]): GeoJSON.Feature {
+  try {
+    const merged = turf.union(turf.featureCollection(polygons))
+    if (merged) return { ...merged, properties: {} }
+  } catch {
+    // fall through
+  }
+  return {
+    type: 'Feature',
+    geometry: { type: 'MultiPolygon', coordinates: polygons.map(p => p.geometry.coordinates) },
+    properties: {},
+  }
 }
 
 export function toFeatureCollection(features: GeoJSON.Feature[]): GeoJSON.FeatureCollection {

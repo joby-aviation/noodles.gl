@@ -101,6 +101,24 @@ describe('follow-ups', () => {
     expect(featuresFor(clip, [line, polygon, point])).toEqual([polygon])
   })
 
+  it('merges several polygons into one boundary for recipes that read one feature', () => {
+    const clip = DRAW_FOLLOW_UPS.find(f => f.id === 'clip')
+    const buffer = DRAW_FOLLOW_UPS.find(f => f.id === 'buffer')
+    if (!clip || !buffer) throw new Error('missing follow-up')
+    const far = buildShape(
+      [
+        { lng: 10, lat: 10 },
+        { lng: 11, lat: 10 },
+        { lng: 11, lat: 11 },
+      ],
+      'polygon'
+    ) as GeoJSON.Feature
+    const merged = featuresFor(clip, [polygon, far])
+    expect(merged).toHaveLength(1)
+    expect(merged[0].geometry.type).toBe('MultiPolygon')
+    expect(featuresFor(buffer, [polygon, far])).toHaveLength(2)
+  })
+
   it('wires each drawing into an input its recipe really has', () => {
     for (const followUp of DRAW_FOLLOW_UPS) {
       const recipe = getRecipe(followUp.recipeId)

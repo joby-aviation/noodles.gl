@@ -109,7 +109,7 @@ export function MapToolOverlay({
   const [overFirst, setOverFirst] = useState(false)
   // Shape whose row in the panel is hovered, drawn emphasized on the map
   const [highlightId, setHighlightId] = useState<number | null>(null)
-  const [copied, setCopied] = useState(false)
+  const [copyState, setCopyState] = useState<'idle' | 'copied' | 'failed'>('idle')
   // Bumped on map move to force a re-render, which re-projects every overlay
   // position against the new camera. The value itself is never read.
   const [, bumpProjection] = useState(0)
@@ -138,13 +138,18 @@ export function MapToolOverlay({
   }
 
   // A detached surface is pinned to the canvas rect, so follow the canvas when the
-  // pane it sits in is resized or the window changes size
+  // pane it sits in is resized or the window changes size. The canvas's own layout
+  // size can stay put while TransformScale shrinks it with a CSS transform, so every
+  // ancestor is watched too: a pane resize always changes one of their sizes.
   useEffect(() => {
     const map = mapRef.current
     if (!map || !activeTool || !detached) return
     const bump = () => bumpProjection(v => v + 1)
     const observer = new ResizeObserver(bump)
-    observer.observe(map.getCanvas())
+    for (let el: Element | null = map.getCanvas(); el && el !== document.body; ) {
+      observer.observe(el)
+      el = el.parentElement
+    }
     window.addEventListener('resize', bump)
     return () => {
       observer.disconnect()
@@ -375,26 +380,40 @@ export function MapToolOverlay({
   const features = shapes.map(shape => shape.feature)
   const followUps = followUpsFor(features)
 
-  const replaceShape = (id: number, next: GeoJSON.Feature | null) => {
+  const replaceShape = (
+    id: number,
+    next: GeoJSON.Feature | null,
+    action: 'close_polygon' | 'to_outline'
+  ) => {
     if (!next) return
     setShapes(prev => prev.map(shape => (shape.id === id ? { ...shape, feature: next } : shape)))
+    analytics.track('draw_shape_edited', { action })
   }
 
-  const removeShape = (id: number) => {
+  const removeShape = (id: number, kind: ShapeKind | null) => {
     setShapes(prev => prev.filter(shape => shape.id !== id))
     setHighlightId(current => (current === id ? null : current))
+    analytics.track('draw_shape_edited', { action: 'delete', kind })
+  }
+
+  const showCopyState = (state: 'copied' | 'failed') => {
+    setCopyState(state)
+    setTimeout(() => setCopyState('idle'), 2000)
   }
 
   const copyGeoJson = () => {
     const text = JSON.stringify(toFeatureCollection(features), null, 2)
+    if (!navigator.clipboard) {
+      showCopyState('failed')
+      return
+    }
     navigator.clipboard
-      ?.writeText(text)
+      .writeText(text)
       .then(() => {
-        setCopied(true)
-        setTimeout(() => setCopied(false), 1500)
+        showCopyState('copied')
+        analytics.track('draw_copied_geojson', { count: features.length })
       })
-      .catch(() => {})
-    analytics.track('draw_copied_geojson', { count: features.length })
+      .catch(() => showCopyState('failed'))
   }
 
   const pinnedRect = detached ? canvasRect() : null
@@ -600,6 +619,10 @@ export function MapToolOverlay({
                       type="button"
                       className={s.linkButton}
                       onClick={() => {
+                        analytics.track('draw_shape_edited', {
+                          action: 'clear_all',
+                          count: shapes.length,
+                        })
                         reset()
                         setShapes([])
                       }}
@@ -624,7 +647,7 @@ export function MapToolOverlay({
                             <button
                               type="button"
                               className={s.iconButton}
-                              onClick={() => replaceShape(shape.id, asPolygon)}
+                              onClick={() => replaceShape(shape.id, asPolygon, 'close_polygon')}
                               title="Close into a polygon"
                               aria-label="Close into a polygon"
                             >
@@ -635,7 +658,9 @@ export function MapToolOverlay({
                             <button
                               type="button"
                               className={s.iconButton}
-                              onClick={() => replaceShape(shape.id, openIntoLine(shape.feature))}
+                              onClick={() =>
+                                replaceShape(shape.id, openIntoLine(shape.feature), 'to_outline')
+                              }
                               title="Turn into an outline"
                               aria-label="Turn into an outline"
                             >
@@ -645,7 +670,7 @@ export function MapToolOverlay({
                           <button
                             type="button"
                             className={s.iconButton}
-                            onClick={() => removeShape(shape.id)}
+                            onClick={() => removeShape(shape.id, kind)}
                             title="Delete shape"
                             aria-label="Delete shape"
                           >
@@ -692,8 +717,20 @@ export function MapToolOverlay({
                     </button>
                   ))}
                   <button type="button" className={s.followUp} onClick={copyGeoJson}>
-                    <i className={copied ? 'pi pi-check' : 'pi pi-copy'} />{' '}
-                    {copied ? 'Copied' : 'Copy GeoJSON'}
+                    <i
+                      className={
+                        copyState === 'copied'
+                          ? 'pi pi-check'
+                          : copyState === 'failed'
+                            ? 'pi pi-exclamation-triangle'
+                            : 'pi pi-copy'
+                      }
+                    />{' '}
+                    {copyState === 'copied'
+                      ? 'Copied'
+                      : copyState === 'failed'
+                        ? 'Copy failed: clipboard blocked'
+                        : 'Copy GeoJSON'}
                   </button>
                 </div>
               )}

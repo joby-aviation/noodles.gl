@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import type { Map as MapLibre } from 'maplibre-gl'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { MapToolOverlay } from './map-tool-overlay'
@@ -117,5 +117,21 @@ describe('MapToolOverlay drawing', () => {
     overlay.clickAt(150, 150)
     overlay.clickAt(52, 51)
     expect(screen.getByText(/^Polygon · /)).toBeTruthy()
+  })
+
+  it('says so when the clipboard refuses the copy', async () => {
+    const writeText = vi.fn().mockRejectedValue(new Error('denied'))
+    vi.spyOn(navigator, 'clipboard', 'get').mockReturnValue({ writeText } as unknown as Clipboard)
+    const overlay = renderOverlay()
+    canvas = overlay.canvas
+    overlay.clickAt(50, 50)
+    overlay.clickAt(150, 50)
+    overlay.clickAt(150, 150)
+    fireEvent.click(screen.getByText('Close shape'))
+    fireEvent.click(screen.getByText('Copy GeoJSON'))
+    await act(async () => {})
+    expect(writeText).toHaveBeenCalledTimes(1)
+    expect(screen.getByText(/Copy failed/)).toBeTruthy()
+    vi.restoreAllMocks()
   })
 })
