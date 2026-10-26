@@ -1,12 +1,8 @@
 import { renderHook } from '@testing-library/react'
 import type { Node } from '@xyflow/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import {
-  getRenderSurfaceSize,
-  resetRenderSurfaceSize,
-  setRenderSurfaceSize,
-} from '../../../render/render-surface-size'
 import { hasCoordinates, viewStateForBounds } from '../../components/tools/detect-coordinates'
+import { publishEnvironment, readEnvironment, resetEnvironment } from '../../environment'
 import { useFileSystemStore } from '../../filesystem-store'
 import { clearOps } from '../../store'
 import { useFileImport } from '../use-file-import'
@@ -51,14 +47,14 @@ describe('useFileImport', () => {
   })
 
   afterEach(() => {
-    resetRenderSurfaceSize()
+    resetEnvironment()
     clearOps()
   })
 
   it('fits imported data to the render surface size', async () => {
-    const defaultSize = getRenderSurfaceSize()
+    const defaultSize = readEnvironment('renderSurface')
     const size = { width: 600, height: 1800 }
-    setRenderSurfaceSize(size)
+    publishEnvironment('renderSurface', size)
 
     const { imported, viewState } = await importCsv()
 

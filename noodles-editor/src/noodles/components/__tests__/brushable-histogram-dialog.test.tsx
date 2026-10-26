@@ -15,14 +15,17 @@ function createOp() {
   op.inputs.field.setValue('value')
   op.inputs.brushMin.setValue(20)
   op.inputs.brushMax.setValue(80)
-  const result = op.execute({
-    data,
-    field: 'value',
-    binCount: 10,
-    brushMin: 20,
-    brushMax: 80,
-    brushMode: 'handles',
-  })
+  const result = op.execute(
+    {
+      data,
+      field: 'value',
+      binCount: 10,
+      brushMin: 20,
+      brushMax: 80,
+      brushMode: 'handles',
+    },
+    op.env
+  )
   op.outputs.filteredData.setValue(result.filteredData)
   op.outputs.binData.setValue(result.binData)
   op.outputs.extent.setValue(result.extent)

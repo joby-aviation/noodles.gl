@@ -13,6 +13,7 @@ import { MapToolLayer } from './noodles/components/tools/map-tool-layer'
 import { useMapToolStore } from './noodles/components/tools/map-tool-store'
 import { TopMenuBar } from './noodles/components/top-menu-bar'
 import { ExportActionsProvider } from './noodles/contexts/export-actions-context'
+import { publishEnvironment } from './noodles/environment'
 import { useActiveStorageType, useCurrentDirectory } from './noodles/filesystem-store'
 import { agentBench, externalControl } from './noodles/globals'
 import { useActiveOutOp } from './noodles/hooks/use-active-outop'
@@ -39,8 +40,8 @@ import { resetRenderProgress, setRenderProgress } from './render/render-progress
 import {
   calculateRenderSurfaceSize,
   observeRenderSurface,
-  setRenderSurfaceSize,
-} from './render/render-surface-size'
+  observeRenderSurfacePointer,
+} from './render/render-surface'
 import { captureScreenshot, useRenderer } from './render/renderer'
 import { deckRenderingDefaults, mapRenderingDefaults } from './render/rendering-defaults'
 import { exposeCanvasToTools } from './render/tool-canvas'
@@ -821,14 +822,24 @@ export default function TimelineEditor() {
   // (e.g. BoundingBoxOp) match what is rendered, in both fixed and responsive modes
   useLayoutEffect(() => {
     if (isFixedMode) {
-      setRenderSurfaceSize({ width: renderWidth, height: renderHeight })
+      publishEnvironment('renderSurface', { width: renderWidth, height: renderHeight })
       return
     }
 
     const surface = renderSurfaceRef.current
     if (!surface) return
-    return observeRenderSurface(surface, setRenderSurfaceSize)
+    return observeRenderSurface(surface, size => publishEnvironment('renderSurface', size))
   }, [isFixedMode, renderWidth, renderHeight])
+
+  // Publish the pointer in render-surface pixels for MouseOp
+  useEffect(
+    () =>
+      observeRenderSurfacePointer(
+        () => renderSurfaceRef.current,
+        point => publishEnvironment('pointer', point)
+      ),
+    []
+  )
 
   // MapLibre follows its container through a ResizeObserver throttled to 50 ms, so it can
   // draw a frame or more at the old size after the LOD or resolution changes, while the

@@ -5,6 +5,7 @@ import * as deckWidgets from '@deck.gl/widgets'
 import * as turf from '@turf/turf'
 import { Temporal } from 'temporal-polyfill'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { publishEnvironment, resetEnvironment } from './environment'
 import { NumberField, StringField } from './fields'
 import { useFileSystemStore } from './filesystem-store'
 import { getKeysStore } from './keys-store'
@@ -1084,15 +1085,17 @@ describe('TimeOp', () => {
     expect(typeof first.result).toBe('number')
     expect(first.result).toBe(Date.now() / 1000)
 
+    // The GraphExecutor publishes the clock once per frame
     vi.advanceTimersByTime(1000)
-    vi.advanceTimersToNextFrame()
+    publishEnvironment('clock', { now: Date.now(), tick: 1 })
 
     const second = await seconds.pull()
     expect(second.result).toBe(Date.now() / 1000)
     expect(second.result).toBeGreaterThan(first.result)
-    await expect(clock.pull()).resolves.toMatchObject({ now: Date.now() })
+    await expect(clock.pull()).resolves.toMatchObject({ now: Date.now(), tick: 1 })
 
     clock.dispose()
+    resetEnvironment()
   })
 })
 

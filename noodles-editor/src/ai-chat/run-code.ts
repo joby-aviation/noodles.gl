@@ -15,11 +15,11 @@
 //   reaching further than that (the store is in scope), which is why the tool
 //   description points structural edits at apply_modifications instead.
 
+import { readEnvironment } from '../noodles/environment'
 import { safeMode } from '../noodles/globals'
 import { fnWithSource, freeExports, type IOperator, type Operator } from '../noodles/operators'
 import { getOp } from '../noodles/store'
 import { captureOperatorInputs, firePropertyMutation } from '../noodles/utils/property-history'
-import { getTimelineContext } from '../noodles/utils/timeline-context'
 import type { ToolResult } from './types'
 
 export interface RunCodeParams {
@@ -77,7 +77,7 @@ export async function runCode(params: RunCodeParams): Promise<ToolResult> {
     return { success: false, error: message(error) }
   }
 
-  const timeline = getTimelineContext()
+  const timeline = readEnvironment('timeline')
   const before = captureOperatorInputs()
   const logs: string[] = []
   const restore = captureConsole(logs)
