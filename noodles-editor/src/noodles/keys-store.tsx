@@ -52,13 +52,29 @@ function normalizePreference(stored: string | undefined): ProviderPreference {
 
 export type KeySource = 'project' | 'browser' | 'env'
 
-// A per-project choice to use the user's own key instead of the project's. It stores
-// a fingerprint of the project key rather than the key, and lapses when the project
-// key changes, so the user is asked again about a key they haven't seen.
+// A per-project choice between the project's key and the user's own. 'project' records
+// that the user chose to keep the project's key, so they aren't asked again. It stores a
+// fingerprint of the project key rather than the key, and lapses when the project key
+// changes, so the user is asked again about a key they haven't seen.
 export interface KeyOverride {
-  source: 'browser' | 'env'
+  source: KeySource
   projectKeyFingerprint: string
 }
+
+// Keys the on-load prompts ask about. The Overpass endpoint is left out because it always
+// has a default, so every project with its own endpoint would ask.
+export const PROMPTED_KEY_TYPES = [
+  'mapbox',
+  'googleMaps',
+  'cesium',
+] as const satisfies readonly KeyType[]
+
+// Something to sort out about a project key: no choice made yet between it and the user's
+// different key, the user's key in use instead, or the project key rejected by its service
+export type KeyPrompt =
+  | { kind: 'choose'; mine: 'browser' | 'env' }
+  | { kind: 'overridden'; source: 'browser' | 'env' }
+  | { kind: 'rejected'; mine: 'browser' | 'env' }
 
 type KeyOverrides = Record<string, Partial<Record<KeyType, KeyOverride>>>
 
@@ -102,6 +118,8 @@ interface KeysState {
   projectKeyEdits: number
   // AI keys the loaded project file contained, which were dropped rather than used
   ignoredProjectKeys: KeyType[]
+  // Fingerprints of keys a service rejected in this session
+  rejectedKeys: Partial<Record<KeyType, string>>
 }
 
 interface KeysActions {
@@ -112,7 +130,8 @@ interface KeysActions {
   setProjectKey: (key: KeyType, value: string | undefined) => void
   removeProjectKey: (key: KeyType) => void
   setProjectKeys: (keys: KeysConfig | undefined, projectId?: string) => void
-  setKeyOverride: (key: KeyType, source: 'browser' | 'env' | null) => void
+  setKeyOverride: (key: KeyType, source: KeySource | null) => void
+  reportKeyRejected: (key: KeyType, value: string) => void
   copyKeyOverridesTo: (projectId: string) => void
   moveKeyOverridesTo: (projectId: string) => void
   markProjectKeysSaved: () => void
@@ -124,6 +143,7 @@ interface KeysActions {
   hasKey: (key: KeyType) => boolean
   getActiveSource: (key: KeyType) => KeySource | null
   getOverride: (key: KeyType) => KeyOverride['source'] | null
+  getPrompt: (key: KeyType) => KeyPrompt | null
   getProviderPreference: () => ProviderPreference
   getCustomEndpoint: () => CustomEndpointConfig | undefined
 }
@@ -143,6 +163,7 @@ export const useKeysStore = create<KeysStore>()(
       projectId: undefined,
       projectKeyEdits: 0,
       ignoredProjectKeys: [],
+      rejectedKeys: {},
 
       // Actions
       setBrowserKey: (key, value) => {
@@ -219,6 +240,10 @@ export const useKeysStore = create<KeysStore>()(
         set({ keyOverrides: next })
       },
 
+      reportKeyRejected: (key, value) => {
+        set({ rejectedKeys: { ...get().rejectedKeys, [key]: fingerprintKey(value) } })
+      },
+
       setProviderPreference: preference => {
         set({ providerPreference: preference })
       },
@@ -282,6 +307,25 @@ export const useKeysStore = create<KeysStore>()(
           return null
         }
         return slots[override.source] ? override.source : null
+      },
+
+      getPrompt: key => {
+        const state = get()
+        const slots = getSlots(state, key)
+        if (!slots.project || state.projectId === undefined) return null
+        const active = state.getActiveSource(key)
+        if (active === 'browser' || active === 'env') return { kind: 'overridden', source: active }
+
+        const mine = slots.browser ? 'browser' : slots.env ? 'env' : null
+        if (!mine || slots[mine] === slots.project) return null
+        const fingerprint = fingerprintKey(slots.project)
+        if (state.rejectedKeys[key] === fingerprint) return { kind: 'rejected', mine }
+
+        const decided =
+          state.keyOverrides[state.projectId]?.[key]?.projectKeyFingerprint === fingerprint
+        // A key typed into Settings isn't news to the user, so only ask about one from the file
+        if (decided || slots.project !== state.savedProjectKeys?.[key]) return null
+        return { kind: 'choose', mine }
       },
 
       getProviderPreference: () => {

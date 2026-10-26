@@ -23,6 +23,7 @@ describe('Keys Store', () => {
       projectId: undefined,
       projectKeyEdits: 0,
       ignoredProjectKeys: [],
+      rejectedKeys: {},
     })
   })
 
@@ -603,6 +604,76 @@ describe('Keys Store', () => {
       unsubscribe()
     })
   })
+
+  describe('getPrompt', () => {
+    beforeEach(() => {
+      vi.stubEnv('VITE_CESIUM_ACCESS_TOKEN', '')
+      getKeysStore().setProjectKeys({ cesium: 'project-cesium' }, 'project-a')
+      getKeysStore().setBrowserKey('cesium', 'browser-cesium')
+    })
+
+    afterEach(() => {
+      vi.unstubAllEnvs()
+    })
+
+    it('should ask when the project key and the user key differ', () => {
+      expect(getKeysStore().getPrompt('cesium')).toEqual({ kind: 'choose', mine: 'browser' })
+    })
+
+    it('should ask about the environment key when there is no browser key', () => {
+      vi.stubEnv('VITE_CESIUM_ACCESS_TOKEN', 'env-cesium')
+      getKeysStore().setBrowserKey('cesium', undefined)
+
+      expect(getKeysStore().getPrompt('cesium')).toEqual({ kind: 'choose', mine: 'env' })
+    })
+
+    it('should not ask when the keys match or there is no user key', () => {
+      getKeysStore().setBrowserKey('cesium', 'project-cesium')
+      expect(getKeysStore().getPrompt('cesium')).toBeNull()
+
+      getKeysStore().setBrowserKey('cesium', undefined)
+      expect(getKeysStore().getPrompt('cesium')).toBeNull()
+    })
+
+    it('should not ask again once the project key is kept', () => {
+      getKeysStore().setKeyOverride('cesium', 'project')
+
+      expect(getKeysStore().getPrompt('cesium')).toBeNull()
+      expect(getKeysStore().getKey('cesium')).toBe('project-cesium')
+    })
+
+    it('should ask again when the kept project key changes', () => {
+      getKeysStore().setKeyOverride('cesium', 'project')
+      getKeysStore().setProjectKeys({ cesium: 'new-project-cesium' }, 'project-a')
+
+      expect(getKeysStore().getPrompt('cesium')).toEqual({ kind: 'choose', mine: 'browser' })
+    })
+
+    it('should not ask about a project key typed into Settings', () => {
+      getKeysStore().setProjectKey('cesium', 'typed-cesium')
+
+      expect(getKeysStore().getPrompt('cesium')).toBeNull()
+    })
+
+    it('should say when the user key is in use instead', () => {
+      getKeysStore().setKeyOverride('cesium', 'browser')
+
+      expect(getKeysStore().getPrompt('cesium')).toEqual({ kind: 'overridden', source: 'browser' })
+    })
+
+    it('should offer the user key when the project key is rejected, even after keeping it', () => {
+      getKeysStore().setKeyOverride('cesium', 'project')
+      getKeysStore().reportKeyRejected('cesium', 'project-cesium')
+
+      expect(getKeysStore().getPrompt('cesium')).toEqual({ kind: 'rejected', mine: 'browser' })
+    })
+
+    it('should not ask without a project id', () => {
+      getKeysStore().setProjectKeys({ cesium: 'project-cesium' })
+
+      expect(getKeysStore().getPrompt('cesium')).toBeNull()
+    })
+  })
 })
 
 describe('getKeysForProject', () => {
@@ -615,6 +686,7 @@ describe('getKeysForProject', () => {
       projectId: undefined,
       projectKeyEdits: 0,
       ignoredProjectKeys: [],
+      rejectedKeys: {},
     })
   })
 
