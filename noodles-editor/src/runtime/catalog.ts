@@ -159,6 +159,21 @@ export class MaterializingCatalog implements Catalog {
   }
 
   /**
+   * Drop every table and forget every relation. A relation's hash comes from its SQL, which
+   * names files by their project name (`@/data.csv`), so another project's files can share it:
+   * call this when one opens.
+   */
+  async forget(): Promise<void> {
+    for (const e of this.entries.values()) {
+      if (!e.materialized) continue
+      await this.sql.exec(`DROP TABLE IF EXISTS ${quoteIdent(e.table)}`)
+      this.counters.dropped++
+      await this.options.onDrop?.(e.table)
+    }
+    this.entries.clear()
+  }
+
+  /**
    * Drop least-recently-used tables beyond capacity, sparing every hash in `inUse`. Call after
    * a compile, with the hashes of the relations the new program reads.
    */

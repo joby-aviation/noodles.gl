@@ -11,6 +11,7 @@ export type Request =
   | { type: 'setGraph'; graph: Graph; values: Values }
   | { type: 'setValues'; values: Values }
   | { type: 'idle' }
+  | { type: 'forget' }
   | { type: 'registerFile'; name: string; bytes: Uint8Array }
   | { type: 'query'; sql: string }
   | { type: 'relationRows'; relation: string }
