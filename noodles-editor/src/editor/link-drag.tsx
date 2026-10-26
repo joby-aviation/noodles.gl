@@ -1,16 +1,24 @@
 // The drag half of parameter links (param-links.ts): starting a drag from a port or a node row,
-// and the drop targets on property rows and node rows. What is being dragged lives in the UI
+// and the drop targets on property rows, output rows and node rows. What is being dragged lives in the UI
 // store rather than only in the DataTransfer, because a drop target has to know during
 // dragover whether it can take the drop, and the browser hides DataTransfer contents until
 // the drop. Hovering a node row for a moment selects it, so the Properties panel switches to
 // it and the drag can end on one of its properties, as Cavalry's spring-loaded layers do.
 
-import { type DocNode, nameOf, type ParamDef } from '@noodles.gl/planner'
+import type { DocNode, ParamDef } from '@noodles.gl/planner'
 import { type DragEvent, type ReactNode, useEffect, useRef, useState } from 'react'
 import { analytics } from '../utils/analytics'
 import { docStore, useEditor } from './doc-store'
-import { canLink, type LinkDrag, linkParam, paramDef, sourcesOn, targetsOn } from './param-links'
-import { RefPicker } from './ref-picker'
+import {
+  canLink,
+  type LinkDrag,
+  linkParam,
+  outputKey,
+  paramDef,
+  sourcesOn,
+  targetsOn,
+} from './param-links'
+import { type Candidate, RefPicker } from './ref-picker'
 import { getUIStore, useUIStore } from './ui-store'
 
 const MIME = 'application/x-noodles-link'
@@ -35,8 +43,9 @@ function installCleanup() {
 
 export function startLinkDrag(e: DragEvent, drag: LinkDrag) {
   installCleanup()
-  e.dataTransfer.setData(MIME, drag.kind === 'param' ? drag.key : drag.id)
-  if (drag.kind === 'param') e.dataTransfer.setData('text/plain', drag.key)
+  const key = drag.kind === 'node' ? drag.id : drag.key
+  e.dataTransfer.setData(MIME, key)
+  if (drag.kind !== 'node') e.dataTransfer.setData('text/plain', key)
   e.dataTransfer.effectAllowed = 'all'
   getUIStore().setLinkDrag(drag)
 }
@@ -47,7 +56,11 @@ function link(source: string, target: string, via: 'port' | 'node') {
     made = linkParam(d, source, target)
   }, `link:${target}`)
   if (made)
-    analytics.track('param_linked', { via, kind: paramDef(docStore().get().doc, target)?.kind })
+    analytics.track('param_linked', {
+      via,
+      kind: paramDef(docStore().get().doc, target)?.kind,
+      from: source.includes('>') ? 'output' : 'param',
+    })
 }
 
 interface Picker {
@@ -55,7 +68,7 @@ interface Picker {
   y: number
   node: DocNode
   def: ParamDef
-  items: ReturnType<typeof targetsOn>
+  items: Candidate[]
   placeholder: string
   onPick: (key: string) => void
 }
@@ -80,7 +93,21 @@ function renderPicker(picker: Picker | undefined, close: () => void): ReactNode 
   )
 }
 
-// A property row: takes a dragged port it can read, or a node to choose one of its properties
+// A drop on a node: a picker of what fits, even when one thing does, so the link it makes is
+// the one chosen
+function choose(
+  e: DragEvent,
+  node: DocNode,
+  items: Candidate[],
+  placeholder: string,
+  onPick: (key: string) => void,
+  setPicker: (p: Picker) => void
+) {
+  setPicker({ x: e.clientX, y: e.clientY, node, def: items[0].def, items, placeholder, onPick })
+}
+
+// A property row: takes a dragged output it can read, a dragged input that can read it, or a
+// node to choose one of the node's properties or outputs to read
 export function useParamLinkTarget(node: DocNode, def: ParamDef) {
   const drag = useUIStore(state => state.linkDrag)
   const doc = useEditor(state => state.doc)
@@ -88,11 +115,13 @@ export function useParamLinkTarget(node: DocNode, def: ParamDef) {
   const key = `${node.id}.${def.name}`
 
   const accepts =
-    drag?.kind === 'param'
+    drag?.kind === 'source'
       ? canLink(doc, drag.key, key)
-      : drag?.kind === 'node'
-        ? sourcesOn(doc, drag.id, key).length > 0
-        : false
+      : drag?.kind === 'target'
+        ? canLink(doc, key, drag.key)
+        : drag?.kind === 'node'
+          ? sourcesOn(doc, drag.id, key).length > 0
+          : false
 
   const props = {
     onDragOver: (e: DragEvent) => {
@@ -104,20 +133,18 @@ export function useParamLinkTarget(node: DocNode, def: ParamDef) {
       if (!accepts || !drag) return
       e.preventDefault()
       e.stopPropagation()
-      if (drag.kind === 'param') return link(drag.key, key, 'port')
-      const sources = sourcesOn(doc, drag.id, key)
+      if (drag.kind === 'source') return link(drag.key, key, 'port')
+      if (drag.kind === 'target') return link(key, drag.key, 'port')
       const from = doc.nodes.find(n => n.id === drag.id)
-      if (sources.length === 1) return link(sources[0].key, key, 'node')
       if (from)
-        setPicker({
-          x: e.clientX,
-          y: e.clientY,
+        choose(
+          e,
           node,
-          def,
-          items: sources,
-          placeholder: `${def.label} reads which property of ${nameOf(from)}?`,
-          onPick: source => link(source, key, 'node'),
-        })
+          sourcesOn(doc, drag.id, key),
+          `${def.label} reads which?`,
+          source => link(source, key, 'node'),
+          setPicker
+        )
     },
   }
   return {
@@ -128,15 +155,43 @@ export function useParamLinkTarget(node: DocNode, def: ParamDef) {
   }
 }
 
+// A value output's row: takes a dragged input that can read it
+export function useOutputLinkTarget(nodeId: string, port: string) {
+  const drag = useUIStore(state => state.linkDrag)
+  const doc = useEditor(state => state.doc)
+  const key = outputKey(nodeId, port)
+  const accepts = drag?.kind === 'target' && canLink(doc, key, drag.key)
+  const props = {
+    onDragOver: (e: DragEvent) => {
+      if (!accepts) return
+      e.preventDefault()
+      e.dataTransfer.dropEffect = 'link'
+    },
+    onDrop: (e: DragEvent) => {
+      if (!accepts || drag?.kind !== 'target') return
+      e.preventDefault()
+      e.stopPropagation()
+      link(key, drag.key, 'port')
+    },
+  }
+  return { props, accepts }
+}
+
 // A node row in a list: takes a dragged port to choose which of the node's properties reads it,
-// and selects the node when the drag rests on it
+// or which of its properties and outputs a dragged input reads, and selects the node when the
+// drag rests on it
 export function useNodeLinkTarget(nodeId: string) {
   const drag = useUIStore(state => state.linkDrag)
   const doc = useEditor(state => state.doc)
   const [picker, setPicker] = useState<Picker>()
   const spring = useRef<ReturnType<typeof setTimeout>>(undefined)
-  const targets = drag?.kind === 'param' ? targetsOn(doc, nodeId, drag.key) : []
-  const accepts = targets.length > 0
+  const items =
+    drag?.kind === 'source'
+      ? targetsOn(doc, nodeId, drag.key)
+      : drag?.kind === 'target'
+        ? sourcesOn(doc, nodeId, drag.key)
+        : []
+  const accepts = items.length > 0
 
   useEffect(() => () => clearTimeout(spring.current), [])
 
@@ -154,22 +209,21 @@ export function useNodeLinkTarget(nodeId: string) {
     onDrop: (e: DragEvent) => {
       clearTimeout(spring.current)
       spring.current = undefined
-      if (!accepts || drag?.kind !== 'param') return
+      const node = doc.nodes.find(n => n.id === nodeId)
+      if (!accepts || !node || !drag || drag.kind === 'node') return
       e.preventDefault()
       e.stopPropagation()
-      if (targets.length === 1) return link(drag.key, targets[0].key, 'node')
-      const def = paramDef(doc, drag.key)
-      const node = doc.nodes.find(n => n.id === nodeId)
-      if (def && node)
-        setPicker({
-          x: e.clientX,
-          y: e.clientY,
+      const { key } = drag
+      if (drag.kind === 'source')
+        return choose(
+          e,
           node,
-          def,
-          items: targets,
-          placeholder: `Which property of ${nameOf(node)} reads it?`,
-          onPick: target => link(drag.key, target, 'node'),
-        })
+          items,
+          'Which input reads it?',
+          target => link(key, target, 'node'),
+          setPicker
+        )
+      choose(e, node, items, 'Read which?', source => link(source, key, 'node'), setPicker)
     },
   }
   return { props, accepts, picker: renderPicker(picker, () => setPicker(undefined)) }

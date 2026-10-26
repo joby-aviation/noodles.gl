@@ -1,6 +1,14 @@
 import type { DocNode, EditorDoc } from '@noodles.gl/planner'
 import { describe, expect, it } from 'vitest'
-import { canLink, linkParam, sourcesOn, targetsOn } from './param-links'
+import {
+  canLink,
+  connections,
+  linkParam,
+  outputKey,
+  sourcesOn,
+  targetsOn,
+  valueOutputs,
+} from './param-links'
 
 const node = (
   id: string,
@@ -89,5 +97,73 @@ describe('targetsOn and sourcesOn', () => {
   it('lists the parameters of one node a color can read', () => {
     expect(sourcesOn(fixture(), 'tint', 'dots.fillColor').map(c => c.key)).toEqual(['tint.color'])
     expect(sourcesOn(fixture(), 'size', 'dots.fillColor')).toEqual([])
+  })
+})
+
+// An Extent's min and max are value outputs a parameter reads over a wire
+const withExtent = () => {
+  const doc = fixture()
+  doc.nodes.push(node('range', 'extent'))
+  return doc
+}
+
+describe('value outputs', () => {
+  it('lists the outputs a parameter can read, not rows or layers', () => {
+    const doc = withExtent()
+    const outputs = (id: string) =>
+      valueOutputs(doc.nodes.find(n => n.id === id) as DocNode).map(o => o.name)
+    expect(outputs('range')).toEqual(['min', 'max'])
+    expect(outputs('dots')).toEqual([])
+  })
+
+  it('wires an output into a number parameter, as the graph does', () => {
+    const doc = withExtent()
+    expect(linkParam(doc, outputKey('range', 'max'), 'dots.radiusScale')).toBe(true)
+    expect(doc.edges).toEqual([
+      expect.objectContaining({
+        source: 'range',
+        sourcePort: 'max',
+        target: 'dots',
+        targetPort: 'par:radiusScale',
+      }),
+    ])
+  })
+
+  it('refuses a number into a color, and a parameter into an output', () => {
+    const doc = withExtent()
+    expect(canLink(doc, outputKey('range', 'max'), 'dots.fillColor')).toBe(false)
+    expect(canLink(doc, 'size.value', outputKey('range', 'max'))).toBe(false)
+  })
+
+  it('offers a node’s outputs beside its parameters', () => {
+    const keys = sourcesOn(withExtent(), 'range', 'dots.opacity').map(c => c.key)
+    expect(keys).toEqual([outputKey('range', 'min'), outputKey('range', 'max')])
+    expect(targetsOn(withExtent(), 'dots', outputKey('range', 'min')).map(c => c.key)).toContain(
+      'dots.opacity'
+    )
+  })
+})
+
+describe('connections', () => {
+  it('lists what a parameter reads and what reads it', () => {
+    const doc = withExtent()
+    linkParam(doc, 'size.value', 'dots.radiusScale')
+    doc.nodes.find(n => n.id === 'rings')!.params.opacity = { expr: "ch('/size/value') / 10" }
+    linkParam(doc, outputKey('range', 'max'), 'dots.opacity')
+
+    const size = connections(doc, 'size.value')
+    expect(size.reads).toEqual([])
+    expect(size.readBy.map(c => c.key)).toEqual(['dots.radiusScale', 'rings.opacity'])
+    expect(connections(doc, 'dots.radiusScale').reads.map(c => c.label)).toEqual(['size › Value'])
+    expect(connections(doc, 'dots.opacity').reads.map(c => c.key)).toEqual([
+      outputKey('range', 'max'),
+    ])
+    expect(connections(doc, outputKey('range', 'max')).readBy.map(c => c.key)).toEqual([
+      'dots.opacity',
+    ])
+  })
+
+  it('lists nothing for an unconnected parameter', () => {
+    expect(connections(fixture(), 'dots.opacity')).toEqual({ reads: [], readBy: [] })
   })
 })
