@@ -185,7 +185,7 @@ function parseEnvelope(value: Record<string, unknown>): SchemaClipboardParseResu
   }
 }
 
-/** Serializes a whole table schema without changing its optional stable identities. */
+// Serializes a whole table schema without changing its optional stable identities.
 export function serializeSchemaClipboard(schema: TableSchema): string {
   const error = schemaValidationError(schema)
   if (error) throw new Error(error)
@@ -197,7 +197,7 @@ export function serializeSchemaClipboard(schema: TableSchema): string {
   return JSON.stringify(envelope, null, 2)
 }
 
-/** Serializes one column schema without changing its optional stable identity. */
+// Serializes one column schema without changing its optional stable identity.
 export function serializeColumnClipboard(column: ColumnSchema): string {
   if (!isColumnSchema(column)) throw new Error('Expected a valid column schema.')
   const envelope: ColumnSchemaClipboardEnvelope = {
@@ -208,7 +208,7 @@ export function serializeColumnClipboard(column: ColumnSchema): string {
   return JSON.stringify(envelope, null, 2)
 }
 
-/** Parses tagged envelopes as well as raw TableSchema and ColumnSchema JSON. */
+// Parses tagged envelopes as well as raw TableSchema and ColumnSchema JSON.
 export function parseSchemaClipboard(text: string): SchemaClipboardParseResult {
   let value: unknown
   try {
@@ -351,7 +351,7 @@ function resetValue(column: ColumnSchema): unknown {
   return cloneValue(getDefaultValue(column))
 }
 
-/** Deterministically converts a value for an incoming column definition. */
+// Deterministically converts a value for an incoming column definition.
 export function coerceSchemaValue(value: unknown, column: ColumnSchema): ValueConversion {
   if (isStrictlyValidValue(value, column)) return { status: 'preserved', value }
 
@@ -492,10 +492,8 @@ function incomingConflictIndexes(columns: ColumnSchema[]): Map<number, string> {
   return conflicts
 }
 
-/**
- * Previews a non-destructive overlay. Target order and target-only columns are retained;
- * unmatched incoming columns append in source order when applied.
- */
+// Previews a non-destructive overlay. Target order and target-only columns are retained;
+// unmatched incoming columns append in source order when applied.
 export function createSchemaOverlayPreview(
   targetSchema: TableSchema,
   data: unknown[],
@@ -606,7 +604,7 @@ export function createSchemaOverlayPreview(
   }
 }
 
-/** Applies the preview defaults plus any per-incoming-column decision overrides. */
+// Applies the preview defaults plus any per-incoming-column decision overrides.
 export function applySchemaOverlayPreview(
   preview: SchemaOverlayPreview,
   decisions: Record<number, SchemaOverlayDecision> = {}

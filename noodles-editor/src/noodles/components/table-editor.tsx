@@ -1161,29 +1161,18 @@ export function TableEditor({
   )
 
   const copySchema = useCallback(
-    (schemaToCopy: TableSchema = schema, source: SchemaActionSource = 'table_menu') => {
+    async (schemaToCopy: TableSchema = schema, source: SchemaActionSource = 'table_menu') => {
       try {
         const clipboard = clipboardOverride ?? globalThis.navigator?.clipboard
         const text = serializeSchemaClipboard(schemaToCopy)
-        void writeClipboardText(text, clipboard)
-          .then(() => {
-            analytics.track('table_schema_copied', {
-              actionSource: source,
-              format: 'table-schema',
-              columnCount: schemaToCopy.columns.length,
-              success: true,
-            })
-            setClipboardMessage('Table schema copied')
-          })
-          .catch(() => {
-            analytics.track('table_schema_copied', {
-              actionSource: source,
-              format: 'table-schema',
-              columnCount: schemaToCopy.columns.length,
-              success: false,
-            })
-            setClipboardMessage('Could not copy the table schema')
-          })
+        await writeClipboardText(text, clipboard)
+        analytics.track('table_schema_copied', {
+          actionSource: source,
+          format: 'table-schema',
+          columnCount: schemaToCopy.columns.length,
+          success: true,
+        })
+        setClipboardMessage('Table schema copied')
       } catch {
         analytics.track('table_schema_copied', {
           actionSource: source,
@@ -1198,29 +1187,18 @@ export function TableEditor({
   )
 
   const copyColumn = useCallback(
-    (column: ColumnSchema, source: SchemaActionSource = 'column_menu') => {
+    async (column: ColumnSchema, source: SchemaActionSource = 'column_menu') => {
       try {
         const clipboard = clipboardOverride ?? globalThis.navigator?.clipboard
         const text = serializeColumnClipboard(column)
-        void writeClipboardText(text, clipboard)
-          .then(() => {
-            analytics.track('table_schema_copied', {
-              actionSource: source,
-              format: 'column-schema',
-              columnCount: 1,
-              success: true,
-            })
-            setClipboardMessage(`Column schema ${column.name} copied`)
-          })
-          .catch(() => {
-            analytics.track('table_schema_copied', {
-              actionSource: source,
-              format: 'column-schema',
-              columnCount: 1,
-              success: false,
-            })
-            setClipboardMessage(`Could not copy column schema ${column.name}`)
-          })
+        await writeClipboardText(text, clipboard)
+        analytics.track('table_schema_copied', {
+          actionSource: source,
+          format: 'column-schema',
+          columnCount: 1,
+          success: true,
+        })
+        setClipboardMessage(`Column schema ${column.name} copied`)
       } catch {
         analytics.track('table_schema_copied', {
           actionSource: source,
