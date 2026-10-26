@@ -808,6 +808,50 @@ describe('TableEditor', () => {
     expect(getByText('[64.0000, 0.0000]')).toBeDefined()
   })
 
+  it('keeps a buffered number edit when an external schema update renames its column', () => {
+    const onDataChange = vi.fn()
+    const initialSchema: TableSchema = {
+      columns: [{ id: 'amount', name: 'amount', type: 'number', defaultValue: 0 }],
+    }
+    const renamedSchema: TableSchema = {
+      columns: [{ id: 'amount', name: 'renamedAmount', type: 'number', defaultValue: 0 }],
+    }
+    const data = [{ amount: 10 }]
+
+    const { getByText, rerender } = render(
+      <TableEditor
+        op={mockOp}
+        data={data}
+        schema={initialSchema}
+        onDataChange={onDataChange}
+        onSchemaChange={vi.fn()}
+      />
+    )
+
+    const cell = getByText('10').closest('[role="gridcell"]') as HTMLElement
+    fireEvent.click(cell)
+    fireEvent.keyDown(cell, { key: '.' })
+    const editor = screen.getByRole('spinbutton', { name: 'Edit amount' })
+    fireEvent.change(editor, { target: { value: '0' } })
+    fireEvent.change(editor, { target: { value: '05' } })
+
+    rerender(
+      <TableEditor
+        op={mockOp}
+        data={data}
+        schema={renamedSchema}
+        onDataChange={onDataChange}
+        onSchemaChange={vi.fn()}
+      />
+    )
+
+    expect(onDataChange).toHaveBeenLastCalledWith(
+      [{ renamedAmount: 0.05 }],
+      'Apply table schema rename'
+    )
+    expect(getByText('0.05')).toBeDefined()
+  })
+
   it('should add default values for all column types when adding row', () => {
     const complexSchema: TableSchema = {
       columns: [

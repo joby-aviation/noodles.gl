@@ -74,7 +74,12 @@ import {
 
 declare module '@tanstack/react-table' {
   interface TableMeta<TData extends RowData> {
-    updateData?: (rowIndex: number, columnIndex: number, value: unknown) => void
+    updateData?: (
+      rowIndex: number,
+      columnIndex: number,
+      value: unknown,
+      columnName?: string
+    ) => void
     deleteRow?: (rowIndex: number) => void
     schema?: TableSchema
     activeEdit?: ActiveEdit
@@ -865,6 +870,7 @@ function EditableCell({ getValue, row, column, table }: EditableCellProps) {
   const prevValueRef = useRef(currentValue)
   const isEditingRef = useRef(false)
   const editorCommitRef = useRef<(() => void) | null>(null)
+  const editingColumnNameRef = useRef<string>()
   const meta = table.options.meta
   const columnIndex = meta?.columnIndexById?.get(column.id)
   const coordinate = useMemo(
@@ -894,7 +900,10 @@ function EditableCell({ getValue, row, column, table }: EditableCellProps) {
       isEditingRef.current = false
       editorCommitRef.current = null
       meta?.activeEdit?.clear()
-      if (columnIndex !== undefined) meta?.updateData?.(row.index, columnIndex, valueRef.current)
+      if (columnIndex !== undefined) {
+        meta?.updateData?.(row.index, columnIndex, valueRef.current, editingColumnNameRef.current)
+      }
+      editingColumnNameRef.current = undefined
       if (coordinate) meta?.finishEditing?.(coordinate, advance)
     },
     [columnIndex, coordinate, meta, row.index]
@@ -904,6 +913,7 @@ function EditableCell({ getValue, row, column, table }: EditableCellProps) {
     if (!isEditingRef.current) return
     isEditingRef.current = false
     editorCommitRef.current = null
+    editingColumnNameRef.current = undefined
     valueRef.current = currentValue
     setValue(currentValue)
     meta?.activeEdit?.clear()
@@ -937,6 +947,7 @@ function EditableCell({ getValue, row, column, table }: EditableCellProps) {
     valueRef.current = seededValue
     setValue(seededValue)
     isEditingRef.current = true
+    editingColumnNameRef.current = colSchema.name
     meta?.activeEdit?.set(() => (editorCommitRef.current ?? handleComplete)())
   }, [colSchema, currentValue, handleComplete, isEditing, meta?.activeEdit, meta?.editingSeed])
 
@@ -2265,22 +2276,23 @@ export function TableEditor({
     columns,
     getCoreRowModel: getCoreRowModel(),
     meta: {
-      updateData: (rowIndex: number, columnIndex: number, value: unknown) => {
+      updateData: (rowIndex: number, columnIndex: number, value: unknown, columnName?: string) => {
         const columnSchema = schema.columns[columnIndex]
         if (!columnSchema) return
+        const targetName = columnName ?? columnSchema.name
         // Only update if value actually changed
         const currentData = tableDataRef.current
         const currentRow = currentData[rowIndex] as Record<string, unknown> | undefined
-        const currentValue = currentRow?.[columnSchema.name]
+        const currentValue = currentRow?.[targetName]
         if (currentValue === value) {
           return
         }
         const newData = [...currentData]
         newData[rowIndex] = {
           ...(newData[rowIndex] as Record<string, unknown>),
-          [columnSchema.name]: value,
+          [targetName]: value,
         }
-        commitData(newData, `Edit cell ${columnSchema.name}`)
+        commitData(newData, `Edit cell ${targetName}`)
       },
       deleteRow: (rowIndex: number) => {
         activeEdit.flush()
