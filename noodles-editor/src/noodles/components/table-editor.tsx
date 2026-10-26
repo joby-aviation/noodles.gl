@@ -1381,6 +1381,8 @@ export function TableEditor({
     | undefined
   >(undefined)
   const tableWrapperRef = useRef<HTMLDivElement>(null)
+  const tableGridRef = useRef<HTMLTableElement>(null)
+  const gridFocusWithinRef = useRef(false)
   const scrollToGridRowRef = useRef<((rowIndex: number) => void) | null>(null)
   const activeEdit = useActiveEdit()
   const previousDataRef = useRef(data)
@@ -2347,9 +2349,15 @@ export function TableEditor({
     ? virtualRows.map(virtualRow => virtualRow.index)
     : tableRows.map((_, rowIndex) => rowIndex)
   const renderedRowRange = `${renderedRowIndexes[0] ?? ''}:${renderedRowIndexes.at(-1) ?? ''}`
+  const activeCellIsRendered = activeCell !== null && renderedRowIndexes.includes(activeCell.row)
   useLayoutEffect(() => {
-    if (renderedRowRange !== ':') focusActiveCell()
-  }, [focusActiveCell, renderedRowRange])
+    if (renderedRowRange === ':') return
+    if (!activeCellIsRendered && gridFocusWithinRef.current) {
+      tableGridRef.current?.focus({ preventScroll: true })
+      return
+    }
+    focusActiveCell()
+  }, [activeCellIsRendered, focusActiveCell, renderedRowRange])
   const virtualPaddingTop =
     virtualizeRows && virtualRows.length > 0
       ? Math.max(0, (virtualRows[0]?.start ?? 0) - TABLE_HEADER_HEIGHT)
@@ -2367,7 +2375,7 @@ export function TableEditor({
     : null
 
   const handleCellKeyDown = useCallback(
-    (event: React.KeyboardEvent<HTMLTableCellElement>, coordinate: TableCellCoordinate) => {
+    (event: React.KeyboardEvent<HTMLElement>, coordinate: TableCellCoordinate) => {
       if (coordinatesEqual(editingCell, coordinate)) return
       const target = activeCell ?? coordinate
       switch (event.key) {
@@ -2571,9 +2579,25 @@ export function TableEditor({
             }}
           >
             <table
+              ref={tableGridRef}
               {...getGridAccessibilityProps(tableData.length + 1, schema.columns.length + 2)}
               className={cx(s.table, 'nokey')}
               data-table-editor-grid="true"
+              tabIndex={activeCellIsRendered ? -1 : 0}
+              onFocusCapture={() => {
+                gridFocusWithinRef.current = true
+              }}
+              onBlurCapture={event => {
+                const nextTarget = event.relatedTarget
+                if (!(nextTarget instanceof Node && event.currentTarget.contains(nextTarget))) {
+                  gridFocusWithinRef.current = false
+                }
+              }}
+              onKeyDown={event => {
+                if (event.target === event.currentTarget && activeCell) {
+                  handleCellKeyDown(event, activeCell)
+                }
+              }}
               onCopy={handleGridCopy}
               onPaste={handleGridPaste}
             >

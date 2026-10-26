@@ -140,4 +140,34 @@ describe('TableEditor row virtualization', () => {
       'Edit cell label'
     )
   })
+
+  it('keeps the grid focused and keyboard-reachable when the active row unmounts', () => {
+    const schema: TableSchema = {
+      columns: [{ name: 'label', type: 'string', defaultValue: '' }],
+    }
+    const data = Array.from({ length: 1_000 }, (_, index) => ({ label: `Row ${index + 1}` }))
+
+    render(
+      <TableEditor
+        op={new TableEditorOp('/focused-virtual-table')}
+        data={data}
+        schema={schema}
+        onDataChange={vi.fn()}
+        onSchemaChange={vi.fn()}
+      />
+    )
+
+    const firstCell = screen.getByText('Row 1').closest('[role="gridcell"]') as HTMLElement
+    firstCell.focus()
+    expect(firstCell).toHaveFocus()
+
+    act(() => virtualizerSpies.setFirstVisible?.(500))
+
+    const grid = screen.getByRole('grid')
+    expect(grid).toHaveAttribute('tabindex', '0')
+    expect(grid).toHaveFocus()
+    fireEvent.keyDown(grid, { key: 'ArrowDown' })
+    expect(virtualizerSpies.scrollToIndex).toHaveBeenCalledWith(1, { align: 'auto' })
+    expect(screen.getByText('Row 2').closest('[role="gridcell"]')).toHaveFocus()
+  })
 })
