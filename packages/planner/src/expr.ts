@@ -241,7 +241,9 @@ export const FUNCTIONS: Record<string, FnSpec> = {
   dot:        { arity: [2, 2], sql: null, wgsl: 'dot',        width: 1 },
   cross:      { arity: [2, 2], sql: null, wgsl: 'cross',      width: 3 },
   /** Sample the colorscale LUT. Inherently a GPU texture/buffer read. */
-  ramp:       { arity: [1, 1], sql: null, wgsl: 'sampleRamp', width: 3 },
+  // `ramp(t, k)` samples ramp k of the graph's ramps; desugar adds k, and a bare `ramp(t)` is
+  // the first ramp
+  ramp:       { arity: [1, 2], sql: null, wgsl: (a) => `sampleRamp(${a[0]}, ${a[1] ?? '0.0'})`, width: 3 },
 
   // --- SQL-only: aggregates collapse rows, no per-invocation GPU analogue ---
   sum:      { arity: [1, 1], sql: 'sum',      wgsl: null, width: 1, aggregate: true },

@@ -17,7 +17,7 @@ import { toSql, toSqlColumns, quoteIdent, castToFloat, castToDouble, SqlParams }
 import { toWgsl, wgslType, wgslParamMember, type Resolver } from './backends/wgsl.js';
 import {
   type Graph, type RenderNode, type Bin2dNode, type RawNode, type ParamSpec, type RampName,
-  statExpr, statParamName,
+  statExpr, statParamName, RAMP_LUT_SIZE,
 } from './types.js';
 import {
   analyze, PlanError, externalAttributes, type Analysis, type AnalyzedNode, type Schema, type Stage,
@@ -173,7 +173,10 @@ export interface PhysicalPlan {
   channels: RenderChannels;
   /** The naming vocabulary this plan was produced under. */
   conventions: AttributeConventions;
+  /** The first ramp, which a bare `ramp(t)` samples. */
   ramp?: RampName;
+  /** Every ramp `ramp(t, k)` can sample, by k: the LUT the caller binds holds them in turn. */
+  ramps?: RampName[];
   bin2d?: Bin2dNode;
   assignments: { nodeId: string; type: string; engine: 'sql' | 'cpu' | 'gpu' | 'scalar' | 'render' | 'source'; why: string }[];
   notes: string[];
@@ -895,6 +898,7 @@ function emit(
     channels: analysis.channels,
     conventions: analysis.conventions,
     ramp: analysis.ramp,
+    ramps: analysis.ramps,
     bin2d: analysis.bin2d,
     assignments,
     notes,
@@ -1022,13 +1026,15 @@ function buildKernel(
 
   const prelude = usesRamp
     ? `
-fn sampleRamp(t: f32) -> vec3<f32> {
-  let n = f32(arrayLength(&ramp_lut) - 1u);
+fn sampleRamp(t: f32, k: f32) -> vec3<f32> {
+  // ramp_lut holds every ramp the graph uses in turn, ${RAMP_LUT_SIZE} entries each
+  let n = f32(${RAMP_LUT_SIZE - 1}u);
+  let base = u32(k) * ${RAMP_LUT_SIZE}u;
   let x = clamp(t, 0.0, 1.0) * n;
   let i0 = u32(floor(x));
   let i1 = min(i0 + 1u, u32(n));
   let f = x - floor(x);
-  return mix(ramp_lut[i0].rgb, ramp_lut[i1].rgb, f);
+  return mix(ramp_lut[base + i0].rgb, ramp_lut[base + i1].rgb, f);
 }
 `
     : '';

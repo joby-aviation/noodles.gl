@@ -162,7 +162,7 @@ describe('errors are actionable', () => {
     expect(() => plan(g, schema)).toThrow(/needs attribute 'P'/);
   });
 
-  it('rejects two different ramps, which would need two LUTs', () => {
+  it('plans two different ramps, each sampled from its own part of the LUT', () => {
     const g = graph([
       source,
       { id: 'p', type: 'project', input: 'src', mode: 'identity', x: 'lng', y: 'lat' },
@@ -170,7 +170,11 @@ describe('errors are actionable', () => {
       { id: 'c2', type: 'colorscale', input: 'c1', name: 'Cd2', expr: 'pop', ramp: 'magma', domain: ['0', '1'] },
       { id: 'out', type: 'render', input: 'c2', mode: 'points' },
     ]);
-    expect(() => plan(g, schema)).toThrow(/different ramps/);
+    const p = plan(g, schema);
+    expect(p.ramps).toEqual(['viridis', 'magma']);
+    const code = p.kernels.map((k) => k.code).join('\n');
+    expect(code).toMatch(/sampleRamp\([^;]*, 0\.0\)/);
+    expect(code).toMatch(/sampleRamp\([^;]*, 1\.0\)/);
   });
 
   it('rejects heatmap mode without a bin2d node', () => {

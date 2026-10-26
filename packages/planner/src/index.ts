@@ -57,7 +57,7 @@ export {
 
 // --- graph schema and sugar ------------------------------------------------
 export {
-  desugar, statExpr, statParamName, buildRampLut, RAMP_STOPS,
+  desugar, statExpr, statParamName, buildRampLut, buildRampLuts, RAMP_LUT_SIZE, RAMP_STOPS,
   type Graph, type GraphNode, type CoreNode, type ParamSpec, type RampName,
   type SourceNode, type FilterNode, type AggregateNode, type StatsNode, type StatOp,
   type AttributeNode, type ScaleNode, type ColorScaleNode, type ProjectNode,

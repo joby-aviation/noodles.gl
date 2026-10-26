@@ -15,7 +15,7 @@
 import type { PhysicalPlan, StageNode } from './planner.js';
 import { toJs } from './backends/js.js';
 import { widthOf } from './expr.js';
-import { buildRampLut } from './types.js';
+import { buildRampLuts, RAMP_LUT_SIZE } from './types.js';
 import type { ColumnUpload } from './arrow.js';
 import { withDerived } from './hoist.js';
 
@@ -105,10 +105,11 @@ export function evaluateStage(
   const outDecls = [...outputs.keys()].map((n) => `const o_${safe(n)} = out.get(${JSON.stringify(n)}).data;`);
   const rampDecl = usesRamp
     ? `const lut = ramp;
-  const lutN = lut.length / 4 - 1;
-  const rampAt = (t, c) => {
+  const lutN = ${RAMP_LUT_SIZE - 1};
+  const rampAt = (t, c, k) => {
     const x = Math.min(Math.max(t, 0), 1) * lutN;
-    const i0 = Math.floor(x), i1 = Math.min(i0 + 1, lutN), f = x - i0;
+    const base = k * ${RAMP_LUT_SIZE};
+    const i0 = base + Math.floor(x), i1 = base + Math.min(Math.floor(x) + 1, lutN), f = x - Math.floor(x);
     return lut[i0 * 4 + c] + (lut[i1 * 4 + c] - lut[i0 * 4 + c]) * f;
   };`
     : '';
@@ -128,7 +129,8 @@ ${lines.join('\n')}
     ramp: Float32Array | undefined,
   ) => void;
 
-  const lut = plan.ramp ? buildRampLut(plan.ramp) : undefined;
+  const ramps = plan.ramps ?? (plan.ramp ? [plan.ramp] : []);
+  const lut = ramps.length > 0 ? buildRampLuts(ramps) : undefined;
   // Here rather than in every caller: the loop reads hoisted subexpressions as `p.__hoist_…`.
   const bound = withDerived(plan, params);
   const tEval = performance.now();

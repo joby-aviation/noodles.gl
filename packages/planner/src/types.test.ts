@@ -169,13 +169,45 @@ describe('colorscale', () => {
     expect(evalNode(nodes, 'c', { v: 999 })[0]).toBeCloseTo(1, 6);
   });
 
-  it('rejects two different ramps, which would need two LUTs', () => {
-    expect(() => desugar(g([
+  it('gives each of two different ramps its own place, which each ramp() call names', () => {
+    const { ramps, ramp, nodes } = desugar(g([
       source,
       { id: 'c1', type: 'colorscale', input: 'src', name: 'Cd', expr: 'v', ramp: 'viridis', domain: ['0', '1'] },
       { id: 'c2', type: 'colorscale', input: 'c1', name: 'Cd2', expr: 'v', ramp: 'magma', domain: ['0', '1'] },
       render('c2'),
-    ]))).toThrow(/different ramps/);
+    ]));
+    expect(ramps).toEqual(['viridis', 'magma']);
+    expect(ramp).toBe('viridis');
+    const expr = (id: string) => (nodes.find((n) => n.id === id) as { expr: string }).expr;
+    expect(expr('c1')).toMatch(/^ramp\(.*, 0\)$/);
+    expect(expr('c2')).toMatch(/^ramp\(.*, 1\)$/);
+  });
+
+  it('names the wrangle ramp inside a function its body declares', () => {
+    const { ramps, nodes } = desugar(g([
+      source,
+      { id: 'c1', type: 'colorscale', input: 'src', name: 'Cd', expr: 'v', ramp: 'viridis', domain: ['0', '1'] },
+      { id: 'w', type: 'wrangle', input: 'c1', body: 'fn shade(x) = ramp(x); @Cd2 = shade(v)', ramp: 'turbo' },
+      render('w'),
+    ]));
+    expect(ramps).toEqual(['viridis', 'turbo']);
+    // shade(v) is inlined to ramp(v), which then names turbo, the wrangle's ramp
+    const w = nodes.find((n) => n.id === 'w#Cd2') as { expr: { kind: string; fn?: string; args: { kind: string; value?: number }[] } };
+    expect(w.expr).toMatchObject({ kind: 'call', fn: 'ramp' });
+    expect(w.expr.args[1]).toEqual({ kind: 'num', value: 1 });
+  });
+
+  it('names the wrangle ramp in each ramp() call of its body', () => {
+    const { ramps, nodes } = desugar(g([
+      source,
+      { id: 'c1', type: 'colorscale', input: 'src', name: 'Cd', expr: 'v', ramp: 'viridis', domain: ['0', '1'] },
+      { id: 'w', type: 'wrangle', input: 'c1', body: '@Cd2 = ramp(v * 0.5)', ramp: 'turbo' },
+      render('w'),
+    ]));
+    expect(ramps).toEqual(['viridis', 'turbo']);
+    const w = nodes.find((n) => n.id === 'w#Cd2') as { expr: { kind: string; args: { kind: string; value?: number }[] } };
+    expect(w.expr.kind).toBe('call');
+    expect(w.expr.args[1]).toEqual({ kind: 'num', value: 1 });
   });
 
   it('accepts the same ramp used twice', () => {
