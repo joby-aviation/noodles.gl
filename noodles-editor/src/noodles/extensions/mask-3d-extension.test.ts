@@ -1,5 +1,14 @@
 import { describe, expect, it } from 'vitest'
 import { Mask3DExtensionOp } from '../operators'
+import { Mask3DExtension } from './mask-3d-extension'
+
+describe('Mask3DExtension', () => {
+  // deck.gl keys its merged default props cache on extensionName
+  it('sets its own extensionName, which componentName reads', () => {
+    expect(Object.hasOwn(Mask3DExtension, 'extensionName')).toBe(true)
+    expect(Mask3DExtension.componentName).toBe('Mask3DExtension')
+  })
+})
 
 // Rendering is covered in extensions.test.ts
 describe('Mask3DExtensionOp', () => {

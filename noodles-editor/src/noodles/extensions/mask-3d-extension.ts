@@ -50,7 +50,7 @@ const defaultProps: DefaultProps<Mask3DExtensionProps> = {
 
 // Forked from https://github.com/grahambates-code/3d_tiles_mask
 export class Mask3DExtension extends LayerExtension {
-  static componentName = 'Mask3DExtension'
+  static extensionName = 'Mask3DExtension'
   // Listing the props here lets CompositeLayers (e.g. Tile3DLayer) forward them to sublayers
   static defaultProps = defaultProps
 
