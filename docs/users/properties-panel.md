@@ -29,6 +29,25 @@ The editor for each parameter fits its kind:
 
 Some parameters only appear for certain values of another: a Filter shows Column and Value in Compare mode, and Expression in Expression mode. Some operators add an editor above their parameters, such as the Map Style node's style editor and the Table node's rows.
 
+### Channels, Colors and Units
+
+A layer's **channels** (Position, Color, Radius…) say where each row's value comes from, and the panel marks what each one holds:
+
+- **▦ in teal**: an attribute of the layer's rows, such as `position`.
+- **ƒ in violet**: a row expression, computed for each row, such as `sqrt(mag) * 2`.
+- **Empty**: the layer's own value applies; the row says which, such as "default · Fill color".
+
+A layer's **Color** is one control with four modes:
+
+- **Solid**: one color for every row, set with the swatch.
+- **Attr**: an RGB attribute of the rows; the field suggests the input's columns.
+- **Ramp**: a color ramp over a numeric column. Pick the column and the ramp; the picker shows each ramp's colors. **Auto**, on by default, fits the range to the column's smallest and largest values over the layer's rows, and follows the data when it changes. Uncheck it to set the range that maps to the ramp's ends by hand.
+- **ƒ**: any row expression in 0–1 color.
+
+A value with **units**, such as Radius scale or Width scale, shows its units menu on the same row.
+
+These are still separate parameters in the project file: `color`, `fillColor`, `ramp`, `radiusUnits` and so on.
+
 ### Driven Parameters
 
 A parameter can take its value from somewhere other than its editor:

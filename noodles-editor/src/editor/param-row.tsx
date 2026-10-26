@@ -15,7 +15,7 @@ import {
   resolveRef,
 } from '@noodles.gl/planner'
 import cx from 'classnames'
-import { useEffect, useState } from 'react'
+import { type ReactNode, useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { inputComponents } from '../noodles/components/field-components'
 import type { Field } from '../noodles/fields'
@@ -27,6 +27,7 @@ import { docStore, useEditor } from './doc-store'
 import { NodeFields } from './field-adapter'
 import { startLinkDrag, useParamLinkTarget } from './link-drag'
 import { ContextMenu, type MenuItem } from './menus'
+import { isRampParam, RampPicker } from './ramp-picker'
 import { RefPicker, referenceable } from './ref-picker'
 
 /** Whether a parameter shows, given the values its `when` reads. */
@@ -99,6 +100,7 @@ export function ParamRow({
   wired,
   label,
   onUnpromote,
+  inline,
 }: {
   node: DocNode
   def: ParamDef
@@ -107,6 +109,8 @@ export function ParamRow({
   /** A promoted parameter's label on its subnet. */
   label?: string
   onUnpromote?: () => void
+  /** A control drawn after the value, such as its units */
+  inline?: ReactNode
 }) {
   const { type } = field.constructor as typeof Field
   const Widget = inputComponents[type]
@@ -312,6 +316,13 @@ export function ParamRow({
             />
             {value !== undefined && <span className={s.evaluated}>{fmt(value)}</span>}
           </div>
+        ) : isRampParam(def) ? (
+          <RampPicker
+            label={label ?? def.label}
+            def={def}
+            value={String(raw ?? def.default ?? '')}
+            onChange={v => set(v === def.default ? undefined : v)}
+          />
         ) : isChannel(def) ? (
           <ChannelInput
             label={label ?? def.label}
@@ -333,6 +344,7 @@ export function ParamRow({
             />
           )
         )}
+        {inline}
         {/* Link and keyframe buttons share a fixed gutter, so every control ends at the same edge */}
         <span className={s.paramGutter}>
           {referenceable(def) && !wired && mode === 'literal' && (
