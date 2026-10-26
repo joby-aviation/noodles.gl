@@ -135,7 +135,10 @@
 
 .pane {
   /* Labels take this column; controls fill the rest, then the link and keyframe gutter */
-  --pane-label: minmax(72px, 38%);
+  /* A share of the pane, not of each row: a row with a units menu after its value is narrower,
+     and its value must still start where every other row's does */
+  container-type: inline-size;
+  --pane-label: minmax(72px, 36cqw);
   --pane-gutter: 34px;
   display: flex;
   flex-direction: column;
@@ -444,13 +447,17 @@
 }
 
 .compoundBody {
+  /* Rows inside start 11px further right, so their labels give up the same 11px and their
+     controls line up with the rows outside */
+  --pane-label: minmax(61px, calc(36cqw - 11px));
   margin-left: 10px;
   border-left: 1px solid rgb(255 255 255 / 8%);
 }
 
 .compoundBody > .paramRow,
 .compoundBody > .paramDriven {
-  padding-left: 12px;
+  /* The same room for the port before the label as every other row */
+  padding-left: 16px;
 }
 
 .compoundBody > .paramDriven {
@@ -539,6 +546,7 @@
 }
 
 .rangeInput:disabled {
+  background: transparent;
   color: var(--color-text-disabled, #666);
   cursor: default;
 }
@@ -697,7 +705,9 @@
    that read this one. Hollow until the property reads something; filled when it does. */
 .port {
   position: absolute;
-  top: 50%;
+  /* The middle of the row's first line (1px padding, a 22px line), not of the whole row: a
+     reference chip or a "used by" line below would pull it off the label */
+  top: 12px;
   left: 5px;
   width: 7px;
   height: 7px;
@@ -811,7 +821,7 @@
 }
 
 .readers {
-  padding: 0 calc(var(--pane-gutter) + 4px) 2px calc(38% + 8px);
+  padding: 0 calc(var(--pane-gutter) + 4px) 2px calc(36cqw + 24px);
   color: var(--color-text-secondary, #888);
   font-size: 10.5px;
 }
