@@ -78,8 +78,33 @@ function readsOf(doc: EditorDoc, key: string): string[] {
   return keys
 }
 
-// Whether `target` reading `source` would make a loop: `source` reads `target`, directly or
-// through other references and expressions
+// What `key` depends on, for finding loops: a parameter, what it references and the output
+// wired into it; a value output, its node's parameters and whatever is wired into the node
+function dependsOn(doc: EditorDoc, key: string): string[] {
+  const out = asOutput(key)
+  if (out) {
+    const node = doc.nodes.find(n => n.id === out.nodeId)
+    // Every parameter, set or not: one at its default can still be linked to read the output
+    const params = new Set([
+      ...(OPERATOR_INDEX.get(node?.op ?? '')?.params ?? []).map(p => p.name),
+      ...Object.keys(node?.params ?? {}),
+    ])
+    return [
+      ...[...params].map(p => `${out.nodeId}.${p}`),
+      ...doc.edges.filter(e => e.target === out.nodeId).map(e => outputKey(e.source, e.sourcePort)),
+    ]
+  }
+  const { nodeId, param } = split(doc, key)
+  return [
+    ...readsOf(doc, key),
+    ...doc.edges
+      .filter(e => e.target === nodeId && e.targetPort === `par:${param}`)
+      .map(e => outputKey(e.source, e.sourcePort)),
+  ]
+}
+
+// Whether `target` reading `source` would make a loop: `source` depends on `target`, directly
+// or through references, expressions and wires
 function loops(doc: EditorDoc, source: string, target: string): boolean {
   const seen = new Set<string>()
   const pending = [source]
@@ -88,7 +113,7 @@ function loops(doc: EditorDoc, source: string, target: string): boolean {
     if (key === target) return true
     if (seen.has(key)) continue
     seen.add(key)
-    pending.push(...readsOf(doc, key))
+    pending.push(...dependsOn(doc, key))
   }
   return false
 }
@@ -103,7 +128,10 @@ function canWire(doc: EditorDoc, source: string, target: string): boolean {
   const def = paramDef(doc, target)
   if (!out || !def || (!def.portType && !NUMERIC.has(def.kind))) return false
   const { nodeId, param } = split(doc, target)
-  return validConnection(doc, out.nodeId, out.port, nodeId, `par:${param}`)
+  return (
+    validConnection(doc, out.nodeId, out.port, nodeId, `par:${param}`) &&
+    !loops(doc, source, target)
+  )
 }
 
 // Whether parameter `target` may read `source`: another parameter, or a value output
@@ -184,17 +212,26 @@ export interface Connection {
   label: string
 }
 
+// A node's input that a wire from a value output feeds: `deck<views`
+const inputKey = (nodeId: string, port: string) => `${nodeId}<${port}`
+
 function connection(doc: EditorDoc, key: string): Connection | undefined {
   const out = asOutput(key)
-  const { nodeId, param } = out ? { nodeId: out.nodeId, param: out.port } : split(doc, key)
+  const at = key.indexOf('<')
+  const nodeId = out ? out.nodeId : at >= 0 ? key.slice(0, at) : split(doc, key).nodeId
   const node = doc.nodes.find(n => n.id === nodeId)
   if (!node) return undefined
-  const label = out ? param : (paramDef(doc, key)?.label ?? param)
+  const label = out
+    ? out.port
+    : at >= 0
+      ? (OPERATOR_INDEX.get(node.op)?.inputs.find(p => p.name === key.slice(at + 1))?.label ??
+        key.slice(at + 1))
+      : (paramDef(doc, key)?.label ?? split(doc, key).param)
   return { key, node, label: `${nameOf(node)} › ${label}` }
 }
 
 // What parameter or value output `key` reads, and what reads it: references and `ch()` calls
-// between parameters, wires from value outputs
+// between parameters, wires from value outputs to parameters and to nodes' inputs
 export function connections(
   doc: EditorDoc,
   key: string
@@ -214,9 +251,14 @@ export function connections(
         if (other !== key && readsOf(doc, other).includes(key)) readBy.push(other)
       }
   } else {
+    // A parameter it drives, or a node's input it feeds, such as a camera's view into the deck
     for (const e of doc.edges)
-      if (e.source === out.nodeId && e.sourcePort === out.port && e.targetPort.startsWith('par:'))
-        readBy.push(`${e.target}.${e.targetPort.slice(4)}`)
+      if (e.source === out.nodeId && e.sourcePort === out.port)
+        readBy.push(
+          e.targetPort.startsWith('par:')
+            ? `${e.target}.${e.targetPort.slice(4)}`
+            : inputKey(e.target, e.targetPort)
+        )
   }
   const resolve = (keys: string[]) =>
     [...new Set(keys)].map(k => connection(doc, k)).filter((c): c is Connection => c !== undefined)

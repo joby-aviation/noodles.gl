@@ -13,6 +13,7 @@ import {
   type ParamDef,
   type ParamValue,
   resolveRef,
+  outputKey as slotOfOutput,
 } from '@noodles.gl/planner'
 import cx from 'classnames'
 import { type ReactNode, useEffect, useMemo, useState } from 'react'
@@ -135,6 +136,17 @@ export function ParamRow({
   const value = engine.slots.get(key)
   const canKey = keyable(def, field) && !wired && mode === 'literal'
   const wire = doc.edges.find(e => e.target === node.id && e.targetPort === `par:${def.name}`)
+  // What the wire carries, from the output it reads: an output computed in SQL, such as an
+  // Extent's, has no value here, rather than the parameter's default
+  const wiredValue =
+    wire &&
+    engine.slots.get(
+      slotOfOutput(
+        OPERATOR_INDEX.get(doc.nodes.find(n => n.id === wire.source)?.op ?? ''),
+        wire.source,
+        wire.sourcePort
+      )
+    )
   const debug = useEditor(st => st.debug)
   // What a change costs is the planner's business; debug mode shows it
   const routes = debug ? routesOf(def, key, engine) : []
@@ -269,7 +281,7 @@ export function ParamRow({
             <span className={s.paramLabel}>{label ?? def.label}</span>
             <span className={s.wired}>
               ← {nameOf(doc.nodes.find(n => n.id === wire.source) ?? node)} › {wire.sourcePort}
-              {value !== undefined ? ` = ${fmt(value)}` : ''}
+              {wiredValue !== undefined ? ` = ${fmt(wiredValue)}` : ''}
             </span>
           </div>
         ) : mode === 'ref' ? (

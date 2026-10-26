@@ -92,3 +92,18 @@ it('offers the outputs and parameters of a dropped-on node a dragged input can r
     expect.objectContaining({ source: 'range', sourcePort: 'max', targetPort: 'par:opacity' }),
   ])
 })
+
+it('opens the list above a port near the bottom of the window', () => {
+  vi.useFakeTimers()
+  const { container } = render(
+    <div style={{ position: 'fixed', bottom: 4, left: 10, width: 200, height: 24 }}>
+      <Port side="in" drag={{ kind: 'target', key: 'dots.opacity' }} connections={[]} hint="Drag" />
+    </div>
+  )
+  fireEvent.mouseEnter(container.querySelector('[data-port="in"]') as HTMLElement)
+  act(() => vi.advanceTimersByTime(500))
+  const tip = tooltip() as HTMLElement
+  const port = container.querySelector('[data-port="in"]') as HTMLElement
+  expect(tip.style.top).toBe('')
+  expect(tip.getBoundingClientRect().bottom).toBeLessThanOrEqual(port.getBoundingClientRect().top)
+})

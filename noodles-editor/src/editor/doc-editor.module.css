@@ -760,6 +760,7 @@
   background: var(--color-bg-elevated, #23262b);
   box-shadow: 0 4px 16px rgb(0 0 0 / 40%);
   font-size: 11px;
+  overflow-y: auto;
 }
 
 .portTipHead {

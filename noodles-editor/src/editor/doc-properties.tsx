@@ -10,6 +10,7 @@ import {
   nodePath,
   OPERATOR_INDEX,
   type OpDef,
+  outputKey as slotOfOutput,
 } from '@noodles.gl/planner'
 import cx from 'classnames'
 import { useEffect, useMemo, useRef, useState } from 'react'
@@ -287,7 +288,8 @@ function OutputRow({
   const key = outputKey(node.id, port)
   const target = useOutputLinkTarget(node.id, port)
   const readBy = useMemo(() => connections(doc, key).readBy, [doc, key])
-  const value = engine.slots.get(`${node.id}.${port}`)
+  // Outputs computed in SQL, such as an Extent's, have no value here
+  const value = engine.slots.get(slotOfOutput(OPERATOR_INDEX.get(node.op), node.id, port))
   return (
     <div
       className={cx(s.paramRow, target.accepts && s.paramRowLinkTarget)}

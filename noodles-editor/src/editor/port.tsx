@@ -17,6 +17,8 @@ const SHOW_MS = 400
 // How long the list stays after the pointer leaves the port, so it can move onto the list
 const LEAVE_MS = 150
 const TIP_WIDTH = 240
+// A longer list scrolls
+const TIP_MAX_HEIGHT = 220
 
 export function Port({
   side,
@@ -76,8 +78,12 @@ export function Port({
                 4,
                 Math.min(side === 'in' ? at.left : at.right - TIP_WIDTH, innerWidth - TIP_WIDTH - 4)
               ),
-              top: at.bottom + 6,
+              // Below the port, or above it when the window ends first
+              ...(innerHeight - at.bottom < TIP_MAX_HEIGHT + 12
+                ? { bottom: innerHeight - at.top + 6 }
+                : { top: at.bottom + 6 }),
               width: TIP_WIDTH,
+              maxHeight: TIP_MAX_HEIGHT,
             }}
             onMouseEnter={() => clearTimeout(timer.current)}
             onMouseLeave={hide}

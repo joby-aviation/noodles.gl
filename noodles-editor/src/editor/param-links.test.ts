@@ -167,3 +167,41 @@ describe('connections', () => {
     expect(connections(fixture(), 'dots.opacity')).toEqual({ reads: [], readBy: [] })
   })
 })
+
+describe('loops through wires and references together', () => {
+  // Two Number nodes: a Number's output is its value
+  const numbers = () => {
+    const doc = fixture()
+    doc.nodes.push(node('a', 'number', { value: { ref: '/b/value' } }), node('b', 'number'))
+    return doc
+  }
+
+  it('refuses a wire from an output into what that output reads', () => {
+    expect(canLink(numbers(), outputKey('a', 'out'), 'b.value')).toBe(false)
+    expect(canLink(numbers(), outputKey('b', 'out'), 'size.value')).toBe(true)
+  })
+
+  it('refuses a reference back through a wire', () => {
+    const doc = fixture()
+    doc.nodes.push(node('a', 'number'), node('b', 'number'))
+    expect(linkParam(doc, outputKey('a', 'out'), 'b.value')).toBe(true)
+    expect(canLink(doc, 'b.value', 'a.value')).toBe(false)
+  })
+})
+
+describe('connections of an output wired into an input', () => {
+  it('lists a node input an output feeds, as a camera view feeds the deck', () => {
+    const doc = fixture()
+    doc.nodes.push(node('camera', 'orbit-view'), node('map', 'deck'))
+    doc.edges.push({
+      id: 'v',
+      source: 'camera',
+      sourcePort: 'view',
+      target: 'map',
+      targetPort: 'views',
+    })
+    expect(connections(doc, outputKey('camera', 'view')).readBy.map(c => c.label)).toEqual([
+      'map › views',
+    ])
+  })
+})
