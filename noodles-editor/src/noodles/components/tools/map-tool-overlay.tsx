@@ -1,5 +1,5 @@
 import type { Map as MapLibre } from 'maplibre-gl'
-import { type RefObject, useCallback, useEffect, useRef, useState } from 'react'
+import { type RefObject, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { analytics } from '../../../utils/analytics'
 import {
@@ -8,11 +8,17 @@ import {
   type DrawFollowUp,
   describeShape,
   followUpsFor,
+  insertVertex,
+  moveVertex,
   openIntoLine,
+  removeVertex,
   type ShapeKind,
+  segmentMidpoints,
   shapeKind,
   toFeatureCollection,
+  vertexPositions,
 } from './draw-shapes'
+import type { EditTarget } from './edit-target'
 import s from './map-tool-overlay.module.css'
 import { type DistanceUnit, useMapToolStore } from './map-tool-store'
 import {
@@ -23,7 +29,7 @@ import {
   pathLength,
   polygonArea,
 } from './measure-math'
-import { clientToMapPoint, mapPointToOverlay } from './overlay-coords'
+import { clientToMapPoint, mapPointToOverlay, nearestSegment } from './overlay-coords'
 
 // Interactive layer over the output pane. When a map tool is armed, this captures
 // clicks, converts them to lng/lat with the live map, and draws the in-progress
@@ -31,7 +37,15 @@ import { clientToMapPoint, mapPointToOverlay } from './overlay-coords'
 //
 // Measuring is ephemeral: nothing touches the graph unless the user saves it.
 // Drawing hands its features to a GeoEditor node, which is what makes the geometry
-// keyframeable afterwards.
+// keyframeable afterwards. Editing loads an existing GeoEditor or Point node's
+// geometry into the same tool and writes it back on save.
+
+// An existing node's geometry, loaded into the tool for editing
+export interface EditSession extends EditTarget {
+  // Node name shown in the panel
+  label: string
+  features: GeoJSON.Feature[]
+}
 
 interface MapToolOverlayProps {
   mapRef: RefObject<MapLibre | null>
@@ -44,6 +58,10 @@ interface MapToolOverlayProps {
   // The map is drawn behind the node graph, which would take every click. The surface
   // then moves out to the document and is pinned over the map canvas, above the graph.
   detached?: boolean
+  // Set while editing an existing node rather than drawing new shapes
+  editSession?: EditSession | null
+  // Writes edited shapes back to the node; returns false if nothing could be written
+  onSaveEdits?: (target: EditTarget, features: GeoJSON.Feature[]) => boolean
 }
 
 interface ScreenPoint {
@@ -70,6 +88,27 @@ const DOUBLE_CLICK_SLOP = 6
 // shape on click. Larger than the vertex dot so it is easy to hit.
 const CLOSE_SLOP = 10
 
+// How close, in screen pixels, the pointer must be to a vertex or midpoint handle of a
+// finished shape to grab it
+const HANDLE_SLOP = 8
+
+type Handle =
+  | { type: 'vertex'; shapeId: number; index: number }
+  | { type: 'midpoint'; shapeId: number; insertAt: number; position: GeoJSON.Position }
+
+// What a click on a finished shape does. Move also lets a click on empty map start a
+// new shape; Add and Remove only change points.
+type PointTool = 'move' | 'add' | 'remove'
+
+const POINT_TOOL_HINTS: Record<PointTool, string> = {
+  move: 'Drag a point to move it, or click the map to draw another shape',
+  add: 'Click an edge to add a point there',
+  remove: 'Click a point to remove it',
+}
+
+// How close, in screen pixels, a click in Add mode must be to an edge
+const EDGE_SLOP = 14
+
 function drawHint(mode: ShapeKind, count: number): string {
   if (mode === 'point') return 'Click the map to drop a point'
   if (count === 0) return `Click the map to start a ${mode}`
@@ -88,6 +127,8 @@ export function MapToolOverlay({
   onSaveMeasurement,
   onSendDrawing,
   detached = false,
+  editSession = null,
+  onSaveEdits,
 }: MapToolOverlayProps) {
   const activeTool = useMapToolStore(state => state.activeTool)
   const measureMode = useMapToolStore(state => state.measureMode)
@@ -110,6 +151,15 @@ export function MapToolOverlay({
   // Shape whose row in the panel is hovered, drawn emphasized on the map
   const [highlightId, setHighlightId] = useState<number | null>(null)
   const [copyState, setCopyState] = useState<'idle' | 'copied' | 'failed'>('idle')
+  // Handle under the pointer, for the cursor
+  const [hoverHandle, setHoverHandle] = useState<Handle['type'] | 'edge' | null>(null)
+  const [pointTool, setPointTool] = useState<PointTool>('move')
+  // Where a click in Add mode would put the new point, shown as a ghost
+  const [addPreview, setAddPreview] = useState<LngLat | null>(null)
+  // Short message when a point can't be removed
+  const [notice, setNotice] = useState<string | null>(null)
+  // Set while a vertex is dragged, so the click that ends the drag is ignored
+  const suppressClickRef = useRef(false)
   // Bumped on map move to force a re-render, which re-projects every overlay
   // position against the new camera. The value itself is never read.
   const [, bumpProjection] = useState(0)
@@ -123,8 +173,29 @@ export function MapToolOverlay({
   // Starting a different tool, or disarming, drops whatever was in progress
   useEffect(() => {
     reset()
+    setPointTool('move')
     if (!activeTool) setShapes([])
   }, [activeTool, reset])
+
+  // Add and Remove need a line or polygon. Once the last one is deleted or cleared,
+  // go back to Move so clicks draw again.
+  const hasEditableShape = shapes.some(shape => {
+    const kind = shapeKind(shape.feature)
+    return kind === 'line' || kind === 'polygon'
+  })
+  useEffect(() => {
+    if (!hasEditableShape) setPointTool('move')
+  }, [hasEditableShape])
+
+  // Editing starts from the node's own geometry. Runs after the reset above, so the
+  // loaded shapes are not cleared again.
+  // Any unfinished drawing is dropped too, so it can't be finished into the new node.
+  useEffect(() => {
+    reset()
+    setPointTool('move')
+    if (!editSession) return
+    setShapes(editSession.features.map(feature => ({ id: nextShapeId.current++, feature })))
+  }, [editSession, reset])
 
   // Switching mode mid-shape would produce a geometry the user did not ask for.
   // Adjusted during render rather than in an effect so stale points never paint.
@@ -217,6 +288,152 @@ export function MapToolOverlay({
     )
   }
 
+  // A position in client pixels, for hit-testing handles. Reads the live camera.
+  const toClient = (position: GeoJSON.Position): ScreenPoint | null => {
+    const map = mapRef.current
+    const rect = canvasRect()
+    if (!map || !rect) return null
+    const canvas = map.getCanvas()
+    const projected = map.project([position[0], position[1]])
+    return {
+      x: rect.left + projected.x * (canvas.clientWidth ? rect.width / canvas.clientWidth : 1),
+      y: rect.top + projected.y * (canvas.clientHeight ? rect.height / canvas.clientHeight : 1),
+    }
+  }
+
+  // The finished-shape handle under the pointer. Vertices win over midpoints, and later
+  // shapes over earlier ones, matching what is drawn on top. Only while nothing is
+  // being drawn, so placing a new vertex near an old one still works.
+  const findHandle = (event: { clientX: number; clientY: number }): Handle | null => {
+    if (activeTool !== 'draw' || points.length > 0) return null
+    const near = (position: GeoJSON.Position) => {
+      const client = toClient(position)
+      return (
+        client !== null &&
+        Math.hypot(event.clientX - client.x, event.clientY - client.y) <= HANDLE_SLOP
+      )
+    }
+    for (let i = shapes.length - 1; i >= 0; i--) {
+      const { id, feature } = shapes[i]
+      const index = vertexPositions(feature).findIndex(near)
+      if (index !== -1) return { type: 'vertex', shapeId: id, index }
+    }
+    for (let i = shapes.length - 1; i >= 0; i--) {
+      const { id, feature } = shapes[i]
+      const midpoint = segmentMidpoints(feature).find(m => near(m.position))
+      if (midpoint) return { type: 'midpoint', shapeId: id, ...midpoint }
+    }
+    return null
+  }
+
+  // The edge of a finished line or polygon nearest the pointer, within EDGE_SLOP
+  const findEdge = (event: {
+    clientX: number
+    clientY: number
+  }): { shapeId: number; insertAt: number; client: ScreenPoint } | null => {
+    if (activeTool !== 'draw' || points.length > 0) return null
+    let best: { shapeId: number; insertAt: number; client: ScreenPoint; distance: number } | null =
+      null
+    for (const { id, feature } of shapes) {
+      const kind = shapeKind(feature)
+      if (kind !== 'line' && kind !== 'polygon') continue
+      const client = vertexPositions(feature).map(toClient)
+      if (client.some(p => p === null)) continue
+      const hit = nearestSegment(client as ScreenPoint[], kind === 'polygon', {
+        x: event.clientX,
+        y: event.clientY,
+      })
+      if (hit && hit.distance <= EDGE_SLOP && (!best || hit.distance < best.distance)) {
+        best = { shapeId: id, insertAt: hit.index + 1, client: hit.point, distance: hit.distance }
+      }
+    }
+    return best
+  }
+
+  const showNotice = (message: string) => {
+    setNotice(message)
+    setTimeout(() => setNotice(current => (current === message ? null : current)), 2500)
+  }
+
+  const updateShape = (id: number, update: (feature: GeoJSON.Feature) => GeoJSON.Feature) => {
+    setShapes(prev =>
+      prev.map(shape => (shape.id === id ? { ...shape, feature: update(shape.feature) } : shape))
+    )
+  }
+
+  // Follows the pointer with one vertex until release
+  const dragVertex = (shapeId: number, index: number, action: 'move_vertex' | 'add_vertex') => {
+    let moved = false
+    const onMove = (moveEvent: MouseEvent) => {
+      const next = toLngLat(moveEvent)
+      if (!next) return
+      moved = true
+      updateShape(shapeId, feature => moveVertex(feature, index, [next.lng, next.lat]))
+    }
+    const onUp = () => {
+      window.removeEventListener('mousemove', onMove)
+      window.removeEventListener('mouseup', onUp)
+      if (moved || action === 'add_vertex') analytics.track('draw_shape_edited', { action })
+    }
+    window.addEventListener('mousemove', onMove)
+    window.addEventListener('mouseup', onUp)
+  }
+
+  // Point edits act on press, so a drag can follow straight away. In Add and Remove
+  // modes every press is taken, so a stray click never starts a new shape.
+  const handleMouseDown = (event: React.MouseEvent) => {
+    if (event.button !== 0) return
+    if (activeTool !== 'draw' || points.length > 0) return
+    const handle = findHandle(event)
+    const edge = pointTool === 'add' && !handle ? findEdge(event) : null
+    if (!handle && !edge && pointTool === 'move') return
+    event.preventDefault()
+    // The release ends the gesture wherever it happens. A click on the surface follows
+    // a release there in the same task, so clearing after it skips only that one click.
+    suppressClickRef.current = true
+    const endGesture = () => {
+      window.removeEventListener('mouseup', endGesture)
+      setTimeout(() => {
+        suppressClickRef.current = false
+      }, 0)
+    }
+    window.addEventListener('mouseup', endGesture)
+
+    if (pointTool === 'remove' || event.altKey) {
+      if (handle?.type !== 'vertex') return
+      const shape = shapes.find(candidate => candidate.id === handle.shapeId)
+      const kind = shape && shapeKind(shape.feature)
+      const next = shape && removeVertex(shape.feature, handle.index)
+      if (next) {
+        updateShape(handle.shapeId, () => next)
+        analytics.track('draw_shape_edited', { action: 'remove_vertex' })
+      } else if (kind === 'polygon' || kind === 'line') {
+        showNotice(`A ${kind} needs at least ${kind === 'polygon' ? 3 : 2} points`)
+      }
+      return
+    }
+
+    if (edge) {
+      // Insert where the preview showed it, on the edge, not at the raw pointer
+      const position = toLngLat({ clientX: edge.client.x, clientY: edge.client.y })
+      if (!position) return
+      updateShape(edge.shapeId, feature =>
+        insertVertex(feature, edge.insertAt, [position.lng, position.lat])
+      )
+      dragVertex(edge.shapeId, edge.insertAt, 'add_vertex')
+      return
+    }
+    if (!handle) return
+    if (handle.type === 'midpoint') {
+      updateShape(handle.shapeId, feature =>
+        insertVertex(feature, handle.insertAt, handle.position)
+      )
+      dragVertex(handle.shapeId, handle.insertAt, 'add_vertex')
+      return
+    }
+    dragVertex(handle.shapeId, handle.index, 'move_vertex')
+  }
+
   // `kind` differs from the armed mode when a line is closed into a polygon
   const finishDrawnShape = useCallback(
     (collected: LngLat[], kind: ShapeKind = drawMode) => {
@@ -253,8 +470,24 @@ export function MapToolOverlay({
 
   const handleClick = useCallback(
     (event: React.MouseEvent) => {
+      if (suppressClickRef.current) {
+        suppressClickRef.current = false
+        return
+      }
+      // Add and Remove act on press; their clicks never draw
+      if (pointTool !== 'move' && points.length === 0) return
       const next = toLngLat(event)
       if (!next) return
+
+      // A Point node holds exactly one point, so a click moves it there
+      if (editSession?.kind === 'point') {
+        setShapes(prev => {
+          const feature = buildShape([next], 'point') as GeoJSON.Feature
+          return [{ id: prev[0]?.id ?? nextShapeId.current++, feature }]
+        })
+        analytics.track('draw_shape_edited', { action: 'move_point' })
+        return
+      }
 
       // A second click in the same spot finishes the shape. maplibre swallows
       // dblclick over the canvas, so this is detected by proximity instead.
@@ -284,21 +517,38 @@ export function MapToolOverlay({
 
       setPoints(prev => [...prev, next])
     },
-    [toLngLat, activeTool, drawMode, points, finishDrawnShape, isOverFirstVertex]
+    [
+      toLngLat,
+      activeTool,
+      drawMode,
+      points,
+      finishDrawnShape,
+      isOverFirstVertex,
+      editSession,
+      pointTool,
+    ]
   )
 
-  const handleMove = useCallback(
-    (event: React.MouseEvent) => {
-      if (points.length === 0) {
-        setHover(null)
-        return
+  // Not memoized: findHandle reads the live camera
+  const handleMove = (event: React.MouseEvent) => {
+    if (points.length === 0) {
+      setHover(null)
+      const handle = findHandle(event)?.type ?? null
+      const edge = pointTool === 'add' && handle !== 'vertex' ? findEdge(event) : null
+      const hovered = handle ?? (edge ? 'edge' : null)
+      if (hovered !== hoverHandle) setHoverHandle(hovered)
+      if (pointTool === 'add') {
+        const ghost = edge ? toLngLat({ clientX: edge.client.x, clientY: edge.client.y }) : null
+        if (ghost?.lng !== addPreview?.lng || ghost?.lat !== addPreview?.lat) setAddPreview(ghost)
+      } else if (addPreview) {
+        setAddPreview(null)
       }
-      const snap = isOverFirstVertex(event)
-      setOverFirst(snap)
-      setHover(snap ? points[0] : toLngLat(event))
-    },
-    [points, toLngLat, isOverFirstVertex]
-  )
+      return
+    }
+    const snap = isOverFirstVertex(event)
+    setOverFirst(snap)
+    setHover(snap ? points[0] : toLngLat(event))
+  }
 
   const undoPoint = useCallback(() => {
     setPoints(prev => prev.slice(0, -1))
@@ -310,6 +560,7 @@ export function MapToolOverlay({
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         if (points.length > 0) reset()
+        else if (pointTool !== 'move') setPointTool('move')
         else setActiveTool(null)
       }
       if (event.key === 'Enter' && activeTool === 'draw') finishDrawnShape(points)
@@ -320,7 +571,16 @@ export function MapToolOverlay({
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [activeTool, points, reset, setActiveTool, finishDrawnShape, undoPoint])
+  }, [activeTool, points, pointTool, reset, setActiveTool, finishDrawnShape, undoPoint])
+
+  // Whether the edited shapes differ from what the node holds, so Save means something.
+  // Memoized because it stringifies every feature and the overlay re-renders on each
+  // pointer move.
+  const editsChanged = useMemo(() => {
+    if (!editSession) return false
+    const current = shapes.map(shape => shape.feature)
+    return JSON.stringify(current) !== JSON.stringify(editSession.features)
+  }, [shapes, editSession])
 
   if (!activeTool) return null
 
@@ -339,9 +599,11 @@ export function MapToolOverlay({
     .map(p => `${p.x},${p.y}`)
     .join(' ')
 
+  // Features with no geometry stay in `shapes` so saving keeps them, but draw nothing
   const savedShapes = shapes
-    .map(({ id, feature }) => {
+    .flatMap(({ id, feature }) => {
       const geometry = feature.geometry
+      if (!geometry) return []
       const ring =
         geometry.type === 'Polygon'
           ? (geometry.coordinates[0] as [number, number][])
@@ -350,15 +612,17 @@ export function MapToolOverlay({
             : geometry.type === 'Point'
               ? [geometry.coordinates as [number, number]]
               : []
-      return {
-        id,
-        isPolygon: geometry.type === 'Polygon',
-        isPoint: geometry.type === 'Point',
-        // A ring repeats its first vertex at the end, so the index keeps keys unique
-        vertices: ring
-          .map(([lng, lat], i) => ({ key: `${i}:${lng},${lat}`, screen: toScreen({ lng, lat }) }))
-          .filter((v): v is { key: string; screen: ScreenPoint } => v.screen !== null),
-      }
+      return [
+        {
+          id,
+          isPolygon: geometry.type === 'Polygon',
+          isPoint: geometry.type === 'Point',
+          // A ring repeats its first vertex at the end, so the index keeps keys unique
+          vertices: ring
+            .map(([lng, lat], i) => ({ key: `${i}:${lng},${lat}`, screen: toScreen({ lng, lat }) }))
+            .filter((v): v is { key: string; screen: ScreenPoint } => v.screen !== null),
+        },
+      ]
     })
     .filter(shape => shape.vertices.length > 0)
 
@@ -377,8 +641,38 @@ export function MapToolOverlay({
   const unit = surface && surfaceWidth ? surface.offsetWidth / surfaceWidth : 1
 
   const firstVertex = canCloseOnFirst ? placedVertices[0] : undefined
+
+  // Grab handles on finished shapes, hidden while a new shape is being drawn
+  const showHandles = activeTool === 'draw' && points.length === 0
+  const handles = showHandles
+    ? shapes.flatMap(({ id, feature }) => {
+        const toHandle = (position: GeoJSON.Position, key: string, midpoint: boolean) => {
+          const screen = toScreen({ lng: position[0], lat: position[1] })
+          return screen ? [{ key: `${id}:${key}`, screen, midpoint }] : []
+        }
+        // Midpoints would only get in the way of picking a point to remove
+        const midpoints = pointTool === 'remove' ? [] : segmentMidpoints(feature)
+        return [
+          ...midpoints.flatMap(m => toHandle(m.position, `m${m.insertAt}`, true)),
+          ...vertexPositions(feature).flatMap((p, i) => toHandle(p, `v${i}`, false)),
+        ]
+      })
+    : []
+  const ghost = showHandles && pointTool === 'add' && addPreview ? toScreen(addPreview) : null
   const features = shapes.map(shape => shape.feature)
   const followUps = followUpsFor(features)
+  // Add and Remove only make sense with a line or polygon to change
+  const showPointTools = showHandles && editSession?.kind !== 'point' && hasEditableShape
+  const cursor =
+    hoverHandle === null
+      ? pointTool === 'move'
+        ? undefined
+        : 'default'
+      : pointTool === 'remove'
+        ? 'pointer'
+        : pointTool === 'add' && hoverHandle !== 'vertex'
+          ? 'copy'
+          : 'move'
 
   const replaceShape = (
     id: number,
@@ -431,7 +725,8 @@ export function MapToolOverlay({
     <div
       ref={surfaceRef}
       className={detached ? s.surfaceDetached : s.surface}
-      style={surfaceStyle}
+      style={{ ...surfaceStyle, cursor }}
+      onMouseDown={handleMouseDown}
       onClick={handleClick}
       onMouseMove={handleMove}
       onMouseLeave={() => setHover(null)}
@@ -448,18 +743,37 @@ export function MapToolOverlay({
             <g key={shape.id} className={highlighted ? s.savedHighlight : undefined}>
               {shape.isPolygon && <polygon className={s.savedFill} points={path} />}
               {!shape.isPoint && <polyline className={s.savedStroke} points={path} />}
-              {shape.vertices.map(v => (
-                <circle
-                  key={v.key}
-                  className={s.savedVertex}
-                  cx={v.screen.x}
-                  cy={v.screen.y}
-                  r={(shape.isPoint ? 5 : 3) * unit}
-                />
-              ))}
+              {!showHandles &&
+                shape.vertices.map(v => (
+                  <circle
+                    key={v.key}
+                    className={s.savedVertex}
+                    cx={v.screen.x}
+                    cy={v.screen.y}
+                    r={(shape.isPoint ? 5 : 3) * unit}
+                  />
+                ))}
             </g>
           )
         })}
+        {handles.map(handle => (
+          <circle
+            key={handle.key}
+            className={
+              handle.midpoint
+                ? pointTool === 'add'
+                  ? s.addHandle
+                  : s.midpointHandle
+                : pointTool === 'remove'
+                  ? s.removeHandle
+                  : s.vertexHandle
+            }
+            cx={handle.screen.x}
+            cy={handle.screen.y}
+            r={(handle.midpoint ? (pointTool === 'add' ? 5 : 3) : 5) * unit}
+          />
+        ))}
+        {ghost && <circle className={s.addGhost} cx={ghost.x} cy={ghost.y} r={5 * unit} />}
 
         {closeShape && screenPoints.length >= 3 && (
           <polygon
@@ -494,7 +808,13 @@ export function MapToolOverlay({
         <div className={s.panel}>
           <div className={s.panelHeader}>
             <i className={activeTool === 'measure' ? 'pi pi-arrows-h' : 'pi pi-pencil'} />
-            <span className={s.panelTitle}>{activeTool === 'measure' ? 'Measure' : 'Draw'}</span>
+            <span className={s.panelTitle}>
+              {activeTool === 'measure'
+                ? 'Measure'
+                : editSession
+                  ? `Editing ${editSession.label}`
+                  : 'Draw'}
+            </span>
             <button
               type="button"
               className={s.panelClose}
@@ -550,32 +870,84 @@ export function MapToolOverlay({
             </>
           ) : (
             <>
-              <div className={s.segmented}>
-                <button
-                  type="button"
-                  className={drawMode === 'point' ? s.segmentActive : s.segment}
-                  onClick={() => setDrawMode('point')}
-                >
-                  <i className="pi pi-map-marker" /> Point
-                </button>
-                <button
-                  type="button"
-                  className={drawMode === 'line' ? s.segmentActive : s.segment}
-                  onClick={() => setDrawMode('line')}
-                >
-                  <i className="pi pi-minus" /> Line
-                </button>
-                <button
-                  type="button"
-                  className={drawMode === 'polygon' ? s.segmentActive : s.segment}
-                  onClick={() => setDrawMode('polygon')}
-                >
-                  <i className="pi pi-stop" /> Polygon
-                </button>
-              </div>
+              {editSession?.kind !== 'point' && (
+                <div className={s.segmented}>
+                  <button
+                    type="button"
+                    className={
+                      drawMode === 'point' && pointTool === 'move' ? s.segmentActive : s.segment
+                    }
+                    onClick={() => {
+                      setDrawMode('point')
+                      setPointTool('move')
+                    }}
+                  >
+                    <i className="pi pi-map-marker" /> Point
+                  </button>
+                  <button
+                    type="button"
+                    className={
+                      drawMode === 'line' && pointTool === 'move' ? s.segmentActive : s.segment
+                    }
+                    onClick={() => {
+                      setDrawMode('line')
+                      setPointTool('move')
+                    }}
+                  >
+                    <i className="pi pi-minus" /> Line
+                  </button>
+                  <button
+                    type="button"
+                    className={
+                      drawMode === 'polygon' && pointTool === 'move' ? s.segmentActive : s.segment
+                    }
+                    onClick={() => {
+                      setDrawMode('polygon')
+                      setPointTool('move')
+                    }}
+                  >
+                    <i className="pi pi-stop" /> Polygon
+                  </button>
+                </div>
+              )}
+
+              {showPointTools && (
+                <div className={s.toolRow}>
+                  <span className={s.toolLabel}>Edit points</span>
+                  <div className={s.segmented}>
+                    {(
+                      [
+                        ['move', 'pi pi-arrows-alt', 'Move'],
+                        ['add', 'pi pi-plus', 'Add'],
+                        ['remove', 'pi pi-minus-circle', 'Remove'],
+                      ] as const
+                    ).map(([tool, icon, label]) => (
+                      <button
+                        key={tool}
+                        type="button"
+                        className={pointTool === tool ? s.segmentActive : s.segment}
+                        aria-pressed={pointTool === tool}
+                        onClick={() => {
+                          setPointTool(tool)
+                          analytics.track('draw_point_tool_selected', { tool })
+                        }}
+                      >
+                        <i className={icon} /> {label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               <div className={s.readout}>
-                <span className={s.readoutHint}>{drawHint(drawMode, points.length)}</span>
+                <span className={s.readoutHint}>
+                  {editSession?.kind === 'point'
+                    ? 'Drag the point or click the map to move it'
+                    : showPointTools
+                      ? POINT_TOOL_HINTS[pointTool]
+                      : drawHint(drawMode, points.length)}
+                </span>
+                {notice && <span className={s.readoutNotice}>{notice}</span>}
               </div>
 
               {/* Actions for the shape being drawn, labeled for what each will produce */}
@@ -615,20 +987,22 @@ export function MapToolOverlay({
                     <span>
                       {shapes.length} shape{shapes.length === 1 ? '' : 's'}
                     </span>
-                    <button
-                      type="button"
-                      className={s.linkButton}
-                      onClick={() => {
-                        analytics.track('draw_shape_edited', {
-                          action: 'clear_all',
-                          count: shapes.length,
-                        })
-                        reset()
-                        setShapes([])
-                      }}
-                    >
-                      Clear all
-                    </button>
+                    {editSession?.kind !== 'point' && (
+                      <button
+                        type="button"
+                        className={s.linkButton}
+                        onClick={() => {
+                          analytics.track('draw_shape_edited', {
+                            action: 'clear_all',
+                            count: shapes.length,
+                          })
+                          reset()
+                          setShapes([])
+                        }}
+                      >
+                        Clear all
+                      </button>
+                    )}
                   </div>
                   <ul className={s.shapeList}>
                     {shapes.map(shape => {
@@ -667,15 +1041,17 @@ export function MapToolOverlay({
                               <i className="pi pi-minus" />
                             </button>
                           )}
-                          <button
-                            type="button"
-                            className={s.iconButton}
-                            onClick={() => removeShape(shape.id, kind)}
-                            title="Delete shape"
-                            aria-label="Delete shape"
-                          >
-                            <i className="pi pi-trash" />
-                          </button>
+                          {editSession?.kind !== 'point' && (
+                            <button
+                              type="button"
+                              className={s.iconButton}
+                              onClick={() => removeShape(shape.id, kind)}
+                              title="Delete shape"
+                              aria-label="Delete shape"
+                            >
+                              <i className="pi pi-trash" />
+                            </button>
+                          )}
                         </li>
                       )
                     })}
@@ -683,7 +1059,31 @@ export function MapToolOverlay({
                 </div>
               )}
 
-              {shapes.length > 0 && (
+              {editSession && (
+                <div className={s.section}>
+                  <button
+                    type="button"
+                    className={s.primaryAction}
+                    disabled={!editsChanged}
+                    onClick={() => {
+                      const saved = onSaveEdits?.(editSession, features) ?? false
+                      if (!saved) return
+                      analytics.track('draw_edits_saved', {
+                        kind: editSession.kind,
+                        count: features.length,
+                      })
+                      setActiveTool(null)
+                    }}
+                  >
+                    <i className="pi pi-check" /> Save to {editSession.label}
+                  </button>
+                  <button type="button" className={s.followUp} onClick={() => setActiveTool(null)}>
+                    <i className="pi pi-times" /> {editsChanged ? 'Discard changes' : 'Done'}
+                  </button>
+                </div>
+              )}
+
+              {!editSession && shapes.length > 0 && (
                 <div className={s.section}>
                   <div className={s.sectionHeader}>
                     <span>Use drawing</span>

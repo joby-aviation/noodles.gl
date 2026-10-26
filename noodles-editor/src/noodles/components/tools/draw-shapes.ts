@@ -79,7 +79,96 @@ export function describeShape(feature: GeoJSON.Feature): string {
     const length = pathLength(toLngLats(geometry.coordinates))
     return `Line · ${formatDistance(length, 'kilometers')}`
   }
-  return 'Point'
+  if (geometry?.type === 'Point') return 'Point'
+  return geometry?.type ?? 'Empty feature'
+}
+
+// ==================== Vertex editing ====================
+
+const MIN_VERTICES: Record<ShapeKind, number> = { point: 1, line: 2, polygon: 3 }
+
+// The vertices a user can grab: a point's position, a line's coordinates, or a polygon's
+// outer ring without its closing repeat. Holes and other geometry are not editable.
+export function vertexPositions(feature: GeoJSON.Feature): GeoJSON.Position[] {
+  const geometry = feature.geometry
+  if (geometry?.type === 'Point') return [geometry.coordinates]
+  if (geometry?.type === 'LineString') return geometry.coordinates
+  if (geometry?.type === 'Polygon') return geometry.coordinates[0]?.slice(0, -1) ?? []
+  return []
+}
+
+function withVertices(feature: GeoJSON.Feature, positions: GeoJSON.Position[]): GeoJSON.Feature {
+  const geometry = feature.geometry
+  if (geometry?.type === 'Point') {
+    return { ...feature, geometry: { type: 'Point', coordinates: positions[0] } }
+  }
+  if (geometry?.type === 'LineString') {
+    return { ...feature, geometry: { type: 'LineString', coordinates: positions } }
+  }
+  if (geometry?.type === 'Polygon') {
+    const [, ...holes] = geometry.coordinates
+    return {
+      ...feature,
+      geometry: { type: 'Polygon', coordinates: [[...positions, positions[0]], ...holes] },
+    }
+  }
+  return feature
+}
+
+export function moveVertex(
+  feature: GeoJSON.Feature,
+  index: number,
+  position: GeoJSON.Position
+): GeoJSON.Feature {
+  const positions = [...vertexPositions(feature)]
+  if (index < 0 || index >= positions.length) return feature
+  // The pointer only gives lng/lat, so any altitude the vertex had is kept
+  positions[index] = [...position.slice(0, 2), ...positions[index].slice(2)]
+  return withVertices(feature, positions)
+}
+
+// Inserts a vertex so it ends up at `index`, between the vertices on either side
+export function insertVertex(
+  feature: GeoJSON.Feature,
+  index: number,
+  position: GeoJSON.Position
+): GeoJSON.Feature {
+  const kind = shapeKind(feature)
+  if (kind !== 'line' && kind !== 'polygon') return feature
+  const positions = [...vertexPositions(feature)]
+  positions.splice(index, 0, position)
+  return withVertices(feature, positions)
+}
+
+// Returns null when the shape would drop below the vertices it needs
+export function removeVertex(feature: GeoJSON.Feature, index: number): GeoJSON.Feature | null {
+  const kind = shapeKind(feature)
+  if (!kind || kind === 'point') return null
+  const positions = vertexPositions(feature)
+  if (positions.length <= MIN_VERTICES[kind]) return null
+  return withVertices(
+    feature,
+    positions.filter((_, i) => i !== index)
+  )
+}
+
+// Handles halfway along each segment. Dragging one inserts a vertex at `insertAt`.
+export function segmentMidpoints(
+  feature: GeoJSON.Feature
+): { insertAt: number; position: GeoJSON.Position }[] {
+  const kind = shapeKind(feature)
+  if (kind !== 'line' && kind !== 'polygon') return []
+  const positions = vertexPositions(feature)
+  const segments = kind === 'polygon' ? positions.length : positions.length - 1
+  const midpoints: { insertAt: number; position: GeoJSON.Position }[] = []
+  for (let i = 0; i < segments; i++) {
+    const a = positions[i]
+    const b = positions[(i + 1) % positions.length]
+    const position = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2]
+    if (a.length > 2 && b.length > 2) position.push((a[2] + b[2]) / 2)
+    midpoints.push({ insertAt: i + 1, position })
+  }
+  return midpoints
 }
 
 // Something the user can do with a finished drawing besides showing it as a layer.

@@ -51,3 +51,30 @@ export function mapPointToOverlay(
     y: ((clientY - overlayRect.top) * overlaySize.height) / overlayRect.height,
   }
 }
+
+// The segment of a polyline (or a closed ring) closest to `target`, with the closest
+// point on it. `index` is the segment's first vertex, so a vertex inserted there goes
+// at `index + 1`. Null for fewer than two points.
+export function nearestSegment(
+  points: Point[],
+  closed: boolean,
+  target: Point
+): { index: number; distance: number; point: Point } | null {
+  const segments = closed ? points.length : points.length - 1
+  if (points.length < 2) return null
+  let best: { index: number; distance: number; point: Point } | null = null
+  for (let i = 0; i < segments; i++) {
+    const a = points[i]
+    const b = points[(i + 1) % points.length]
+    const dx = b.x - a.x
+    const dy = b.y - a.y
+    const lengthSq = dx * dx + dy * dy
+    const t = lengthSq
+      ? Math.max(0, Math.min(1, ((target.x - a.x) * dx + (target.y - a.y) * dy) / lengthSq))
+      : 0
+    const point = { x: a.x + t * dx, y: a.y + t * dy }
+    const distance = Math.hypot(target.x - point.x, target.y - point.y)
+    if (!best || distance < best.distance) best = { index: i, distance, point }
+  }
+  return best
+}

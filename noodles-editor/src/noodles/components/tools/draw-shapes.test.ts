@@ -6,7 +6,12 @@ import {
   describeShape,
   featuresFor,
   followUpsFor,
+  insertVertex,
+  moveVertex,
   openIntoLine,
+  removeVertex,
+  segmentMidpoints,
+  vertexPositions,
 } from './draw-shapes'
 import { getRecipe } from './geo-recipes'
 
@@ -125,5 +130,96 @@ describe('follow-ups', () => {
       expect(recipe, followUp.recipeId).toBeDefined()
       expect(recipe?.inputs.map(i => i.key)).toContain(followUp.shapeInput)
     }
+  })
+})
+
+describe('vertex editing', () => {
+  it('lists the outer ring of a polygon without its closing repeat', () => {
+    expect(vertexPositions(polygon)).toEqual([
+      [0, 0],
+      [1, 0],
+      [1, 1],
+    ])
+    expect(vertexPositions(point)).toEqual([[0, 0]])
+  })
+
+  it('keeps a polygon ring closed when its first vertex moves', () => {
+    const moved = moveVertex(polygon, 0, [-1, -1])
+    expect((moved.geometry as GeoJSON.Polygon).coordinates[0]).toEqual([
+      [-1, -1],
+      [1, 0],
+      [1, 1],
+      [-1, -1],
+    ])
+  })
+
+  it('keeps polygon holes when the outer ring changes', () => {
+    const hole = [
+      [0.2, 0.1],
+      [0.5, 0.1],
+      [0.5, 0.3],
+      [0.2, 0.1],
+    ]
+    const holed: GeoJSON.Feature = {
+      ...polygon,
+      geometry: {
+        type: 'Polygon',
+        coordinates: [(polygon.geometry as GeoJSON.Polygon).coordinates[0], hole],
+      },
+    }
+    expect((moveVertex(holed, 1, [2, 0]).geometry as GeoJSON.Polygon).coordinates[1]).toEqual(hole)
+  })
+
+  it('keeps a vertex altitude when it moves', () => {
+    const raised = buildShape([a, b, c], 'line') as GeoJSON.Feature
+    const withAltitude = {
+      ...raised,
+      geometry: {
+        type: 'LineString' as const,
+        coordinates: [
+          [0, 0, 100],
+          [1, 0, 200],
+          [1, 1, 300],
+        ],
+      },
+    }
+    expect(vertexPositions(moveVertex(withAltitude, 1, [5, 5]))[1]).toEqual([5, 5, 200])
+    expect(segmentMidpoints(withAltitude)[0].position).toEqual([0.5, 0, 150])
+  })
+
+  it('moves a point', () => {
+    expect(moveVertex(point, 0, [5, 6]).geometry).toEqual({ type: 'Point', coordinates: [5, 6] })
+  })
+
+  it('offers a midpoint on every edge, including the closing edge of a polygon', () => {
+    expect(segmentMidpoints(line).map(m => m.insertAt)).toEqual([1, 2])
+    expect(segmentMidpoints(polygon)).toEqual([
+      { insertAt: 1, position: [0.5, 0] },
+      { insertAt: 2, position: [1, 0.5] },
+      { insertAt: 3, position: [0.5, 0.5] },
+    ])
+    expect(segmentMidpoints(point)).toEqual([])
+  })
+
+  it('inserts a vertex at a midpoint', () => {
+    const inserted = insertVertex(polygon, 3, [0.5, 0.5])
+    expect(vertexPositions(inserted)).toEqual([
+      [0, 0],
+      [1, 0],
+      [1, 1],
+      [0.5, 0.5],
+    ])
+  })
+
+  it('removes a vertex only while the shape stays valid', () => {
+    const square = insertVertex(polygon, 3, [0, 1])
+    expect(vertexPositions(removeVertex(square, 1) as GeoJSON.Feature)).toEqual([
+      [0, 0],
+      [1, 1],
+      [0, 1],
+    ])
+    expect(removeVertex(polygon, 0)).toBeNull()
+    expect(removeVertex(buildShape([a, b], 'line') as GeoJSON.Feature, 0)).toBeNull()
+    expect(removeVertex(point, 0)).toBeNull()
   })
 })

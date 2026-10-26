@@ -82,6 +82,7 @@ import {
 } from './op-components'
 import { RenderSettingsPanel } from './render-settings-panel'
 import { SuggestedNodesSection } from './SuggestedNodes'
+import { EditOnMapButton } from './tools/edit-on-map-button'
 
 // === Field Visibility Helper Functions ===
 
@@ -839,6 +840,7 @@ export function NodeProperties({ nodeId }: { nodeId: string }) {
           )}
         </div>
       )}
+      <EditOnMapButton nodeId={nodeId} from="properties" className={s.editOnMap} />
       <div className={s.section}>
         <div className={s.sectionHeader}>
           <div className={s.sectionTitle}>Inputs</div>
