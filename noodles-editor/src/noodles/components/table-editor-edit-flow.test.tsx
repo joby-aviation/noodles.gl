@@ -673,7 +673,13 @@ describe('TableEditor - Edit Flow', () => {
       const cell = getByText('10').closest('td') as HTMLTableCellElement
       expect(cell).not.toHaveAttribute('aria-selected', 'true')
 
-      fireEvent.pointerDown(cell, { button: 0, pointerId: 1, clientX: 100, clientY: 100 })
+      fireEvent.pointerDown(cell, {
+        button: 0,
+        pointerId: 1,
+        pointerType: 'mouse',
+        clientX: 100,
+        clientY: 100,
+      })
       expect(cell).toHaveAttribute('aria-selected', 'true')
       fireEvent.pointerMove(document, { pointerId: 1, clientX: 120, clientY: 100 })
 
@@ -703,12 +709,51 @@ describe('TableEditor - Edit Flow', () => {
       )
 
       const cell = getByText('10').closest('td') as HTMLTableCellElement
-      fireEvent.pointerDown(cell, { button: 0, pointerId: 1, clientX: 100, clientY: 100 })
+      fireEvent.pointerDown(cell, {
+        button: 0,
+        pointerId: 1,
+        pointerType: 'mouse',
+        clientX: 100,
+        clientY: 100,
+      })
       fireEvent.pointerUp(document, { button: 0, pointerId: 1, clientX: 100, clientY: 100 })
       fireEvent.click(cell)
 
       expect(cell).toHaveAttribute('aria-selected', 'true')
       expect(screen.queryByRole('spinbutton', { name: 'Edit amount' })).not.toBeInTheDocument()
+    })
+
+    it('keeps touch drags in cell selection instead of starting a mouse-only scrub', () => {
+      const onDataChange = vi.fn()
+      const { getByText } = render(
+        <TableEditor
+          op={mockOp}
+          data={[{ amount: 10 }]}
+          schema={{ columns: [{ name: 'amount', type: 'number', defaultValue: 0 }] }}
+          onDataChange={onDataChange}
+          onSchemaChange={vi.fn()}
+        />
+      )
+
+      const cell = getByText('10').closest('td') as HTMLTableCellElement
+      fireEvent.pointerDown(cell, {
+        button: 0,
+        pointerId: 2,
+        pointerType: 'touch',
+        clientX: 100,
+        clientY: 100,
+      })
+      fireEvent.pointerMove(document, {
+        pointerId: 2,
+        pointerType: 'touch',
+        clientX: 120,
+        clientY: 100,
+      })
+      fireEvent.pointerCancel(document, { pointerId: 2, pointerType: 'touch' })
+
+      expect(cell).toHaveAttribute('aria-selected', 'true')
+      expect(screen.queryByRole('spinbutton', { name: 'Edit amount' })).not.toBeInTheDocument()
+      expect(onDataChange).not.toHaveBeenCalled()
     })
 
     it('uses vector steps for vec2 scrubbing and preserves the other channel', () => {

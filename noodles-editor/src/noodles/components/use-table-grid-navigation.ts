@@ -198,7 +198,9 @@ export function useTableGridNavigation({
 
   const startNumberDrag = useCallback(
     (event: ReactPointerEvent<HTMLElement>, coordinate: TableCellCoordinate) => {
-      if (event.button !== 0 || event.shiftKey) return false
+      // The edit handoff is backed by DraggableNumberInput's mouse drag stream. Let touch
+      // pointers follow normal cell selection so an in-progress touch is never orphaned.
+      if (event.pointerType !== 'mouse' || event.button !== 0 || event.shiftKey) return false
 
       pendingNumberDragCleanupRef.current?.()
       pointerSelectingRef.current = false
