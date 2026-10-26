@@ -42,9 +42,7 @@ describe('schema clipboard serialization', () => {
         column: { ...column, defaultValue: '2026-10-23' },
       },
     })
-    expect(
-      parseSchemaClipboard(serializeSchemaClipboard({ columns: [column] }))
-    ).toMatchObject({
+    expect(parseSchemaClipboard(serializeSchemaClipboard({ columns: [column] }))).toMatchObject({
       success: true,
       payload: {
         kind: 'table-schema',
