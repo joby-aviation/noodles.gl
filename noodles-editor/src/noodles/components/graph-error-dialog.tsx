@@ -7,7 +7,7 @@ import { analytics } from '../../utils/analytics'
 import s from './menu.module.css'
 
 export interface GraphError {
-  type: 'unknown-operator' | 'stale-edge' | 'operator-execution'
+  type: 'unknown-operator' | 'stale-edge' | 'operator-execution' | 'migration'
   message: string
   details?: string
 }
@@ -27,6 +27,7 @@ export const GraphErrorDialog = ({
 }: GraphErrorDialogProps) => {
   const unknownOperators = errors.filter(e => e.type === 'unknown-operator')
   const staleEdges = errors.filter(e => e.type === 'stale-edge')
+  const migrationWarnings = errors.filter(e => e.type === 'migration')
   const executionErrors = errors.filter(e => e.type === 'operator-execution')
 
   useEffect(() => {
@@ -49,8 +50,20 @@ export const GraphErrorDialog = ({
           count: executionErrors.length,
         })
       }
+      if (migrationWarnings.length > 0) {
+        analytics.track('project_load_error', {
+          errorType: 'migration_warnings',
+          count: migrationWarnings.length,
+        })
+      }
     }
-  }, [open, unknownOperators.length, staleEdges.length, executionErrors.length])
+  }, [
+    open,
+    unknownOperators.length,
+    staleEdges.length,
+    executionErrors.length,
+    migrationWarnings.length,
+  ])
 
   return (
     <Dialog.Root open={open} onOpenChange={open => !open && onClose()}>
@@ -99,6 +112,23 @@ export const GraphErrorDialog = ({
                 <p style={{ marginTop: '0.5rem', fontSize: '0.9em', color: 'var(--gray-11)' }}>
                   These edges reference nodes that no longer exist. This may be caused by a failed
                   node rename or manual file editing.
+                </p>
+              </div>
+            )}
+
+            {migrationWarnings.length > 0 && (
+              <div style={{ marginBottom: '1rem' }}>
+                <strong>Migration Warnings ({migrationWarnings.length}):</strong>
+                <ul style={{ marginLeft: '1.5rem', marginTop: '0.5rem' }}>
+                  {migrationWarnings.slice(0, 5).map((error, i) => (
+                    <li key={i}>{error.message}</li>
+                  ))}
+                  {migrationWarnings.length > 5 && (
+                    <li>...and {migrationWarnings.length - 5} more migration warnings</li>
+                  )}
+                </ul>
+                <p style={{ marginTop: '0.5rem', fontSize: '0.9em', color: 'var(--gray-11)' }}>
+                  The project was updated from an older format. Review these changes before saving.
                 </p>
               </div>
             )}

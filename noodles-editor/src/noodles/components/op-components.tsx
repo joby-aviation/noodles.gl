@@ -66,7 +66,12 @@ import {
   useOperatorStore,
   useUIStore,
 } from '../store'
-import { inferSchema, type TableSchema } from '../table-schema'
+import {
+  getTableSchemaValidationError,
+  inferSchema,
+  isTableSchema,
+  type TableSchema,
+} from '../table-schema'
 import type { NodeDataJSON } from '../transform-graph'
 import { canConnect } from '../utils/can-connect'
 import {
@@ -1929,6 +1934,14 @@ function MouseOpComponent({
   )
 }
 
+/**
+ * Resolves the schema the table editor renders with. An unset or malformed local snapshot
+ * (a fresh table, or an undo past the first schema edit) falls back to inferred columns.
+ */
+export function resolveTableEditorSchema(schema: unknown, data: unknown[]): TableSchema {
+  return isTableSchema(schema) ? schema : inferSchema(data)
+}
+
 export function TableEditorOpComponent({
   id,
   type,
@@ -1941,25 +1954,22 @@ export function TableEditorOpComponent({
   useFieldVisibility(op)
 
   const [data, setData] = useState((op?.inputs.data.value ?? []) as unknown[])
-  const [schema, setSchema] = useState<TableSchema>(() => {
-    // Get schema from output or infer from data
-    const outputSchema = op?.outputs.schema.value
-    if (outputSchema && typeof outputSchema === 'object' && 'columns' in outputSchema) {
-      return outputSchema as TableSchema
-    }
-    return inferSchema((op?.inputs.data.value ?? []) as unknown[])
-  })
+  const [schema, setSchema] = useState<TableSchema>(() =>
+    resolveTableEditorSchema(op?.inputs.schema.value, (op?.inputs.data.value ?? []) as unknown[])
+  )
 
   // Subscribe to data and schema changes
   useEffect(() => {
     if (!op) return
     const dataSub = op.inputs.data.subscribe(newData => {
-      setData(newData as unknown[])
+      const nextData = newData as unknown[]
+      setData(nextData)
+      setSchema(resolveTableEditorSchema(op.inputs.schema.value, nextData))
     })
-    const schemaSub = op.outputs.schema.subscribe(newSchema => {
-      if (newSchema && typeof newSchema === 'object' && 'columns' in newSchema) {
-        setSchema(newSchema as TableSchema)
-      }
+    // Undo past the first schema edit clears the snapshot, so a cleared schema has to
+    // re-infer its columns instead of leaving the undone schema on screen.
+    const schemaSub = op.inputs.schema.subscribe(newSchema => {
+      setSchema(resolveTableEditorSchema(newSchema, (op.inputs.data.value ?? []) as unknown[]))
     })
     return () => {
       dataSub.unsubscribe()
@@ -1977,11 +1987,19 @@ export function TableEditorOpComponent({
   }
 
   const handleSchemaChange = (newSchema: TableSchema, newData?: unknown[]) => {
+    // Keep the schema/data mutation atomic. The editor normally prevents invalid
+    // drafts from reaching here, but this boundary also protects programmatic callers.
+    if (!isTableSchema(newSchema)) {
+      console.warn(
+        `Ignored invalid TableEditor schema: ${getTableSchemaValidationError(newSchema) ?? 'unknown validation error'}`
+      )
+      return
+    }
+
     const before = captureOperatorInputs()
     op.inputs.schema.setValue(newSchema)
-    op.outputs.schema.setValue(newSchema)
     setSchema(newSchema)
-    if (newData) {
+    if (newData !== undefined) {
       op.inputs.data.setValue(newData)
       op.outputs.data.setValue(newData)
     }
@@ -1994,7 +2012,7 @@ export function TableEditorOpComponent({
       <NodeResizer isVisible={selected} minWidth={500} minHeight={300} />
       <div className={s.content}>
         {Object.entries(op.inputs)
-          .filter(([key]) => op.isFieldVisible(key) && key !== 'data')
+          .filter(([key]) => op.isFieldVisible(key) && key !== 'data' && key !== 'schema')
           .map(([key, field]) => (
             <FieldComponent
               key={key}

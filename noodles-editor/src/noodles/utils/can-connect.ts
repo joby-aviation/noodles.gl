@@ -355,6 +355,14 @@ export function validateConnection(from: Field, to: Field): ConnectionValidation
   const fromFieldType = (from.constructor as typeof Field).type
   const toFieldType = (to.constructor as typeof Field).type
 
+  if (!from.connectable || !to.connectable) {
+    return {
+      valid: false,
+      severity: 'error',
+      error: 'Internal fields cannot be connected',
+    }
+  }
+
   if (debugConnect.enabled) {
     debugConnect('\n=== validateConnection ===')
     debugConnect(`From: ${from.constructor.name} (type=${fromFieldType})`)
@@ -447,6 +455,7 @@ export function canConnect(from: Field, to: Field): boolean {
 const canConnectCache = new Map<string, boolean>()
 
 export function canConnectCached(from: Field, to: Field): boolean {
+  if (!from.connectable || !to.connectable) return false
   const key = `${from.constructor.name}:${to.constructor.name}`
   const cached = canConnectCache.get(key)
   if (cached !== undefined) return cached

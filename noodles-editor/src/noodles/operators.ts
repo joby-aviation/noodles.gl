@@ -144,6 +144,7 @@ import {
   StringField,
   StringLiteralField,
   selfParMustacheRe,
+  TableSchemaField,
   UnknownField,
   Vec2Field,
   Vec3Field,
@@ -432,6 +433,7 @@ export abstract class Operator<OP extends IOperator> {
 
   // Check if a field is visible (for UI rendering)
   isFieldVisible(name: string): boolean {
+    if (this.inputs[name]?.internal) return false
     const visible = this.visibleFields.value
     if (visible === null) {
       // Use defaults: showByDefault defaults to true
@@ -445,6 +447,8 @@ export abstract class Operator<OP extends IOperator> {
   showField(name: string): void {
     // Skip if inputs not initialized yet or field doesn't exist
     if (!this.inputs || !(name in this.inputs)) return
+    // Internal state must never be promoted into generic operator UI.
+    if (this.inputs[name].internal) return
     // Skip if already visible
     if (this.isFieldVisible(name)) return
 
@@ -2944,7 +2948,7 @@ export class ViewerOp extends Operator<ViewerOp> {
 
 export class TableEditorOp extends Operator<TableEditorOp> {
   static displayName = 'TableEditor'
-  static description = 'Edit a table with typed columns'
+  static description = 'Edit a local table with typed columns and an internal schema'
   asDownload = () => this.outputData
 
   createInputs() {
@@ -2952,9 +2956,11 @@ export class TableEditorOp extends Operator<TableEditorOp> {
       data: new DataField(undefined, {
         description: 'Rows of the table. Edits made in the table editor are saved here.',
       }),
-      schema: new UnknownField(null, {
+      schema: new TableSchemaField(null, {
         description: 'Column names, types and defaults. Inferred from the data when not set.',
-      }), // TableSchema | null - optional schema override
+        internal: true,
+        showByDefault: false,
+      }),
     }
   }
 
@@ -2963,9 +2969,6 @@ export class TableEditorOp extends Operator<TableEditorOp> {
       data: new DataField(undefined, {
         description: 'The rows, checked against the schema, with date-time cells as dates.',
       }),
-      schema: new UnknownField(null, {
-        description: 'The column schema in use, or null when none is set.',
-      }), // Computed schema (inferred or explicit)
     }
   }
 
@@ -2979,7 +2982,6 @@ export class TableEditorOp extends Operator<TableEditorOp> {
 
     return {
       data: outputData,
-      schema: schema || null,
     }
   }
 }
