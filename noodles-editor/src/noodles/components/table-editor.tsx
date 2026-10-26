@@ -919,7 +919,7 @@ function EditableCell({ getValue, row, column, table }: EditableCellProps) {
     () => () => {
       // Resize and virtualizer measurement changes can remove an edited row without
       // producing a scroll event. Commit while the cell still owns its buffered value.
-      if (isEditingRef.current) handleCompleteRef.current()
+      if (isEditingRef.current) (editorCommitRef.current ?? handleCompleteRef.current)()
     },
     []
   )

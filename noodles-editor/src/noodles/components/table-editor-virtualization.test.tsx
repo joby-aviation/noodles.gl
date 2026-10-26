@@ -141,6 +141,40 @@ describe('TableEditor row virtualization', () => {
     )
   })
 
+  it('parses buffered number text when a resize unmounts the edited row', () => {
+    const schema: TableSchema = {
+      columns: [{ name: 'amount', type: 'number', defaultValue: 0 }],
+    }
+    const data = Array.from({ length: 1_000 }, (_, index) => ({ amount: index + 10 }))
+    const onDataChange = vi.fn()
+
+    render(
+      <TableEditor
+        op={new TableEditorOp('/resized-number-table')}
+        data={data}
+        schema={schema}
+        onDataChange={onDataChange}
+        onSchemaChange={vi.fn()}
+      />
+    )
+
+    const cell = document.querySelector<HTMLElement>(
+      '[data-grid-row="0"][data-grid-column="0"]'
+    ) as HTMLElement
+    expect(cell).not.toBeNull()
+    fireEvent.click(cell)
+    fireEvent.keyDown(cell, { key: '.' })
+    const editor = screen.getByRole('spinbutton', { name: 'Edit amount' })
+    fireEvent.change(editor, { target: { value: '0' } })
+    fireEvent.change(editor, { target: { value: '05' } })
+    act(() => virtualizerSpies.setFirstVisible?.(500))
+
+    expect(onDataChange).toHaveBeenCalledWith(
+      [{ amount: 0.05 }, ...data.slice(1)],
+      'Edit cell amount'
+    )
+  })
+
   it('keeps the grid focused and keyboard-reachable when the active row unmounts', () => {
     const schema: TableSchema = {
       columns: [{ name: 'label', type: 'string', defaultValue: '' }],
