@@ -168,8 +168,8 @@ describe('NodeProperties field visibility editing', () => {
       const fieldLabels = Array.from(container.querySelectorAll('.propertyLabelText')).map(
         element => element.textContent
       )
-      expect(fieldLabels).toContain('data')
-      expect(fieldLabels).not.toContain('schema')
+      expect(fieldLabels).toContain('Data')
+      expect(fieldLabels).not.toContain('Schema')
       expect(screen.queryByRole('button', { name: 'Reset' })).not.toBeInTheDocument()
     })
   })
