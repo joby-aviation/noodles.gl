@@ -29,12 +29,7 @@
       "id": "/dummy-data.out.data->/scene.par.data"
     }
   ],
-  "viewport": {
-    "x": 1368.6650642622628,
-    "y": 546.6972278664407,
-    "zoom": 0.981085979917294
-  },
-  "version": 19,
+  "version": 20,
   "name": "Orbit View 3D Scene",
   "editorSettings": {
     "layoutMode": "noodles-on-top",
@@ -123,6 +118,38 @@
         },
         "locked": false
       }
+    },
+    {
+      "id": "/model-note",
+      "type": "CommentOp",
+      "position": {
+        "x": -540,
+        "y": -430
+      },
+      "data": {
+        "inputs": {
+          "text": "This draws a 3D airplane model on a plain background, with no map. Put a link to another .glb model in scenegraph to swap it."
+        },
+        "locked": false
+      },
+      "width": 340,
+      "height": 90
+    },
+    {
+      "id": "/try-next-note",
+      "type": "CommentOp",
+      "position": {
+        "x": 0,
+        "y": 180
+      },
+      "data": {
+        "inputs": {
+          "text": "Try next:\n- Click camera and change clearColor to set the background.\n- Click scene and change getColor to tint the model.\n- Press Export and pick Image (PNG) to save it."
+        },
+        "locked": false
+      },
+      "width": 340,
+      "height": 150
     }
   ],
   "timeline": {

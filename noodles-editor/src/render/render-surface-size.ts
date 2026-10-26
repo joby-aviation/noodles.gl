@@ -7,6 +7,14 @@ export interface RenderSurfaceSize {
   height: number
 }
 
+export interface RenderSurfacePoint {
+  x: number
+  y: number
+}
+
+// Marks the element that holds the rendered output, in both fixed and responsive display modes
+export const RENDER_SURFACE_SELECTOR = '[data-render-surface]'
+
 type ResizeObserverFactory = (
   callback: ResizeObserverCallback
 ) => Pick<ResizeObserver, 'observe' | 'disconnect'>
@@ -84,4 +92,20 @@ export function observeRenderSurface(
   const observer = createObserver(publish)
   observer.observe(element)
   return () => observer.disconnect()
+}
+
+// Convert a client-space position to unscaled surface pixels. The bounding rect includes
+// CSS transforms (TransformScale) while offset dimensions don't, so their ratio is the scale.
+export function toRenderSurfacePoint(
+  element: HTMLElement,
+  clientX: number,
+  clientY: number
+): RenderSurfacePoint {
+  const rect = element.getBoundingClientRect()
+  const scaleX = element.offsetWidth > 0 ? rect.width / element.offsetWidth : 1
+  const scaleY = element.offsetHeight > 0 ? rect.height / element.offsetHeight : 1
+  return {
+    x: (clientX - rect.left) / (scaleX || 1),
+    y: (clientY - rect.top) / (scaleY || 1),
+  }
 }

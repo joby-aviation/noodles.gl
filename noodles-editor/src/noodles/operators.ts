@@ -6,7 +6,7 @@ import type {
   HexagonLayerProps,
   ScreenGridLayerProps,
 } from '@deck.gl/aggregation-layers'
-import { LayerExtension, type LayerProps, WebMercatorViewport } from '@deck.gl/core'
+import { type Color, LayerExtension, type LayerProps, WebMercatorViewport } from '@deck.gl/core'
 import {
   BrushingExtension,
   ClipExtension,
@@ -78,8 +78,11 @@ import z from 'zod/v4'
 
 import './utils/bigint-fix' // BigInt JSON polyfill for DuckDB
 import * as duckdb from '@duckdb/duckdb-wasm'
-import { getRenderSurfaceSize, subscribeToRenderSurfaceSize } from '../render/render-surface-size'
-import { getTransformScaleFactor } from '../render/transform-scale'
+import {
+  getRenderSurfaceSize,
+  subscribeToRenderSurfaceSize,
+  toRenderSurfacePoint,
+} from '../render/render-surface-size'
 import { getTimelineStore, subscribeToPosition } from '../timeline/timeline-store'
 import * as utils from '../utils'
 import { analytics } from '../utils/analytics'
@@ -102,7 +105,7 @@ import {
   continuousInterpolators,
 } from './color-schemes'
 import { FilterColorExtension } from './extensions/filter-color-extension'
-import { Mask3DExtension, toMaskTargetPosition } from './extensions/mask-3d-extension'
+import { Mask3DExtension } from './extensions/mask-3d-extension'
 import {
   ArrayField,
   applyNodeUIMetadata,
@@ -1008,7 +1011,8 @@ export abstract class Operator<OP extends IOperator> {
       debugParams('unknown field type: %s', def.type)
       throw new Error(`Unknown field type: ${def.type}`)
     }
-    const field = new FieldClass(def.defaultValue, def.options)
+    // Users named these fields themselves, so show the name as typed rather than humanized
+    const field = new FieldClass(def.defaultValue, { label: def.name, ...def.options })
     // If value is still undefined, the defaultValue passed was invalid for this field type
     if (field.value === undefined) {
       debugParams(
@@ -1221,12 +1225,17 @@ export class NumberOp extends Operator<NumberOp> {
   static description = 'A number'
   public createInputs() {
     return {
-      val: new NumberField(0, { step: 1, deriveStepFromValue: true }),
+      val: new NumberField(0, {
+        step: 1,
+        deriveStepFromValue: true,
+        label: 'Value',
+        description: 'The number to output.',
+      }),
     }
   }
   public createOutputs() {
     return {
-      val: new NumberField(),
+      val: new NumberField(undefined, { label: 'Value', description: 'The number entered above.' }),
     }
   }
   execute({ val }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
@@ -1240,16 +1249,24 @@ export class MapRangeOp extends Operator<MapRangeOp> {
     'Remap a number from one range to another (e.g., map 0-100 to 0-1, or temperature to color intensity)'
   public createInputs() {
     return {
-      val: new NumberField(0, { step: 0.01, accessor: true }),
-      inMin: new NumberField(0, { step: 0.1 }),
-      inMax: new NumberField(1, { step: 0.1 }),
-      outMin: new NumberField(0, { step: 0.1 }),
-      outMax: new NumberField(1, { step: 0.1 }),
+      val: new NumberField(0, {
+        step: 0.01,
+        accessor: true,
+        label: 'Value',
+        description: 'The number to remap. Accepts a per-item accessor.',
+      }),
+      inMin: new NumberField(0, { step: 0.1, description: 'Input value that maps to Out min.' }),
+      inMax: new NumberField(1, { step: 0.1, description: 'Input value that maps to Out max.' }),
+      outMin: new NumberField(0, { step: 0.1, description: 'Output value for In min.' }),
+      outMax: new NumberField(1, { step: 0.1, description: 'Output value for In max.' }),
     }
   }
   public createOutputs() {
     return {
-      scaled: new NumberField(),
+      scaled: new NumberField(undefined, {
+        description:
+          'Value mapped linearly to the output range. Values outside the input range are not clamped.',
+      }),
     }
   }
   execute({
@@ -1272,15 +1289,25 @@ export class ExtentOp extends Operator<ExtentOp> {
     'Find the minimum and maximum values in your data (e.g., to set color scale ranges or determine data bounds)'
   createInputs() {
     return {
-      data: new DataField(),
-      accessor: new UnknownField((d: unknown) => d, { accessor: true, optional: true }),
+      data: new DataField(undefined, { description: 'Array of values or rows to scan.' }),
+      accessor: new UnknownField((d: unknown) => d, {
+        accessor: true,
+        optional: true,
+        description: 'Picks the number to compare from each item. Defaults to the item itself.',
+      }),
     }
   }
   createOutputs() {
     return {
-      min: new NumberField(),
-      max: new NumberField(),
-      extent: new Vec2Field(),
+      min: new NumberField(undefined, {
+        description: 'The smallest value found, or 0 when there is no data.',
+      }),
+      max: new NumberField(undefined, {
+        description: 'The largest value found, or 0 when there is no data.',
+      }),
+      extent: new Vec2Field(undefined, {
+        description: 'Min and max together, as a 2D vector (x is min, y is max).',
+      }),
     }
   }
   execute({ data, accessor }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
@@ -1305,14 +1332,23 @@ export class SelectOp extends Operator<SelectOp> {
     'Select an element from an array using an index (clamped to array bounds by default, or wrapped around array bounds)'
   createInputs() {
     return {
-      data: new DataField(),
-      index: new NumberField(0, { step: 1 }),
-      wrap: new BooleanField(false),
+      data: new DataField(undefined, {
+        description: 'Array to pick one item from. Outputs nothing if it is empty.',
+      }),
+      index: new NumberField(0, {
+        step: 1,
+        description: 'Position of the item, starting at 0. Decimals round down.',
+      }),
+      wrap: new BooleanField(false, {
+        description: 'Wrap out-of-range indexes around the array instead of clamping to the ends.',
+      }),
     }
   }
   createOutputs() {
     return {
-      value: new UnknownField(undefined),
+      value: new UnknownField(undefined, {
+        description: 'The item at Index, after clamping or wrapping to the array bounds.',
+      }),
     }
   }
   execute({
@@ -1401,14 +1437,27 @@ export class MathOp extends Operator<MathOp> {
           'rad',
           'deg',
         ],
+        label: 'Operation',
+        description:
+          'Math to apply. Sine, sqrt, round, rad and other one-input operations ignore B.',
       }),
-      a: new NumberField(0, { step: 1, accessor: true }),
-      b: new NumberField(0, { step: 1, accessor: true }),
+      a: new NumberField(0, {
+        step: 1,
+        accessor: true,
+        description: 'First number. Accepts a per-item accessor.',
+      }),
+      b: new NumberField(0, {
+        step: 1,
+        accessor: true,
+        description: 'Second number, for two-input operations. Accepts a per-item accessor.',
+      }),
     }
   }
   createOutputs() {
     return {
-      result: new NumberField(),
+      result: new NumberField(undefined, {
+        description: 'The result, or a per-item accessor when A or B is one.',
+      }),
     }
   }
   execute({ operator, a, b }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
@@ -1515,12 +1564,12 @@ export class StringOp extends Operator<StringOp> {
   static description = 'A string'
   createInputs() {
     return {
-      val: new StringField(''),
+      val: new StringField('', { label: 'Value', description: 'The text to pass along.' }),
     }
   }
   createOutputs() {
     return {
-      val: new StringField(),
+      val: new StringField(undefined, { label: 'Value', description: 'The same text, unchanged.' }),
     }
   }
   execute({ val }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
@@ -1533,12 +1582,18 @@ export class BooleanOp extends Operator<BooleanOp> {
   static description = 'A boolean'
   createInputs() {
     return {
-      val: new BooleanField(false),
+      val: new BooleanField(false, {
+        label: 'Value',
+        description: 'A true or false value to pass on to other nodes.',
+      }),
     }
   }
   createOutputs() {
     return {
-      val: new BooleanField(),
+      val: new BooleanField(undefined, {
+        label: 'Value',
+        description: 'The same true or false value.',
+      }),
     }
   }
   execute({ val }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
@@ -1551,12 +1606,16 @@ export class DateTimeOp extends Operator<DateTimeOp> {
   static description = 'A date and time'
   createInputs() {
     return {
-      date: new DateField(),
+      date: new DateField(undefined, {
+        description: 'A date and time with no time zone. Defaults to the time the project loaded.',
+      }),
     }
   }
   createOutputs() {
     return {
-      date: new DateField(),
+      date: new DateField(undefined, {
+        description: 'The same date and time, for connecting to other date operators.',
+      }),
     }
   }
   execute({ date }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
@@ -1616,17 +1675,48 @@ export class DateMathOp extends Operator<DateMathOp> {
 
   createInputs() {
     return {
-      operator: new StringLiteralField('add', { values: [...DATE_MATH_OPERATORS] }),
-      date: new DateField(undefined, { accessor: true }),
-      dateB: new DateField(undefined, { accessor: true, showByDefault: false }),
-      amount: new NumberField(1, { step: 1, accessor: true }),
-      unit: new StringLiteralField('days', { values: [...DURATION_UNITS] }),
-      t: new NumberField(0, { min: 0, max: 1, step: 0.01, accessor: true, showByDefault: false }),
+      operator: new StringLiteralField('add', {
+        values: [...DATE_MATH_OPERATORS],
+        label: 'Operation',
+        description:
+          'What to do: add, subtract, difference, compare (before, after, equals) or interpolate.',
+      }),
+      date: new DateField(undefined, {
+        accessor: true,
+        description: 'The date to work on. Accepts a per-item accessor.',
+      }),
+      dateB: new DateField(undefined, {
+        accessor: true,
+        showByDefault: false,
+        label: 'Second date',
+        description: 'Date to compare with, measure to, or blend toward.',
+      }),
+      amount: new NumberField(1, {
+        step: 1,
+        accessor: true,
+        description: 'How many Units to add or subtract.',
+      }),
+      unit: new StringLiteralField('days', {
+        values: [...DURATION_UNITS],
+        description: 'Time unit for add, subtract and difference, from years to milliseconds.',
+      }),
+      t: new NumberField(0, {
+        min: 0,
+        max: 1,
+        step: 0.01,
+        accessor: true,
+        showByDefault: false,
+        label: 'Blend',
+        description: 'How far from Date to Second date, 0 to 1. Only used for interpolate.',
+      }),
     }
   }
   createOutputs() {
     return {
-      result: new UnknownField(),
+      result: new UnknownField(undefined, {
+        description:
+          'A date (add, subtract, interpolate), a number in Unit (difference), or true/false.',
+      }),
     }
   }
   execute({
@@ -1703,21 +1793,28 @@ export class DatePartsOp extends Operator<DatePartsOp> {
   static description = 'Split a date into year, month, day, hour, and other components'
   createInputs() {
     return {
-      date: new DateField(undefined, { accessor: true }),
+      date: new DateField(undefined, {
+        accessor: true,
+        description: 'The date to split into parts. Accepts a per-item accessor.',
+      }),
     }
   }
   createOutputs() {
     return {
-      year: new NumberField(),
-      month: new NumberField(),
-      day: new NumberField(),
-      hour: new NumberField(),
-      minute: new NumberField(),
-      second: new NumberField(),
-      millisecond: new NumberField(),
-      dayOfWeek: new NumberField(),
-      dayOfYear: new NumberField(),
-      weekOfYear: new NumberField(),
+      year: new NumberField(undefined, { description: 'The four-digit year.' }),
+      month: new NumberField(undefined, { description: 'Month of the year, 1 (January) to 12.' }),
+      day: new NumberField(undefined, { description: 'Day of the month, 1 to 31.' }),
+      hour: new NumberField(undefined, { description: 'Hour of the day, 0 to 23.' }),
+      minute: new NumberField(undefined, { description: 'Minute of the hour, 0 to 59.' }),
+      second: new NumberField(undefined, { description: 'Second of the minute, 0 to 59.' }),
+      millisecond: new NumberField(undefined, {
+        description: 'Millisecond of the second, 0 to 999.',
+      }),
+      dayOfWeek: new NumberField(undefined, {
+        description: 'Day of the week, 1 (Monday) to 7 (Sunday).',
+      }),
+      dayOfYear: new NumberField(undefined, { description: 'Day of the year, 1 to 366.' }),
+      weekOfYear: new NumberField(undefined, { description: 'ISO week number, 1 to 53.' }),
     }
   }
   execute({ date }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
@@ -1746,13 +1843,20 @@ export class DateFormatOp extends Operator<DateFormatOp> {
   static description = 'Format a date as a string, e.g. YYYY-MM-DD HH:mm'
   createInputs() {
     return {
-      date: new DateField(undefined, { accessor: true }),
-      pattern: new StringField('YYYY-MM-DD HH:mm:ss'),
+      date: new DateField(undefined, {
+        accessor: true,
+        description: 'Date to format, or a per-row date accessor.',
+      }),
+      pattern: new StringField('YYYY-MM-DD HH:mm:ss', {
+        description: 'Format with tokens YYYY, MM, DD, HH, mm, ss, SSS. Empty gives an ISO string.',
+      }),
     }
   }
   createOutputs() {
     return {
-      text: new StringField(),
+      text: new StringField(undefined, {
+        description: 'The formatted date text, or a per-row accessor when Date is one.',
+      }),
     }
   }
   execute({ date, pattern }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
@@ -1780,13 +1884,24 @@ export class CombineXYOp extends Operator<CombineXYOp> {
   static description = 'Combine x and y into a 2D vector'
   createInputs() {
     return {
-      x: new NumberField(0, { step: 0.01, accessor: true }),
-      y: new NumberField(0, { step: 0.01, accessor: true }),
+      x: new NumberField(0, {
+        step: 0.01,
+        accessor: true,
+        description: 'X component. Accepts a per-item accessor.',
+      }),
+      y: new NumberField(0, {
+        step: 0.01,
+        accessor: true,
+        description: 'Y component. Accepts a per-item accessor.',
+      }),
     }
   }
   createOutputs() {
     return {
-      xy: new Vec2Field(),
+      xy: new Vec2Field(undefined, {
+        label: 'XY',
+        description: '2D vector {x, y}, or a per-item accessor when X or Y is one.',
+      }),
     }
   }
   execute({ x, y }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
@@ -1851,13 +1966,20 @@ export class SplitXYOp extends Operator<SplitXYOp> {
   static description = 'Split a 2D vector into its x and y components'
   createInputs() {
     return {
-      vec: new Vec2Field({ x: 0, y: 0 }, { accessor: true }),
+      vec: new Vec2Field(
+        { x: 0, y: 0 },
+        {
+          accessor: true,
+          label: 'Vector',
+          description: '2D vector {x, y} to split. Accepts a per-item accessor.',
+        }
+      ),
     }
   }
   createOutputs() {
     return {
-      x: new NumberField(),
-      y: new NumberField(),
+      x: new NumberField(undefined, { description: 'X component of the vector.' }),
+      y: new NumberField(undefined, { description: 'Y component of the vector.' }),
     }
   }
   execute({ vec }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
@@ -1879,14 +2001,21 @@ export class SplitXYZOp extends Operator<SplitXYZOp> {
   static description = 'Split a 3D vector into its x, y, and z components'
   createInputs() {
     return {
-      vec: new Vec3Field({ x: 0, y: 0, z: 0 }, { accessor: true }),
+      vec: new Vec3Field(
+        { x: 0, y: 0, z: 0 },
+        {
+          accessor: true,
+          label: 'Vector',
+          description: '3D vector {x, y, z} to split. Accepts a per-item accessor.',
+        }
+      ),
     }
   }
   createOutputs() {
     return {
-      x: new NumberField(),
-      y: new NumberField(),
-      z: new NumberField(),
+      x: new NumberField(undefined, { description: 'X component of the vector.' }),
+      y: new NumberField(undefined, { description: 'Y component of the vector.' }),
+      z: new NumberField(undefined, { description: 'Z component of the vector.' }),
     }
   }
   execute({ vec }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
@@ -1909,18 +2038,44 @@ export class CombineRGBAOp extends Operator<CombineRGBAOp> {
   static description = 'Combine r, g, b, and a into a color (range 0-255)'
   createInputs() {
     return {
-      r: new NumberField(0, { accessor: true }),
-      g: new NumberField(0, { accessor: true }),
-      b: new NumberField(0, { accessor: true }),
-      a: new NumberField(1, { accessor: true }),
+      r: new NumberField(0, {
+        accessor: true,
+        label: 'Red',
+        description:
+          'Red channel, 0 to 255. Fractions round and values outside the range clamp. Can be a per-item accessor.',
+      }),
+      g: new NumberField(0, {
+        accessor: true,
+        label: 'Green',
+        description:
+          'Green channel, 0 to 255. Fractions round and values outside the range clamp. Can be a per-item accessor.',
+      }),
+      b: new NumberField(0, {
+        accessor: true,
+        label: 'Blue',
+        description:
+          'Blue channel, 0 to 255. Fractions round and values outside the range clamp. Can be a per-item accessor.',
+      }),
+      a: new NumberField(255, {
+        accessor: true,
+        label: 'Alpha',
+        description:
+          'Opacity, 0 (clear) to 255 (opaque). Fractions round and values outside the range clamp. Can be a per-item accessor.',
+      }),
     }
   }
   createOutputs() {
     return {
-      color: new ColorField(),
+      color: new ColorField(undefined, {
+        description: 'Hex color (#rrggbbaa), or a per-item color accessor if any input is one.',
+      }),
     }
   }
   execute({ r, g, b, a }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    // Hex digits need whole numbers in 0-255
+    const toHex = (channels: number[]) =>
+      colorToHex(channels.map(c => Math.min(255, Math.max(0, Math.round(c)))) as Color)
+
     // Check if any inputs are accessor functions
     const rIsAccessor = isAccessor(r)
     const gIsAccessor = isAccessor(g)
@@ -1929,7 +2084,7 @@ export class CombineRGBAOp extends Operator<CombineRGBAOp> {
 
     if (!rIsAccessor && !gIsAccessor && !bIsAccessor && !aIsAccessor) {
       // All static values
-      return { color: colorToHex([r as number, g as number, b as number, a as number]) }
+      return { color: toHex([r as number, g as number, b as number, a as number]) }
     }
 
     // At least one is an accessor - return accessor function
@@ -1938,7 +2093,7 @@ export class CombineRGBAOp extends Operator<CombineRGBAOp> {
       const gVal = gIsAccessor ? (g as (...args: unknown[]) => unknown)(...args) : (g as number)
       const bVal = bIsAccessor ? (b as (...args: unknown[]) => unknown)(...args) : (b as number)
       const aVal = aIsAccessor ? (a as (...args: unknown[]) => unknown)(...args) : (a as number)
-      return colorToHex([rVal as number, gVal as number, bVal as number, aVal as number])
+      return toHex([rVal as number, gVal as number, bVal as number, aVal as number])
     }
     return { color } as ExtractProps<typeof this.outputs>
   }
@@ -1949,22 +2104,26 @@ export class SplitRGBAOp extends Operator<SplitRGBAOp> {
   static description = 'Split a color into its red, green, blue, and alpha components (range 0-255)'
   createInputs() {
     return {
-      color: new ColorField({ accessor: true }),
+      color: new ColorField(undefined, {
+        accessor: true,
+        description: 'Hex color to split into channels. Can be a per-item accessor.',
+      }),
     }
   }
   createOutputs() {
     return {
-      r: new NumberField(),
-      g: new NumberField(),
-      b: new NumberField(),
-      a: new NumberField(),
+      r: new NumberField(undefined, { label: 'Red', description: 'Red channel, 0 to 255.' }),
+      g: new NumberField(undefined, { label: 'Green', description: 'Green channel, 0 to 255.' }),
+      b: new NumberField(undefined, { label: 'Blue', description: 'Blue channel, 0 to 255.' }),
+      a: new NumberField(undefined, {
+        label: 'Alpha',
+        description: 'Opacity channel, 0 (clear) to 255 (opaque).',
+      }),
     }
   }
   execute({ color }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     const parseColor = (c: string) => {
       const [r, g, b, a] = hexToColor(c)
-        .split(',')
-        .map((v: string) => parseInt(v, 10))
       return { r, g, b, a }
     }
 
@@ -1987,12 +2146,16 @@ export class ColorOp extends Operator<ColorOp> {
   static description = 'A color'
   createInputs() {
     return {
-      color: new ColorField(),
+      color: new ColorField(undefined, {
+        description: 'The color to output, as hex with optional alpha (#rrggbbaa).',
+      }),
     }
   }
   createOutputs() {
     return {
-      color: new ColorField(),
+      color: new ColorField(undefined, {
+        description: 'The chosen color, as an 8-digit hex string.',
+      }),
     }
   }
   execute({ color }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
@@ -2005,14 +2168,37 @@ export class HSLOp extends Operator<HSLOp> {
   static description = 'A color in HSL (hue, saturation, lightness) format'
   createInputs() {
     return {
-      h: new NumberField(0, { min: 0, max: 360, step: 1, accessor: true }),
-      s: new NumberField(0.5, { min: 0, max: 1, step: 0.01, accessor: true }),
-      l: new NumberField(0.8, { min: 0, max: 1, step: 0.01, accessor: true }),
+      h: new NumberField(0, {
+        min: 0,
+        max: 360,
+        step: 1,
+        accessor: true,
+        label: 'Hue',
+        description: 'Hue in degrees around the color wheel, 0 to 360. Can be a per-item accessor.',
+      }),
+      s: new NumberField(0.5, {
+        min: 0,
+        max: 1,
+        step: 0.01,
+        accessor: true,
+        label: 'Saturation',
+        description: 'Color intensity, 0 (gray) to 1 (full color). Can be a per-item accessor.',
+      }),
+      l: new NumberField(0.8, {
+        min: 0,
+        max: 1,
+        step: 0.01,
+        accessor: true,
+        label: 'Lightness',
+        description: '0 is black, 0.5 is the pure color, 1 is white. Can be a per-item accessor.',
+      }),
     }
   }
   createOutputs() {
     return {
-      color: new ColorField(),
+      color: new ColorField(undefined, {
+        description: 'Hex color (#rrggbb), or a per-item color accessor if any input is one.',
+      }),
     }
   }
   execute({ h, s, l }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
@@ -2044,9 +2230,16 @@ export class ColorRampOp extends Operator<ColorRampOp> {
     const colorScheme = new StringLiteralField('viridis', {
       values: Object.keys(continuousInterpolators),
       displayAs: 'color-scheme',
+      description: 'Continuous color scale to pick colors from.',
     })
 
-    const value = new NumberField(0, { min: 0, max: 1, step: 0.01, accessor: true })
+    const value = new NumberField(0, {
+      min: 0,
+      max: 1,
+      step: 0.01,
+      accessor: true,
+      description: 'Position along the scale, 0 to 1. Can be a per-item accessor.',
+    })
 
     return {
       colorScheme,
@@ -2055,8 +2248,12 @@ export class ColorRampOp extends Operator<ColorRampOp> {
   }
   createOutputs() {
     return {
-      color: new ColorField(),
-      colorRamp: new ColorRampField(),
+      color: new ColorField(undefined, {
+        description: 'Hex color at Value, or a per-item color accessor if Value is one.',
+      }),
+      colorRamp: new ColorRampField(undefined, {
+        description: 'Function that maps a number from 0 to 1 to a hex color on the scale.',
+      }),
     }
   }
   execute({
@@ -2092,10 +2289,20 @@ export class CategoricalColorRampOp extends Operator<CategoricalColorRampOp> {
     const colorScheme = new StringLiteralField('accent', {
       values: allSchemeNames,
       displayAs: 'color-scheme',
+      description: 'Set of colors to assign to categories.',
     })
-    const steps = new NumberField(8, { min: 3, max: 11, step: 1 })
+    const steps = new NumberField(8, {
+      min: 3,
+      max: 11,
+      step: 1,
+      description:
+        'Number of colors used from the scheme, 3 to 11. Categories past this reuse colors.',
+    })
 
-    const value = new StringField('', { accessor: true })
+    const value = new StringField('', {
+      accessor: true,
+      description: 'Category name to look up. Can be a per-item accessor.',
+    })
 
     return {
       colorScheme,
@@ -2105,8 +2312,12 @@ export class CategoricalColorRampOp extends Operator<CategoricalColorRampOp> {
   }
   createOutputs() {
     return {
-      color: new ColorField(),
-      colorRamp: new CategoricalColorRampField(),
+      color: new ColorField(undefined, {
+        description: 'Hex color for Value, or a per-item color accessor if Value is one.',
+      }),
+      colorRamp: new CategoricalColorRampField(undefined, {
+        description: 'Function that maps any category name to a color from the scheme.',
+      }),
     }
   }
   execute({
@@ -2164,9 +2375,16 @@ export class TimeOp extends Operator<TimeOp> {
 
   createOutputs() {
     return {
-      now: new NumberField(),
-      sequenceTime: new NumberField(),
-      tick: new NumberField(),
+      now: new NumberField(undefined, {
+        description: 'Current clock time, in milliseconds since 1970. Updates every frame.',
+      }),
+      sequenceTime: new NumberField(undefined, {
+        label: 'Timeline time',
+        description: 'Playhead position on the timeline, in seconds.',
+      }),
+      tick: new NumberField(undefined, {
+        description: 'Frame counter that goes up by one every animation frame.',
+      }),
     }
   }
 
@@ -2220,13 +2438,21 @@ export class BezierCurveOp extends Operator<BezierCurveOp> {
   static description = 'Bezier curve for mapping input values using an interactive graph editor'
   createInputs() {
     return {
-      factor: new NumberField(0.5, { min: 0, max: 1, step: 0.01, accessor: true }),
-      curve: new BezierCurveField(),
+      factor: new NumberField(0.5, {
+        min: 0,
+        max: 1,
+        step: 0.01,
+        accessor: true,
+        description: 'Input position on the curve, 0 to 1. Accepts a per-item accessor.',
+      }),
+      curve: new BezierCurveField(undefined, {
+        description: 'The curve that maps input to output. Drag the handles to shape it.',
+      }),
     }
   }
   createOutputs() {
     return {
-      value: new NumberField(),
+      value: new NumberField(undefined, { description: "The curve's value at Factor." }),
     }
   }
   execute({
@@ -2257,17 +2483,36 @@ export class FileOp extends Operator<FileOp> {
 
   createInputs() {
     return {
-      format: new StringLiteralField('json', { values: ['json', 'csv', 'tsv', 'text', 'binary'] }),
-      url: new FileUrlField(),
-      text: new StringField(), // TODO: make this mutually exclusive with `url`
-      autoType: new BooleanField(true, { showByDefault: false }),
-      pulse: new NumberField(0, { min: 0, step: 1, showByDefault: false }),
+      format: new StringLiteralField('json', {
+        values: ['json', 'csv', 'tsv', 'text', 'binary'],
+        description: 'How to read the file: json, csv, tsv, plain text or raw bytes.',
+      }),
+      url: new FileUrlField(undefined, {
+        description: 'Web address or project file to load. Takes priority over Text.',
+      }),
+      // TODO: make this mutually exclusive with `url`
+      text: new StringField('', {
+        description: 'File contents to use instead of a URL. Ignored when URL is set.',
+      }),
+      autoType: new BooleanField(true, {
+        showByDefault: false,
+        label: 'Detect types',
+        description:
+          'Turn number, true/false and date columns into values. Off keeps text, e.g. ZIP codes.',
+      }),
+      pulse: new NumberField(0, {
+        min: 0,
+        step: 1,
+        showByDefault: false,
+        label: 'Reload',
+        description: 'Change this number to fetch the file again.',
+      }),
     }
   }
 
   createOutputs() {
     return {
-      data: new DataField(),
+      data: new DataField(undefined, { description: 'The parsed file contents.' }),
     }
   }
 
@@ -2529,12 +2774,17 @@ export class DuckDbOp extends Operator<DuckDbOp> {
   asDownload = () => this.outputData
   createInputs() {
     return {
-      query: new CodeField('SELECT 1 as val;', { language: 'sql' }),
+      query: new CodeField('SELECT 1 as val;', {
+        language: 'sql',
+        label: 'SQL query',
+        description:
+          "SQL to run. Statements run in order. Insert another field's value with {{/op.out.field}}.",
+      }),
     }
   }
   createOutputs() {
     return {
-      data: new DataField(),
+      data: new DataField(undefined, { description: 'Rows returned by the last statement.' }),
     }
   }
 
@@ -2630,12 +2880,18 @@ export class JSONOp extends Operator<JSONOp> {
   static description = 'Parse a JSON string'
   createInputs() {
     return {
-      text: new CodeField('{}', { language: 'json' }),
+      text: new CodeField('{}', {
+        language: 'json',
+        description:
+          'JSON text to parse. {{/node.out.field}} references are replaced with that value.',
+      }),
     }
   }
   createOutputs() {
     return {
-      data: new DataField(),
+      data: new DataField(undefined, {
+        description: 'The parsed value (object, array, number, string or boolean).',
+      }),
     }
   }
   execute({ text }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
@@ -2665,7 +2921,9 @@ export class ViewerOp extends Operator<ViewerOp> {
   asDownload = () => this.inputs.data.value
   createInputs() {
     return {
-      data: new UnknownField(),
+      data: new UnknownField(undefined, {
+        description: 'Any value to inspect in the node. It can also be downloaded.',
+      }),
     }
   }
 
@@ -2686,15 +2944,23 @@ export class TableEditorOp extends Operator<TableEditorOp> {
 
   createInputs() {
     return {
-      data: new DataField(),
-      schema: new UnknownField(null), // TableSchema | null - optional schema override
+      data: new DataField(undefined, {
+        description: 'Rows of the table. Edits made in the table editor are saved here.',
+      }),
+      schema: new UnknownField(null, {
+        description: 'Column names, types and defaults. Inferred from the data when not set.',
+      }), // TableSchema | null - optional schema override
     }
   }
 
   createOutputs() {
     return {
-      data: new DataField(),
-      schema: new UnknownField(null), // Computed schema (inferred or explicit)
+      data: new DataField(undefined, {
+        description: 'The rows, checked against the schema, with date-time cells as dates.',
+      }),
+      schema: new UnknownField(null, {
+        description: 'The column schema in use, or null when none is set.',
+      }), // Computed schema (inferred or explicit)
     }
   }
 
@@ -2717,11 +2983,34 @@ export class ChartOp extends Operator<ChartOp> {
   static displayName = 'Chart'
   static description = 'Create charts using Observable Plot (bar, histogram, scatter)'
 
+  // Subscribe here, not in createInputs: chartType emits on subscribe, and this.inputs
+  // doesn't exist until createInputs returns
+  constructor(id: OpId, inputs?: unknown, locked?: boolean) {
+    super(id, inputs, locked)
+
+    const sub = this.inputs.chartType.subscribe(type => {
+      // Hide yField for histogram (only needs x-axis)
+      this.setFieldVisibility('yField', type !== 'histogram')
+    })
+    this.subs.push(sub)
+  }
+
   createInputs() {
-    const data = new DataField()
-    const chartType = new StringLiteralField('bar', { values: ['bar', 'histogram', 'scatter'] })
-    const xField = new StringLiteralField('', [])
-    const yField = new StringLiteralField('', [])
+    const data = new DataField(undefined, {
+      description: 'Array of rows to plot. Its keys fill the X field and Y field choices.',
+    })
+    const chartType = new StringLiteralField('bar', {
+      values: ['bar', 'histogram', 'scatter'],
+      description: 'Bar, histogram (counts of X field values) or scatter.',
+    })
+    const xField = new StringLiteralField('', {
+      values: [],
+      description: 'Column to use for the horizontal axis.',
+    })
+    const yField = new StringLiteralField('', {
+      values: [],
+      description: 'Column to use for the vertical axis. Hidden for histograms.',
+    })
 
     // Dynamic field population pattern (from FilterOp)
     data.subscribe((data: unknown[]) => {
@@ -2732,30 +3021,44 @@ export class ChartOp extends Operator<ChartOp> {
       }
     })
 
-    // Field visibility based on chart type
-    chartType.subscribe(type => {
-      // Hide yField for histogram (only needs x-axis)
-      this.setFieldVisibility('yField', type !== 'histogram')
-    })
-
     return {
       data,
       chartType,
       xField,
       yField,
-      width: new NumberField(640, { min: 100, max: 2000, step: 10 }),
-      height: new NumberField(400, { min: 100, max: 2000, step: 10 }),
-      color: new ColorField('#4269d0'),
-      title: new StringField(''),
-      xLabel: new StringField(''),
-      yLabel: new StringField(''),
+      width: new NumberField(640, {
+        min: 100,
+        max: 2000,
+        step: 10,
+        description: 'Chart width in pixels, from 100 to 2000.',
+      }),
+      height: new NumberField(400, {
+        min: 100,
+        max: 2000,
+        step: 10,
+        description: 'Chart height in pixels, from 100 to 2000.',
+      }),
+      color: new ColorField('#4269d0', {
+        description: 'Fill color of the bars or dots, as a hex color.',
+      }),
+      title: new StringField('', {
+        description: 'Title shown above the chart. Leave empty for none.',
+      }),
+      xLabel: new StringField('', {
+        description: 'Horizontal axis title. Defaults to the X field name.',
+      }),
+      yLabel: new StringField('', {
+        description: 'Vertical axis title. Defaults to the Y field name.',
+      }),
     }
   }
 
   createOutputs() {
     return {
       // Plot.plot() returns a <figure> element containing the chart SVG
-      chart: new UnknownField(),
+      chart: new UnknownField(undefined, {
+        description: 'The chart as an HTML figure element, or null if data or fields are missing.',
+      }),
     }
   }
 
@@ -2832,8 +3135,13 @@ export class BrushableHistogramOp extends Operator<BrushableHistogramOp> {
     'Interactive histogram with brushable range selection for data filtering. Drag handles to select a range, keyframe brush positions for animation.'
 
   createInputs() {
-    const data = new DataField()
-    const field = new StringLiteralField('', [])
+    const data = new DataField(undefined, {
+      description: 'Array of rows to bin and filter. Each row needs a numeric column.',
+    })
+    const field = new StringLiteralField('', {
+      values: [],
+      description: 'Numeric column to bin. Choices are the numeric keys found in the data.',
+    })
 
     // Dynamically populate field choices from numeric data keys. Sample several rows, since
     // a numeric column can have an empty first cell.
@@ -2853,18 +3161,37 @@ export class BrushableHistogramOp extends Operator<BrushableHistogramOp> {
     return {
       data,
       field,
-      binCount: new NumberField(20, { min: 5, max: 100, step: 1 }),
-      brushMin: new NumberField(0),
-      brushMax: new NumberField(100),
-      brushMode: new StringLiteralField('handles', { values: ['handles', 'offset'] }),
+      binCount: new NumberField(20, {
+        min: 5,
+        max: 100,
+        step: 1,
+        description: 'About how many bars to split the value range into, from 5 to 100.',
+      }),
+      brushMin: new NumberField(0, {
+        description: 'Lowest value kept in Filtered data (inclusive). Can be keyframed.',
+      }),
+      brushMax: new NumberField(100, {
+        description: 'Highest value kept in Filtered data (inclusive). Can be keyframed.',
+      }),
+      brushMode: new StringLiteralField('handles', {
+        values: ['handles', 'offset'],
+        description:
+          'How the histogram editor sets the range: min and max handles, or center and width.',
+      }),
     }
   }
 
   createOutputs() {
     return {
-      filteredData: new DataField(),
-      binData: new DataField(),
-      extent: new UnknownField(),
+      filteredData: new DataField(undefined, {
+        description: 'Rows whose Field value is between Brush min and Brush max.',
+      }),
+      binData: new DataField(undefined, {
+        description: 'One row per bar with x0, x1, count and the rows in that bin.',
+      }),
+      extent: new UnknownField(undefined, {
+        description: 'Lowest and highest Field values in the data, as [min, max].',
+      }),
     }
   }
 
@@ -2936,15 +3263,29 @@ export class ScatterOp extends Operator<ScatterOp> {
     return {
       bounds: new BboxField(
         { southwest: { lng: -180, lat: -90 }, northeast: { lng: 180, lat: 90 } },
-        { returnType: 'tuple' }
+        {
+          returnType: 'tuple',
+          description: 'Area to fill with points. Defaults to the whole world.',
+        }
       ),
-      count: new NumberField(100, { min: 1, step: 1 }),
-      seed: new NumberField(1, { min: 0, step: 1 }),
+      count: new NumberField(100, {
+        min: 1,
+        step: 1,
+        description: 'Number of random points to create inside Bounds.',
+      }),
+      seed: new NumberField(1, {
+        min: 0,
+        step: 1,
+        description:
+          'Starting number for the random generator. The same seed gives the same points.',
+      }),
     }
   }
   createOutputs() {
     return {
-      points: new ArrayField(new Point2DField()),
+      points: new ArrayField(new Point2DField(), {
+        description: 'Array of random points, each with lng and lat.',
+      }),
     }
   }
   execute({
@@ -2980,13 +3321,19 @@ export class BoundsOp extends Operator<BoundsOp> {
   static description = 'Create a bounding box from two points'
   createInputs() {
     return {
-      southwest: new Point2DField(),
-      northeast: new Point2DField(),
+      southwest: new Point2DField(undefined, {
+        description: 'One corner of the box, as a longitude and latitude.',
+      }),
+      northeast: new Point2DField(undefined, {
+        description: 'The opposite corner of the box. Corners can be given in either order.',
+      }),
     }
   }
   createOutputs() {
     return {
-      bounds: new ArrayField(new Point2DField([0, 0], { returnType: 'tuple' })),
+      bounds: new ArrayField(new Point2DField([0, 0], { returnType: 'tuple' }), {
+        description: 'The box as [[west, south], [east, north]].',
+      }),
     }
   }
   execute({
@@ -3087,22 +3434,43 @@ export class BoundingBoxOp extends Operator<BoundingBoxOp> {
   createInputs() {
     return {
       // Points, or a GeoJSON FeatureCollection, Feature or Geometry (e.g. a GeoJson operator's output)
-      data: orSchema(new ArrayField(new Point2DField()), geoJsonSchema),
+      data: orSchema(
+        new ArrayField(new Point2DField(), {
+          description:
+            'Points with lat and lng keys, or GeoJSON (FeatureCollection, Feature or geometry).',
+        }),
+        geoJsonSchema
+      ),
       // TODO: could be a union, either a number or object with top, right, bottom, left
-      padding: new NumberField(0, { softMin: -1_000, softMax: 1_000 }),
+      padding: new NumberField(0, {
+        softMin: -1_000,
+        softMax: 1_000,
+        description: 'Space to leave around the bounds when fitting the camera, in pixels.',
+      }),
     }
   }
   createOutputs() {
     return {
-      bounds: new ArrayField(new Point2DField([0, 0], { returnType: 'tuple' })),
-      longitude: new NumberField(),
-      latitude: new NumberField(),
-      zoom: new NumberField(),
-      viewState: new CompoundPropsField({
-        longitude: new NumberField(),
-        latitude: new NumberField(),
-        zoom: new NumberField(),
+      bounds: new ArrayField(new Point2DField([0, 0], { returnType: 'tuple' }), {
+        description: "Corners of the data's extent, as [[west, south], [east, north]].",
       }),
+      longitude: new NumberField(undefined, {
+        description: 'Longitude of the camera center that fits all the data in view.',
+      }),
+      latitude: new NumberField(undefined, {
+        description: 'Latitude of the camera center that fits all the data in view.',
+      }),
+      zoom: new NumberField(undefined, {
+        description: 'Zoom level that fits all the data in the output frame.',
+      }),
+      viewState: new CompoundPropsField(
+        {
+          longitude: new NumberField(),
+          latitude: new NumberField(),
+          zoom: new NumberField(),
+        },
+        { description: 'Longitude, latitude and zoom together, ready to connect to a view state.' }
+      ),
     }
   }
   execute({ data, padding }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
@@ -3156,13 +3524,20 @@ export class GeocoderOp extends Operator<GeocoderOp> {
   static description = 'Get the location of a query string'
   createInputs() {
     return {
-      query: new StringField(),
+      query: new StringField(undefined, {
+        description:
+          'Place name or address to look up with Mapbox. Needs a Mapbox key in Settings.',
+      }),
     }
   }
   createOutputs() {
     return {
-      location: new Point2DField(),
-      results: new DataField(),
+      location: new Point2DField(undefined, {
+        description: 'Longitude and latitude of the chosen or best match.',
+      }),
+      results: new DataField(undefined, {
+        description: 'Up to 5 matches, each with place_name and coordinates.',
+      }),
     }
   }
   async execute({
@@ -3204,30 +3579,43 @@ export class DirectionsOp extends Operator<DirectionsOp> {
   asDownload = () => this.outputData
   createInputs() {
     return {
-      origin: new Point2DField(),
-      destination: new Point2DField(),
+      origin: new Point2DField(undefined, {
+        description: 'Start of the route, as a longitude and latitude.',
+      }),
+      destination: new Point2DField(undefined, {
+        description: 'End of the route, as a longitude and latitude.',
+      }),
       mode: new StringLiteralField('transit', {
         values: [
           { value: 'driving', label: 'Driving (Mapbox / OSRM)' },
           { value: 'driving-traffic', label: 'Driving with traffic (Google)' },
           { value: 'transit', label: 'Transit (Google)' },
         ],
+        description:
+          'Routing service: driving, traffic-aware driving (Google) or transit (Google).',
       }),
       departureMode: new StringLiteralField('now', {
         values: [
           { value: 'now', label: 'Depart now' },
           { value: 'scheduled', label: 'Schedule departure' },
         ],
+        description: 'Leave now or at a set time. Only used for driving with traffic.',
       }),
-      departureTime: new DateField(),
+      departureTime: new DateField(undefined, {
+        description:
+          'Local time at the origin to leave. Must be in the future. Used with a scheduled departure.',
+      }),
       trafficModel: new StringLiteralField('best-guess', {
         values: [
           { value: 'best-guess', label: 'Best guess' },
           { value: 'pessimistic', label: 'Pessimistic' },
           { value: 'optimistic', label: 'Optimistic' },
         ],
+        description: 'How to estimate traffic delay: best guess, pessimistic or optimistic.',
       }),
-      avoidTolls: new BooleanField(false),
+      avoidTolls: new BooleanField(false, {
+        description: 'Prefer routes without toll roads. Only used for driving with traffic.',
+      }),
     }
   }
   createOutputs() {
@@ -3243,7 +3631,11 @@ export class DirectionsOp extends Operator<DirectionsOp> {
           tollAmount: new NumberField(0, { min: 0, optional: true }),
           tollCurrency: new StringField('', { optional: true }),
         },
-        { passthrough: true }
+        {
+          passthrough: true,
+          description:
+            'Distance (meters), duration (seconds), path, timestamps for Trips layer, and toll info.',
+        }
       ),
     }
   }
@@ -3321,6 +3713,7 @@ export class OverpassOp extends Operator<OverpassOp> {
         '[out:json][timeout:25];\n(\n  way["leisure"="park"]({{bbox}});\n  relation["leisure"="park"]({{bbox}});\n);\nout geom;',
         {
           language: 'overpass-ql',
+          description: 'Overpass QL query. {{bbox}} is replaced with the Bbox area.',
         }
       ),
       bbox: new BboxField(
@@ -3328,14 +3721,21 @@ export class OverpassOp extends Operator<OverpassOp> {
           southwest: { lng: -74.05, lat: 40.68 },
           northeast: { lng: -73.9, lat: 40.82 },
         },
-        { optional: false }
+        { optional: false, description: 'Area to search, filled into {{bbox}} in the query.' }
       ),
-      pulse: new NumberField(0, { min: 0, step: 1 }),
+      pulse: new NumberField(0, {
+        min: 0,
+        step: 1,
+        label: 'Reload',
+        description: 'Change this number to run the query again.',
+      }),
     }
   }
   createOutputs() {
     return {
-      data: new DataField(),
+      data: new DataField(undefined, {
+        description: 'Tagged OpenStreetMap features as a GeoJSON FeatureCollection.',
+      }),
     }
   }
   async execute({
@@ -3548,19 +3948,49 @@ export class ArcOp extends Operator<ArcOp> {
   asDownload = () => this.outputData
   createInputs() {
     return {
-      source: new Point3DField(),
-      target: new Point3DField(),
-      altitudeMultiplier: new NumberField(2, { min: 0, softMax: 100 }),
-      apexAlt: new NumberField(10_000, { min: 0, softMax: 100_000 }),
-      smoothHeight: new BooleanField(true),
-      smoothPosition: new BooleanField(true),
-      segmentCount: new NumberField(250, { min: 1, softMax: 1000 }),
-      tilt: new NumberField(0, { min: -90, max: 90 }),
+      source: new Point3DField(undefined, {
+        description: 'Start point of the arc, with longitude, latitude and altitude in meters.',
+      }),
+      target: new Point3DField(undefined, {
+        description: 'End point of the arc, with longitude, latitude and altitude in meters.',
+      }),
+      altitudeMultiplier: new NumberField(2, {
+        min: 0,
+        softMax: 100,
+        description:
+          'Scales the arc height. Peak height is about Apex altitude times this, halved.',
+      }),
+      apexAlt: new NumberField(10_000, {
+        min: 0,
+        softMax: 100_000,
+        label: 'Apex altitude',
+        description:
+          'Base arc height in meters. At the default multiplier of 2, the peak reaches this height.',
+      }),
+      smoothHeight: new BooleanField(true, {
+        description: 'Ease the rise and fall of the arc so it is gentle near the ends.',
+      }),
+      smoothPosition: new BooleanField(true, {
+        description: 'Ease points along the ground track so they bunch near the start and end.',
+      }),
+      segmentCount: new NumberField(250, {
+        min: 1,
+        softMax: 1000,
+        description: 'Number of points in the output path. More points make a smoother curve.',
+      }),
+      tilt: new NumberField(0, {
+        min: -90,
+        max: 90,
+        description: 'Lean the arc sideways, in degrees from -90 to 90. 0 keeps it upright.',
+      }),
     }
   }
   createOutputs() {
     return {
-      path: new ArrayField(new Point3DField()),
+      path: new ArrayField(new Point3DField(), {
+        description:
+          'The arc as an array of [lng, lat, alt] points. Empty if either end is at 0, 0.',
+      }),
     }
   }
   execute({
@@ -3603,8 +4033,12 @@ export class NetworkOp extends Operator<NetworkOp> {
   asDownload = () => this.outputData
   createInputs() {
     return {
-      skyports: new DataField(new ArrayField(new Point3DField())),
-      hub: new BooleanField(false),
+      skyports: new DataField(new ArrayField(new Point3DField()), {
+        description: 'Array of points to connect, each with lng, lat and alt.',
+      }),
+      hub: new BooleanField(false, {
+        description: 'Connect only the first point to each other point, instead of every pair.',
+      }),
     }
   }
   createOutputs() {
@@ -3615,7 +4049,8 @@ export class NetworkOp extends Operator<NetworkOp> {
             origin: new Point3DField(),
             destination: new Point3DField(),
           })
-        )
+        ),
+        { description: 'Array of routes, each with an origin and destination point.' }
       ),
     }
   }
@@ -3726,14 +4161,27 @@ export class SwitchOp extends Operator<SwitchOp> {
     'Select one value from a list using an index (0, 1, 2...). With blend enabled, smoothly interpolate between values for animation effects.'
   createInputs() {
     return {
-      values: new ListField(new DataField()),
-      index: new NumberField(0, { min: 0, step: 1, accessor: true }),
-      blend: new BooleanField(false),
+      values: new ListField(new DataField(), {
+        description:
+          'Values to choose from, in connection order. Accepts any number of connections.',
+      }),
+      index: new NumberField(0, {
+        min: 0,
+        step: 1,
+        accessor: true,
+        description: 'Which value to output, starting at 0. Clamped to the list. Can be per item.',
+      }),
+      blend: new BooleanField(false, {
+        description:
+          'Blend between neighboring values when Index is a decimal, for smooth animation.',
+      }),
     }
   }
   createOutputs() {
     return {
-      value: new DataField(),
+      value: new DataField(undefined, {
+        description: 'The chosen value, or a blend of two values when Blend is on.',
+      }),
     }
   }
   execute({
@@ -3794,15 +4242,19 @@ export class ForLoopBeginOp extends Operator<ForLoopBeginOp> {
 
   createInputs() {
     return {
-      data: new DataField(new ArrayField(new UnknownField())),
+      data: new DataField(new ArrayField(new UnknownField()), {
+        description: 'Array to loop over, one item per iteration.',
+      }),
     }
   }
 
   createOutputs() {
     return {
-      item: new DataField(new UnknownField()),
-      index: new NumberField(0), // Current iteration index
-      total: new NumberField(0), // Total number of items
+      item: new DataField(new UnknownField(), {
+        description: 'The array item for the current iteration.',
+      }),
+      index: new NumberField(0, { description: 'Position of the current item, starting at 0.' }), // Current iteration index
+      total: new NumberField(0, { description: 'Number of items in the array.' }), // Total number of items
     }
   }
 
@@ -3828,12 +4280,16 @@ export class ForLoopEndOp extends Operator<ForLoopEndOp> {
 
   createInputs() {
     return {
-      item: new DataField(new UnknownField()),
+      item: new DataField(new UnknownField(), {
+        description: 'Result for the current iteration, collected into the output array.',
+      }),
     }
   }
   createOutputs() {
     return {
-      data: new DataField(new ArrayField(new UnknownField())),
+      data: new DataField(new ArrayField(new UnknownField()), {
+        description: 'Array of the collected results, one per input item.',
+      }),
     }
   }
 
@@ -3988,20 +4444,25 @@ export class ForLoopMetaOp extends Operator<ForLoopMetaOp> {
 
   createInputs() {
     return {
-      initialValue: new DataField(new UnknownField(), { description: 'Initial accumulator value' }),
+      initialValue: new DataField(new UnknownField(), {
+        description: 'Starting value of Accumulator on the first iteration.',
+      }),
       currentValue: new DataField(new UnknownField(), {
-        description: 'Value to pass to next iteration',
+        description: 'Value to carry forward as Accumulator in the next iteration.',
       }),
     }
   }
 
   createOutputs() {
     return {
-      accumulator: new DataField(new UnknownField()),
-      index: new NumberField(0),
-      total: new NumberField(0),
-      isFirst: new BooleanField(false),
-      isLast: new BooleanField(false),
+      accumulator: new DataField(new UnknownField(), {
+        description:
+          'Value carried over from the previous iteration, or Initial value on the first.',
+      }),
+      index: new NumberField(0, { description: 'Position of the current item, starting at 0.' }),
+      total: new NumberField(0, { description: 'Number of items in the loop.' }),
+      isFirst: new BooleanField(false, { description: 'True on the first iteration.' }),
+      isLast: new BooleanField(false, { description: 'True on the last iteration.' }),
     }
   }
 
@@ -4024,8 +4485,13 @@ export class FilterOp extends Operator<FilterOp> {
   static displayName = 'FilterOp'
   static description = 'Filter an array of data based on a condition'
   createInputs() {
-    const data = new DataField(new ArrayField(new UnknownField()))
-    const columnName = new StringLiteralField('', [])
+    const data = new DataField(new ArrayField(new UnknownField()), {
+      description: 'Array of rows (objects) to filter.',
+    })
+    const columnName = new StringLiteralField('', {
+      values: [],
+      description: "Column to test in each row. Choices come from the first row's keys.",
+    })
 
     data.subscribe((data: unknown[]) => {
       if (data.length > 0) {
@@ -4050,13 +4516,18 @@ export class FilterOp extends Operator<FilterOp> {
           'in',
           'not in',
         ],
+        description:
+          "How to compare the column with Value. 'in' and 'not in' take a comma-separated list.",
       }),
-      value: new StringField(''),
+      value: new StringField('', {
+        description:
+          "Text to compare with. Matching is strict, so 'equals' won't match number columns.",
+      }),
     }
   }
   createOutputs() {
     return {
-      data: new DataField(),
+      data: new DataField(undefined, { description: 'The rows that meet the condition.' }),
     }
   }
   execute({
@@ -4110,14 +4581,25 @@ export class SliceOp extends Operator<SliceOp> {
   static description = 'Slice an array of data'
   createInputs() {
     return {
-      data: new DataField(),
-      start: new NumberField(0, { min: 0, step: 1 }),
-      end: new NumberField(10, { min: 0, step: 1, optional: true }),
+      data: new DataField(undefined, { description: 'Array to take a range of items from.' }),
+      start: new NumberField(0, {
+        min: 0,
+        step: 1,
+        description: 'Position of the first item to keep, starting at 0.',
+      }),
+      end: new NumberField(10, {
+        min: 0,
+        step: 1,
+        optional: true,
+        description: 'Position to stop before (not included). Leave empty to keep through the end.',
+      }),
     }
   }
   createOutputs() {
     return {
-      data: new DataField(),
+      data: new DataField(undefined, {
+        description: 'The items from Start up to, but not including, End.',
+      }),
     }
   }
   execute({
@@ -4134,14 +4616,24 @@ export class SortOp extends Operator<SortOp> {
   static description = 'Sort an array of data based on a key'
   createInputs() {
     return {
-      data: new DataField(),
-      key: new StringField(''),
-      order: new StringLiteralField('asc', { values: ['asc', 'desc'] }),
+      data: new DataField(undefined, {
+        description: 'Array of rows (objects) to sort by the Key column.',
+      }),
+      key: new StringField('', {
+        description:
+          'Column to sort by. Numbers, text and dates all sort; rows missing it go last.',
+      }),
+      order: new StringLiteralField('asc', {
+        values: ['asc', 'desc'],
+        description: 'asc puts the smallest values first; desc puts the largest first.',
+      }),
     }
   }
   createOutputs() {
     return {
-      data: new DataField(),
+      data: new DataField(undefined, {
+        description: 'The rows in sorted order, by Key and Order.',
+      }),
     }
   }
   execute({
@@ -4149,11 +4641,15 @@ export class SortOp extends Operator<SortOp> {
     key,
     order,
   }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
-    const sorted = data.sort((a, b) => {
-      if (order === 'asc') {
-        return a[key] - b[key]
-      }
-      return b[key] - a[key]
+    const direction = order === 'asc' ? 1 : -1
+    // Copy first: Array.sort works in place and would reorder the upstream data
+    const sorted = [...data].sort((a, b) => {
+      const x = a[key]
+      const y = b[key]
+      // Missing values go last in either order
+      if (x == null || y == null) return (x == null ? 1 : 0) - (y == null ? 1 : 0)
+      // < compares strings and dates as well as numbers
+      return (x < y ? -1 : x > y ? 1 : 0) * direction
     })
     return { data: sorted }
   }
@@ -4164,15 +4660,27 @@ export class RandomizeAttributeOp extends Operator<RandomizeAttributeOp> {
   static description = 'Randomize a numeric attribute on data elements within a given range'
   createInputs() {
     return {
-      data: new DataField(),
-      key: new StringField(''),
-      min: new NumberField(0, { step: 0.01 }),
-      max: new NumberField(1, { step: 0.01 }),
+      data: new DataField(undefined, {
+        description: 'Array of rows (objects) to add the random attribute to.',
+      }),
+      key: new StringField('', {
+        description: 'Name of the attribute to set. Overwrites it if it exists.',
+      }),
+      min: new NumberField(0, {
+        step: 0.01,
+        description: 'Lowest random value. Values are spread evenly between Min and Max.',
+      }),
+      max: new NumberField(1, {
+        step: 0.01,
+        description: 'Highest random value. New values are drawn every time the node runs.',
+      }),
     }
   }
   createOutputs() {
     return {
-      data: new DataField(),
+      data: new DataField(undefined, {
+        description: 'Copies of the rows with Key set to a random number between Min and Max.',
+      }),
     }
   }
   execute({
@@ -4195,13 +4703,22 @@ export class ConcatOp extends Operator<ConcatOp> {
     'Concatenate multiple arrays into a single array. Use depth to flatten nested arrays (depth=1 flattens one level, depth=2 flattens two levels).'
   createInputs() {
     return {
-      values: new ListField(new DataField()),
-      depth: new NumberField(1, { min: 0, max: 2 }),
+      values: new ListField(new DataField(), {
+        description: 'Arrays to join, in connection order. Accepts any number of connections.',
+      }),
+      depth: new NumberField(1, {
+        min: 0,
+        max: 2,
+        description:
+          'Levels to flatten, 0 to 2. 1 joins the arrays; 2 also flattens arrays inside them.',
+      }),
     }
   }
   createOutputs() {
     return {
-      data: new DataField(),
+      data: new DataField(undefined, {
+        description: 'One array holding the items of every input, in order.',
+      }),
     }
   }
   execute({ values, depth }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
@@ -4228,12 +4745,16 @@ export class CrossOp extends Operator<CrossOp> {
     'Generate all unique pairs from an array. For example, [1, 2, 3] produces [[1, 2], [1, 3], [2, 3]]'
   createInputs() {
     return {
-      data: new DataField(),
+      data: new DataField(undefined, {
+        description: 'Array of items to pair up. Each pair appears once, in input order.',
+      }),
     }
   }
   createOutputs() {
     return {
-      pairs: new DataField(),
+      pairs: new DataField(undefined, {
+        description: 'Every unique pair as [a, b]. [1, 2, 3] gives [[1, 2], [1, 3], [2, 3]].',
+      }),
     }
   }
   execute({ data }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
@@ -4246,12 +4767,16 @@ export class MergeOp extends Operator<MergeOp> {
   static description = 'Merge multiple objects into one (think Object.assign)'
   createInputs() {
     return {
-      objects: new ListField(new DataField()),
+      objects: new ListField(new DataField(), {
+        description: 'Objects to combine, in connection order. Later ones overwrite matching keys.',
+      }),
     }
   }
   createOutputs() {
     return {
-      object: new DataField(),
+      object: new DataField(undefined, {
+        description: 'A new object with the keys of every input.',
+      }),
     }
   }
   execute({ objects }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
@@ -4279,7 +4804,6 @@ export class MouseOp extends Operator<MouseOp> {
 
   private mousePosition$ = new BehaviorSubject({ x: 0, y: 0 })
   private mouseListener?: (e: MouseEvent) => void
-  private containerElement?: Element
 
   constructor(id: OpId, inputs?: unknown, locked?: boolean) {
     super(id, inputs, locked)
@@ -4293,7 +4817,9 @@ export class MouseOp extends Operator<MouseOp> {
 
   createOutputs() {
     return {
-      position: new Vec2Field(),
+      position: new Vec2Field(undefined, {
+        description: 'Mouse position in pixels from the top-left of the output area, as {x, y}.',
+      }),
     }
   }
 
@@ -4305,31 +4831,26 @@ export class MouseOp extends Operator<MouseOp> {
     this.subs.push(sub)
   }
 
-  // Called by the component to inject the container element
-  setContainer(container: Element) {
-    // Clean up old listener if any
-    if (this.mouseListener && this.containerElement) {
-      window.removeEventListener('mousemove', this.mouseListener, false)
-    }
-
-    this.containerElement = container
-
+  // Called by the component with a lookup for the render surface. The surface is resolved on
+  // each move because it remounts when the display mode switches between fixed and responsive.
+  setSurface(getSurface: () => HTMLElement | null) {
+    this.removeMouseListener()
     this.mouseListener = (e: MouseEvent) => {
-      const rect = container.getBoundingClientRect()
-      const scale = getTransformScaleFactor(container)
-      this.mousePosition$.next({
-        x: (e.clientX - rect.left) / scale.x,
-        y: (e.clientY - rect.top) / scale.y,
-      })
+      const surface = getSurface()
+      if (surface) this.mousePosition$.next(toRenderSurfacePoint(surface, e.clientX, e.clientY))
     }
-
     window.addEventListener('mousemove', this.mouseListener, false)
   }
 
-  dispose() {
+  private removeMouseListener() {
     if (this.mouseListener) {
       window.removeEventListener('mousemove', this.mouseListener, false)
+      this.mouseListener = undefined
     }
+  }
+
+  dispose() {
+    this.removeMouseListener()
     this.mousePosition$.complete()
     super.dispose()
   }
@@ -4346,21 +4867,36 @@ export class ProjectOp extends Operator<ProjectOp> {
     'Project a lat/lng point to a screen position. Requires the ViewState and dimensions of the map.'
   createInputs() {
     return {
-      position: new Point2DField(),
-      width: new NumberField(1920, { min: 1, softMax: 10_000 }),
-      height: new NumberField(1080, { min: 1, softMax: 10_000 }),
-      viewState: new CompoundPropsField({
-        latitude: new NumberField(DEFAULT_LATITUDE, { min: -90, max: 90, step: 0.1 }),
-        longitude: new NumberField(DEFAULT_LONGITUDE, { min: -180, max: 180, step: 0.1 }),
-        zoom: new NumberField(12, { min: 0, max: 24, step: 0.1 }),
-        pitch: new NumberField(0),
-        bearing: new NumberField(0),
+      position: new Point2DField(undefined, {
+        description: 'Point to convert, as {lng, lat} in degrees.',
       }),
+      width: new NumberField(1920, {
+        min: 1,
+        softMax: 10_000,
+        description: 'Width of the map in pixels.',
+      }),
+      height: new NumberField(1080, {
+        min: 1,
+        softMax: 10_000,
+        description: 'Height of the map in pixels.',
+      }),
+      viewState: new CompoundPropsField(
+        {
+          latitude: new NumberField(DEFAULT_LATITUDE, { min: -90, max: 90, step: 0.1 }),
+          longitude: new NumberField(DEFAULT_LONGITUDE, { min: -180, max: 180, step: 0.1 }),
+          zoom: new NumberField(12, { min: 0, max: 24, step: 0.1 }),
+          pitch: new NumberField(0),
+          bearing: new NumberField(0),
+        },
+        { description: 'Map camera: latitude, longitude, zoom, pitch and bearing.' }
+      ),
     }
   }
   createOutputs() {
     return {
-      screenPosition: new Vec2Field(),
+      screenPosition: new Vec2Field(undefined, {
+        description: "Pixel position of the point from the map's top-left corner, as {x, y}.",
+      }),
     }
   }
   execute({
@@ -4386,21 +4922,36 @@ export class UnprojectOp extends Operator<UnprojectOp> {
     'Unproject a screen position to a lat/lng point. Requires the ViewState and dimensions'
   createInputs() {
     return {
-      screenPosition: new Vec2Field(),
-      width: new NumberField(1920, { min: 1, softMax: 10_000 }),
-      height: new NumberField(1080, { min: 1, softMax: 10_000 }),
-      viewState: new CompoundPropsField({
-        latitude: new NumberField(DEFAULT_LATITUDE, { min: -90, max: 90, step: 0.1 }),
-        longitude: new NumberField(DEFAULT_LONGITUDE, { min: -180, max: 180, step: 0.1 }),
-        zoom: new NumberField(12, { min: 0, max: 24, step: 0.1 }),
-        pitch: new NumberField(0),
-        bearing: new NumberField(0),
+      screenPosition: new Vec2Field(undefined, {
+        description: "Pixel position from the map's top-left corner, as {x, y}.",
       }),
+      width: new NumberField(1920, {
+        min: 1,
+        softMax: 10_000,
+        description: 'Width of the map in pixels.',
+      }),
+      height: new NumberField(1080, {
+        min: 1,
+        softMax: 10_000,
+        description: 'Height of the map in pixels.',
+      }),
+      viewState: new CompoundPropsField(
+        {
+          latitude: new NumberField(DEFAULT_LATITUDE, { min: -90, max: 90, step: 0.1 }),
+          longitude: new NumberField(DEFAULT_LONGITUDE, { min: -180, max: 180, step: 0.1 }),
+          zoom: new NumberField(12, { min: 0, max: 24, step: 0.1 }),
+          pitch: new NumberField(0),
+          bearing: new NumberField(0),
+        },
+        { description: 'Map camera: latitude, longitude, zoom, pitch and bearing.' }
+      ),
     }
   }
   createOutputs() {
     return {
-      point: new Point2DField(),
+      point: new Point2DField(undefined, {
+        description: 'Map location under the screen position, as {lng, lat} in degrees.',
+      }),
     }
   }
   execute({
@@ -4425,22 +4976,48 @@ export class MapViewStateOp extends Operator<MapViewStateOp> {
   static description = 'Create a react-map-gl MapViewState for controlling the camera.'
   createInputs() {
     return {
-      longitude: new NumberField(DEFAULT_LONGITUDE, { min: -180, max: 180, step: 0.001 }),
-      latitude: new NumberField(DEFAULT_LATITUDE, { min: -90, max: 90, step: 0.001 }),
-      zoom: new NumberField(12, { min: 0, max: 24, step: 0.1 }),
-      pitch: new NumberField(0, { min: 0, max: 85, optional: true }),
-      bearing: new NumberField(0, { optional: true }),
+      longitude: new NumberField(DEFAULT_LONGITUDE, {
+        min: -180,
+        max: 180,
+        step: 0.001,
+        description: 'Camera center longitude, in degrees (-180 to 180).',
+      }),
+      latitude: new NumberField(DEFAULT_LATITUDE, {
+        min: -90,
+        max: 90,
+        step: 0.001,
+        description: 'Camera center latitude, in degrees (-90 to 90).',
+      }),
+      zoom: new NumberField(12, {
+        min: 0,
+        max: 24,
+        step: 0.1,
+        description: 'Map zoom level, from 0 (whole world) to 24.',
+      }),
+      pitch: new NumberField(0, {
+        min: 0,
+        max: 85,
+        optional: true,
+        description: 'Camera tilt in degrees, from 0 (looking straight down) to 85.',
+      }),
+      bearing: new NumberField(0, {
+        optional: true,
+        description: 'Map rotation in degrees. 0 is north up.',
+      }),
     }
   }
   createOutputs() {
     return {
-      viewState: new CompoundPropsField({
-        longitude: new NumberField(),
-        latitude: new NumberField(),
-        zoom: new NumberField(),
-        pitch: new NumberField(),
-        bearing: new NumberField(),
-      }),
+      viewState: new CompoundPropsField(
+        {
+          longitude: new NumberField(),
+          latitude: new NumberField(),
+          zoom: new NumberField(),
+          pitch: new NumberField(),
+          bearing: new NumberField(),
+        },
+        { description: 'Camera object with longitude, latitude, zoom, pitch and bearing.' }
+      ),
     }
   }
   execute({
@@ -4461,22 +5038,29 @@ export class SplitMapViewStateOp extends Operator<SplitMapViewStateOp> {
   static description = 'Split a viewState object into its individual components.'
   createInputs() {
     return {
-      viewState: new CompoundPropsField({
-        longitude: new NumberField(DEFAULT_LONGITUDE, { min: -180, max: 180, step: 0.001 }),
-        latitude: new NumberField(DEFAULT_LATITUDE, { min: -90, max: 90, step: 0.001 }),
-        zoom: new NumberField(12, { min: 0, max: 24, step: 0.1 }),
-        pitch: new NumberField(0, { min: 0, max: 85, optional: true }),
-        bearing: new NumberField(0, { optional: true }),
-      }),
+      viewState: new CompoundPropsField(
+        {
+          longitude: new NumberField(DEFAULT_LONGITUDE, { min: -180, max: 180, step: 0.001 }),
+          latitude: new NumberField(DEFAULT_LATITUDE, { min: -90, max: 90, step: 0.001 }),
+          zoom: new NumberField(12, { min: 0, max: 24, step: 0.1 }),
+          pitch: new NumberField(0, { min: 0, max: 85, optional: true }),
+          bearing: new NumberField(0, { optional: true }),
+        },
+        {
+          description: 'Camera object to split, with longitude, latitude, zoom, pitch and bearing.',
+        }
+      ),
     }
   }
   createOutputs() {
     return {
-      longitude: new NumberField(),
-      latitude: new NumberField(),
-      zoom: new NumberField(),
-      pitch: new NumberField(),
-      bearing: new NumberField(),
+      longitude: new NumberField(undefined, {
+        description: 'Camera center longitude, in degrees.',
+      }),
+      latitude: new NumberField(undefined, { description: 'Camera center latitude, in degrees.' }),
+      zoom: new NumberField(undefined, { description: 'Map zoom level.' }),
+      pitch: new NumberField(undefined, { description: 'Camera tilt, in degrees.' }),
+      bearing: new NumberField(undefined, { description: 'Map rotation, in degrees.' }),
     }
   }
   execute({ viewState }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
@@ -4492,18 +5076,29 @@ export class MaplibreBasemapOp extends Operator<MaplibreBasemapOp> {
 
   createInputs() {
     return {
-      mapStyle: new MapStyleField(CARTO_DARK, { accept: '.json' }),
+      mapStyle: new MapStyleField(CARTO_DARK, {
+        accept: '.json',
+        description:
+          'Style URL, uploaded .json style, or style object. Empty turns the basemap off.',
+      }),
       projection: new StringLiteralField('mercator', {
         values: ['mercator', 'globe'],
         showByDefault: false,
+        description: "Flat 'mercator' map or 3D 'globe'.",
       }),
-      viewState: new CompoundPropsField({
-        latitude: new NumberField(DEFAULT_LATITUDE, { min: -90, max: 90, step: 0.001 }),
-        longitude: new NumberField(DEFAULT_LONGITUDE, { min: -180, max: 180, step: 0.001 }),
-        zoom: new NumberField(12, { min: 0, max: 24, step: 0.1 }),
-        pitch: new NumberField(0, { min: 0, max: 85, optional: true }),
-        bearing: new NumberField(0, { optional: true }),
-      }),
+      viewState: new CompoundPropsField(
+        {
+          latitude: new NumberField(DEFAULT_LATITUDE, { min: -90, max: 90, step: 0.001 }),
+          longitude: new NumberField(DEFAULT_LONGITUDE, { min: -180, max: 180, step: 0.001 }),
+          zoom: new NumberField(12, { min: 0, max: 24, step: 0.1 }),
+          pitch: new NumberField(0, { min: 0, max: 85, optional: true }),
+          bearing: new NumberField(0, { optional: true }),
+        },
+        {
+          description:
+            'Camera latitude, longitude, zoom, pitch and bearing. Out-of-range values error.',
+        }
+      ),
       sky: new CompoundPropsField(
         {
           enabled: new BooleanField(false),
@@ -4512,7 +5107,10 @@ export class MaplibreBasemapOp extends Operator<MaplibreBasemapOp> {
           skyHorizonBlend: new NumberField(0.8, { min: 0, max: 1, step: 0.01 }),
           atmosphereBlend: new NumberField(0.5, { min: 0, max: 1, step: 0.01 }),
         },
-        { showByDefault: false }
+        {
+          showByDefault: false,
+          description: 'Sky and horizon colors and blends. Applies to the mercator projection.',
+        }
       ),
       light: new CompoundPropsField(
         {
@@ -4520,7 +5118,11 @@ export class MaplibreBasemapOp extends Operator<MaplibreBasemapOp> {
           azimuthal: new NumberField(210, { step: 1 }),
           polar: new NumberField(30, { step: 1 }),
         },
-        { showByDefault: false }
+        {
+          showByDefault: false,
+          description:
+            'Light anchor and direction (azimuthal and polar angles). Applies to globe projection.',
+        }
       ),
     }
   }
@@ -4539,7 +5141,12 @@ export class MaplibreBasemapOp extends Operator<MaplibreBasemapOp> {
           light: new UnknownField(),
           sky: new UnknownField(),
         },
-        { useDeepEquality: true, maxDepth: 2 }
+        {
+          useDeepEquality: true,
+          maxDepth: 2,
+          label: 'Basemap',
+          description: 'Basemap settings and camera in one object, for Basemap on a DeckRenderer.',
+        }
       ),
     }
   }
@@ -4573,20 +5180,31 @@ export class CustomMapLibreLayerOp extends Operator<CustomMapLibreLayerOp> {
 
   createInputs() {
     return {
-      id: new StringField('custom-layer'),
-      code: new CodeField('', { language: 'javascript' }),
+      id: new StringField('custom-layer', {
+        label: 'Layer ID',
+        description: 'Unique MapLibre layer ID. A layer with the same ID is replaced.',
+      }),
+      code: new CodeField('', {
+        language: 'javascript',
+        description:
+          'Function body that gets params and map and returns an object with a render method.',
+      }),
       renderingMode: new StringLiteralField('3d', {
         values: ['2d', '3d'],
+        description: "'3d' shares the map's depth buffer; '2d' draws flat with no depth.",
       }),
       beforeId: new StringField('', {
         optional: true,
         showByDefault: false,
+        label: 'Before layer ID',
+        description: 'ID of an existing map layer to draw under. Empty adds it on top.',
       }),
       params: new UnknownField(
         {},
         {
           optional: true,
           showByDefault: false,
+          description: 'Values passed to the code as params.',
         }
       ),
     }
@@ -4594,7 +5212,9 @@ export class CustomMapLibreLayerOp extends Operator<CustomMapLibreLayerOp> {
 
   createOutputs() {
     return {
-      layer: new MapLibreLayerField(),
+      layer: new MapLibreLayerField(undefined, {
+        description: 'Custom layer config, for MapLibre layers on a DeckRenderer.',
+      }),
     }
   }
 
@@ -4633,16 +5253,27 @@ export class MapStyleConfiguratorOp extends Operator<MapStyleConfiguratorOp> {
 
   createInputs() {
     return {
-      baseStyle: new FileUrlField(CARTO_DARK, { accept: '.json' }),
+      baseStyle: new FileUrlField(CARTO_DARK, {
+        accept: '.json',
+        description: 'MapLibre style JSON to start from, as a URL or file.',
+      }),
       // Stores layer + global overrides as { layers: LayerOverride[], global: StyleGlobalOverrides }
-      overrides: new UnknownField({ layers: [], global: {} }),
+      overrides: new UnknownField(
+        { layers: [], global: {} },
+        {
+          label: 'Style edits',
+          description: 'Layer color, font and visibility edits made in the style editor.',
+        }
+      ),
     }
   }
 
   createOutputs() {
     return {
       // UnknownField because execute() returns a full style object, not just a URL string
-      mapStyle: new UnknownField(),
+      mapStyle: new UnknownField(undefined, {
+        description: 'The edited MapLibre style object. Connect it to a MaplibreBasemap node.',
+      }),
     }
   }
 
@@ -4676,12 +5307,26 @@ export class DeckRendererOp extends Operator<DeckRendererOp> {
 
   createInputs() {
     return {
-      layers: new ListField(new LayerField()), // TODO: extend LayerField schema to support the beforeId prop.
-      effects: new ListField(new EffectField(), { showByDefault: false }),
+      layers: new ListField(new LayerField(), {
+        description: 'Layers to draw, in connection order. The last one connected draws on top.',
+      }), // TODO: extend LayerField schema to support the beforeId prop.
+      effects: new ListField(new EffectField(), {
+        showByDefault: false,
+        description: 'Effects such as lighting or post-processing applied to the whole scene.',
+      }),
       // Additional views on top of the map. A MapView({id: 'mapbox'}) will be inserted at the bottom of the stack.
-      views: new ListField(new ViewField()),
-      widgets: new ListField(new WidgetField(), { showByDefault: false }),
-      layerFilter: new FunctionField(() => true, { showByDefault: false }),
+      views: new ListField(new ViewField(), {
+        description: 'Extra views drawn on top of the main map view.',
+      }),
+      widgets: new ListField(new WidgetField(), {
+        showByDefault: false,
+        description: 'On-screen controls such as zoom, compass or scale bar.',
+      }),
+      layerFilter: new FunctionField(() => true, {
+        showByDefault: false,
+        description:
+          'Function that decides whether each layer draws in each view. Draws all by default.',
+      }),
       // TODO: We need a nullable field. This should be a nullable (intentionally empty), or a compound object below.
       // TODO: Nullable fields need to be disable-able from the UI so their values can be cleared.
       basemap: new UnknownField(
@@ -4691,7 +5336,11 @@ export class DeckRendererOp extends Operator<DeckRendererOp> {
           longitude: DEFAULT_LONGITUDE,
           zoom: 12,
         },
-        { optional: true }
+        {
+          optional: true,
+          description:
+            'The map under the layers, usually from Maplibre basemap. Shows a dark map by default.',
+        }
       ),
       // basemap: new CompoundPropsField({
       //   mapStyle: new FileUrlField(CARTO_DARK),
@@ -4701,16 +5350,30 @@ export class DeckRendererOp extends Operator<DeckRendererOp> {
       //   pitch: new NumberField(0, { min: 0, max: 60, optional: true }),
       //   bearing: new NumberField(0, { optional: true }),
       // }, { optional: true }),
-      viewState: new UnknownField({}, { showByDefault: false }),
+      viewState: new UnknownField(
+        {},
+        {
+          showByDefault: false,
+          description:
+            "Camera position. Its longitude, latitude, zoom, pitch and bearing override the basemap's.",
+        }
+      ),
       maplibreLayers: new ListField(new MapLibreLayerField(), {
         optional: true,
         showByDefault: false,
+        label: 'MapLibre layers',
+        description: 'Extra MapLibre style layers to add to the basemap.',
       }),
     }
   }
   createOutputs() {
     return {
-      vis: new VisualizationField(undefined, { useDeepEquality: true, maxDepth: 3 }),
+      vis: new VisualizationField(undefined, {
+        useDeepEquality: true,
+        maxDepth: 3,
+        description:
+          'The finished visualization. Connect it to Visualization on the Out operator at /out.',
+      }),
     }
   }
   execute({
@@ -4771,37 +5434,67 @@ export class DeckRendererOp extends Operator<DeckRendererOp> {
 // Base view fields that apply to all view types
 function createBaseViewFields() {
   return {
-    x: new NumberField(0, { showByDefault: false }),
-    y: new NumberField(0, { showByDefault: false }),
-    width: new StringField('100%'),
-    height: new StringField('100%'),
-    padding: new CompoundPropsField({
-      top: new NumberField(0, { min: 0 }),
-      right: new NumberField(0, { min: 0 }),
-      bottom: new NumberField(0, { min: 0 }),
-      left: new NumberField(0, { min: 0 }),
+    x: new NumberField(0, {
+      showByDefault: false,
+      description: 'Left edge of this view on the canvas, in pixels.',
     }),
-    clear: new BooleanField(false, { showByDefault: false }),
-    clearColor: new ColorField('#00000000', { transform: hexToColor, showByDefault: false }),
-    parameters: new CompoundPropsField({}, { showByDefault: false }),
+    y: new NumberField(0, {
+      showByDefault: false,
+      description: 'Top edge of this view on the canvas, in pixels.',
+    }),
+    width: new StringField('100%', {
+      description: "View width, in pixels or as a percent of the canvas, e.g. '100%' or '50%'.",
+    }),
+    height: new StringField('100%', {
+      description: "View height, in pixels or as a percent of the canvas, e.g. '100%' or '50%'.",
+    }),
+    padding: new CompoundPropsField(
+      {
+        top: new NumberField(0, { min: 0 }),
+        right: new NumberField(0, { min: 0 }),
+        bottom: new NumberField(0, { min: 0 }),
+        left: new NumberField(0, { min: 0 }),
+      },
+      { description: 'Space in pixels on each side of the view, which shifts its center.' }
+    ),
+    clear: new BooleanField(false, {
+      showByDefault: false,
+      description: 'Wipe pixels drawn by other overlapping views before drawing this one.',
+    }),
+    clearColor: new ColorField('#00000000', {
+      transform: hexToColor,
+      showByDefault: false,
+      description: "Color the view's area is wiped to when Clear is on. Transparent by default.",
+    }),
+    parameters: new CompoundPropsField(
+      {},
+      {
+        showByDefault: false,
+        description:
+          "GPU parameters, such as blending or depth testing, used to draw this view's layers.",
+      }
+    ),
   }
 }
 
 function createGeoViewFields() {
   return {
-    altitude: new NumberField(1.5, {
-      softMin: -100_000,
-      softMax: 100_000,
-      step: 0.1,
-      showByDefault: false,
-    }),
     nearZMultiplier: new NumberField(0.1, {
       min: 0,
       softMax: 1_000,
       step: 0.1,
       showByDefault: false,
+      label: 'Near Z multiplier',
+      description: 'Distance of the near clipping plane, in multiples of the viewport height.',
     }),
-    farZMultiplier: new NumberField(1.01, { min: 0, softMax: 1_000, showByDefault: false }),
+    farZMultiplier: new NumberField(1.01, {
+      min: 0,
+      softMax: 1_000,
+      showByDefault: false,
+      label: 'Far Z multiplier',
+      description:
+        "Distance of the far clipping plane, relative to the camera's distance to the screen's top edge.",
+    }),
   }
 }
 
@@ -4819,23 +5512,44 @@ export class MapViewOp extends Operator<MapViewOp> {
   createInputs() {
     return {
       ...createBaseViewFields(),
-      orthographic: new BooleanField(false, { showByDefault: false }),
-      fovy: new NumberField(40, { min: 0.1, max: 179.9, showByDefault: false }),
-      repeat: new BooleanField(false, { showByDefault: false }),
-      ...createGeoViewFields(),
-      viewState: new CompoundPropsField({
-        ...createGeoViewStateFields(),
-        zoom: new NumberField(12, { min: 0, max: 24, step: 0.1 }),
-        bearing: new NumberField(0, { optional: true }),
-        pitch: new NumberField(0, { min: 0, max: 90, optional: true }),
-        position: new Vec3Field([0, 0, 0], { returnType: 'tuple', optional: true }),
+      orthographic: new BooleanField(false, {
+        showByDefault: false,
+        description: 'Use a flat orthographic projection instead of perspective.',
       }),
+      // No altitude input: deck.gl derives altitude from fovy whenever fovy is set
+      fovy: new NumberField(40, {
+        min: 0.1,
+        max: 179.9,
+        showByDefault: false,
+        label: 'Field of view',
+        description: 'Vertical field of view of the camera, in degrees (0.1 to 179.9).',
+      }),
+      repeat: new BooleanField(false, {
+        showByDefault: false,
+        description: 'Draw repeated copies of the world side by side at low zoom levels.',
+      }),
+      ...createGeoViewFields(),
+      viewState: new CompoundPropsField(
+        {
+          ...createGeoViewStateFields(),
+          zoom: new NumberField(12, { min: 0, max: 24, step: 0.1 }),
+          bearing: new NumberField(0, { optional: true }),
+          pitch: new NumberField(0, { min: 0, max: 90, optional: true }),
+          position: new Vec3Field([0, 0, 0], { returnType: 'tuple', optional: true }),
+        },
+        {
+          description:
+            'Camera latitude, longitude, zoom, bearing, pitch (0 to 90) and offset in meters.',
+        }
+      ),
     }
   }
 
   createOutputs() {
     return {
-      view: new ViewField(),
+      view: new ViewField(undefined, {
+        description: 'The view, to connect to Views on a DeckRenderer.',
+      }),
     }
   }
 
@@ -4857,11 +5571,21 @@ export class GraphInputOp extends Operator<GraphInputOp> {
   private _containerInputDependencies = new Set<Operator<IOperator>>()
 
   createInputs() {
-    return { parentValue: new UnknownField(null, { optional: true }) }
+    return {
+      parentValue: new UnknownField(null, {
+        optional: true,
+        description: "Value from the parent Container's In input, connected automatically.",
+      }),
+    }
   }
 
   createOutputs() {
-    return { value: new UnknownField(null, { optional: true }) }
+    return {
+      value: new UnknownField(null, {
+        optional: true,
+        description: "The parent Container's In value, for use by nodes inside it.",
+      }),
+    }
   }
 
   execute(inputs: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
@@ -5019,11 +5743,22 @@ export class GraphOutputOp extends Operator<GraphOutputOp> {
   static description = 'Provides output to the parent Container.'
 
   createInputs() {
-    return { value: new UnknownField(null, { optional: true }) }
+    return {
+      value: new UnknownField(null, {
+        optional: true,
+        description: "Value to send out through the parent Container's Out output.",
+      }),
+    }
   }
 
   createOutputs() {
-    return { propagatedValue: new UnknownField(null, { optional: true }) }
+    return {
+      propagatedValue: new UnknownField(null, {
+        optional: true,
+        label: 'Output value',
+        description: 'The same value, read by the parent Container.',
+      }),
+    }
   }
 
   execute({ value }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
@@ -5038,17 +5773,29 @@ export class GlobeViewOp extends Operator<GlobeViewOp> {
   createInputs() {
     return {
       ...createBaseViewFields(),
-      ...createGeoViewFields(),
-      viewState: new CompoundPropsField({
-        ...createGeoViewStateFields(),
-        zoom: new NumberField(12, { min: 0, max: 24, step: 0.1 }),
+      altitude: new NumberField(1.5, {
+        softMin: -100_000,
+        softMax: 100_000,
+        step: 0.1,
+        showByDefault: false,
+        description: 'Camera distance from the screen, in multiples of the viewport height.',
       }),
+      ...createGeoViewFields(),
+      viewState: new CompoundPropsField(
+        {
+          ...createGeoViewStateFields(),
+          zoom: new NumberField(12, { min: 0, max: 24, step: 0.1 }),
+        },
+        { description: 'Camera latitude, longitude and zoom (0 to 24).' }
+      ),
     }
   }
 
   createOutputs() {
     return {
-      view: new ViewField(),
+      view: new ViewField(undefined, {
+        description: 'The view, to connect to Views on a DeckRenderer.',
+      }),
     }
   }
 
@@ -5066,14 +5813,21 @@ export class FpsWidgetOp extends Operator<FpsWidgetOp> {
     return {
       placement: new StringLiteralField('top-left', {
         values: ['top-left', 'top-right', 'bottom-left', 'bottom-right'],
+        description: 'Corner of the map where the frame rate stats appear.',
       }),
-      viewId: new StringField('', { optional: true }),
+      viewId: new StringField('', {
+        optional: true,
+        description:
+          'View to attach the stats to, needed with multiple views. Empty uses the default.',
+      }),
     }
   }
 
   createOutputs() {
     return {
-      widget: new WidgetField(),
+      widget: new WidgetField(undefined, {
+        description: "Stats widget to connect to a DeckRenderer's Widgets input.",
+      }),
     }
   }
 
@@ -5099,14 +5853,21 @@ export class FullscreenWidgetOp extends Operator<FullscreenWidgetOp> {
     return {
       placement: new StringLiteralField('top-right', {
         values: ['top-left', 'top-right', 'bottom-left', 'bottom-right'],
+        description: 'Corner of the map where the fullscreen button appears.',
       }),
-      viewId: new StringField('', { optional: true }),
+      viewId: new StringField('', {
+        optional: true,
+        description:
+          'View to attach the button to, needed with multiple views. Empty uses the default.',
+      }),
     }
   }
 
   createOutputs() {
     return {
-      widget: new WidgetField(),
+      widget: new WidgetField(undefined, {
+        description: "Fullscreen widget to connect to a DeckRenderer's Widgets input.",
+      }),
     }
   }
 
@@ -5132,15 +5893,27 @@ export class ZoomWidgetOp extends Operator<ZoomWidgetOp> {
     return {
       placement: new StringLiteralField('top-right', {
         values: ['top-left', 'top-right', 'bottom-left', 'bottom-right'],
+        description: 'Corner of the map where the zoom buttons appear.',
       }),
-      zoomStep: new NumberField(1, { min: 0, softMax: 10, showByDefault: false }),
-      viewId: new StringField('', { optional: true }),
+      zoomStep: new NumberField(1, {
+        min: 0,
+        softMax: 10,
+        showByDefault: false,
+        description: 'How many zoom levels each button press changes the map by.',
+      }),
+      viewId: new StringField('', {
+        optional: true,
+        description:
+          'View to attach the buttons to, needed with multiple views. Empty uses the default.',
+      }),
     }
   }
 
   createOutputs() {
     return {
-      widget: new WidgetField(),
+      widget: new WidgetField(undefined, {
+        description: "Zoom widget to connect to a DeckRenderer's Widgets input.",
+      }),
     }
   }
 
@@ -5168,14 +5941,21 @@ export class CompassWidgetOp extends Operator<CompassWidgetOp> {
     return {
       placement: new StringLiteralField('top-right', {
         values: ['top-left', 'top-right', 'bottom-left', 'bottom-right'],
+        description: 'Corner of the map where the compass appears.',
       }),
-      viewId: new StringField('', { optional: true }),
+      viewId: new StringField('', {
+        optional: true,
+        description:
+          'View to attach the compass to, needed with multiple views. Empty uses the default.',
+      }),
     }
   }
 
   createOutputs() {
     return {
-      widget: new WidgetField(),
+      widget: new WidgetField(undefined, {
+        description: "Compass widget to connect to a DeckRenderer's Widgets input.",
+      }),
     }
   }
 
@@ -5201,28 +5981,32 @@ export class ScaleWidgetOp extends Operator<ScaleWidgetOp> {
     return {
       placement: new StringLiteralField('bottom-left', {
         values: ['top-left', 'top-right', 'bottom-left', 'bottom-right'],
+        description: 'Corner of the map where the distance scale bar appears.',
       }),
-      label: new StringField('Scale'),
-      viewId: new StringField('', { optional: true }),
+      viewId: new StringField('', {
+        optional: true,
+        description:
+          'View to attach the scale bar to, needed with multiple views. Empty uses the default.',
+      }),
     }
   }
 
   createOutputs() {
     return {
-      widget: new WidgetField(),
+      widget: new WidgetField(undefined, {
+        description: "Scale widget to connect to a DeckRenderer's Widgets input.",
+      }),
     }
   }
 
   execute({
     placement,
-    label,
     viewId,
   }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     const widget = {
       id: this.id,
       type: '_ScaleWidget',
       placement,
-      label,
       ...(viewId && viewId !== '' ? { viewId } : {}),
     }
     return { widget }
@@ -5237,14 +6021,21 @@ export class ScreenshotWidgetOp extends Operator<ScreenshotWidgetOp> {
     return {
       placement: new StringLiteralField('top-right', {
         values: ['top-left', 'top-right', 'bottom-left', 'bottom-right'],
+        description: 'Corner of the map where the screenshot button appears.',
       }),
-      viewId: new StringField('', { optional: true }),
+      viewId: new StringField('', {
+        optional: true,
+        description:
+          'View to attach the button to, needed with multiple views. Empty uses the default.',
+      }),
     }
   }
 
   createOutputs() {
     return {
-      widget: new WidgetField(),
+      widget: new WidgetField(undefined, {
+        description: 'Button widget that downloads the current frame as a PNG.',
+      }),
     }
   }
 
@@ -5268,21 +6059,39 @@ export class LegendWidgetOp extends Operator<LegendWidgetOp> {
 
   createInputs() {
     return {
-      colorRamp: new ColorRampField(),
-      label: new StringField(''),
-      minValue: new NumberField(0),
-      maxValue: new NumberField(1),
+      colorRamp: new ColorRampField(undefined, {
+        description: 'Colors to show in the legend bar, sampled from 0 to 1.',
+      }),
+      label: new StringField('', {
+        description: 'Title shown above the color bar. Hidden when empty.',
+      }),
+      minValue: new NumberField(0, { description: 'Number shown at the low end of the legend.' }),
+      maxValue: new NumberField(1, { description: 'Number shown at the high end of the legend.' }),
       placement: new StringLiteralField('bottom-right', {
         values: ['top-left', 'top-right', 'bottom-left', 'bottom-right'],
+        description: 'Corner of the map where the legend appears.',
       }),
-      steps: new NumberField(12, { min: 2, max: 32, step: 1, showByDefault: false }),
-      scale: new NumberField(1, { min: 0.25, max: 4, step: 0.25 }),
+      steps: new NumberField(12, {
+        min: 2,
+        max: 32,
+        step: 1,
+        showByDefault: false,
+        description: 'How many colors to sample from the ramp, 2 to 32.',
+      }),
+      scale: new NumberField(1, {
+        min: 0.25,
+        max: 4,
+        step: 0.25,
+        description: 'Size multiplier for the legend, from 0.25 to 4.',
+      }),
     }
   }
 
   createOutputs() {
     return {
-      widget: new WidgetField(),
+      widget: new WidgetField(undefined, {
+        description: "Legend widget to connect to a DeckRenderer's Widgets input.",
+      }),
     }
   }
 
@@ -5321,23 +6130,64 @@ export class BitmapOverlayWidgetOp extends Operator<BitmapOverlayWidgetOp> {
     return {
       image: new FileUrlField('', {
         accept: '.png,.jpg,.jpeg,.gif,.webp,.svg',
+        description:
+          'Image file or URL (PNG, JPG, GIF, WebP or SVG). @/ paths load from the project.',
       }),
       placement: new StringLiteralField('top-right', {
         values: ['top-left', 'top-right', 'bottom-left', 'bottom-right', 'fill'],
+        description: "Corner to pin the image to, or 'fill' to center it over the map.",
       }),
-      width: new NumberField(200, { min: 1, max: 2000, step: 1 }),
-      height: new NumberField(200, { min: 1, max: 2000, step: 1 }),
-      opacity: new NumberField(1, { min: 0, max: 1, step: 0.01 }),
-      scale: new NumberField(1, { min: 0.25, max: 4, step: 0.25 }),
-      offsetX: new NumberField(0, { min: -2000, max: 2000, step: 1, showByDefault: false }),
-      offsetY: new NumberField(0, { min: -2000, max: 2000, step: 1, showByDefault: false }),
-      viewId: new StringField('', { optional: true }),
+      width: new NumberField(200, {
+        min: 1,
+        max: 2000,
+        step: 1,
+        description: 'Image width in pixels, before Scale is applied.',
+      }),
+      height: new NumberField(200, {
+        min: 1,
+        max: 2000,
+        step: 1,
+        description: 'Image height in pixels, before Scale is applied.',
+      }),
+      opacity: new NumberField(1, {
+        min: 0,
+        max: 1,
+        step: 0.01,
+        description: 'Image transparency, from 0 (invisible) to 1 (solid).',
+      }),
+      scale: new NumberField(1, {
+        min: 0.25,
+        max: 4,
+        step: 0.25,
+        description: 'Size multiplier for the image, from 0.25 to 4.',
+      }),
+      offsetX: new NumberField(0, {
+        min: -2000,
+        max: 2000,
+        step: 1,
+        showByDefault: false,
+        description: 'Horizontal shift in pixels from the placement position.',
+      }),
+      offsetY: new NumberField(0, {
+        min: -2000,
+        max: 2000,
+        step: 1,
+        showByDefault: false,
+        description: 'Vertical shift in pixels from the placement position.',
+      }),
+      viewId: new StringField('', {
+        optional: true,
+        description:
+          'View to attach the overlay to, needed with multiple views. Empty uses the default.',
+      }),
     }
   }
 
   createOutputs() {
     return {
-      widget: new WidgetField(),
+      widget: new WidgetField(undefined, {
+        description: "Overlay widget to connect to a DeckRenderer's Widgets input.",
+      }),
     }
   }
 
@@ -5393,8 +6243,19 @@ export class BitmapOverlayWidgetOp extends Operator<BitmapOverlayWidgetOp> {
 
 function createFrustumViewFields() {
   return {
-    near: new NumberField(0.1, { min: 0, softMax: 1_000_000, step: 0.1, showByDefault: false }),
-    far: new NumberField(100000, { min: 0, softMax: 1_000_000, showByDefault: false }),
+    near: new NumberField(0.1, {
+      min: 0,
+      softMax: 1_000_000,
+      step: 0.1,
+      showByDefault: false,
+      description: 'Distance from the camera to the near clipping plane, in world units.',
+    }),
+    far: new NumberField(100000, {
+      min: 0,
+      softMax: 1_000_000,
+      showByDefault: false,
+      description: 'Distance from the camera to the far clipping plane, in world units.',
+    }),
   }
 }
 
@@ -5405,27 +6266,44 @@ export class FirstPersonViewOp extends Operator<FirstPersonViewOp> {
   createInputs() {
     return {
       ...createBaseViewFields(),
-      orthographic: new BooleanField(false, { showByDefault: false }),
-      ...createFrustumViewFields(),
-      fovy: new NumberField(40, { min: 0.1, max: 179.9, showByDefault: false }),
-      // focalDistance: new NumberField(1),
-      viewState: new CompoundPropsField({
-        ...createGeoViewStateFields(),
-        position: new Vec3Field([0, 0, 0], { returnType: 'tuple' }),
-        bearing: new NumberField(0, { optional: true }),
-        pitch: new NumberField(0, { min: -90, max: 90, optional: true }),
+      orthographic: new BooleanField(false, {
+        showByDefault: false,
+        description: 'Use a flat orthographic projection instead of perspective.',
       }),
+      ...createFrustumViewFields(),
+      fovy: new NumberField(40, {
+        min: 0.1,
+        max: 179.9,
+        showByDefault: false,
+        label: 'Field of view',
+        description: 'Vertical field of view of the camera, in degrees (0.1 to 179.9).',
+      }),
+      // focalDistance: new NumberField(1),
+      viewState: new CompoundPropsField(
+        {
+          ...createGeoViewStateFields(),
+          position: new Vec3Field([0, 0, 0], { returnType: 'tuple' }),
+          bearing: new NumberField(0, { optional: true }),
+          pitch: new NumberField(0, { min: -90, max: 90, optional: true }),
+        },
+        {
+          description:
+            'Camera latitude, longitude, offset [x, y, z] in meters, bearing and pitch in degrees.',
+        }
+      ),
     }
   }
 
   createOutputs() {
     return {
-      view: new ViewField(),
+      view: new ViewField(undefined, {
+        description: 'The view, to connect to Views on a DeckRenderer.',
+      }),
     }
   }
 
   execute(props: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
-    validateViewState(props.viewState)
+    validateViewState(props.viewState, { minPitch: -90 })
     return { view: { type: 'FirstPersonView', id: this.id, ...props } }
   }
 }
@@ -5437,30 +6315,48 @@ export class OrbitViewOp extends Operator<OrbitViewOp> {
   createInputs() {
     return {
       ...createBaseViewFields(),
-      orthographic: new BooleanField(false, { showByDefault: false }),
-      orbitAxis: new StringLiteralField('Z', {
-        values: ['X', 'Y', 'Z'],
+      orthographic: new BooleanField(false, {
         showByDefault: false,
+        description: 'Use a flat orthographic projection instead of perspective.',
+      }),
+      orbitAxis: new StringLiteralField('Z', {
+        values: ['Y', 'Z'],
+        showByDefault: false,
+        description: 'Axis the camera can spin all the way around.',
       }),
       ...createFrustumViewFields(),
-      fovy: new NumberField(40, { min: 0.1, max: 179.9, showByDefault: false }),
-      viewState: new CompoundPropsField({
-        target: new Vec3Field([0, 0, 0], { returnType: 'tuple', optional: true }),
-        rotationOrbit: new NumberField(0, { optional: true }),
-        rotationX: new NumberField(0, { optional: true }),
-        zoom: new NumberField(1, {
-          softMin: -10,
-          softMax: 10,
-          step: 0.01,
-          optional: true,
-        }),
+      fovy: new NumberField(40, {
+        min: 0.1,
+        max: 179.9,
+        showByDefault: false,
+        label: 'Field of view',
+        description: 'Vertical field of view of the camera, in degrees (0.1 to 179.9).',
       }),
+      viewState: new CompoundPropsField(
+        {
+          target: new Vec3Field([0, 0, 0], { returnType: 'tuple', optional: true }),
+          rotationOrbit: new NumberField(0, { optional: true }),
+          rotationX: new NumberField(0, { optional: true }),
+          zoom: new NumberField(1, {
+            softMin: -10,
+            softMax: 10,
+            step: 0.01,
+            optional: true,
+          }),
+        },
+        {
+          description:
+            'Point the camera orbits [x, y, z], orbit and X rotation in degrees, and zoom.',
+        }
+      ),
     }
   }
 
   createOutputs() {
     return {
-      view: new ViewField(),
+      view: new ViewField(undefined, {
+        description: 'The view, to connect to Views on a DeckRenderer.',
+      }),
     }
   }
 
@@ -5478,17 +6374,30 @@ export class OrthographicViewOp extends Operator<OrthographicViewOp> {
     return {
       ...createBaseViewFields(),
       ...createFrustumViewFields(),
-      flipY: new BooleanField(false, { showByDefault: false }),
-      viewState: new CompoundPropsField({
-        target: new Vec3Field([0, 0, 0], { returnType: 'tuple', optional: true }),
-        zoom: new NumberField(0, { optional: true }),
+      flipY: new BooleanField(false, {
+        showByDefault: false,
+        label: 'Flip Y',
+        description:
+          'On puts the origin at the top left with Y growing down; off puts it at bottom left.',
       }),
+      viewState: new CompoundPropsField(
+        {
+          target: new Vec3Field([0, 0, 0], { returnType: 'tuple', optional: true }),
+          zoom: new NumberField(0, { optional: true }),
+        },
+        {
+          description:
+            'World point [x, y, z] at the view center, and zoom (each step doubles the scale).',
+        }
+      ),
     }
   }
 
   createOutputs() {
     return {
-      view: new ViewField(),
+      view: new ViewField(undefined, {
+        description: 'The view, to connect to Views on a DeckRenderer.',
+      }),
     }
   }
 
@@ -5503,27 +6412,97 @@ export class OutOp extends Operator<OutOp> {
   static description = 'Output a visualization.'
   createInputs() {
     return {
-      vis: new VisualizationField(),
+      vis: new VisualizationField(undefined, {
+        label: 'Visualization',
+        description: 'The visualization to show and export, usually from Deck renderer.',
+      }),
       // Render settings (not keyframable since OutOp is excluded from Theatre.js)
-      display: new StringLiteralField('fixed', ['fixed', 'responsive']),
-      width: new NumberField(1920, { min: 1, max: 8192, step: 1 }),
-      height: new NumberField(1080, { min: 1, max: 8192, step: 1 }),
-      lod: new NumberField(2, { min: 0.1, max: 4, step: 0.1 }),
-      scaleMode: new StringLiteralField('fit', ['fit', 'manual']),
-      waitForData: new BooleanField(true),
-      codec: new StringLiteralField('avc', ['avc', 'hevc', 'vp9', 'av1']),
-      bitrateMbps: new NumberField(10, { min: 1, max: 100, step: 1 }),
-      bitrateMode: new StringLiteralField('constant', ['constant', 'variable']),
+      display: new StringLiteralField('fixed', {
+        values: ['fixed', 'responsive'],
+        description: 'Fixed renders at Width by Height; responsive fills the available panel.',
+      }),
+      width: new NumberField(1920, {
+        min: 1,
+        max: 8192,
+        step: 1,
+        description: 'Output and export width in pixels, from 1 to 8192.',
+      }),
+      height: new NumberField(1080, {
+        min: 1,
+        max: 8192,
+        step: 1,
+        description: 'Output and export height in pixels, from 1 to 8192.',
+      }),
+      lod: new NumberField(2, {
+        min: 0.1,
+        max: 4,
+        step: 0.1,
+        label: 'Level of detail',
+        description:
+          'Multiplies the drawing size for sharper map tiles. Video still exports at Width by Height.',
+      }),
+      scaleMode: new StringLiteralField('fit', {
+        values: ['fit', 'manual'],
+        description: 'Fit shrinks the fixed-size output to the panel; manual uses Preview scale.',
+      }),
+      waitForData: new BooleanField(true, {
+        description:
+          'During export, wait for layers to finish loading before capturing each frame.',
+      }),
+      codec: new StringLiteralField('avc', {
+        values: ['avc', 'hevc', 'vp9', 'av1'],
+        description: 'Video codec for exports: avc (H.264), hevc (H.265), vp9 or av1.',
+      }),
+      bitrateMbps: new NumberField(10, {
+        min: 1,
+        max: 100,
+        step: 1,
+        label: 'Bitrate (Mbps)',
+        description: 'Video export bitrate in megabits per second, from 1 to 100.',
+      }),
+      bitrateMode: new StringLiteralField('constant', {
+        values: ['constant', 'variable'],
+        description: 'Constant keeps the bitrate steady; variable lets it change with the content.',
+      }),
       // Keep the canvas's transparency in video exports (VP9 only)
-      exportAlpha: new BooleanField(false),
-      scaleControl: new NumberField(0.3, { min: 0.1, max: 1, step: 0.05 }),
-      framerate: new NumberField(30, { min: 1, max: 120, step: 1 }),
-      captureDelay: new NumberField(50, { min: 0, max: 10000, step: 10 }),
+      exportAlpha: new BooleanField(false, {
+        label: 'Keep transparency',
+        description: 'Export a transparent WebM video. Only works with the vp9 codec.',
+      }),
+      scaleControl: new NumberField(0.3, {
+        min: 0.1,
+        max: 1,
+        step: 0.05,
+        label: 'Preview scale',
+        description:
+          'Zoom of the fixed-size output in the panel, 0.1 to 1. Used when Scale mode is manual.',
+      }),
+      framerate: new NumberField(30, {
+        min: 1,
+        max: 120,
+        step: 1,
+        description: 'Frames per second for playback and export, from 1 to 120.',
+      }),
+      captureDelay: new NumberField(50, {
+        min: 0,
+        max: 10000,
+        step: 10,
+        description: 'Time to wait after each frame renders before capturing it, in milliseconds.',
+      }),
       // final waits for each frame to settle; preview captures on the first render and
       // can drop or repeat frames
-      captureMode: new StringLiteralField('final', ['final', 'preview']),
-      rendersDirectory: new StringField('renders'),
-      sequenceFormat: new StringLiteralField('png', ['png', 'exr']),
+      captureMode: new StringLiteralField('final', {
+        values: ['final', 'preview'],
+        description:
+          'Final waits for each frame to settle; preview is faster but can drop or repeat frames.',
+      }),
+      rendersDirectory: new StringField('renders', {
+        description: 'Folder in the project where image sequence exports are saved.',
+      }),
+      sequenceFormat: new StringLiteralField('png', {
+        values: ['png', 'exr'],
+        description: 'File format for image sequence exports: png or exr.',
+      }),
     }
   }
   createOutputs() {
@@ -5539,7 +6518,9 @@ export class ConsoleOp extends Operator<ConsoleOp> {
   static description = 'Log data to the console'
   createInputs() {
     return {
-      data: new DataField(),
+      data: new DataField(undefined, {
+        description: 'Any value to print to the browser console each time it changes.',
+      }),
     }
   }
   createOutputs() {
@@ -5551,17 +6532,41 @@ export class ConsoleOp extends Operator<ConsoleOp> {
   }
 }
 
+// A note shown in the graph to explain the nodes beside it. It has no handles,
+// so nothing connects to it, and running it does nothing.
+export class CommentOp extends Operator<CommentOp> {
+  static displayName = 'Comment'
+  static description =
+    'A note that explains the nodes beside it. Double-click to edit its text. Nothing connects to it'
+  createInputs() {
+    return {
+      text: new StringField('', {
+        description: "The note's text. Double-click the node to edit it.",
+      }),
+    }
+  }
+  createOutputs() {
+    return {}
+  }
+  execute(_: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    return {}
+  }
+}
+
 export class RerouteOp extends Operator<RerouteOp> {
   static displayName = 'Reroute'
   static description = 'Pass-through for organizing graph layout'
   createInputs() {
     return {
-      value: new UnknownField(undefined, { optional: true }),
+      value: new UnknownField(undefined, {
+        optional: true,
+        description: 'Any value. Passed through unchanged to tidy up long connections.',
+      }),
     }
   }
   createOutputs() {
     return {
-      value: new UnknownField(undefined),
+      value: new UnknownField(undefined, { description: 'The same value, unchanged.' }),
     }
   }
   execute({ value }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
@@ -5575,15 +6580,27 @@ export class LayerPropsOp extends Operator<LayerPropsOp> {
     'Add additional props to a layer (e.g., operation: "mask" for mask layers, beforeId for maplibre layer ordering)'
   createInputs() {
     return {
-      layer: new LayerField(),
-      operation: new StringField('', { optional: true }),
-      beforeId: new StringField('', { optional: true }),
-      additionalProps: new UnknownField({}, { optional: true }),
+      layer: new LayerField(undefined, { description: 'Layer to add props to.' }),
+      operation: new StringField('', {
+        optional: true,
+        description: "deck.gl layer operation, such as 'mask' or 'terrain'. Skipped when empty.",
+      }),
+      beforeId: new StringField('', {
+        optional: true,
+        description: 'MapLibre layer ID to draw this layer beneath. Skipped when empty.',
+      }),
+      additionalProps: new UnknownField(
+        {},
+        {
+          optional: true,
+          description: 'Object of extra layer props, merged last so they override the others.',
+        }
+      ),
     }
   }
   createOutputs() {
     return {
-      layer: new LayerField(),
+      layer: new LayerField(undefined, { description: 'The layer with the added props.' }),
     }
   }
   execute({
@@ -5704,6 +6721,8 @@ export class BlendingOp extends Operator<BlendingOp> {
     return {
       mode: new StringLiteralField('normal', {
         values: ['normal', 'additive', 'subtractive', 'custom'],
+        description:
+          "How layer colors combine with what is drawn below. 'custom' uses the two factors.",
       }),
       // Custom mode fields (only used when mode='custom')
       blendColorSrcFactor: new StringLiteralField('src-alpha', {
@@ -5718,6 +6737,8 @@ export class BlendingOp extends Operator<BlendingOp> {
         ],
         optional: true,
         showByDefault: false,
+        label: 'Source factor',
+        description: "Multiplier for the layer's own color. Only used when Mode is 'custom'.",
       }),
       blendColorDstFactor: new StringLiteralField('one-minus-src-alpha', {
         values: [
@@ -5731,12 +6752,18 @@ export class BlendingOp extends Operator<BlendingOp> {
         ],
         optional: true,
         showByDefault: false,
+        label: 'Destination factor',
+        description:
+          "Multiplier for the color already drawn below. Only used when Mode is 'custom'.",
       }),
     }
   }
   createOutputs() {
     return {
-      parameters: new UnknownField({}),
+      parameters: new UnknownField(
+        {},
+        { description: "WebGL blend settings object to pass to a layer's Parameters input." }
+      ),
     }
   }
   execute({
@@ -6000,8 +7027,16 @@ export class TextLayerOp extends Operator<TextLayerOp> {
       getPosition: new Point3DField([0, 0, 0], { returnType: 'tuple', accessor: true }),
       getText: new StringField('', { accessor: true }),
       billboard: new BooleanField(true),
-      fontFamily: new StringField('Inter'),
-      fontWeight: new NumberField(400, { min: 100, max: 900, step: 100 }),
+      fontFamily: new StringField('Inter', {
+        description:
+          "CSS font family for the labels, e.g. 'Inter' or 'Georgia, serif'. The font must be available.",
+      }),
+      fontWeight: new NumberField(400, {
+        min: 100,
+        max: 900,
+        step: 100,
+        description: 'CSS font weight, from 100 (thin) to 900 (black). 400 is normal, 700 is bold.',
+      }),
       sizeUnits: new StringLiteralField('pixels', {
         values: ['pixels', 'meters', 'common'],
         showByDefault: false,
@@ -6015,53 +7050,81 @@ export class TextLayerOp extends Operator<TextLayerOp> {
       }),
       getSize: new NumberField(48, { min: 0, softMax: 200, accessor: true }),
       getColor: new ColorField('#f0f0f0', { accessor: true, transform: hexToColor }),
-      background: new BooleanField(false, { showByDefault: false }),
+      background: new BooleanField(false, {
+        showByDefault: false,
+        description:
+          'Draw a box behind each label, using Background color and the border settings.',
+      }),
       getBackgroundColor: new ColorField('#ffffffff', {
         accessor: true,
         transform: hexToColor,
         showByDefault: false,
+        description: 'Fill color of the box behind each label. Only drawn when Background is on.',
       }),
       getBorderColor: new ColorField('#000000ff', {
         accessor: true,
         transform: hexToColor,
         showByDefault: false,
+        description: "Color of the border around each label's background box. Needs Background on.",
       }),
       getBorderWidth: new NumberField(0, {
         min: 0,
         softMax: 20,
         accessor: true,
         showByDefault: false,
+        description:
+          "Width of the border around each label's background box, in pixels. 0 hides it.",
       }),
       backgroundPadding: new Vec2Field(
         { x: 0, y: 0 },
-        { returnType: 'tuple', showByDefault: false }
+        {
+          returnType: 'tuple',
+          showByDefault: false,
+          description:
+            'Space between the text and the edge of its background box, as [x, y] in pixels.',
+        }
       ),
       backgroundBorderRadius: new NumberField(0, {
         min: 0,
         softMax: 100,
         showByDefault: true,
+        description:
+          "Corner radius of each label's background box, in pixels. 0 gives square corners.",
       }),
       lineHeight: new NumberField(1, {
         min: 0,
         softMax: 4,
         step: 0.05,
         showByDefault: false,
+        description: 'Spacing between lines of multi-line labels, as a multiple of the text size.',
       }),
       outlineWidth: new NumberField(0, {
         min: 0,
         softMax: 12,
         step: 0.1,
         showByDefault: false,
+        description:
+          'Width of the outline around the text, relative to text size. Only works with SDF on in Font settings.',
       }),
       outlineColor: new ColorField('#000000ff', {
         transform: hexToColor,
         showByDefault: false,
+        description:
+          'Color of the outline around the text. Only visible when Outline width is above 0.',
       }),
       wordBreak: new StringLiteralField('break-word', {
         values: ['break-word', 'break-all'],
         showByDefault: false,
+        description:
+          "Where long labels wrap: 'break-word' at spaces, 'break-all' at any character. Needs Max width.",
       }),
-      maxWidth: new NumberField(-1, { min: -1, softMax: 100, showByDefault: false }),
+      maxWidth: new NumberField(-1, {
+        min: -1,
+        softMax: 100,
+        showByDefault: false,
+        description:
+          'Wrap labels longer than this many times the text size. -1 turns off wrapping.',
+      }),
       getAngle: new NumberField(0, {
         softMin: 0,
         softMax: 360,
@@ -6081,14 +7144,20 @@ export class TextLayerOp extends Operator<TextLayerOp> {
         accessor: true,
         showByDefault: false,
       }),
-      fontSettings: new CompoundPropsField({
-        sdf: new BooleanField(false),
-        fontSize: new NumberField(64, { min: 8, softMax: 256 }),
-        buffer: new NumberField(4, { min: 0, softMax: 20 }),
-        radius: new NumberField(12, { min: 0, softMax: 50 }),
-        cutoff: new NumberField(0.25, { min: 0, max: 1, step: 0.01 }),
-        smoothing: new NumberField(0.1, { min: 0, max: 1, step: 0.01 }),
-      }),
+      fontSettings: new CompoundPropsField(
+        {
+          sdf: new BooleanField(false),
+          fontSize: new NumberField(64, { min: 8, softMax: 256 }),
+          buffer: new NumberField(4, { min: 0, softMax: 20 }),
+          radius: new NumberField(12, { min: 0, softMax: 50 }),
+          cutoff: new NumberField(0.25, { min: 0, max: 1, step: 0.01 }),
+          smoothing: new NumberField(0.1, { min: 0, max: 1, step: 0.01 }),
+        },
+        {
+          description:
+            'Font atlas options: SDF rendering (needed for outlines), atlas font size, buffer, radius, cutoff, smoothing.',
+        }
+      ),
       parameters: new CompoundPropsField(
         {
           depthTest: new BooleanField(true),
@@ -6114,6 +7183,76 @@ export class TextLayerOp extends Operator<TextLayerOp> {
       updateTriggers: gatherTriggers(this.inputs, props),
     }
     return { layer }
+  }
+}
+
+// Resolves an @/ project file to a blob URL with its MIME type. Other URLs pass through
+async function resolveProjectUrl(url: string): Promise<string> {
+  if (!url?.startsWith(projectScheme)) {
+    return url
+  }
+
+  const { readAssetBinary } = await import('./storage')
+  const { useFileSystemStore } = await import('./filesystem-store')
+
+  const { currentProjectName, activeStorageType } = useFileSystemStore.getState()
+  if (!currentProjectName) {
+    throw new Error('No project loaded. Please save or load a project first.')
+  }
+
+  const fileName = url.substring(projectScheme.length)
+  const result = await readAssetBinary(activeStorageType, currentProjectName, fileName)
+  if (!result.success) {
+    throw new Error(result.error.message)
+  }
+
+  // Infer MIME type from file extension for loaders.gl
+  const ext = fileName.toLowerCase().split('.').pop()
+  const mimeTypes: Record<string, string> = {
+    png: 'image/png',
+    jpg: 'image/jpeg',
+    jpeg: 'image/jpeg',
+    gif: 'image/gif',
+    webp: 'image/webp',
+    svg: 'image/svg+xml',
+  }
+  const mimeType = mimeTypes[ext || ''] || 'application/octet-stream'
+
+  const blob = new Blob([result.data], { type: mimeType })
+  return URL.createObjectURL(blob)
+}
+
+// Reads an @/ project JSON file into an object. Other values (URLs, parsed JSON) pass through
+async function resolveIconMapping(
+  mapping: string | Record<string, unknown>
+): Promise<string | Record<string, unknown>> {
+  if (typeof mapping !== 'string' || !mapping.startsWith(projectScheme)) {
+    return mapping
+  }
+
+  const { readAsset } = await import('./storage')
+  const { useFileSystemStore } = await import('./filesystem-store')
+
+  const { currentProjectName, activeStorageType } = useFileSystemStore.getState()
+  if (!currentProjectName) {
+    throw new Error('No project loaded. Please save or load a project first.')
+  }
+
+  const fileName = mapping.substring(projectScheme.length)
+  const result = await readAsset(activeStorageType, currentProjectName, fileName)
+  if (!result.success) {
+    throw new Error(result.error.message)
+  }
+
+  try {
+    const parsed = JSON.parse(result.data)
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      throw new Error('icon mapping must be a JSON object')
+    }
+    return parsed as Record<string, unknown>
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    throw new Error(`Unable to parse icon mapping "${mapping}": ${message}`)
   }
 }
 
@@ -6167,6 +7306,8 @@ export class IconLayerOp extends Operator<IconLayerOp> {
         values: ['height', 'width'],
         showByDefault: false,
         optional: true,
+        description:
+          "Whether Size sets each icon's height or its width. The other side keeps the icon's aspect ratio.",
       }),
       parameters: new CompoundPropsField(
         {
@@ -6186,75 +7327,6 @@ export class IconLayerOp extends Operator<IconLayerOp> {
     _props: ExtractProps<typeof this.inputs>
   ): Promise<ExtractProps<typeof this.outputs>> {
     const { getIcon, iconMapping, iconAtlas, sizeMaxPixels, ...rest } = _props
-
-    // Helper to resolve @/ URLs to blob URLs with proper MIME type
-    const resolveProjectUrl = async (url: string): Promise<string> => {
-      if (!url?.startsWith(projectScheme)) {
-        return url
-      }
-
-      const { readAssetBinary } = await import('./storage')
-      const { useFileSystemStore } = await import('./filesystem-store')
-
-      const { currentProjectName, activeStorageType } = useFileSystemStore.getState()
-      if (!currentProjectName) {
-        throw new Error('No project loaded. Please save or load a project first.')
-      }
-
-      const fileName = url.substring(projectScheme.length)
-      const result = await readAssetBinary(activeStorageType, currentProjectName, fileName)
-      if (!result.success) {
-        throw new Error(result.error.message)
-      }
-
-      // Infer MIME type from file extension for loaders.gl
-      const ext = fileName.toLowerCase().split('.').pop()
-      const mimeTypes: Record<string, string> = {
-        png: 'image/png',
-        jpg: 'image/jpeg',
-        jpeg: 'image/jpeg',
-        gif: 'image/gif',
-        webp: 'image/webp',
-        svg: 'image/svg+xml',
-      }
-      const mimeType = mimeTypes[ext || ''] || 'application/octet-stream'
-
-      const blob = new Blob([result.data], { type: mimeType })
-      return URL.createObjectURL(blob)
-    }
-
-    const resolveIconMapping = async (
-      mapping: string | Record<string, unknown>
-    ): Promise<string | Record<string, unknown>> => {
-      if (typeof mapping !== 'string' || !mapping.startsWith(projectScheme)) {
-        return mapping
-      }
-
-      const { readAsset } = await import('./storage')
-      const { useFileSystemStore } = await import('./filesystem-store')
-
-      const { currentProjectName, activeStorageType } = useFileSystemStore.getState()
-      if (!currentProjectName) {
-        throw new Error('No project loaded. Please save or load a project first.')
-      }
-
-      const fileName = mapping.substring(projectScheme.length)
-      const result = await readAsset(activeStorageType, currentProjectName, fileName)
-      if (!result.success) {
-        throw new Error(result.error.message)
-      }
-
-      try {
-        const parsed = JSON.parse(result.data)
-        if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-          throw new Error('icon mapping must be a JSON object')
-        }
-        return parsed as Record<string, unknown>
-      } catch (error) {
-        const message = error instanceof Error ? error.message : String(error)
-        throw new Error(`Unable to parse icon mapping "${mapping}": ${message}`)
-      }
-    }
 
     // Helper to resolve image URL and extract dimensions
     const resolveImageWithDimensions = async (
@@ -6373,11 +7445,23 @@ export class ScenegraphLayerOp extends Operator<ScenegraphLayerOp> {
       opacity: new NumberField(1, { min: 0, max: 1, step: 0.01 }),
       scenegraph: new FileUrlField(
         'https://raw.githubusercontent.com/visgl/deck.gl-data/master/examples/scenegraph-layer/airplane.glb',
-        { accept: '.glb,.gltf' }
+        {
+          accept: '.glb,.gltf',
+          label: 'Model',
+          description: 'URL of the glTF or GLB 3D model drawn at each position.',
+        }
       ),
       getPosition: new Point3DField([0, 0, 0], { returnType: 'tuple', accessor: true }),
-      getOrientation: new Vec3Field([0, 0, 0], { returnType: 'tuple', accessor: true }),
-      getScale: new Vec3Field([1, 1, 1], { returnType: 'tuple', accessor: true }),
+      getOrientation: new Vec3Field([0, 0, 0], {
+        returnType: 'tuple',
+        accessor: true,
+        description: 'Rotation of each model as [pitch, yaw, roll], in degrees.',
+      }),
+      getScale: new Vec3Field([1, 1, 1], {
+        returnType: 'tuple',
+        accessor: true,
+        description: "Scale of each model along each axis as [x, y, z]. 1 is the model's own size.",
+      }),
       sizeScale: new NumberField(1, { min: 0, softMax: 10_000, showByDefault: false }),
       sizeMinPixels: new NumberField(0, { min: 0, softMax: 100, showByDefault: false }),
       sizeMaxPixels: new NumberField(100, { min: 0, softMax: 100, showByDefault: false }),
@@ -6386,6 +7470,8 @@ export class ScenegraphLayerOp extends Operator<ScenegraphLayerOp> {
         returnType: 'tuple',
         accessor: true,
         showByDefault: false,
+        description:
+          'Offset of each model from its position as [x, y, z] (east, north, up), in meters.',
       }),
       parameters: new CompoundPropsField(
         {
@@ -6421,20 +7507,38 @@ export class SimpleMeshLayerOp extends Operator<SimpleMeshLayerOp> {
       visible: new BooleanField(true),
       opacity: new NumberField(1, { min: 0, max: 1, step: 0.01 }),
       mesh: new StringField(
-        'https://raw.githubusercontent.com/visgl/deck.gl-data/master/website/humanoid_quad.obj'
+        'https://raw.githubusercontent.com/visgl/deck.gl-data/master/website/humanoid_quad.obj',
+        {
+          description:
+            'URL of the OBJ or PLY mesh drawn at each position. Files not ending in .obj load as PLY.',
+        }
       ),
       wireframe: new BooleanField(false, { showByDefault: false }),
       texture: new UnknownField(null, { optional: true, showByDefault: false }),
-      textureParameters: new DataField(undefined, { showByDefault: false }),
+      textureParameters: new DataField(undefined, {
+        showByDefault: false,
+        description:
+          "Sampler settings for the texture, e.g. { minFilter: 'linear', magFilter: 'nearest' }.",
+      }),
       getPosition: new Point3DField([0, 0, 0], { returnType: 'tuple', accessor: true }),
       getColor: new ColorField('#000000', { accessor: true, transform: hexToColor }),
-      getOrientation: new Vec3Field([0, 0, 0], { returnType: 'tuple', accessor: true }),
-      getScale: new Vec3Field([1, 1, 1], { returnType: 'tuple', accessor: true }),
+      getOrientation: new Vec3Field([0, 0, 0], {
+        returnType: 'tuple',
+        accessor: true,
+        description: 'Rotation of each mesh as [pitch, yaw, roll], in degrees.',
+      }),
+      getScale: new Vec3Field([1, 1, 1], {
+        returnType: 'tuple',
+        accessor: true,
+        description: "Scale of each mesh along each axis as [x, y, z]. 1 is the mesh's own size.",
+      }),
       sizeScale: new NumberField(1, { min: 0, softMax: 1000, showByDefault: false }),
       getTranslation: new Vec3Field([0, 0, 0], {
         returnType: 'tuple',
         accessor: true,
         showByDefault: false,
+        description:
+          'Offset of each mesh from its position as [x, y, z] (east, north, up), in meters.',
       }),
       parameters: new CompoundPropsField(
         {
@@ -6475,7 +7579,11 @@ export class H3HexagonLayerOp extends Operator<H3HexagonLayerOp> {
       data: new DataField(),
       visible: new BooleanField(true),
       opacity: new NumberField(1, { min: 0, max: 1, step: 0.01 }),
-      getHexagon: new StringField('', { accessor: true }),
+      getHexagon: new StringField('', {
+        accessor: true,
+        label: 'H3 cell',
+        description: 'H3 cell ID (hex string) for each row; that hexagon is drawn on the map.',
+      }),
       getFillColor: new ColorField('#fff', { accessor: true, transform: hexToColor }),
       getRadius: new NumberField(1, { min: 0, accessor: true }),
       getLineWidth: new NumberField(1, { min: 0, accessor: true }),
@@ -6513,7 +7621,12 @@ export class A5LayerOp extends Operator<A5LayerOp> {
       data: new DataField(),
       visible: new BooleanField(true),
       opacity: new NumberField(1, { min: 0, max: 1, step: 0.01 }),
-      getPentagon: new UnknownField((d: unknown) => d?.pentagon || '', { accessor: true }),
+      getPentagon: new UnknownField((d: unknown) => d?.pentagon || '', {
+        accessor: true,
+        label: 'A5 cell',
+        description:
+          "A5 cell ID for each row (hex string or bigint). Reads the row's pentagon by default.",
+      }),
       getFillColor: new ColorField('#fff', { accessor: true, transform: hexToColor }),
       getElevation: new NumberField(1000, { min: 0, softMax: 100000, accessor: true }),
       elevationScale: new NumberField(1, { min: 0, softMax: 100, showByDefault: false }),
@@ -6587,6 +7700,8 @@ export class HeatmapLayerOp extends Operator<HeatmapLayerOp> {
 export class GeoJsonLayerOp extends Operator<GeoJsonLayerOp> {
   static displayName = 'GeoJsonLayer'
   static description = 'Render GeoJSON data with points, lines, and polygons'
+  private _iconAtlasSource: string | undefined
+  private _iconAtlasUrl: string | null = null
   createInputs() {
     return {
       // Core fields (visible by default)
@@ -6598,6 +7713,7 @@ export class GeoJsonLayerOp extends Operator<GeoJsonLayerOp> {
       pointType: new StringLiteralField('circle', {
         values: ['circle', 'icon', 'text', 'circle+text', 'icon+text', 'circle+icon'],
         showByDefault: false,
+        description: 'How point features are drawn: circles, icons, text labels, or a combination.',
       }),
       getPointRadius: new NumberField(1, {
         min: 0,
@@ -6610,12 +7726,67 @@ export class GeoJsonLayerOp extends Operator<GeoJsonLayerOp> {
         values: ['pixels', 'meters'],
         showByDefault: false,
       }),
-      pointRadiusScale: new NumberField(1, { min: 0, softMax: 100, showByDefault: false }),
-      pointRadiusMinPixels: new NumberField(0, { min: 0, softMax: 100, showByDefault: false }),
-      pointRadiusMaxPixels: new NumberField(100, { min: 0, softMax: 1000, showByDefault: false }),
-      pointRadiusBillboard: new BooleanField(false, { showByDefault: false }),
+      pointRadiusScale: new NumberField(1, {
+        min: 0,
+        softMax: 100,
+        showByDefault: false,
+        description: 'Multiplier applied to every point radius.',
+      }),
+      pointRadiusMinPixels: new NumberField(0, {
+        min: 0,
+        softMax: 100,
+        showByDefault: false,
+        description: 'Smallest a point can draw on screen, in pixels, at any zoom.',
+      }),
+      pointRadiusMaxPixels: new NumberField(100, {
+        min: 0,
+        softMax: 1000,
+        showByDefault: false,
+        description: 'Largest a point can draw on screen, in pixels, at any zoom.',
+      }),
+      pointRadiusBillboard: new BooleanField(false, {
+        showByDefault: false,
+        description:
+          'When on, point circles always face the camera instead of lying flat on the ground.',
+      }),
 
       // pointType: icon
+      iconAtlas: new FileUrlField(
+        'https://raw.githubusercontent.com/visgl/deck.gl-data/master/website/icon-atlas.png',
+        {
+          showByDefault: false,
+          accept: '.png,.jpg,.jpeg,.gif,.webp,.svg',
+          description:
+            'Image holding every icon, laid out by Icon mapping. Clear it to load each icon from its own URL.',
+        }
+      ),
+      iconMapping: new MapStyleField(
+        'https://raw.githubusercontent.com/visgl/deck.gl-data/master/website/icon-atlas.json',
+        {
+          showByDefault: false,
+          accept: '.json',
+          description: "JSON, or a URL to it, giving each icon's name and position in the atlas.",
+        }
+      ),
+      getIcon: new StringField('marker', {
+        accessor: true,
+        showByDefault: false,
+        description:
+          'Icon for each point: a name from Icon mapping, or with no atlas an object {url, width, height, id}.',
+      }),
+      getIconSize: new NumberField(32, {
+        min: 0,
+        softMax: 256,
+        accessor: true,
+        showByDefault: false,
+        description: 'Icon height for each point, in pixels.',
+      }),
+      getIconColor: new ColorField('#fff', {
+        accessor: true,
+        transform: hexToColor,
+        showByDefault: false,
+        description: "Tint for each icon. Applies to icons marked 'mask' in Icon mapping.",
+      }),
 
       // pointType: text (hidden by default)
       getText: new StringField('', { accessor: true, showByDefault: false }),
@@ -6624,17 +7795,20 @@ export class GeoJsonLayerOp extends Operator<GeoJsonLayerOp> {
         softMax: 200,
         accessor: true,
         showByDefault: false,
+        description: 'Label size for each point, in Text size units (pixels by default).',
       }),
       getTextColor: new ColorField('#000000', {
         accessor: true,
         transform: hexToColor,
         showByDefault: false,
+        description: 'Label color for each point, used when Point type includes text.',
       }),
       getTextAngle: new NumberField(0, {
         softMin: 0,
         softMax: 360,
         accessor: true,
         showByDefault: false,
+        description: 'Label rotation for each point, in degrees counterclockwise.',
       }),
       getTextAnchor: new StringLiteralField('middle', {
         values: ['start', 'middle', 'end'],
@@ -6645,21 +7819,55 @@ export class GeoJsonLayerOp extends Operator<GeoJsonLayerOp> {
         values: ['top', 'center', 'bottom'],
         accessor: true,
         showByDefault: false,
+        description:
+          'Vertical placement of each label relative to its point: top, center, or bottom.',
       }),
       getTextPixelOffset: new Vec2Field(
         { x: 0, y: 0 },
-        { returnType: 'tuple', accessor: true, showByDefault: false }
+        {
+          returnType: 'tuple',
+          accessor: true,
+          showByDefault: false,
+          description: 'Shifts each label by [x, y] screen pixels; x goes right, y goes down.',
+        }
       ),
       textSizeUnits: new StringLiteralField('pixels', {
         values: ['pixels', 'meters'],
         showByDefault: false,
+        description: 'Units for Text size: pixels stay fixed on screen, meters scale with zoom.',
       }),
-      textSizeScale: new NumberField(1, { min: 0, softMax: 100, showByDefault: false }),
-      textSizeMinPixels: new NumberField(0, { min: 0, softMax: 100, showByDefault: false }),
-      textSizeMaxPixels: new NumberField(100, { min: 0, showByDefault: false }),
-      textBillboard: new BooleanField(true, { showByDefault: false }),
-      textFontFamily: new StringField('Monaco, monospace', { showByDefault: false }),
-      textFontWeight: new NumberField(400, { min: 100, max: 900, step: 100, showByDefault: false }),
+      textSizeScale: new NumberField(1, {
+        min: 0,
+        softMax: 100,
+        showByDefault: false,
+        description: 'Multiplier applied to every label size, after Text size units.',
+      }),
+      textSizeMinPixels: new NumberField(0, {
+        min: 0,
+        softMax: 100,
+        showByDefault: false,
+        description: 'Smallest a label can draw on screen, in pixels.',
+      }),
+      textSizeMaxPixels: new NumberField(100, {
+        min: 0,
+        showByDefault: false,
+        description: 'Largest a label can draw on screen, in pixels.',
+      }),
+      textBillboard: new BooleanField(true, {
+        showByDefault: false,
+        description: 'When on, labels always face the camera. When off, they lie flat on the map.',
+      }),
+      textFontFamily: new StringField('Monaco, monospace', {
+        showByDefault: false,
+        description: "CSS font family for labels, e.g. 'Monaco, monospace'.",
+      }),
+      textFontWeight: new NumberField(400, {
+        min: 100,
+        max: 900,
+        step: 100,
+        showByDefault: false,
+        description: 'Label font weight, 100 (thin) to 900 (heavy). 400 is normal.',
+      }),
 
       // polygon (core fields visible by default)
       filled: new BooleanField(true),
@@ -6677,10 +7885,23 @@ export class GeoJsonLayerOp extends Operator<GeoJsonLayerOp> {
       lineWidthScale: new NumberField(1, { min: 0, softMax: 100, showByDefault: false }),
       lineWidthMinPixels: new NumberField(0, { min: 0, softMax: 100, showByDefault: false }),
       lineWidthMaxPixels: new NumberField(100, { min: 0, softMax: 1000, showByDefault: false }),
-      lineCapRounded: new BooleanField(false, { showByDefault: false }),
+      lineCapRounded: new BooleanField(false, {
+        showByDefault: false,
+        description: 'Draws rounded ends on lines instead of square ones.',
+      }),
       lineJointRounded: new BooleanField(false, { showByDefault: false }),
-      lineMiterLimit: new NumberField(4, { min: 0, softMax: 10, showByDefault: false }),
-      lineBillboard: new BooleanField(false, { showByDefault: false }),
+      lineMiterLimit: new NumberField(4, {
+        min: 0,
+        softMax: 10,
+        showByDefault: false,
+        description:
+          'How far sharp line corners can extend, in multiples of line width. Ignored when Line joint rounded is on.',
+      }),
+      lineBillboard: new BooleanField(false, {
+        showByDefault: false,
+        description:
+          'When on, line width always faces the camera. When off, lines lie flat on the ground.',
+      }),
       lineAntialiasing: new BooleanField(false, { showByDefault: false }),
 
       // 3d (hidden by default)
@@ -6693,7 +7914,11 @@ export class GeoJsonLayerOp extends Operator<GeoJsonLayerOp> {
         showByDefault: false,
       }),
       elevationScale: new NumberField(1, { min: 0, softMax: 100, showByDefault: false }),
-      _full3d: new BooleanField(false, { showByDefault: false }),
+      _full3d: new BooleanField(false, {
+        showByDefault: false,
+        description:
+          'Fills polygons with varying heights (e.g. walls) on their own plane, not flat. Experimental.',
+      }),
       parameters: new CompoundPropsField(
         {
           depthTest: new BooleanField(true),
@@ -6711,9 +7936,23 @@ export class GeoJsonLayerOp extends Operator<GeoJsonLayerOp> {
       layer: new LayerField<GeoJsonLayerProps>(),
     }
   }
-  execute(props: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+  async execute({
+    iconAtlas,
+    iconMapping,
+    ...props
+  }: ExtractProps<typeof this.inputs>): Promise<ExtractProps<typeof this.outputs>> {
+    // Uploaded @/ files need resolving; keep the atlas blob URL so deck.gl doesn't reload it
+    if (iconAtlas !== this._iconAtlasSource) {
+      const url = iconAtlas ? await resolveProjectUrl(iconAtlas) : null
+      if (this._iconAtlasUrl?.startsWith('blob:')) URL.revokeObjectURL(this._iconAtlasUrl)
+      this._iconAtlasSource = iconAtlas
+      this._iconAtlasUrl = url
+    }
     const layer = {
       ...parseLayerProps<GeoJsonLayerProps>(props),
+      // Without an atlas, deck.gl packs icons from the {url, width, height} objects getIcon returns
+      iconAtlas: this._iconAtlasUrl,
+      iconMapping: await resolveIconMapping(iconMapping),
       type: 'GeoJsonLayer' as const,
       id: this.id,
       updateTriggers: gatherTriggers(this.inputs, props),
@@ -6787,14 +8026,22 @@ export class GridLayerOp extends Operator<GridLayerOp> {
       getPosition: new Point3DField([0, 0, 0], { returnType: 'tuple', accessor: true }),
       cellSize: new NumberField(1000, { min: 1, softMax: 100000 }),
 
-      getColorWeight: new NumberField(1, { min: 0, accessor: true }),
+      getColorWeight: new NumberField(1, {
+        min: 0,
+        accessor: true,
+        description: "Value each row adds to its cell's color. Combined using Color aggregation.",
+      }),
       colorAggregation: new StringLiteralField('SUM', {
         values: ['SUM', 'MEAN', 'MIN', 'MAX', 'COUNT'],
+        description:
+          'How row weights in a cell combine into its color value. COUNT ignores the weight.',
       }),
       // TODO: Support the second agg option, getColorValue?
       colorScaleType: new StringLiteralField('quantize', {
         values: ['linear', 'quantize', 'quantile', 'ordinal'],
         showByDefault: false,
+        description:
+          'How cell values map onto Color range. Quantize splits evenly, quantile by equal counts.',
       }),
       colorRange: new UnknownField(DEFAULT_COLOR_RANGE, { optional: true }),
       // TODO: Support default color range
@@ -6806,29 +8053,49 @@ export class GridLayerOp extends Operator<GridLayerOp> {
       lowerPercentile: new NumberField(0, { min: 0, max: 100, step: 0.1, showByDefault: false }),
 
       extruded: new BooleanField(true),
-      getElevationWeight: new NumberField(1, { min: 0, accessor: true }),
+      getElevationWeight: new NumberField(1, {
+        min: 0,
+        accessor: true,
+        description:
+          "Value each row adds to its cell's height. Combined using Elevation aggregation.",
+      }),
       elevationAggregation: new StringLiteralField('SUM', {
         values: ['SUM', 'MEAN', 'MIN', 'MAX', 'COUNT'],
+        description:
+          'How row weights in a cell combine into its height value. COUNT ignores the weight.',
       }),
       // TODO: Support the second agg option, getElevationValue?
       elevationScaleType: new StringLiteralField('linear', {
         values: ['linear', 'quantile'],
         showByDefault: false,
+        description:
+          'How cell values map onto Elevation range: linear, or quantile (equal counts).',
       }),
       elevationScale: new NumberField(1, { min: 0, softMax: 100, showByDefault: false }),
-      elevationRange: new Vec2Field([0, 1000], { returnType: 'tuple', showByDefault: false }),
-      elevationDomain: new UnknownField(null, { optional: true, showByDefault: false }), // number[2] | null for auto
+      elevationRange: new Vec2Field([0, 1000], {
+        returnType: 'tuple',
+        showByDefault: false,
+        description: '[min, max] cell height in meters, before Elevation scale is applied.',
+      }),
+      elevationDomain: new UnknownField(null, {
+        optional: true,
+        showByDefault: false,
+        description:
+          '[min, max] cell values mapped to Elevation range. Empty uses 0 to the largest value.',
+      }), // number[2] | null for auto
       elevationUpperPercentile: new NumberField(100, {
         min: 0,
         max: 100,
         step: 0.1,
         showByDefault: false,
+        description: 'Hides cells whose height value is above this percentile, 0 to 100.',
       }),
       elevationLowerPercentile: new NumberField(0, {
         min: 0,
         max: 100,
         step: 0.1,
         showByDefault: false,
+        description: 'Hides cells whose height value is below this percentile, 0 to 100.',
       }),
 
       coverage: new NumberField(1, { min: 0, max: 1, step: 0.01, showByDefault: false }),
@@ -6868,16 +8135,29 @@ export class HexagonLayerOp extends Operator<HexagonLayerOp> {
       visible: new BooleanField(true),
       opacity: new NumberField(1, { min: 0, max: 1, step: 0.01 }),
       getPosition: new Point3DField([0, 0, 0], { returnType: 'tuple', accessor: true }),
-      radius: new NumberField(1000, { min: 1, softMax: 100000 }),
+      radius: new NumberField(1000, {
+        min: 1,
+        softMax: 100000,
+        description: 'Radius of each hexagon bin, in meters. Hexagons are pointy-topped.',
+      }),
 
-      getColorWeight: new NumberField(1, { min: 0, accessor: true }),
+      getColorWeight: new NumberField(1, {
+        min: 0,
+        accessor: true,
+        description:
+          "Value each row adds to its hexagon's color. Combined using Color aggregation.",
+      }),
       colorAggregation: new StringLiteralField('SUM', {
         values: ['SUM', 'MEAN', 'MIN', 'MAX', 'COUNT'],
+        description:
+          'How row weights in a hexagon combine into its color value. COUNT ignores the weight.',
       }),
       // TODO: Support the second agg option, getColorValue?
       colorScaleType: new StringLiteralField('quantize', {
         values: ['linear', 'quantize', 'quantile', 'ordinal'],
         showByDefault: false,
+        description:
+          'How hexagon values map onto Color range. Quantize splits evenly, quantile by equal counts.',
       }),
       colorRange: new UnknownField(DEFAULT_COLOR_RANGE, { optional: true }),
       // TODO: Support default color range
@@ -6889,29 +8169,50 @@ export class HexagonLayerOp extends Operator<HexagonLayerOp> {
       lowerPercentile: new NumberField(0, { min: 0, max: 100, step: 0.1, showByDefault: false }),
 
       extruded: new BooleanField(false),
-      getElevationWeight: new NumberField(1, { min: 0, accessor: true }),
+      getElevationWeight: new NumberField(1, {
+        min: 0,
+        accessor: true,
+        description:
+          "Value each row adds to its hexagon's height. Combined using Elevation aggregation.",
+      }),
       elevationAggregation: new StringLiteralField('SUM', {
         values: ['SUM', 'MEAN', 'MIN', 'MAX', 'COUNT'],
+        description:
+          'How row weights in a hexagon combine into its height value. COUNT ignores the weight.',
       }),
       // TODO: Support the second agg option, getElevationValue?
       elevationScaleType: new StringLiteralField('linear', {
         values: ['linear', 'quantile'],
         showByDefault: false,
+        description:
+          'How hexagon values map onto Elevation range: linear, or quantile (equal counts).',
       }),
       elevationScale: new NumberField(1, { min: 0, softMax: 100, showByDefault: false }),
-      elevationRange: new Vec2Field([0, 1000], { returnType: 'tuple', showByDefault: false }),
-      elevationDomain: new UnknownField(null, { optional: true, showByDefault: false }), // number[2] | null for auto
+      elevationRange: new Vec2Field([0, 1000], {
+        returnType: 'tuple',
+        showByDefault: false,
+        description:
+          '[min, max] hexagon height in meters, before Elevation scale. Needs Extruded on.',
+      }),
+      elevationDomain: new UnknownField(null, {
+        optional: true,
+        showByDefault: false,
+        description:
+          '[min, max] hexagon values mapped to Elevation range. Empty uses 0 to the largest value.',
+      }), // number[2] | null for auto
       elevationUpperPercentile: new NumberField(100, {
         min: 0,
         max: 100,
         step: 0.1,
         showByDefault: false,
+        description: 'Hides hexagons whose height value is above this percentile, 0 to 100.',
       }),
       elevationLowerPercentile: new NumberField(0, {
         min: 0,
         max: 100,
         step: 0.1,
         showByDefault: false,
+        description: 'Hides hexagons whose height value is below this percentile, 0 to 100.',
       }),
 
       coverage: new NumberField(1, { min: 0, max: 1, step: 0.01, showByDefault: false }),
@@ -6947,19 +8248,47 @@ export class Tile3DLayerOp extends Operator<Tile3DLayerOp> {
   createInputs() {
     return {
       visible: new BooleanField(true),
-      provider: new StringLiteralField('Google', ['Cesium', 'Generic', 'Google']),
-      tilesetUrl: new StringField('', { showByDefault: false }),
+      provider: new StringLiteralField('Google', {
+        values: ['Cesium', 'Generic', 'Google'],
+        description:
+          'Tile source. Google and Cesium need an API key in Settings. Generic loads any 3D Tiles URL.',
+      }),
+      tilesetUrl: new StringField('', {
+        showByDefault: false,
+        description:
+          'URL of a tileset.json to load. Required for Generic; Google and Cesium use their own tilesets when empty.',
+      }),
       opacity: new NumberField(1, { min: 0, max: 1, step: 0.01 }),
       operation: new StringLiteralField('terrain+draw', {
         values: ['terrain+draw', 'draw', 'terrain'],
+        description:
+          "'draw' shows the tiles, 'terrain' makes them a surface for the Terrain extension, or both.",
       }),
       wireframe: new BooleanField(false),
-      flatLighting: new BooleanField(true, { showByDefault: false }),
-      throttleRequests: new BooleanField(false, { showByDefault: false }),
+      flatLighting: new BooleanField(true, {
+        showByDefault: false,
+        description: 'Draw tile meshes without shading, so photo textures look as captured.',
+      }),
+      throttleRequests: new BooleanField(false, {
+        showByDefault: false,
+        description:
+          'Limit how many tile requests run at once. Loads more slowly but uses less bandwidth.',
+      }),
       pointSize: new NumberField(1, { min: 0, softMax: 100 }), // Only applies when tile format is 'pnts'
-      maxLodMetricValue: new NumberField(2, { min: 0, softMax: 10, showByDefault: false }),
-      maxScreenSpaceError: new NumberField(50, { min: 0, softMax: 1_000, showByDefault: false }),
-      maxMemoryUsage: new NumberField(2024, { min: 0, softMax: 10_000, showByDefault: false }),
+      maxScreenSpaceError: new NumberField(50, {
+        min: 0,
+        softMax: 1_000,
+        showByDefault: false,
+        description:
+          'How blurry tiles may look before finer ones load. Higher values load fewer, coarser tiles.',
+      }),
+      maxMemoryUsage: new NumberField(2024, {
+        min: 0,
+        softMax: 10_000,
+        showByDefault: false,
+        description:
+          'Memory budget for loaded tiles, in megabytes. Older tiles are dropped past this limit.',
+      }),
       parameters: new CompoundPropsField(
         {
           depthTest: new BooleanField(true),
@@ -6997,6 +8326,11 @@ export class Tile3DLayerOp extends Operator<Tile3DLayerOp> {
       throw new Error(
         'Tile3DLayer: Cesium Ion access token is not set (add it in Settings > API Keys)'
       )
+    }
+
+    // Generic sends no credentials, so falling back to the Google tileset would fail
+    if (provider === 'Generic' && !tilesetUrl) {
+      throw new Error('Tile3DLayer: set Tileset URL to use the Generic provider')
     }
 
     const defaultUrl = provider === 'Cesium' ? NYC_CESIUM_TILESET_URL : GOOGLE_TILESET_URL
@@ -7058,21 +8392,34 @@ export class Mask3DExtensionOp extends Operator<Mask3DExtensionOp> {
   createInputs() {
     return {
       // Downtown Los Angeles
-      targetPosition: new Point3DField([-118.2637, 34.0171, 0], { returnType: 'tuple' }),
-      innerRadius: new NumberField(1000, { min: 0, softMax: 10_000 }),
-      fadeRange: new NumberField(7, { min: 0, softMax: 10_000 }),
+      targetPosition: new Point3DField([-118.2637, 34.0171, 0], {
+        returnType: 'tuple',
+        description: 'Center of the visible sphere, as [lng, lat, altitude in meters].',
+      }),
+      innerRadius: new NumberField(1000, {
+        min: 0,
+        softMax: 10_000,
+        description: 'Radius in meters around Target position that is shown at full color.',
+      }),
+      fadeRange: new NumberField(7, {
+        min: 0,
+        softMax: 10_000,
+        description:
+          'Distance in meters past Inner radius over which tiles fade to white before being cut off.',
+      }),
     }
   }
   createOutputs() {
     return {
-      extension: new ExtensionField(),
+      extension: new ExtensionField(undefined, {
+        description: "3D mask extension to add to a Tile3DLayer's Extensions list.",
+      }),
     }
   }
   execute(props: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
-    const [lng, lat, alt = 0] = props.targetPosition as number[]
     const extension = {
       extension: { type: 'Mask3DExtension' },
-      props: { ...props, targetPosition: toMaskTargetPosition(lng, lat, alt) },
+      props,
     }
     return { extension }
   }
@@ -7084,17 +8431,32 @@ export class BrushingExtensionOp extends Operator<BrushingExtensionOp> {
     'Only render the points within a given radius of the mouse position. Used with most layer types.'
   createInputs() {
     return {
-      brushingRadius: new NumberField(100, { min: 0, softMax: 100_000 }),
-      brushingEnabled: new BooleanField(true),
+      brushingRadius: new NumberField(100, {
+        min: 0,
+        softMax: 100_000,
+        description: 'Radius around the mouse, in meters, inside which objects are drawn.',
+      }),
+      brushingEnabled: new BooleanField(true, {
+        description: 'When off, all objects are drawn regardless of the mouse position.',
+      }),
       brushingTarget: new StringLiteralField('source', {
         values: ['source', 'target', 'source_target', 'custom'],
+        description:
+          'Which position is tested against the mouse: source, target, either, or Brushing target.',
       }),
-      getBrushingTarget: new Point2DField([0, 0], { returnType: 'tuple', accessor: true }),
+      getBrushingTarget: new Point2DField([0, 0], {
+        returnType: 'tuple',
+        accessor: true,
+        description:
+          "Per-item [lng, lat] tested against the mouse. Only used when Brushing target is 'custom'.",
+      }),
     }
   }
   createOutputs() {
     return {
-      extension: new ExtensionField(),
+      extension: new ExtensionField(undefined, {
+        description: "Brushing extension to add to a layer's Extensions list.",
+      }),
     }
   }
   execute(props: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
@@ -7111,20 +8473,52 @@ export class PathStyleExtensionOp extends Operator<PathStyleExtensionOp> {
   static description = 'Style a path (used with PathLayer, PolygonLayer, and GeoJSONLayer)'
   createInputs() {
     return {
-      dash: new BooleanField(true),
-      highPrecisionDash: new BooleanField(false, { showByDefault: false }),
-      offset: new BooleanField(false),
-      dashMode: new StringLiteralField('segment', ['segment', 'path']),
-      dashJustified: new BooleanField(false),
-      dashUnits: new StringLiteralField('widths', ['widths', 'pixels', 'meters', 'common']),
-      getDashArray: new Vec2Field([4, 4], { returnType: 'tuple', accessor: true }),
-      getOffset: new NumberField(0, { softMin: -10_000, softMax: 10_000, accessor: true }),
-      dashGapPickable: new BooleanField(false),
+      dash: new BooleanField(true, {
+        description: 'Turns on dashed lines, drawn with Dash array.',
+      }),
+      highPrecisionDash: new BooleanField(false, {
+        showByDefault: false,
+        description: "When on, forces Dash mode to 'path' for smoother dashes, at some speed cost.",
+      }),
+      offset: new BooleanField(false, {
+        description: 'Turns on shifting lines sideways by Offset.',
+      }),
+      dashMode: new StringLiteralField('segment', {
+        values: ['segment', 'path'],
+        description:
+          "'segment' restarts dashes at each segment; 'path' keeps them continuous. Needs Dash on.",
+      }),
+      dashJustified: new BooleanField(false, {
+        description: 'When on, adjusts gaps so dashes line up with both ends of each path.',
+      }),
+      dashUnits: new StringLiteralField('widths', {
+        values: ['widths', 'pixels', 'meters', 'common'],
+        description:
+          "Units for Dash array. 'widths' is relative to half the line width, so dashes scale with it.",
+      }),
+      getDashArray: new Vec2Field([4, 4], {
+        returnType: 'tuple',
+        accessor: true,
+        description: 'Per-item [dash length, gap length], in Dash units.',
+      }),
+      getOffset: new NumberField(0, {
+        softMin: -10_000,
+        softMax: 10_000,
+        accessor: true,
+        description:
+          'Per-item sideways shift in line widths. Negative moves left, positive moves right.',
+      }),
+      dashGapPickable: new BooleanField(false, {
+        description:
+          'When on, the gaps between dashes respond to hover and click, not just the dashes.',
+      }),
     }
   }
   createOutputs() {
     return {
-      extension: new ExtensionField(),
+      extension: new ExtensionField(undefined, {
+        description: "Path style extension to add to a layer's Extensions list.",
+      }),
     }
   }
   execute({
@@ -7138,7 +8532,8 @@ export class PathStyleExtensionOp extends Operator<PathStyleExtensionOp> {
       extension: {
         type: 'PathStyleExtension',
         dash,
-        dashMode: highPrecisionDash ? 'path' : dashMode,
+        // deck.gl turns dashes on whenever dashMode is set, so only pass it with dash on
+        ...(dash ? { dashMode: highPrecisionDash ? 'path' : dashMode } : {}),
         offset,
       },
       props,
@@ -7152,12 +8547,18 @@ class TerrainExtensionOp extends Operator<TerrainExtensionOp> {
   static description = 'Render a terrain layer on the map'
   createInputs() {
     return {
-      terrainDrawMode: new StringLiteralField('offset', ['offset', 'drape']),
+      terrainDrawMode: new StringLiteralField('offset', {
+        values: ['offset', 'drape'],
+        description:
+          "'offset' lifts each object to the terrain height; 'drape' lays it over the terrain surface.",
+      }),
     }
   }
   createOutputs() {
     return {
-      extension: new ExtensionField(),
+      extension: new ExtensionField(undefined, {
+        description: "Terrain extension to add to a layer's Extensions list.",
+      }),
     }
   }
   execute(props: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
@@ -7223,13 +8624,27 @@ class BrightnessContrastExtensionOp extends Operator<BrightnessContrastExtension
   static description = 'Adjust brightness and contrast of a layer'
   createInputs() {
     return {
-      brightness: new NumberField(0, { min: -1, max: 1, step: 0.01 }),
-      contrast: new NumberField(0, { min: -1, max: 1, step: 0.01 }),
+      brightness: new NumberField(0, {
+        min: -1,
+        max: 1,
+        step: 0.01,
+        description:
+          "Shifts the layer's brightness, -1 (black) to 1 (white). 0 leaves it unchanged.",
+      }),
+      contrast: new NumberField(0, {
+        min: -1,
+        max: 1,
+        step: 0.01,
+        description:
+          "Changes the layer's contrast, -1 (flat gray) to 1 (maximum). 0 leaves it unchanged.",
+      }),
     }
   }
   createOutputs() {
     return {
-      extension: new ExtensionField(),
+      extension: new ExtensionField(undefined, {
+        description: "Brightness and contrast extension to add to a layer's Extensions list.",
+      }),
     }
   }
   execute(props: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
@@ -7248,13 +8663,27 @@ class HueSaturationExtensionOp extends Operator<HueSaturationExtensionOp> {
   static description = 'Adjust hue and saturation of a layer'
   createInputs() {
     return {
-      hue: new NumberField(0, { min: -1, max: 1, step: 0.01 }),
-      saturation: new NumberField(0, { min: -1, max: 1, step: 0.01 }),
+      hue: new NumberField(0, {
+        min: -1,
+        max: 1,
+        step: 0.01,
+        description:
+          "Rotates the layer's colors around the color wheel, -1 to 1 (a half turn each way).",
+      }),
+      saturation: new NumberField(0, {
+        min: -1,
+        max: 1,
+        step: 0.01,
+        description:
+          'Changes color intensity, -1 (grayscale) to 1 (most saturated). 0 is unchanged.',
+      }),
     }
   }
   createOutputs() {
     return {
-      extension: new ExtensionField(),
+      extension: new ExtensionField(undefined, {
+        description: "Hue and saturation extension to add to a layer's Extensions list.",
+      }),
     }
   }
   execute(props: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
@@ -7273,12 +8702,19 @@ class VibranceExtensionOp extends Operator<VibranceExtensionOp> {
   static description = 'Adjust vibrance of a layer'
   createInputs() {
     return {
-      amount: new NumberField(0, { min: -1, max: 1, step: 0.01 }),
+      amount: new NumberField(0, {
+        min: -1,
+        max: 1,
+        step: 0.01,
+        description: 'Boosts (above 0) or mutes (below 0) the duller colors in the layer, -1 to 1.',
+      }),
     }
   }
   createOutputs() {
     return {
-      extension: new ExtensionField(),
+      extension: new ExtensionField(undefined, {
+        description: "Vibrance extension to add to a layer's Extensions list.",
+      }),
     }
   }
   execute(props: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
@@ -7426,12 +8862,16 @@ export class AccessorOp extends Operator<AccessorOp> {
     'A function called for each row of your data and passed to Deck.gl layer properties. The current row is passed as the `d` variable (e.g., `d.population`, `d.properties.color`). Available variables: `d` (current row), `i` (index), `data` (all rows), `op()` (access operators), `sequenceTime` (timeline position), `frame` (current frame), `totalFrames`, `sequence` (timeline metadata). Includes d3, turf, and other utilities.'
   createInputs() {
     return {
-      expression: new ExpressionField(),
+      expression: new ExpressionField(undefined, {
+        description: 'Single JavaScript expression run per row, using d (row), i (index) and data.',
+      }),
     }
   }
   createOutputs() {
     return {
-      accessor: new FunctionField(),
+      accessor: new FunctionField(undefined, {
+        description: 'Per-row function to connect to a layer input such as Position or Fill color.',
+      }),
     }
   }
   execute({ expression }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
@@ -7490,13 +8930,20 @@ export class CodeOp extends Operator<CodeOp> {
   asDownload = () => this.outputs.data.value
   createInputs() {
     return {
-      data: new ListField(new DataField()),
-      code: new CodeField('', { language: 'javascript' }),
+      data: new ListField(new DataField(), {
+        description:
+          'Values from connected nodes, available in code as the data array; d is the first.',
+      }),
+      code: new CodeField('', {
+        language: 'javascript',
+        description:
+          'JavaScript function body that must return a value. Can use op(), await, d3 and turf.',
+      }),
     }
   }
   createOutputs() {
     return {
-      data: new DataField(),
+      data: new DataField(undefined, { description: 'The value returned by the code.' }),
     }
   }
   async execute({
@@ -7562,11 +9009,21 @@ export class ContainerOp extends Operator<ContainerOp> {
   private graphOutputOp?: GraphOutputOp
 
   createInputs() {
-    return { in: new UnknownField(null, { optional: true }) }
+    return {
+      in: new UnknownField(null, {
+        optional: true,
+        description: 'Value passed to the GraphInput node inside this container.',
+      }),
+    }
   }
 
   createOutputs() {
-    return { out: new UnknownField(null, { optional: true }) }
+    return {
+      out: new UnknownField(null, {
+        optional: true,
+        description: 'Value from the GraphOutput node inside this container.',
+      }),
+    }
   }
 
   setGraphOutputOp(output?: GraphOutputOp) {
@@ -7614,13 +9071,19 @@ export class ExpressionOp extends Operator<ExpressionOp> {
     'Evaluate a JavaScript expression to compute a single value. Available variables: `data` (all input data), `d` (first element), `op()` (access other operators), `sequenceTime` (timeline position), `frame` (current frame), `totalFrames`, `sequence` (timeline metadata). Includes d3, turf, and other utilities.'
   createInputs() {
     return {
-      data: new ListField(new DataField()),
-      expression: new ExpressionField(),
+      data: new ListField(new DataField(), {
+        description: 'Values from connected nodes, available as the data array; d is the first.',
+      }),
+      expression: new ExpressionField(undefined, {
+        description: 'Single JavaScript expression to evaluate, such as d * 2. Can use op().',
+      }),
     }
   }
   createOutputs() {
     return {
-      data: new DataField(),
+      data: new DataField(undefined, {
+        description: 'The result. A per-row function when any input is an accessor.',
+      }),
     }
   }
   execute({
@@ -7770,14 +9233,24 @@ export class RampOp extends Operator<RampOp> {
   createInputs() {
     return {
       // softMin/softMax suggests 0-1 in the UI without hard-clamping accessor functions
-      position: new NumberField(0, { softMin: 0, softMax: 1, step: 0.01, accessor: true }),
-      stops: new DataField(),
+      position: new NumberField(0, {
+        softMin: 0,
+        softMax: 1,
+        step: 0.01,
+        accessor: true,
+        description: 'Where to read the ramp, usually 0 to 1. Accepts a per-item accessor.',
+      }),
+      stops: new DataField(undefined, {
+        description: 'Curve points as {pos, val, interp} rows. Empty gives a smooth 0 to 1 ramp.',
+      }),
     }
   }
 
   createOutputs() {
     return {
-      value: new NumberField(),
+      value: new NumberField(undefined, {
+        description: "The ramp's value at Position, held at the end values outside the stops.",
+      }),
     }
   }
 
@@ -7807,16 +9280,37 @@ export class RectangleOp extends Operator<RectangleOp> {
   asDownload = () => this.outputData
   createInputs() {
     return {
-      center: new Point2DField([DEFAULT_LONGITUDE, DEFAULT_LATITUDE], { returnType: 'object' }),
-      altitude: new NumberField(0, { step: 0.1 }),
-      width: new NumberField(10, { min: 0.001, softMax: 10000, step: 0.1 }),
-      height: new NumberField(10, { min: 0.001, softMax: 10000, step: 0.1 }),
-      properties: new DataField({}),
+      center: new Point2DField([DEFAULT_LONGITUDE, DEFAULT_LATITUDE], {
+        returnType: 'object',
+        description: 'Center of the rectangle, as longitude and latitude.',
+      }),
+      altitude: new NumberField(0, {
+        step: 0.1,
+        description: "Value stored in the feature's altitude property. Does not raise the shape.",
+      }),
+      width: new NumberField(10, {
+        min: 0.001,
+        softMax: 10000,
+        step: 0.1,
+        description: 'East to west size, in kilometers.',
+      }),
+      height: new NumberField(10, {
+        min: 0.001,
+        softMax: 10000,
+        step: 0.1,
+        description: 'North to south size, in kilometers.',
+      }),
+      properties: new DataField(
+        {},
+        { description: 'Object of properties to attach. Overrides Altitude if it has that key.' }
+      ),
     }
   }
   createOutputs() {
     return {
-      feature: new GeoJsonField(),
+      feature: new GeoJsonField(undefined, {
+        description: 'The rectangle as a GeoJSON Polygon feature.',
+      }),
     }
   }
   execute({
@@ -7869,13 +9363,18 @@ export class PointOp extends Operator<PointOp> {
   static description = 'Create a GeoJSON Point feature from coordinates'
   createInputs() {
     return {
-      coordinates: new Point2DField(),
-      properties: new DataField({}),
+      coordinates: new Point2DField(undefined, {
+        description: 'Location of the point, as [lng, lat].',
+      }),
+      properties: new DataField(
+        {},
+        { description: 'Object of properties to attach to the point.' }
+      ),
     }
   }
   createOutputs() {
     return {
-      feature: new GeoJsonField(),
+      feature: new GeoJsonField(undefined, { description: 'A GeoJSON Point feature.' }),
     }
   }
   execute({
@@ -7898,12 +9397,16 @@ export class GeoJsonOp extends Operator<GeoJsonOp> {
   asDownload = () => this.outputData
   createInputs() {
     return {
-      features: new ListField(new GeoJsonField()),
+      features: new ListField(new GeoJsonField(), {
+        description: 'GeoJSON features to collect, in order.',
+      }),
     }
   }
   createOutputs() {
     return {
-      featureCollection: new GeoJsonField(),
+      featureCollection: new GeoJsonField(undefined, {
+        description: 'A FeatureCollection holding the input features.',
+      }),
     }
   }
   execute({ features }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
@@ -7923,12 +9426,15 @@ export class GeoEditorOp extends Operator<GeoEditorOp> {
     return {
       geojson: new CodeField(JSON.stringify({ type: 'FeatureCollection', features: [] }, null, 2), {
         language: 'json',
+        description: 'GeoJSON text: a FeatureCollection, a Feature or a bare geometry.',
       }),
     }
   }
   createOutputs() {
     return {
-      featureCollection: new GeoJsonField(),
+      featureCollection: new GeoJsonField(undefined, {
+        description: 'The shapes as a FeatureCollection. Empty if the text is not valid JSON.',
+      }),
     }
   }
   execute({ geojson }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
@@ -7956,15 +9462,27 @@ export class GeoParquetOp extends Operator<GeoParquetOp> {
   asDownload = () => this.outputData
   createInputs() {
     return {
-      url: new FileUrlField(),
-      geometryColumn: new StringField('geometry'),
-      limit: new NumberField(0, { min: 0, step: 1 }),
+      url: new FileUrlField(undefined, {
+        description: 'URL or project path of the GeoParquet file to load.',
+      }),
+      geometryColumn: new StringField('geometry', {
+        description: "Name of the column holding the geometry. Usually 'geometry'.",
+      }),
+      limit: new NumberField(0, {
+        min: 0,
+        step: 1,
+        description: 'Maximum number of rows to load. 0 loads them all.',
+      }),
     }
   }
   createOutputs() {
     return {
-      featureCollection: new GeoJsonField(),
-      data: new DataField(),
+      featureCollection: new GeoJsonField(undefined, {
+        description: 'The file as a GeoJSON FeatureCollection, other columns as properties.',
+      }),
+      data: new DataField(undefined, {
+        description: 'Rows of the file, with the geometry as a GeoJSON string in a geojson column.',
+      }),
     }
   }
   async execute({
@@ -8006,17 +9524,24 @@ export class GeoParquetOp extends Operator<GeoParquetOp> {
 
 export class ShapefileOp extends Operator<ShapefileOp> {
   static displayName = 'Shapefile'
-  static description = 'Load a Shapefile (.shp) and convert to GeoJSON'
+  static description =
+    'Load a Shapefile (.shp) and convert to GeoJSON, with attributes from the .dbf file beside it'
   asDownload = () => this.outputData
   createInputs() {
     return {
-      url: new FileUrlField(),
-      encoding: new StringField('utf-8'),
+      url: new FileUrlField(undefined, {
+        description: 'URL or project path of the .shp file to load.',
+      }),
+      encoding: new StringField('utf-8', {
+        description: 'Text encoding of the .dbf attribute file, such as utf-8 or windows-1252.',
+      }),
     }
   }
   createOutputs() {
     return {
-      featureCollection: new GeoJsonField(),
+      featureCollection: new GeoJsonField(undefined, {
+        description: 'The shapes as a GeoJSON FeatureCollection.',
+      }),
     }
   }
   async execute({
@@ -8025,9 +9550,18 @@ export class ShapefileOp extends Operator<ShapefileOp> {
   }: ExtractProps<typeof this.inputs>): Promise<ExtractProps<typeof this.outputs>> {
     if (!url) return { featureCollection: { type: 'FeatureCollection', features: [] } }
     const shapefile = await import('shapefile')
-    const response = await fetch(url)
-    const buffer = await response.arrayBuffer()
-    const geojson = await shapefile.read(buffer, undefined, { encoding })
+    // Feature attributes live in a .dbf file next to the .shp. Without it, features have
+    // no properties and encoding (which decodes the .dbf text) does nothing
+    const dbfUrl = url.replace(/\.shp(?=$|[?#])/i, '.dbf')
+    const [shp, dbf] = await Promise.all([
+      fetch(url).then(response => response.arrayBuffer()),
+      dbfUrl === url
+        ? undefined
+        : fetch(dbfUrl)
+            .then(response => (response.ok ? response.arrayBuffer() : undefined))
+            .catch(() => undefined),
+    ])
+    const geojson = await shapefile.read(shp, dbf, { encoding })
     return { featureCollection: geojson }
   }
 }
@@ -8037,19 +9571,40 @@ export class PMTilesOp extends Operator<PMTilesOp> {
   static description = 'Load a PMTiles archive as a MapLibre vector or raster source'
   createInputs() {
     return {
-      url: new FileUrlField(),
-      sourceLayer: new StringField(''),
-      minZoom: new NumberField(0, { min: 0, max: 22 }),
-      maxZoom: new NumberField(14, { min: 0, max: 22 }),
+      url: new FileUrlField(undefined, {
+        description: 'URL of the .pmtiles archive. Empty outputs no source.',
+      }),
+      tileType: new StringLiteralField('vector', {
+        values: ['vector', 'raster'],
+        description: 'Whether the archive holds vector or raster (image) tiles.',
+      }),
+      sourceLayer: new StringField('', {
+        description:
+          'Name of the vector layer inside the archive. Left out when empty or for raster tiles.',
+      }),
+      minZoom: new NumberField(0, {
+        min: 0,
+        max: 22,
+        description: 'Lowest zoom level the archive has tiles for (0 to 22).',
+      }),
+      maxZoom: new NumberField(14, {
+        min: 0,
+        max: 22,
+        description: 'Highest zoom level with tiles (0 to 22). The map scales up tiles past it.',
+      }),
     }
   }
   createOutputs() {
     return {
-      sourceConfig: new UnknownField(null),
+      sourceConfig: new UnknownField(null, {
+        description:
+          'MapLibre vector or raster source config with a pmtiles:// URL, or null without a URL.',
+      }),
     }
   }
   execute({
     url,
+    tileType,
     sourceLayer,
     minZoom,
     maxZoom,
@@ -8057,11 +9612,12 @@ export class PMTilesOp extends Operator<PMTilesOp> {
     if (!url) return { sourceConfig: null }
     return {
       sourceConfig: {
-        type: 'vector',
+        type: tileType,
         url: `pmtiles://${url}`,
         minzoom: minZoom,
         maxzoom: maxZoom,
-        ...(sourceLayer ? { sourceLayer } : {}),
+        // Raster tiles have no layers to pick from
+        ...(sourceLayer && tileType === 'vector' ? { sourceLayer } : {}),
       },
     }
   }
@@ -8072,17 +9628,41 @@ export class XYZTileOp extends Operator<XYZTileOp> {
   static description = 'Configure a raster XYZ tile source from a URL template ({z}/{x}/{y})'
   createInputs() {
     return {
-      url: new StringField('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png'),
-      subdomains: new StringField('abc'),
-      tileSize: new NumberField(256, { min: 64, max: 1024, step: 64 }),
-      minZoom: new NumberField(0, { min: 0, max: 22 }),
-      maxZoom: new NumberField(19, { min: 0, max: 22 }),
-      attribution: new StringField(''),
+      url: new StringField('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        label: 'URL template',
+        description:
+          'Tile URL with {z}, {x} and {y} slots, plus an optional {s} for the subdomain.',
+      }),
+      subdomains: new StringField('abc', {
+        description: 'Letters to put in {s}, one tile URL per letter. Empty uses the URL as is.',
+      }),
+      tileSize: new NumberField(256, {
+        min: 64,
+        max: 1024,
+        step: 64,
+        description: 'Tile width and height, in pixels (64 to 1024).',
+      }),
+      minZoom: new NumberField(0, {
+        min: 0,
+        max: 22,
+        description: 'Lowest zoom level the service has tiles for (0 to 22).',
+      }),
+      maxZoom: new NumberField(19, {
+        min: 0,
+        max: 22,
+        description: 'Highest zoom level the service has tiles for (0 to 22).',
+      }),
+      attribution: new StringField('', {
+        description: 'Credit text for the tile provider, added to the source. Left out when empty.',
+      }),
     }
   }
   createOutputs() {
     return {
-      sourceConfig: new UnknownField(null),
+      sourceConfig: new UnknownField(null, {
+        description:
+          'MapLibre raster source config with one tile URL per subdomain, or null without a URL.',
+      }),
     }
   }
   execute({
@@ -8116,16 +9696,29 @@ export class BufferOp extends Operator<BufferOp> {
   asDownload = () => this.outputData
   createInputs() {
     return {
-      geojson: new GeoJsonField(),
-      radius: new NumberField(1, { min: 0, step: 0.1 }),
+      geojson: new GeoJsonField(undefined, {
+        description: 'FeatureCollection to draw buffer zones around.',
+      }),
+      radius: new NumberField(1, { min: 0, step: 0.1, description: 'Buffer distance, in Units.' }),
       units: new StringLiteralField('kilometers', {
         values: ['kilometers', 'miles', 'meters', 'degrees'],
+        description: 'Unit for Radius.',
       }),
-      steps: new NumberField(64, { min: 4, max: 256, step: 1, showByDefault: false }),
+      steps: new NumberField(64, {
+        min: 4,
+        max: 256,
+        step: 1,
+        showByDefault: false,
+        description: 'Segments used to draw rounded edges, 4 to 256. Higher is smoother.',
+      }),
     }
   }
   createOutputs() {
-    return { featureCollection: new GeoJsonField() }
+    return {
+      featureCollection: new GeoJsonField(undefined, {
+        description: 'Buffered polygons, one per input feature.',
+      }),
+    }
   }
   execute({
     geojson,
@@ -8146,11 +9739,17 @@ export class UnionOp extends Operator<UnionOp> {
   asDownload = () => this.outputData
   createInputs() {
     return {
-      geojson: new GeoJsonField(),
+      geojson: new GeoJsonField(undefined, {
+        description: 'FeatureCollection of polygons to merge. Other geometry is ignored.',
+      }),
     }
   }
   createOutputs() {
-    return { featureCollection: new GeoJsonField() }
+    return {
+      featureCollection: new GeoJsonField(undefined, {
+        description: 'A single merged polygon feature.',
+      }),
+    }
   }
   execute({ geojson }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     if (!geojson?.features?.length)
@@ -8175,12 +9774,20 @@ export class DifferenceOp extends Operator<DifferenceOp> {
   asDownload = () => this.outputData
   createInputs() {
     return {
-      a: new GeoJsonField(),
-      b: new GeoJsonField(),
+      a: new GeoJsonField(undefined, {
+        description: 'Polygon to cut from. Only its first feature is used.',
+      }),
+      b: new GeoJsonField(undefined, {
+        description: 'Polygon to cut away from A. Only its first feature is used.',
+      }),
     }
   }
   createOutputs() {
-    return { featureCollection: new GeoJsonField() }
+    return {
+      featureCollection: new GeoJsonField(undefined, {
+        description: 'A minus B. Empty if B covers all of A.',
+      }),
+    }
   }
   execute({ a, b }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     if (!a?.features?.length || !b?.features?.length)
@@ -8198,12 +9805,20 @@ export class IntersectOp extends Operator<IntersectOp> {
   asDownload = () => this.outputData
   createInputs() {
     return {
-      a: new GeoJsonField(),
-      b: new GeoJsonField(),
+      a: new GeoJsonField(undefined, {
+        description: 'First polygon. Only its first feature is used.',
+      }),
+      b: new GeoJsonField(undefined, {
+        description: 'Second polygon. Only its first feature is used.',
+      }),
     }
   }
   createOutputs() {
-    return { featureCollection: new GeoJsonField() }
+    return {
+      featureCollection: new GeoJsonField(undefined, {
+        description: "The area where A and B overlap. Empty if they don't overlap.",
+      }),
+    }
   }
   execute({ a, b }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     if (!a?.features?.length || !b?.features?.length)
@@ -8221,11 +9836,17 @@ export class CentroidOp extends Operator<CentroidOp> {
   asDownload = () => this.outputData
   createInputs() {
     return {
-      geojson: new GeoJsonField(),
+      geojson: new GeoJsonField(undefined, {
+        description: 'FeatureCollection to find the center of each feature in.',
+      }),
     }
   }
   createOutputs() {
-    return { featureCollection: new GeoJsonField() }
+    return {
+      featureCollection: new GeoJsonField(undefined, {
+        description: "One point per feature at its centroid, keeping the feature's properties.",
+      }),
+    }
   }
   execute({ geojson }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     if (!geojson?.features?.length)
@@ -8245,11 +9866,17 @@ export class ConvexHullOp extends Operator<ConvexHullOp> {
   asDownload = () => this.outputData
   createInputs() {
     return {
-      geojson: new GeoJsonField(),
+      geojson: new GeoJsonField(undefined, {
+        description: 'FeatureCollection to wrap in a single outline.',
+      }),
     }
   }
   createOutputs() {
-    return { featureCollection: new GeoJsonField() }
+    return {
+      featureCollection: new GeoJsonField(undefined, {
+        description: 'One polygon enclosing all input features, or empty if none can be made.',
+      }),
+    }
   }
   execute({ geojson }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     if (!geojson?.features?.length)
@@ -8265,11 +9892,17 @@ export class VoronoiOp extends Operator<VoronoiOp> {
   asDownload = () => this.outputData
   createInputs() {
     return {
-      geojson: new GeoJsonField(),
+      geojson: new GeoJsonField(undefined, {
+        description: 'FeatureCollection of points to build cells around.',
+      }),
     }
   }
   createOutputs() {
-    return { featureCollection: new GeoJsonField() }
+    return {
+      featureCollection: new GeoJsonField(undefined, {
+        description: "One polygon per point, clipped to the points' bounding box.",
+      }),
+    }
   }
   execute({ geojson }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     if (!geojson?.features?.length)
@@ -8286,12 +9919,19 @@ export class DissolveOp extends Operator<DissolveOp> {
   asDownload = () => this.outputData
   createInputs() {
     return {
-      geojson: new GeoJsonField(),
-      propertyName: new StringField(''),
+      geojson: new GeoJsonField(undefined, {
+        description: 'FeatureCollection of polygons. MultiPolygons are not supported.',
+      }),
+      propertyName: new StringField('', {
+        description:
+          'Property to group by; touching polygons with the same value merge. Blank merges all.',
+      }),
     }
   }
   createOutputs() {
-    return { featureCollection: new GeoJsonField() }
+    return {
+      featureCollection: new GeoJsonField(undefined, { description: 'The merged polygons.' }),
+    }
   }
   execute({
     geojson,
@@ -8310,12 +9950,20 @@ export class ClipOp extends Operator<ClipOp> {
   asDownload = () => this.outputData
   createInputs() {
     return {
-      geojson: new GeoJsonField(),
-      mask: new GeoJsonField(),
+      geojson: new GeoJsonField(undefined, {
+        description: 'Features to clip, as a FeatureCollection.',
+      }),
+      mask: new GeoJsonField(undefined, {
+        description: 'Polygon to clip to. Only its first feature is used.',
+      }),
     }
   }
   createOutputs() {
-    return { featureCollection: new GeoJsonField() }
+    return {
+      featureCollection: new GeoJsonField(undefined, {
+        description: 'The parts of each feature inside the mask. Features outside it are dropped.',
+      }),
+    }
   }
   execute({ geojson, mask }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     if (!geojson?.features?.length || !mask?.features?.length)
@@ -8344,15 +9992,26 @@ export class SpatialJoinOp extends Operator<SpatialJoinOp> {
   asDownload = () => this.outputData
   createInputs() {
     return {
-      target: new GeoJsonField(),
-      join: new GeoJsonField(),
+      target: new GeoJsonField(undefined, {
+        description: 'Features to receive attributes, as a GeoJSON FeatureCollection.',
+      }),
+      join: new GeoJsonField(undefined, {
+        description: 'Features whose properties are copied onto matching target features.',
+      }),
       relationship: new StringLiteralField('within', {
         values: ['within', 'intersects', 'contains'],
+        description:
+          'Match when a target feature is within, intersects or contains a join feature.',
       }),
     }
   }
   createOutputs() {
-    return { featureCollection: new GeoJsonField() }
+    return {
+      featureCollection: new GeoJsonField(undefined, {
+        description:
+          'Target features with properties of the first matching join feature merged in.',
+      }),
+    }
   }
   execute({
     target,
@@ -8390,15 +10049,23 @@ export class PointInPolygonOp extends Operator<PointInPolygonOp> {
   asDownload = () => this.outputData
   createInputs() {
     return {
-      points: new GeoJsonField(),
-      polygon: new GeoJsonField(),
-      invert: new BooleanField(false),
+      points: new GeoJsonField(undefined, {
+        description: 'Point features to test, as a GeoJSON FeatureCollection.',
+      }),
+      polygon: new GeoJsonField(undefined, {
+        description: 'Boundary to test against. Only the first feature is used.',
+      }),
+      invert: new BooleanField(false, {
+        description: 'Swap the results, so Inside gets the points outside the polygon.',
+      }),
     }
   }
   createOutputs() {
     return {
-      inside: new GeoJsonField(),
-      outside: new GeoJsonField(),
+      inside: new GeoJsonField(undefined, { description: 'Points that fall within the polygon.' }),
+      outside: new GeoJsonField(undefined, {
+        description: 'Points outside the polygon, plus any features that are not points.',
+      }),
     }
   }
   execute({
@@ -8434,14 +10101,22 @@ export class NearestPointOp extends Operator<NearestPointOp> {
   asDownload = () => this.outputData
   createInputs() {
     return {
-      targetPoint: new Point2DField([0, 0]),
-      points: new GeoJsonField(),
+      targetPoint: new Point2DField([0, 0], {
+        description: 'Point to search from, as [lng, lat].',
+      }),
+      points: new GeoJsonField(undefined, {
+        description: 'Point features to search, as a GeoJSON FeatureCollection.',
+      }),
     }
   }
   createOutputs() {
     return {
-      nearest: new GeoJsonField(),
-      distance: new NumberField(0),
+      nearest: new GeoJsonField(undefined, {
+        description: 'FeatureCollection holding the closest point.',
+      }),
+      distance: new NumberField(0, {
+        description: 'Distance from Target point to the nearest point, in kilometers.',
+      }),
     }
   }
   execute({
@@ -8465,16 +10140,22 @@ export class AreaOp extends Operator<AreaOp> {
   static description = 'Calculate the area of polygon features in specified units'
   createInputs() {
     return {
-      geojson: new GeoJsonField(),
+      geojson: new GeoJsonField(undefined, {
+        description: 'Polygon features to measure, as a GeoJSON FeatureCollection.',
+      }),
       units: new StringLiteralField('squareKilometers', {
         values: ['squareMeters', 'squareKilometers', 'squareMiles', 'acres', 'hectares'],
+        description:
+          'Area unit: square meters, square kilometers, square miles, acres or hectares.',
       }),
     }
   }
   createOutputs() {
     return {
-      featureCollection: new GeoJsonField(),
-      totalArea: new NumberField(0),
+      featureCollection: new GeoJsonField(undefined, {
+        description: "The input features with an 'area' property added, in Units.",
+      }),
+      totalArea: new NumberField(0, { description: 'Sum of all feature areas, in Units.' }),
     }
   }
   execute({ geojson, units }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
@@ -8504,16 +10185,21 @@ export class LengthOp extends Operator<LengthOp> {
   static description = 'Calculate the length of line features in specified units'
   createInputs() {
     return {
-      geojson: new GeoJsonField(),
+      geojson: new GeoJsonField(undefined, {
+        description: 'Line features to measure, as a GeoJSON FeatureCollection.',
+      }),
       units: new StringLiteralField('kilometers', {
         values: ['kilometers', 'miles', 'meters', 'nauticalmiles'],
+        description: 'Length unit: kilometers, miles, meters or nautical miles.',
       }),
     }
   }
   createOutputs() {
     return {
-      featureCollection: new GeoJsonField(),
-      totalLength: new NumberField(0),
+      featureCollection: new GeoJsonField(undefined, {
+        description: "The input features with a 'length' property added, in Units.",
+      }),
+      totalLength: new NumberField(0, { description: 'Sum of all feature lengths, in Units.' }),
     }
   }
   execute({ geojson, units }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
@@ -8535,13 +10221,26 @@ export class ReprojectOp extends Operator<ReprojectOp> {
   asDownload = () => this.outputData
   createInputs() {
     return {
-      geojson: new GeoJsonField(),
-      from: new StringLiteralField('EPSG:4326', { values: ['EPSG:4326', 'EPSG:3857'] }),
-      to: new StringLiteralField('EPSG:3857', { values: ['EPSG:4326', 'EPSG:3857'] }),
+      geojson: new GeoJsonField(undefined, {
+        description: 'FeatureCollection whose coordinates to convert.',
+      }),
+      from: new StringLiteralField('EPSG:4326', {
+        values: ['EPSG:4326', 'EPSG:3857'],
+        description:
+          'Current projection: EPSG:4326 (lng/lat degrees) or EPSG:3857 (Web Mercator meters).',
+      }),
+      to: new StringLiteralField('EPSG:3857', {
+        values: ['EPSG:4326', 'EPSG:3857'],
+        description: 'Projection to convert to. Same as From passes the data through.',
+      }),
     }
   }
   createOutputs() {
-    return { featureCollection: new GeoJsonField() }
+    return {
+      featureCollection: new GeoJsonField(undefined, {
+        description: 'The features with converted coordinates.',
+      }),
+    }
   }
   execute({
     geojson,
@@ -8583,18 +10282,33 @@ export class PointGridOp extends Operator<PointGridOp> {
   asDownload = () => this.outputData
   createInputs() {
     return {
-      bbox: new BboxField({
-        southwest: { lng: -180, lat: -90 },
-        northeast: { lng: 180, lat: 90 },
+      bbox: new BboxField(
+        {
+          southwest: { lng: -180, lat: -90 },
+          northeast: { lng: 180, lat: 90 },
+        },
+        {
+          label: 'Bounds',
+          description: 'Area to fill with points, from southwest to northeast corner.',
+        }
+      ),
+      cellSize: new NumberField(10, {
+        min: 0.001,
+        step: 1,
+        description: 'Distance between neighboring points, in Units.',
       }),
-      cellSize: new NumberField(10, { min: 0.001, step: 1 }),
       units: new StringLiteralField('kilometers', {
         values: ['kilometers', 'miles', 'meters', 'degrees'],
+        description: 'Unit for Cell size.',
       }),
     }
   }
   createOutputs() {
-    return { featureCollection: new GeoJsonField() }
+    return {
+      featureCollection: new GeoJsonField(undefined, {
+        description: 'Grid points covering the bounds.',
+      }),
+    }
   }
   execute({
     bbox,
@@ -8620,18 +10334,33 @@ export class HexGridOp extends Operator<HexGridOp> {
   asDownload = () => this.outputData
   createInputs() {
     return {
-      bbox: new BboxField({
-        southwest: { lng: -180, lat: -90 },
-        northeast: { lng: 180, lat: 90 },
+      bbox: new BboxField(
+        {
+          southwest: { lng: -180, lat: -90 },
+          northeast: { lng: 180, lat: 90 },
+        },
+        {
+          label: 'Bounds',
+          description: 'Area to fill with hexagons, from southwest to northeast corner.',
+        }
+      ),
+      cellSize: new NumberField(10, {
+        min: 0.001,
+        step: 1,
+        description: 'Length of each hexagon side, in Units.',
       }),
-      cellSize: new NumberField(10, { min: 0.001, step: 1 }),
       units: new StringLiteralField('kilometers', {
         values: ['kilometers', 'miles', 'meters', 'degrees'],
+        description: 'Unit for Cell size.',
       }),
     }
   }
   createOutputs() {
-    return { featureCollection: new GeoJsonField() }
+    return {
+      featureCollection: new GeoJsonField(undefined, {
+        description: 'Hexagon polygons covering the bounds.',
+      }),
+    }
   }
   execute({
     bbox,
@@ -8657,18 +10386,33 @@ export class SquareGridOp extends Operator<SquareGridOp> {
   asDownload = () => this.outputData
   createInputs() {
     return {
-      bbox: new BboxField({
-        southwest: { lng: -180, lat: -90 },
-        northeast: { lng: 180, lat: 90 },
+      bbox: new BboxField(
+        {
+          southwest: { lng: -180, lat: -90 },
+          northeast: { lng: 180, lat: 90 },
+        },
+        {
+          label: 'Bounds',
+          description: 'Area to fill with squares, from southwest to northeast corner.',
+        }
+      ),
+      cellSize: new NumberField(10, {
+        min: 0.001,
+        step: 1,
+        description: 'Side length of each square, in Units.',
       }),
-      cellSize: new NumberField(10, { min: 0.001, step: 1 }),
       units: new StringLiteralField('kilometers', {
         values: ['kilometers', 'miles', 'meters', 'degrees'],
+        description: 'Unit for Cell size.',
       }),
     }
   }
   createOutputs() {
-    return { featureCollection: new GeoJsonField() }
+    return {
+      featureCollection: new GeoJsonField(undefined, {
+        description: 'Square polygons covering the bounds.',
+      }),
+    }
   }
   execute({
     bbox,
@@ -8694,12 +10438,22 @@ export class TinOp extends Operator<TinOp> {
   asDownload = () => this.outputData
   createInputs() {
     return {
-      geojson: new GeoJsonField(),
-      zProperty: new StringField(''),
+      geojson: new GeoJsonField(undefined, {
+        description: 'Point features to triangulate, as a GeoJSON FeatureCollection.',
+      }),
+      zProperty: new StringField('', {
+        label: 'Value property',
+        description:
+          "Optional point property whose values are copied onto each triangle's corners.",
+      }),
     }
   }
   createOutputs() {
-    return { featureCollection: new GeoJsonField() }
+    return {
+      featureCollection: new GeoJsonField(undefined, {
+        description: 'Triangle polygons connecting the input points.',
+      }),
+    }
   }
   execute({
     geojson,
@@ -8718,13 +10472,24 @@ export class IsolineOp extends Operator<IsolineOp> {
   asDownload = () => this.outputData
   createInputs() {
     return {
-      geojson: new GeoJsonField(),
-      zProperty: new StringField('elevation'),
-      breaks: new UnknownField([100, 200, 500, 1000, 2000]),
+      geojson: new GeoJsonField(undefined, {
+        description: 'Grid of points with a numeric value, as a GeoJSON FeatureCollection.',
+      }),
+      zProperty: new StringField('elevation', {
+        label: 'Value property',
+        description: 'Point property holding the value to draw contours for.',
+      }),
+      breaks: new UnknownField([100, 200, 500, 1000, 2000], {
+        description: 'Values to draw a contour line at, as an array of numbers.',
+      }),
     }
   }
   createOutputs() {
-    return { featureCollection: new GeoJsonField() }
+    return {
+      featureCollection: new GeoJsonField(undefined, {
+        description: 'Contour lines, one MultiLineString feature per break value.',
+      }),
+    }
   }
   execute({
     geojson,
@@ -8744,11 +10509,17 @@ export class LineToPolygonOp extends Operator<LineToPolygonOp> {
   asDownload = () => this.outputData
   createInputs() {
     return {
-      geojson: new GeoJsonField(),
+      geojson: new GeoJsonField(undefined, {
+        description: 'FeatureCollection with closed lines to turn into polygons.',
+      }),
     }
   }
   createOutputs() {
-    return { featureCollection: new GeoJsonField() }
+    return {
+      featureCollection: new GeoJsonField(undefined, {
+        description: 'Lines become polygons. Other features pass through unchanged.',
+      }),
+    }
   }
   execute({ geojson }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     if (!geojson?.features?.length)
@@ -8773,23 +10544,30 @@ export class PolygonToLineOp extends Operator<PolygonToLineOp> {
   asDownload = () => this.outputData
   createInputs() {
     return {
-      geojson: new GeoJsonField(),
+      geojson: new GeoJsonField(undefined, {
+        description: 'FeatureCollection with polygons to turn into outlines.',
+      }),
     }
   }
   createOutputs() {
-    return { featureCollection: new GeoJsonField() }
+    return {
+      featureCollection: new GeoJsonField(undefined, {
+        description: 'Polygon boundaries as lines. Other features pass through unchanged.',
+      }),
+    }
   }
   execute({ geojson }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     if (!geojson?.features?.length)
       return { featureCollection: { type: 'FeatureCollection', features: [] } }
-    const features = geojson.features.map((f: GeoJSON.Feature) => {
+    const features = geojson.features.flatMap((f: GeoJSON.Feature) => {
       if (f.geometry.type === 'Polygon' || f.geometry.type === 'MultiPolygon') {
-        return turf.polygonToLine(f)
+        // MultiPolygons come back as a FeatureCollection with one line feature per polygon
+        const lines = turf.polygonToLine(f)
+        return lines.type === 'FeatureCollection' ? lines.features : lines
       }
       return f
     })
-    const flat = features.flat ? features.flat() : features
-    return { featureCollection: { type: 'FeatureCollection', features: flat } }
+    return { featureCollection: { type: 'FeatureCollection', features } }
   }
 }
 
@@ -8800,12 +10578,22 @@ export class ExplodeOp extends Operator<ExplodeOp> {
   asDownload = () => this.outputData
   createInputs() {
     return {
-      geojson: new GeoJsonField(),
-      mode: new StringLiteralField('vertices', { values: ['vertices', 'parts'] }),
+      geojson: new GeoJsonField(undefined, {
+        description: 'Features to break apart, as a FeatureCollection.',
+      }),
+      mode: new StringLiteralField('vertices', {
+        values: ['vertices', 'parts'],
+        description:
+          "'vertices' makes a point for every vertex. 'parts' splits multi-part shapes apart.",
+      }),
     }
   }
   createOutputs() {
-    return { featureCollection: new GeoJsonField() }
+    return {
+      featureCollection: new GeoJsonField(undefined, {
+        description: 'The vertex points or single-part features.',
+      }),
+    }
   }
   execute({ geojson, mode }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     if (!geojson?.features?.length)
@@ -8824,16 +10612,29 @@ export class AggregateOp extends Operator<AggregateOp> {
   static description = 'Aggregate point data into polygons (count, sum, mean, min, max per zone)'
   createInputs() {
     return {
-      polygons: new GeoJsonField(),
-      points: new GeoJsonField(),
-      field: new StringField(''),
+      polygons: new GeoJsonField(undefined, {
+        description: 'Zones to aggregate into, as a GeoJSON FeatureCollection of polygons.',
+      }),
+      points: new GeoJsonField(undefined, {
+        description:
+          'Point features to count or summarize per zone. Non-point features are ignored.',
+      }),
+      field: new StringField('', {
+        description: "Point property to summarize. Not used when Operation is 'count'.",
+      }),
       operation: new StringLiteralField('count', {
         values: ['count', 'sum', 'mean', 'min', 'max'],
+        description: 'How to combine the points in each zone: count, sum, mean, min or max.',
       }),
     }
   }
   createOutputs() {
-    return { featureCollection: new GeoJsonField() }
+    return {
+      featureCollection: new GeoJsonField(undefined, {
+        description:
+          "The polygons with a new property named like 'sum_population' holding the result.",
+      }),
+    }
   }
   execute({
     polygons,
@@ -8880,12 +10681,23 @@ export class KMeansClusterOp extends Operator<KMeansClusterOp> {
   asDownload = () => this.outputData
   createInputs() {
     return {
-      geojson: new GeoJsonField(),
-      numberOfClusters: new NumberField(5, { min: 2, max: 100, step: 1 }),
+      geojson: new GeoJsonField(undefined, {
+        description: 'Point features to cluster, as a GeoJSON FeatureCollection.',
+      }),
+      numberOfClusters: new NumberField(5, {
+        min: 2,
+        max: 100,
+        step: 1,
+        description: 'How many groups to split the points into (2 to 100).',
+      }),
     }
   }
   createOutputs() {
-    return { featureCollection: new GeoJsonField() }
+    return {
+      featureCollection: new GeoJsonField(undefined, {
+        description: "The points with 'cluster' and 'centroid' properties added.",
+      }),
+    }
   }
   execute({
     geojson,
@@ -8904,14 +10716,32 @@ export class DBScanClusterOp extends Operator<DBScanClusterOp> {
   asDownload = () => this.outputData
   createInputs() {
     return {
-      geojson: new GeoJsonField(),
-      maxDistance: new NumberField(1, { min: 0, step: 0.1 }),
-      units: new StringLiteralField('kilometers', { values: ['kilometers', 'miles', 'meters'] }),
-      minPoints: new NumberField(3, { min: 1, step: 1 }),
+      geojson: new GeoJsonField(undefined, {
+        description: 'Point features to cluster, as a GeoJSON FeatureCollection.',
+      }),
+      maxDistance: new NumberField(1, {
+        min: 0,
+        step: 0.1,
+        description: 'Largest distance between neighbors in the same cluster, in Units.',
+      }),
+      units: new StringLiteralField('kilometers', {
+        values: ['kilometers', 'miles', 'meters'],
+        description: 'Unit for Max distance: kilometers, miles or meters.',
+      }),
+      minPoints: new NumberField(3, {
+        min: 1,
+        step: 1,
+        description: 'Fewest points needed to form a cluster. Points in smaller groups are noise.',
+      }),
     }
   }
   createOutputs() {
-    return { featureCollection: new GeoJsonField() }
+    return {
+      featureCollection: new GeoJsonField(undefined, {
+        description:
+          "The points with 'cluster' and 'dbscan' (core, edge or noise) properties added.",
+      }),
+    }
   }
   execute({
     geojson,
@@ -8935,15 +10765,37 @@ export class InterpolateOp extends Operator<InterpolateOp> {
   asDownload = () => this.outputData
   createInputs() {
     return {
-      geojson: new GeoJsonField(),
-      cellSize: new NumberField(1, { min: 0.01, step: 0.1 }),
-      property: new StringField('value'),
-      units: new StringLiteralField('kilometers', { values: ['kilometers', 'miles', 'meters'] }),
-      weight: new NumberField(2, { min: 0.1, max: 10, step: 0.1, showByDefault: false }),
+      geojson: new GeoJsonField(undefined, {
+        description: 'Sample points with a numeric value, as a GeoJSON FeatureCollection.',
+      }),
+      cellSize: new NumberField(1, {
+        min: 0.01,
+        step: 0.1,
+        description: 'Spacing between grid points, in Units.',
+      }),
+      property: new StringField('value', {
+        description: 'Point property holding the values to interpolate.',
+      }),
+      units: new StringLiteralField('kilometers', {
+        values: ['kilometers', 'miles', 'meters'],
+        description: 'Unit for Cell size: kilometers, miles or meters.',
+      }),
+      weight: new NumberField(2, {
+        min: 0.1,
+        max: 10,
+        step: 0.1,
+        showByDefault: false,
+        description:
+          'Distance weighting power (0.1 to 10). Higher values favor the closest samples.',
+      }),
     }
   }
   createOutputs() {
-    return { featureCollection: new GeoJsonField() }
+    return {
+      featureCollection: new GeoJsonField(undefined, {
+        description: 'A regular grid of points, each with the interpolated value in Property.',
+      }),
+    }
   }
   execute({
     geojson,
@@ -8969,13 +10821,26 @@ export class AlongOp extends Operator<AlongOp> {
   static description = 'Find a point at a specified distance along a line'
   createInputs() {
     return {
-      geojson: new GeoJsonField(),
-      distance: new NumberField(1, { min: 0, step: 0.1 }),
-      units: new StringLiteralField('kilometers', { values: ['kilometers', 'miles', 'meters'] }),
+      geojson: new GeoJsonField(undefined, {
+        description: 'Line features to measure along. Only LineString features are used.',
+      }),
+      distance: new NumberField(1, {
+        min: 0,
+        step: 0.1,
+        description: 'How far along each line to place the point, in Units.',
+      }),
+      units: new StringLiteralField('kilometers', {
+        values: ['kilometers', 'miles', 'meters'],
+        description: 'Unit for Distance: kilometers, miles or meters.',
+      }),
     }
   }
   createOutputs() {
-    return { featureCollection: new GeoJsonField() }
+    return {
+      featureCollection: new GeoJsonField(undefined, {
+        description: 'One point per input line, at the given distance along it.',
+      }),
+    }
   }
   execute({
     geojson,
@@ -9001,14 +10866,31 @@ export class LineSliceOp extends Operator<LineSliceOp> {
   asDownload = () => this.outputData
   createInputs() {
     return {
-      geojson: new GeoJsonField(),
-      startDistance: new NumberField(0, { min: 0, step: 0.1 }),
-      stopDistance: new NumberField(1, { min: 0, step: 0.1 }),
-      units: new StringLiteralField('kilometers', { values: ['kilometers', 'miles', 'meters'] }),
+      geojson: new GeoJsonField(undefined, {
+        description: 'Line features to cut. Only LineString features are used.',
+      }),
+      startDistance: new NumberField(0, {
+        min: 0,
+        step: 0.1,
+        description: "Where the segment starts, measured from the line's start, in Units.",
+      }),
+      stopDistance: new NumberField(1, {
+        min: 0,
+        step: 0.1,
+        description: "Where the segment ends, measured from the line's start, in Units.",
+      }),
+      units: new StringLiteralField('kilometers', {
+        values: ['kilometers', 'miles', 'meters'],
+        description: 'Unit for Start distance and Stop distance: kilometers, miles or meters.',
+      }),
     }
   }
   createOutputs() {
-    return { featureCollection: new GeoJsonField() }
+    return {
+      featureCollection: new GeoJsonField(undefined, {
+        description: 'One line segment per input line, between the two distances.',
+      }),
+    }
   }
   execute({
     geojson,
@@ -9039,13 +10921,25 @@ export class TransformRotateOp extends Operator<TransformRotateOp> {
   asDownload = () => this.outputData
   createInputs() {
     return {
-      geojson: new GeoJsonField(),
-      angle: new NumberField(0, { min: -360, max: 360, step: 1 }),
-      pivot: new StringLiteralField('centroid', { values: ['centroid', 'center'] }),
+      geojson: new GeoJsonField(undefined, {
+        description: 'FeatureCollection to rotate. Each feature turns around its own pivot.',
+      }),
+      angle: new NumberField(0, {
+        min: -360,
+        max: 360,
+        step: 1,
+        description: 'Rotation in degrees, -360 to 360. Positive turns clockwise.',
+      }),
+      pivot: new StringLiteralField('centroid', {
+        values: ['centroid', 'center'],
+        description: "'centroid' (average of vertices) or 'center' (middle of the bounding box).",
+      }),
     }
   }
   createOutputs() {
-    return { featureCollection: new GeoJsonField() }
+    return {
+      featureCollection: new GeoJsonField(undefined, { description: 'The rotated features.' }),
+    }
   }
   execute({
     geojson,
@@ -9068,15 +10962,25 @@ export class TransformScaleOp extends Operator<TransformScaleOp> {
   asDownload = () => this.outputData
   createInputs() {
     return {
-      geojson: new GeoJsonField(),
-      factor: new NumberField(1, { min: 0.01, max: 100, step: 0.1 }),
+      geojson: new GeoJsonField(undefined, {
+        description: 'FeatureCollection to resize. Each feature scales around its own origin.',
+      }),
+      factor: new NumberField(1, {
+        min: 0.01,
+        max: 100,
+        step: 0.1,
+        description: 'Size multiplier, 0.01 to 100. 1 keeps the original size.',
+      }),
       origin: new StringLiteralField('centroid', {
         values: ['centroid', 'center', 'sw', 'se', 'nw', 'ne'],
+        description: 'Fixed point: the centroid, bounding box center, or a bounding box corner.',
       }),
     }
   }
   createOutputs() {
-    return { featureCollection: new GeoJsonField() }
+    return {
+      featureCollection: new GeoJsonField(undefined, { description: 'The scaled features.' }),
+    }
   }
   execute({
     geojson,
@@ -9098,14 +11002,28 @@ export class TransformTranslateOp extends Operator<TransformTranslateOp> {
   asDownload = () => this.outputData
   createInputs() {
     return {
-      geojson: new GeoJsonField(),
-      distance: new NumberField(0, { min: 0, step: 0.1 }),
-      direction: new NumberField(0, { min: 0, max: 360, step: 1 }),
-      units: new StringLiteralField('kilometers', { values: ['kilometers', 'miles', 'meters'] }),
+      geojson: new GeoJsonField(undefined, { description: 'FeatureCollection to move.' }),
+      distance: new NumberField(0, {
+        min: 0,
+        step: 0.1,
+        description: 'How far to move each feature, in Units.',
+      }),
+      direction: new NumberField(0, {
+        min: 0,
+        max: 360,
+        step: 1,
+        description: 'Compass bearing to move toward, in degrees clockwise from north (0 to 360).',
+      }),
+      units: new StringLiteralField('kilometers', {
+        values: ['kilometers', 'miles', 'meters'],
+        description: 'Unit for Distance.',
+      }),
     }
   }
   createOutputs() {
-    return { featureCollection: new GeoJsonField() }
+    return {
+      featureCollection: new GeoJsonField(undefined, { description: 'The moved features.' }),
+    }
   }
   execute({
     geojson,
@@ -9128,12 +11046,14 @@ export class KmlToGeoJsonOp extends Operator<KmlToGeoJsonOp> {
   asDownload = () => this.outputData
   createInputs() {
     return {
-      kml: new CodeField('', { language: 'xml' }),
+      kml: new CodeField('', { language: 'xml', description: 'KML document as XML text.' }),
     }
   }
   createOutputs() {
     return {
-      geojson: new DataField(),
+      geojson: new DataField(undefined, {
+        description: 'The KML converted to a GeoJSON FeatureCollection.',
+      }),
     }
   }
   async execute({ kml }: ExtractProps<typeof this.inputs>) {
@@ -9148,16 +11068,38 @@ export class GeoJsonTransformOp extends Operator<GeoJsonTransformOp> {
   asDownload = () => this.outputData
   createInputs() {
     return {
-      feature: new GeoJsonField(),
-      scale: new NumberField(1, { min: 0.001, softMax: 100, step: 0.1 }),
-      translateX: new NumberField(0, { softMin: -10000, softMax: 10000, step: 0.1 }),
-      translateY: new NumberField(0, { softMin: -10000, softMax: 10000, step: 0.1 }),
-      rotate: new NumberField(0, { softMin: -360, softMax: 360, step: 1 }),
+      feature: new GeoJsonField(undefined, {
+        description: 'GeoJSON feature to move, scale and rotate around its centroid.',
+      }),
+      scale: new NumberField(1, {
+        min: 0.001,
+        softMax: 100,
+        step: 0.1,
+        description: 'Size multiplier around the centroid. 1 keeps the original size.',
+      }),
+      translateX: new NumberField(0, {
+        softMin: -10000,
+        softMax: 10000,
+        step: 0.1,
+        description: 'Distance to move east, in kilometers. Negative moves west.',
+      }),
+      translateY: new NumberField(0, {
+        softMin: -10000,
+        softMax: 10000,
+        step: 0.1,
+        description: 'Distance to move north, in kilometers. Negative moves south.',
+      }),
+      rotate: new NumberField(0, {
+        softMin: -360,
+        softMax: 360,
+        step: 1,
+        description: 'Rotation in degrees, clockwise, around the centroid. Applied before scale.',
+      }),
     }
   }
   createOutputs() {
     return {
-      feature: new GeoJsonField(),
+      feature: new GeoJsonField(undefined, { description: 'The transformed GeoJSON feature.' }),
     }
   }
   execute({
@@ -9270,12 +11212,32 @@ async function joinDataToFeaturesViaDuckDb(
 }
 
 function buildChoroplethInputs() {
-  const data = new DataField(new ArrayField(new UnknownField()))
-  const geography = new StringLiteralField('us-states', GEOGRAPHY_OPTIONS)
-  const boundaries = new GeoJsonField()
-  const joinKey = new StringLiteralField('', [])
-  const geoKey = new StringLiteralField('auto', GEO_KEY_OPTIONS)
-  const customSQL = new CodeField('', { language: 'sql', showByDefault: false })
+  const data = new DataField(new ArrayField(new UnknownField()), {
+    description: 'Table rows to join onto the boundaries, as an array of objects.',
+  })
+  const geography = new StringLiteralField('us-states', {
+    values: GEOGRAPHY_OPTIONS,
+    description: "Built-in boundary set to join onto, or 'custom' to use Boundaries.",
+  })
+  const boundaries = new GeoJsonField(undefined, {
+    description: "Your own boundary FeatureCollection. Only used when Geography is 'custom'.",
+  })
+  const joinKey = new StringLiteralField('', {
+    values: [],
+    description: 'Column in Data that names each region, such as a state name or code.',
+  })
+  const geoKey = new StringLiteralField('auto', {
+    values: GEO_KEY_OPTIONS,
+    label: 'Match by',
+    description:
+      'How Join key values match regions (name, code, FIPS, ISO). Auto guesses from the first 20 rows.',
+  })
+  const customSQL = new CodeField('', {
+    language: 'sql',
+    showByDefault: false,
+    description:
+      'Optional DuckDB query over the boundaries and data tables. Must keep __idx. Replaces key matching.',
+  })
 
   data.subscribe((d: unknown[]) => {
     if (d.length > 0) joinKey.updateChoices(Object.keys(d[0]))
@@ -9327,7 +11289,10 @@ export class ChoroplethJoinOp extends Operator<ChoroplethJoinOp> {
 
   createOutputs() {
     return {
-      features: new GeoJsonField(),
+      features: new GeoJsonField(undefined, {
+        description:
+          "Boundary FeatureCollection with each matching row's columns added to its properties.",
+      }),
     }
   }
 
@@ -9359,10 +11324,15 @@ export class ChoroplethLayerOp extends Operator<ChoroplethLayerOp> {
 
   createInputs() {
     const base = buildChoroplethInputs()
-    const valueColumn = new StringLiteralField('', [])
+    const valueColumn = new StringLiteralField('', {
+      values: [],
+      description:
+        "Numeric column that sets each region's color. Regions without a number are gray.",
+    })
     const colorScheme = new StringLiteralField('viridis', {
       values: Object.keys(continuousInterpolators),
       displayAs: 'color-scheme',
+      description: 'Color ramp stretched from the lowest to the highest value in Value column.',
     })
     const opacity = new NumberField(0.85, { min: 0, max: 1, step: 0.01 })
     const stroked = new BooleanField(true, { showByDefault: false })
@@ -9388,7 +11358,9 @@ export class ChoroplethLayerOp extends Operator<ChoroplethLayerOp> {
 
   createOutputs() {
     return {
-      layer: new LayerField<GeoJsonLayerProps>(),
+      layer: new LayerField<GeoJsonLayerProps>(undefined, {
+        description: 'GeoJSON layer of the regions, filled by Value column.',
+      }),
     }
   }
 
@@ -9465,15 +11437,26 @@ export class SimplifyOp extends Operator<SimplifyOp> {
 
   createInputs() {
     return {
-      feature: new GeoJsonField(),
-      tolerance: new NumberField(0.01, { min: 0, softMax: 1, step: 0.01 }),
-      highQuality: new BooleanField(false),
+      feature: new GeoJsonField(undefined, {
+        description: 'GeoJSON to simplify. Input is not changed.',
+      }),
+      tolerance: new NumberField(0.01, {
+        min: 0,
+        softMax: 1,
+        step: 0.01,
+        description:
+          "How far a point can stray before it's kept, in degrees. Higher removes more points.",
+      }),
+      highQuality: new BooleanField(false, {
+        description:
+          'Use a slower, more accurate pass that keeps the shape closer to the original.',
+      }),
     }
   }
 
   createOutputs() {
     return {
-      feature: new GeoJsonField(),
+      feature: new GeoJsonField(undefined, { description: 'The GeoJSON with fewer points.' }),
     }
   }
 
@@ -9501,7 +11484,9 @@ export class LineInterpolationOp extends Operator<LineInterpolationOp> {
 
   createInputs() {
     return {
-      feature: new GeoJsonField(),
+      feature: new GeoJsonField(undefined, {
+        description: 'GeoJSON with lines to curve. Non-line geometry passes through unchanged.',
+      }),
       method: new StringLiteralField('catmull-rom', {
         values: [
           { value: 'linear', label: 'Linear' },
@@ -9513,20 +11498,46 @@ export class LineInterpolationOp extends Operator<LineInterpolationOp> {
           { value: 'monotone-y', label: 'Monotone Y' },
           { value: 'turn-radius', label: 'Turn radius' },
         ],
+        description: "Curve type, or 'Turn radius' to round each corner with an arc.",
       }),
-      samplesPerSegment: new NumberField(12, { min: 1, max: 64, step: 1 }),
-      alpha: new NumberField(0.5, { min: 0, max: 1, step: 0.05, showByDefault: false }),
-      tension: new NumberField(0, { min: 0, max: 1, step: 0.05, showByDefault: false }),
+      samplesPerSegment: new NumberField(12, {
+        min: 1,
+        max: 64,
+        step: 1,
+        description: 'Points added per segment, 1 to 64. For Turn radius, points per quarter turn.',
+      }),
+      alpha: new NumberField(0.5, {
+        min: 0,
+        max: 1,
+        step: 0.05,
+        showByDefault: false,
+        description:
+          'Catmull-Rom curve shape, 0 to 1 (0.5 avoids loops). Only used by Catmull-Rom.',
+      }),
+      tension: new NumberField(0, {
+        min: 0,
+        max: 1,
+        step: 0.05,
+        showByDefault: false,
+        description: 'How tight the Cardinal curve is, 0 to 1. Only used by Cardinal.',
+      }),
       turnRadiusMeters: new NumberField(250, {
         min: 0,
         softMax: 10_000,
         step: 10,
+        label: 'Turn radius',
+        description:
+          'Corner radius in meters. Only used by Turn radius; shrinks to fit short segments.',
       }),
     }
   }
 
   createOutputs() {
-    return { feature: new GeoJsonField() }
+    return {
+      feature: new GeoJsonField(undefined, {
+        description: 'The GeoJSON with each line replaced by its interpolated version.',
+      }),
+    }
   }
 
   execute({
@@ -9556,15 +11567,27 @@ export class SmoothOp extends Operator<SmoothOp> {
 
   createInputs() {
     return {
-      feature: new GeoJsonField(),
-      windowSize: new NumberField(5, { min: 1, max: 100, step: 2 }),
-      method: new StringLiteralField('gaussian', ['gaussian', 'boxcar']),
+      feature: new GeoJsonField(undefined, {
+        description: 'LineString or MultiLineString feature. Other geometry passes through.',
+      }),
+      windowSize: new NumberField(5, {
+        min: 1,
+        max: 100,
+        step: 2,
+        description: 'Number of nearby points averaged into each point. Larger is smoother.',
+      }),
+      method: new StringLiteralField('gaussian', {
+        values: ['gaussian', 'boxcar'],
+        description: "'gaussian' weights closer points more. 'boxcar' weights them all equally.",
+      }),
     }
   }
 
   createOutputs() {
     return {
-      feature: new GeoJsonField(),
+      feature: new GeoJsonField(undefined, {
+        description: 'The smoothed line. Altitude and other extra values are kept.',
+      }),
     }
   }
 
@@ -9657,16 +11680,25 @@ export class BitmapLayerOp extends Operator<BitmapLayerOp> {
         { southwest: { lng: -122.5, lat: 37.7 }, northeast: { lng: -122.3, lat: 37.9 } },
         { returnType: 'tuple' }
       ),
-      desaturate: new NumberField(0, { min: 0, max: 1, step: 0.01, showByDefault: false }),
+      desaturate: new NumberField(0, {
+        min: 0,
+        max: 1,
+        step: 0.01,
+        showByDefault: false,
+        description: 'Fades the image toward grayscale, 0 (full color) to 1 (gray).',
+      }),
       transparentColor: new ColorField(null, {
         optional: true,
         transform: hexToColor,
         showByDefault: false,
+        description: 'Color shown where the image is transparent. Unset leaves those pixels clear.',
       }),
       tintColor: new ColorField(null, {
         optional: true,
         transform: hexToColor,
         showByDefault: false,
+        description:
+          'Color multiplied with every pixel of the image. Unset leaves colors as they are.',
       }),
       parameters: new CompoundPropsField(
         {
@@ -9737,16 +11769,34 @@ export class ColumnLayerOp extends Operator<ColumnLayerOp> {
       data: new DataField(),
       visible: new BooleanField(true),
       opacity: new NumberField(1, { min: 0, max: 1, step: 0.01 }),
-      diskResolution: new NumberField(20, { min: 3, softMax: 100, showByDefault: false }),
-      vertices: new UnknownField(null, { optional: true, showByDefault: false }),
-      offset: new Vec3Field([0, 0, 0], { returnType: 'tuple', showByDefault: false }),
+      diskResolution: new NumberField(20, {
+        min: 3,
+        softMax: 100,
+        showByDefault: false,
+        description: 'Number of sides on each column, at least 3. Higher looks rounder.',
+      }),
+      vertices: new UnknownField(null, {
+        optional: true,
+        showByDefault: false,
+        description:
+          'Custom outline as [x, y] points in the unit circle, scaled by the radius. Replaces the round shape.',
+      }),
+      offset: new Vec2Field([0, 0], {
+        returnType: 'tuple',
+        showByDefault: false,
+        description: 'Shifts each column from its position, as [x, y] in fractions of the radius.',
+      }),
       coverage: new NumberField(1, { min: 0, max: 1, step: 0.01, showByDefault: false }),
       elevationScale: new NumberField(1, { min: 0, softMax: 100, showByDefault: false }),
       filled: new BooleanField(true),
       stroked: new BooleanField(false, { showByDefault: false }),
       extruded: new BooleanField(true),
       wireframe: new BooleanField(false, { showByDefault: false }),
-      flatShading: new BooleanField(false, { showByDefault: false }),
+      flatShading: new BooleanField(false, {
+        showByDefault: false,
+        description:
+          'Lights each side of the column as a flat face instead of smoothly. Only when Extruded is on.',
+      }),
       radiusUnits: new StringLiteralField('meters', {
         values: ['pixels', 'meters'],
         showByDefault: false,
@@ -9804,7 +11854,11 @@ export class GridCellLayerOp extends Operator<GridCellLayerOp> {
       filled: new BooleanField(true),
       stroked: new BooleanField(false),
       wireframe: new BooleanField(false, { showByDefault: false }),
-      flatShading: new BooleanField(false, { showByDefault: false }),
+      flatShading: new BooleanField(false, {
+        showByDefault: false,
+        description:
+          'Lights each side of a cell as a flat face instead of smoothly. Only when Extruded is on.',
+      }),
       getPosition: new Point3DField([0, 0, 0], { returnType: 'tuple', accessor: true }),
       getColor: new ColorField('#000000', { accessor: true, transform: hexToColor }),
       getElevation: new NumberField(1000, { min: 0, accessor: true }),
@@ -9945,7 +11999,13 @@ export class PolygonLayerOp extends Operator<PolygonLayerOp> {
       lineWidthMinPixels: new NumberField(0, { min: 0, softMax: 100, showByDefault: false }),
       lineWidthMaxPixels: new NumberField(100, { min: 0, softMax: 1000, showByDefault: false }),
       lineJointRounded: new BooleanField(false, { showByDefault: false }),
-      lineMiterLimit: new NumberField(4, { min: 0, softMax: 10, showByDefault: false }),
+      lineMiterLimit: new NumberField(4, {
+        min: 0,
+        softMax: 10,
+        showByDefault: false,
+        description:
+          'How far a sharp outline corner may extend, as a multiple of line width. Ignored when joints are rounded.',
+      }),
       lineAntialiasing: new BooleanField(false, { showByDefault: false }),
       getPolygon: new UnknownField((d: unknown) => d?.polygon || [], { accessor: true }),
       getFillColor: new ColorField('#000000', { accessor: true, transform: hexToColor }),
@@ -9990,12 +12050,25 @@ export class ContourLayerOp extends Operator<ContourLayerOp> {
       cellSize: new NumberField(1000, { min: 1, softMax: 100000 }),
       gpuAggregation: new BooleanField(true, { showByDefault: false }),
       aggregation: new StringLiteralField('SUM', { values: ['SUM', 'MEAN', 'MIN', 'MAX'] }),
-      contours: new UnknownField([
-        { threshold: 1, color: [255, 0, 0] },
-        { threshold: 5, color: [0, 255, 0] },
-        { threshold: 10, color: [0, 0, 255] },
-      ]),
-      zOffset: new NumberField(0.005, { min: 0, max: 1, step: 0.001, showByDefault: false }),
+      contours: new UnknownField(
+        [
+          { threshold: 1, color: [255, 0, 0] },
+          { threshold: 5, color: [0, 255, 0] },
+          { threshold: 10, color: [0, 0, 255] },
+        ],
+        {
+          description:
+            'List of {threshold, color}. A number threshold draws a line; [min, max] fills a band.',
+        }
+      ),
+      zOffset: new NumberField(0.005, {
+        min: 0,
+        max: 1,
+        step: 0.001,
+        showByDefault: false,
+        description:
+          'Tiny height added per contour so overlapping ones draw in order. Default 0.005.',
+      }),
       getPosition: new Point3DField([0, 0, 0], { returnType: 'tuple', accessor: true }),
       getWeight: new NumberField(1, { min: 0, accessor: true }),
       parameters: new CompoundPropsField(
@@ -10031,8 +12104,20 @@ export class ScreenGridLayerOp extends Operator<ScreenGridLayerOp> {
       data: new DataField(),
       visible: new BooleanField(true),
       opacity: new NumberField(1, { min: 0, max: 1, step: 0.01 }),
-      cellSizePixels: new NumberField(50, { min: 1, softMax: 1000 }),
-      cellMarginPixels: new NumberField(2, { min: 0, softMax: 100, showByDefault: false }),
+      cellSizePixels: new NumberField(50, {
+        min: 1,
+        softMax: 1000,
+        label: 'Cell size',
+        description:
+          'Width and height of each grid cell on screen, in pixels. Cells stay the same size as you zoom.',
+      }),
+      cellMarginPixels: new NumberField(2, {
+        min: 0,
+        softMax: 100,
+        showByDefault: false,
+        label: 'Cell margin',
+        description: 'Gap left between neighboring grid cells, in pixels.',
+      }),
       colorRange: new UnknownField(DEFAULT_COLOR_RANGE, { optional: true }),
       colorDomain: new UnknownField(null, { optional: true, showByDefault: false }),
       aggregation: new StringLiteralField('SUM', { values: ['SUM', 'MEAN', 'MIN', 'MAX'] }),
@@ -10073,7 +12158,12 @@ export class GreatCircleLayerOp extends Operator<GreatCircleLayerOp> {
       data: new DataField(),
       visible: new BooleanField(true),
       opacity: new NumberField(1, { min: 0, max: 1, step: 0.01 }),
-      numSegments: new NumberField(20, { min: 1, softMax: 100, showByDefault: false }),
+      numSegments: new NumberField(20, {
+        min: 1,
+        softMax: 100,
+        showByDefault: false,
+        description: 'Line segments used to draw each arc. Higher gives smoother curves.',
+      }),
       widthUnits: new StringLiteralField('pixels', {
         values: ['pixels', 'meters', 'common'],
         showByDefault: false,
@@ -10120,7 +12210,12 @@ export class H3ClusterLayerOp extends Operator<H3ClusterLayerOp> {
       data: new DataField(),
       visible: new BooleanField(true),
       opacity: new NumberField(1, { min: 0, max: 1, step: 0.01 }),
-      getHexagons: new UnknownField((d: unknown) => d?.hexagons || [], { accessor: true }),
+      getHexagons: new UnknownField((d: unknown) => d?.hexagons || [], {
+        accessor: true,
+        label: 'H3 cells',
+        description:
+          'Array of H3 cell IDs for each row, drawn as one merged shape. Reads hexagons by default.',
+      }),
       getLineWidth: new NumberField(1, { min: 0, accessor: true }),
       getFillColor: new ColorField('#000000', { accessor: true, transform: hexToColor }),
       getElevation: new NumberField(1000, { accessor: true }),
@@ -10158,7 +12253,10 @@ export class GeohashLayerOp extends Operator<GeohashLayerOp> {
       data: new DataField(),
       visible: new BooleanField(true),
       opacity: new NumberField(1, { min: 0, max: 1, step: 0.01 }),
-      getGeohash: new StringField('', { accessor: true }),
+      getGeohash: new StringField('', {
+        accessor: true,
+        description: 'Geohash string for each row; the cell it names is drawn as a polygon.',
+      }),
       getFillColor: new ColorField('#000000', { accessor: true, transform: hexToColor }),
       getLineColor: new ColorField('#000000', { accessor: true, transform: hexToColor }),
       getElevation: new NumberField(1000, { accessor: true }),
@@ -10201,7 +12299,10 @@ export class S2LayerOp extends Operator<S2LayerOp> {
       data: new DataField(),
       visible: new BooleanField(true),
       opacity: new NumberField(1, { min: 0, max: 1, step: 0.01 }),
-      getS2Token: new StringField('', { accessor: true }),
+      getS2Token: new StringField('', {
+        accessor: true,
+        description: 'S2 cell token for each row; the cell it names is drawn as a polygon.',
+      }),
       getFillColor: new ColorField('#000000', { accessor: true, transform: hexToColor }),
       getLineColor: new ColorField('#000000', { accessor: true, transform: hexToColor }),
       getElevation: new NumberField(1000, { accessor: true }),
@@ -10244,7 +12345,10 @@ export class QuadkeyLayerOp extends Operator<QuadkeyLayerOp> {
       data: new DataField(),
       visible: new BooleanField(true),
       opacity: new NumberField(1, { min: 0, max: 1, step: 0.01 }),
-      getQuadkey: new StringField('', { accessor: true }),
+      getQuadkey: new StringField('', {
+        accessor: true,
+        description: 'Quadkey string for each row; the map tile it names is drawn as a polygon.',
+      }),
       getFillColor: new ColorField('#000000', { accessor: true, transform: hexToColor }),
       getLineColor: new ColorField('#000000', { accessor: true, transform: hexToColor }),
       getElevation: new NumberField(1000, { accessor: true }),
@@ -10301,7 +12405,6 @@ export class MVTLayerOp extends Operator<MVTLayerOp> {
         values: ['pixels', 'meters'],
         showByDefault: false,
       }),
-      autoLabels: new BooleanField(false, { optional: true }),
       parameters: new CompoundPropsField(
         {
           depthTest: new BooleanField(true),
@@ -10332,19 +12435,37 @@ export class TerrainLayerOp extends Operator<TerrainLayerOp> {
   static description = 'Render a terrain mesh from heightmap tiles'
   createInputs() {
     return {
-      elevationData: new StringField('https://example.com/elevation/{z}/{x}/{y}.png'),
+      elevationData: new StringField('https://example.com/elevation/{z}/{x}/{y}.png', {
+        description:
+          'Heightmap image URL, or a tile URL template with {z}, {x} and {y}. Pixel colors become heights.',
+      }),
       texture: new StringField('', { optional: true }),
       visible: new BooleanField(true),
       opacity: new NumberField(1, { min: 0, max: 1, step: 0.01 }),
-      meshMaxError: new NumberField(4, { min: 0, softMax: 100, showByDefault: false }),
-      elevationDecoder: new CompoundPropsField({
-        rScaler: new NumberField(1),
-        gScaler: new NumberField(0),
-        bScaler: new NumberField(0),
-        offset: new NumberField(0),
+      meshMaxError: new NumberField(4, {
+        min: 0,
+        softMax: 100,
+        showByDefault: false,
+        description:
+          'Allowed error when building the terrain mesh, in meters. Lower values give more detail.',
       }),
+      elevationDecoder: new CompoundPropsField(
+        {
+          rScaler: new NumberField(1),
+          gScaler: new NumberField(0),
+          bScaler: new NumberField(0),
+          offset: new NumberField(0),
+        },
+        {
+          description:
+            'Turns heightmap colors into meters: R * R scaler + G * G scaler + B * B scaler + Offset.',
+        }
+      ),
       bounds: new BboxField(null, { optional: true, returnType: 'tuple' }),
-      color: new ColorField('#ffffff', { transform: hexToColor }),
+      color: new ColorField('#ffffff', {
+        transform: hexToColor,
+        description: 'Color of the terrain surface, used when no Texture is loaded.',
+      }),
       wireframe: new BooleanField(false, { showByDefault: false }),
       parameters: new CompoundPropsField(
         {
@@ -10382,18 +12503,42 @@ export class TileLayerOp extends Operator<TileLayerOp> {
       minZoom: new NumberField(0, { min: 0, max: 24 }),
       maxZoom: new NumberField(24, { min: 0, max: 24 }),
       tileSize: new NumberField(256, { min: 1, softMax: 1024, showByDefault: false }),
-      maxCacheSize: new NumberField(Infinity, { optional: true, showByDefault: false }),
-      maxCacheByteSize: new NumberField(Infinity, { optional: true, showByDefault: false }),
+      maxCacheSize: new NumberField(Infinity, {
+        optional: true,
+        showByDefault: false,
+        description:
+          'Most tiles kept in memory after they leave the view. Infinity keeps them all.',
+      }),
+      maxCacheByteSize: new NumberField(Infinity, {
+        optional: true,
+        showByDefault: false,
+        description: 'Most memory, in bytes, used to keep loaded tiles. Infinity sets no limit.',
+      }),
       refinementStrategy: new StringLiteralField('best-available', {
         values: ['best-available', 'no-overlap', 'never'],
         showByDefault: false,
+        description:
+          "What shows while tiles load: 'best-available' uses other zooms, 'no-overlap' avoids overlap, 'never' waits.",
       }),
-      zRange: new UnknownField([0, 24], { optional: true, showByDefault: false }),
+      zRange: new UnknownField([0, 24], {
+        optional: true,
+        showByDefault: false,
+        label: 'Height range',
+        description:
+          'Lowest and highest heights in the tiles as [min, max], in meters. Helps pick visible tiles in 3D.',
+      }),
       extent: new UnknownField([-Infinity, -Infinity, Infinity, Infinity], {
         optional: true,
         showByDefault: false,
+        description:
+          'Area that has tiles, as [minX, minY, maxX, maxY] (longitude and latitude). Tiles outside are not loaded.',
       }),
-      renderSubLayers: new FunctionField(null, { optional: true, showByDefault: false }),
+      renderSubLayers: new FunctionField(null, {
+        optional: true,
+        showByDefault: false,
+        description:
+          "Function that takes each tile's props, including its data, and returns the layer that draws it.",
+      }),
       parameters: new CompoundPropsField(
         {
           depthTest: new BooleanField(true),
@@ -10408,9 +12553,14 @@ export class TileLayerOp extends Operator<TileLayerOp> {
       layer: new LayerField<TileLayerProps>(),
     }
   }
-  execute(props: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+  execute({
+    renderSubLayers,
+    ...props
+  }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     const layer = {
       ...parseLayerProps<TileLayerProps>(props),
+      // Passing null leaves deck.gl's TileLayer without its default GeoJsonLayer renderer
+      ...(renderSubLayers ? { renderSubLayers } : {}),
       type: 'TileLayer' as const,
       id: this.id,
       updateTriggers: gatherTriggers(this.inputs, props),
@@ -10429,13 +12579,21 @@ export class ClipExtensionOp extends Operator<ClipExtensionOp> {
   static description = 'Clip layers by a rectangular bounds'
   createInputs() {
     return {
-      clipByInstance: new BooleanField(false),
-      clipBounds: new UnknownField([0, 0, 1, 1]), // [minX, minY, maxX, maxY]
+      clipByInstance: new BooleanField(false, {
+        description:
+          'When on, hides whole objects whose anchor is outside the bounds instead of cutting them.',
+      }),
+      clipBounds: new UnknownField([0, 0, 1, 1], {
+        description:
+          'Rectangle to keep, as [minX, minY, maxX, maxY] in layer coordinates (e.g. lng, lat).',
+      }), // [minX, minY, maxX, maxY]
     }
   }
   createOutputs() {
     return {
-      extension: new ExtensionField(),
+      extension: new ExtensionField(undefined, {
+        description: "Clip extension to add to a layer's Extensions list.",
+      }),
     }
   }
   execute({
@@ -10455,14 +12613,23 @@ export class CollisionFilterExtensionOp extends Operator<CollisionFilterExtensio
   static description = 'Hide overlapping objects (e.g., labels)'
   createInputs() {
     return {
-      collisionEnabled: new BooleanField(true),
-      collisionGroup: new StringField('default'),
-      getCollisionPriority: new NumberField(0, { accessor: true }),
+      collisionEnabled: new BooleanField(true, {
+        description: 'When off, overlapping objects are all drawn.',
+      }),
+      collisionGroup: new StringField('default', {
+        description: 'Name of the group; objects only hide each other within the same group.',
+      }),
+      getCollisionPriority: new NumberField(0, {
+        accessor: true,
+        description: 'Per-item priority; when objects overlap, the higher value is kept visible.',
+      }),
     }
   }
   createOutputs() {
     return {
-      extension: new ExtensionField(),
+      extension: new ExtensionField(undefined, {
+        description: "Collision filter extension to add to a layer's Extensions list.",
+      }),
     }
   }
   execute(props: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
@@ -10479,21 +12646,46 @@ export class DataFilterExtensionOp extends Operator<DataFilterExtensionOp> {
   static description = 'Filter data by one or more numeric ranges'
   createInputs() {
     return {
-      filterSize: new NumberField(2, { min: 1, max: 4, step: 1 }),
-      filterEnabled: new BooleanField(true),
-      filterRange: new UnknownField([
-        [0, 1],
-        [0, 1],
-      ]), // Array of [min, max] pairs
-      filterSoftRange: new UnknownField(null, { optional: true }),
-      filterTransformSize: new BooleanField(true),
-      filterTransformColor: new BooleanField(true),
-      getFilterValue: new UnknownField((_d: unknown) => [0, 0], { accessor: true }),
+      filterSize: new NumberField(2, {
+        min: 1,
+        max: 4,
+        step: 1,
+        description: 'How many numbers each item is filtered on, 1 to 4.',
+      }),
+      filterEnabled: new BooleanField(true, {
+        description: 'When off, all items are drawn and the filter is ignored.',
+      }),
+      filterRange: new UnknownField(
+        [
+          [0, 1],
+          [0, 1],
+        ],
+        {
+          description:
+            'Ranges to keep, one [min, max] pair per filter value. Items outside are hidden.',
+        }
+      ), // Array of [min, max] pairs
+      filterSoftRange: new UnknownField(null, {
+        optional: true,
+        description: 'Optional inner [min, max] pairs; items between it and Filter range fade out.',
+      }),
+      filterTransformSize: new BooleanField(true, {
+        description: 'When on, items in the fade zone of Filter soft range shrink as they fade.',
+      }),
+      filterTransformColor: new BooleanField(true, {
+        description: 'When on, items in the fade zone of Filter soft range become transparent.',
+      }),
+      getFilterValue: new UnknownField((_d: unknown) => [0, 0], {
+        accessor: true,
+        description: 'Per-item value to filter on: a number, or an array of Filter size numbers.',
+      }),
     }
   }
   createOutputs() {
     return {
-      extension: new ExtensionField(),
+      extension: new ExtensionField(undefined, {
+        description: "Data filter extension to add to a layer's Extensions list.",
+      }),
     }
   }
   execute({
@@ -10513,25 +12705,63 @@ export class FillStyleExtensionOp extends Operator<FillStyleExtensionOp> {
   static description = 'Add patterns and styles to polygon fills'
   createInputs() {
     return {
-      fillPatternEnabled: new BooleanField(true),
-      proceduralPattern: new BooleanField(false, { showByDefault: false }),
-      fillPatternMask: new BooleanField(true),
-      fillPatternSizeUnits: new StringLiteralField('meters', ['pixels', 'meters', 'common']),
-      fillPatternAtlas: new StringField('', { optional: true }),
-      fillPatternMapping: new UnknownField(null, { optional: true }),
-      getFillPattern: new UnknownField(null, { accessor: true }),
-      getFillPatternScale: new NumberField(1, { accessor: true }),
-      getFillPatternOffset: new Vec2Field([0, 0], { returnType: 'tuple', accessor: true }),
+      fillPatternEnabled: new BooleanField(true, {
+        label: 'Pattern fill',
+        description: 'Turns on pattern fills, so fills tile a pattern instead of a solid color.',
+      }),
+      proceduralPattern: new BooleanField(false, {
+        showByDefault: false,
+        description:
+          'Draws hatch, cross-hatch or dot patterns from Fill pattern mapping, with no image atlas.',
+      }),
+      fillPatternMask: new BooleanField(true, {
+        description:
+          'When on, patterns act as masks tinted by the fill color instead of showing their own colors.',
+      }),
+      fillPatternSizeUnits: new StringLiteralField('meters', {
+        values: ['pixels', 'meters', 'common'],
+        description:
+          "Units for the pattern size. 'meters' zooms with the map; 'pixels' keeps a fixed screen size.",
+      }),
+      fillPatternAtlas: new StringField('', {
+        optional: true,
+        description:
+          'URL of a sprite image holding all patterns. Ignored when Procedural pattern is on.',
+      }),
+      fillPatternMapping: new UnknownField(null, {
+        optional: true,
+        description:
+          'Pattern names mapped to atlas frames {x, y, width, height} or procedural pattern settings.',
+      }),
+      getFillPattern: new UnknownField(null, {
+        accessor: true,
+        description: 'Per-item pattern name, a key in Fill pattern mapping.',
+      }),
+      getFillPatternScale: new NumberField(1, {
+        accessor: true,
+        description:
+          'Per-item pattern size multiplier, relative to Fill pattern size units. 1 is original size.',
+      }),
+      getFillPatternOffset: new Vec2Field([0, 0], {
+        returnType: 'tuple',
+        accessor: true,
+        description:
+          'Per-item pattern shift as a fraction of its size, [x, y]. [0.5, 0.5] shifts by half.',
+      }),
       getFillPatternBackgroundColor: new ColorField('#00000000', {
         accessor: true,
         transform: hexToColor,
         showByDefault: false,
+        description:
+          'Per-item color drawn behind the pattern where it is transparent. Clear by default.',
       }),
     }
   }
   createOutputs() {
     return {
-      extension: new ExtensionField(),
+      extension: new ExtensionField(undefined, {
+        description: "Fill style extension to add to a layer's Extensions list.",
+      }),
     }
   }
   execute({
@@ -10556,13 +12786,20 @@ export class MaskExtensionOp extends Operator<MaskExtensionOp> {
   static description = 'Show/hide layer objects by a geofence'
   createInputs() {
     return {
-      maskId: new StringField(''),
-      maskByInstance: new BooleanField(false),
+      maskId: new StringField('', {
+        description: 'ID of the layer used as the mask; only parts inside its shapes are drawn.',
+      }),
+      maskByInstance: new BooleanField(false, {
+        description:
+          'When on, shows or hides whole objects by their anchor point instead of cutting them.',
+      }),
     }
   }
   createOutputs() {
     return {
-      extension: new ExtensionField(),
+      extension: new ExtensionField(undefined, {
+        description: "Mask extension to add to a layer's Extensions list.",
+      }),
     }
   }
   execute(props: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
@@ -10654,21 +12891,36 @@ export class TimeSeriesOp extends Operator<TimeSeriesOp> {
 
   createInputs() {
     return {
-      data: new DataField(),
-      currentTime: new NumberField(0),
+      data: new DataField(undefined, {
+        description: 'Array of items, each with its own series of timed values.',
+      }),
+      currentTime: new NumberField(0, {
+        description: 'Time to read values at, in the same units as the timestamps.',
+      }),
       getTimestamps: new UnknownField(
         (d: unknown) => (d as { timestamps?: unknown[] })?.timestamps || [],
-        { accessor: true }
+        {
+          accessor: true,
+          description: "Each item's array of times. Defaults to its timestamps key.",
+        }
       ),
       getValues: new UnknownField((d: unknown) => (d as { values?: unknown[] })?.values || [], {
         accessor: true,
+        description:
+          "Each item's array of value objects, one per timestamp. Defaults to its values key.",
       }),
-      getProperties: new UnknownField((d: unknown) => d, { accessor: true, optional: true }),
+      getProperties: new UnknownField((d: unknown) => d, {
+        accessor: true,
+        optional: true,
+        description: 'Extra fields to copy onto each output row. Defaults to the whole item.',
+      }),
     }
   }
   createOutputs() {
     return {
-      data: new DataField(),
+      data: new DataField(undefined, {
+        description: 'One row per item with its values blended linearly at Current time.',
+      }),
     }
   }
 
@@ -10771,6 +13023,7 @@ export const opTypes = {
   ColumnLayerOp,
   CombineRGBAOp,
   CombineXYOp,
+  CommentOp,
   ConcatOp,
   CustomMapLibreLayerOp,
   ConsoleOp,

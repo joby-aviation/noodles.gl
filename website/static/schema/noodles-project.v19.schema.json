@@ -1,0 +1,556 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://noodles.gl/schema/noodles-project.v19.schema.json",
+  "title": "Noodles.gl project file (version 19)",
+  "description": "A noodles.json file. Covers file shape only; check operator types, inputs and edge handles with noodles-validate.",
+  "type": "object",
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "version": {
+      "type": "number",
+      "const": 19,
+      "description": "Schema version. Older files are migrated when the editor opens them"
+    },
+    "name": {
+      "type": "string"
+    },
+    "nodes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^(\\/[^/\\s]+)+$",
+            "description": "Absolute operator path, e.g. /earthquake-data or /container/child"
+          },
+          "type": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Operator type, e.g. FileOp, or group"
+          },
+          "position": {
+            "type": "object",
+            "properties": {
+              "x": {
+                "type": "number"
+              },
+              "y": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "x",
+              "y"
+            ],
+            "additionalProperties": false
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "inputs": {
+                "description": "Input values that differ from the defaults, by field name",
+                "type": "object",
+                "propertyNames": {
+                  "type": "string"
+                },
+                "additionalProperties": {}
+              },
+              "locked": {
+                "type": "boolean"
+              },
+              "customInputs": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "type": {
+                      "type": "string",
+                      "description": "Field type, e.g. number or string"
+                    },
+                    "order": {
+                      "type": "number"
+                    },
+                    "options": {
+                      "type": "object",
+                      "propertyNames": {
+                        "type": "string"
+                      },
+                      "additionalProperties": {}
+                    },
+                    "defaultValue": {},
+                    "enableExpression": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "name",
+                    "type",
+                    "order"
+                  ],
+                  "additionalProperties": {}
+                }
+              },
+              "visibleInputs": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "ui": {
+                "type": "object",
+                "properties": {
+                  "numberSteps": {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string"
+                    },
+                    "additionalProperties": {
+                      "type": "number"
+                    }
+                  }
+                },
+                "additionalProperties": {}
+              }
+            },
+            "additionalProperties": {}
+          },
+          "parentId": {
+            "type": "string",
+            "pattern": "^(\\/[^/\\s]+)+$",
+            "description": "Absolute operator path, e.g. /earthquake-data or /container/child"
+          }
+        },
+        "required": [
+          "id",
+          "type",
+          "position"
+        ],
+        "additionalProperties": {}
+      }
+    },
+    "edges": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "By convention <source>.<sourceHandle>-><target>.<targetHandle>, e.g. /a.out.data->/b.par.data"
+          },
+          "source": {
+            "type": "string",
+            "pattern": "^(\\/[^/\\s]+)+$",
+            "description": "Absolute operator path, e.g. /earthquake-data or /container/child"
+          },
+          "target": {
+            "type": "string",
+            "pattern": "^(\\/[^/\\s]+)+$",
+            "description": "Absolute operator path, e.g. /earthquake-data or /container/child"
+          },
+          "sourceHandle": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^(out|par)\\.",
+                "description": "Field handle: out.<field> for an output, par.<field> for an input"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "targetHandle": {
+            "type": "string",
+            "pattern": "^(out|par)\\.",
+            "description": "Field handle: out.<field> for an output, par.<field> for an input"
+          },
+          "type": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "source",
+          "target",
+          "sourceHandle",
+          "targetHandle"
+        ],
+        "additionalProperties": {}
+      }
+    },
+    "viewport": {
+      "description": "Ignored, and no longer written: the editor fits the graph when a project opens",
+      "type": "object",
+      "properties": {
+        "x": {
+          "type": "number"
+        },
+        "y": {
+          "type": "number"
+        },
+        "zoom": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "x",
+        "y",
+        "zoom"
+      ],
+      "additionalProperties": false
+    },
+    "timeline": {
+      "type": "object",
+      "properties": {
+        "sheetsById": {
+          "type": "object",
+          "properties": {
+            "Noodles": {
+              "type": "object",
+              "properties": {
+                "sequence": {
+                  "description": "Omitted when nothing is animated",
+                  "type": "object",
+                  "properties": {
+                    "length": {
+                      "type": "number",
+                      "exclusiveMinimum": 0,
+                      "description": "Duration in seconds"
+                    },
+                    "subUnitsPerUnit": {
+                      "type": "number",
+                      "exclusiveMinimum": 0,
+                      "description": "Frames per second"
+                    },
+                    "tracksByObject": {
+                      "type": "object",
+                      "propertyNames": {
+                        "type": "string",
+                        "description": "Node id without the leading slash"
+                      },
+                      "additionalProperties": {
+                        "type": "object",
+                        "properties": {
+                          "trackIdByPropPath": {
+                            "type": "object",
+                            "propertyNames": {
+                              "type": "string"
+                            },
+                            "additionalProperties": {
+                              "type": "string"
+                            },
+                            "description": "Field path (e.g. viewState.zoom, or a JSON array of parts) to a trackData key"
+                          },
+                          "trackData": {
+                            "type": "object",
+                            "propertyNames": {
+                              "type": "string"
+                            },
+                            "additionalProperties": {
+                              "type": "object",
+                              "properties": {
+                                "type": {
+                                  "type": "string",
+                                  "description": "The editor writes BasicKeyframedTrack"
+                                },
+                                "__debugName": {
+                                  "type": "string"
+                                },
+                                "keyframes": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "object",
+                                    "properties": {
+                                      "id": {
+                                        "type": "string"
+                                      },
+                                      "position": {
+                                        "type": "number",
+                                        "minimum": 0,
+                                        "description": "Time in seconds"
+                                      },
+                                      "connectedRight": {
+                                        "type": "boolean",
+                                        "description": "true eases to the next keyframe; false holds this value until the next one"
+                                      },
+                                      "handles": {
+                                        "type": "array",
+                                        "prefixItems": [
+                                          {
+                                            "type": "number",
+                                            "minimum": 0,
+                                            "maximum": 1
+                                          },
+                                          {
+                                            "type": "number"
+                                          },
+                                          {
+                                            "type": "number",
+                                            "minimum": 0,
+                                            "maximum": 1
+                                          },
+                                          {
+                                            "type": "number"
+                                          }
+                                        ],
+                                        "description": "Bezier handles [leftX, leftY, rightX, rightY], x in 0 to 1",
+                                        "minItems": 4,
+                                        "maxItems": 4
+                                      },
+                                      "type": {
+                                        "type": "string"
+                                      },
+                                      "value": {
+                                        "$ref": "#/$defs/KeyframeValue"
+                                      }
+                                    },
+                                    "required": [
+                                      "id",
+                                      "position",
+                                      "connectedRight",
+                                      "handles",
+                                      "value"
+                                    ],
+                                    "additionalProperties": {}
+                                  },
+                                  "description": "Sorted by position"
+                                }
+                              },
+                              "required": [
+                                "type",
+                                "keyframes"
+                              ],
+                              "additionalProperties": {}
+                            }
+                          }
+                        },
+                        "required": [
+                          "trackIdByPropPath",
+                          "trackData"
+                        ],
+                        "additionalProperties": {}
+                      },
+                      "description": "Animated fields, by node"
+                    },
+                    "markers": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "position": {
+                            "type": "number",
+                            "minimum": 0
+                          },
+                          "connections": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "keyframeId": {
+                                  "type": "string"
+                                },
+                                "trackPath": {
+                                  "type": "string",
+                                  "description": "Track field path, e.g. \"maplibre-basemap / viewState / zoom\""
+                                },
+                                "offset": {
+                                  "type": "number"
+                                }
+                              },
+                              "required": [
+                                "keyframeId",
+                                "trackPath",
+                                "offset"
+                              ],
+                              "additionalProperties": {}
+                            }
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "position",
+                          "connections"
+                        ],
+                        "additionalProperties": {}
+                      }
+                    },
+                    "inPoint": {
+                      "description": "Render start in seconds",
+                      "type": "number",
+                      "minimum": 0
+                    },
+                    "outPoint": {
+                      "description": "Render end in seconds",
+                      "type": "number",
+                      "minimum": 0
+                    }
+                  },
+                  "required": [
+                    "length",
+                    "subUnitsPerUnit",
+                    "tracksByObject"
+                  ],
+                  "additionalProperties": {}
+                },
+                "staticOverrides": {
+                  "type": "object",
+                  "properties": {
+                    "byObject": {
+                      "type": "object",
+                      "propertyNames": {
+                        "type": "string"
+                      },
+                      "additionalProperties": {}
+                    }
+                  },
+                  "required": [
+                    "byObject"
+                  ],
+                  "additionalProperties": {}
+                }
+              },
+              "additionalProperties": {}
+            }
+          },
+          "required": [
+            "Noodles"
+          ],
+          "additionalProperties": {}
+        },
+        "definitionVersion": {
+          "type": "string"
+        },
+        "revisionHistory": {
+          "type": "array",
+          "items": {}
+        }
+      },
+      "additionalProperties": {}
+    },
+    "editorSettings": {
+      "type": "object",
+      "properties": {
+        "showOverlay": {
+          "type": "boolean"
+        },
+        "showDebugInfo": {
+          "type": "boolean"
+        },
+        "autoLayout": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            }
+          },
+          "additionalProperties": {}
+        },
+        "startNode": {
+          "description": "Examples only: node selected when it opens",
+          "type": "string",
+          "pattern": "^(\\/[^/\\s]+)+$"
+        }
+      },
+      "additionalProperties": {}
+    },
+    "apiKeys": {
+      "description": "Map service keys saved with the project. AI keys are never read from a file",
+      "type": "object",
+      "properties": {
+        "mapbox": {
+          "type": "string"
+        },
+        "googleMaps": {
+          "type": "string"
+        },
+        "cesium": {
+          "type": "string"
+        },
+        "overpass": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": {}
+    }
+  },
+  "required": [
+    "version",
+    "nodes",
+    "edges"
+  ],
+  "additionalProperties": {},
+  "$defs": {
+    "KeyframeValue": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "string"
+        },
+        {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/JsonValue"
+          }
+        },
+        {
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/JsonValue"
+          }
+        }
+      ]
+    },
+    "JsonValue": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        },
+        {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/JsonValue"
+          }
+        },
+        {
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/JsonValue"
+          }
+        }
+      ]
+    }
+  }
+}

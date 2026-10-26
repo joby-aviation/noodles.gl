@@ -33,6 +33,7 @@ import {
 import { createPortal } from 'react-dom'
 import { Temporal } from 'temporal-polyfill'
 
+import { RENDER_SURFACE_SELECTOR } from '../../render/render-surface-size'
 import { analytics } from '../../utils/analytics'
 import { useProjectModificationActions } from '../contexts/project-modification-actions-context'
 import { ArrayField, type Field, type IField, ListField } from '../fields'
@@ -72,6 +73,7 @@ import {
   evaluateEnableExpression,
   getEnableExpressionDependencies,
 } from '../utils/enable-expression-evaluator'
+import { FieldEditScope } from '../utils/field-edit-analytics'
 import { setLockedWithHistory, shouldConfirmUnlock } from '../utils/lock-history'
 import { type MultiInputEdgeData, slotOffsetY } from '../utils/multi-input-utils'
 import type { NodeType } from '../utils/node-creation-utils'
@@ -84,6 +86,7 @@ import {
 } from '../utils/property-history'
 import { BrushableHistogramOpComponent } from './brushable-histogram-op'
 import { categories as baseCategories, nodeTypeToDisplayName } from './categories'
+import { CommentOpComponent } from './comment-op'
 import { FieldComponent, type inputComponents } from './field-components'
 import { GeoEditorOpComponent } from './geo-editor-op'
 import previewStyles from './handle-preview.module.css'
@@ -201,8 +204,25 @@ export function nodePropsAreEqual(
   )
 }
 
+// Marks field edits made inside a node as node edits of this operator type (see
+// field-edit-analytics.tsx). Wraps the component before memo so memoization still applies.
+function withFieldEditScope<P extends { type: string }>(Component: ComponentType<P>) {
+  function NodeFieldEditScope(props: P) {
+    return (
+      <FieldEditScope source="node" operatorType={props.type}>
+        <Component {...props} />
+      </FieldEditScope>
+    )
+  }
+  return NodeFieldEditScope
+}
+
+function memoNode<P extends ReactFlowNodeProps>(Component: ComponentType<P>) {
+  return memo(withFieldEditScope(Component), nodePropsAreEqual)
+}
+
 // Memoized once - all node types in the registry share this single wrapper
-const MemoNodeComponent = memo(NodeComponent, nodePropsAreEqual)
+const MemoNodeComponent = memoNode(NodeComponent)
 
 const defaultNodeComponents: Record<string, ComponentType<ReactFlowNodeProps>> = {}
 for (const key of Object.keys(opTypes)) {
@@ -259,20 +279,21 @@ function UnknownOperatorComponent({
 
 export const nodeComponents = {
   ...defaultNodeComponents,
-  BrushableHistogramOp: memo(BrushableHistogramOpComponent, nodePropsAreEqual),
-  GeocoderOp: memo(GeocoderOpComponent, nodePropsAreEqual),
-  GeoEditorOp: memo(GeoEditorOpComponent, nodePropsAreEqual),
-  MapStyleConfiguratorOp: memo(MapStyleConfiguratorOpComponent, nodePropsAreEqual),
-  DirectionsOp: memo(DirectionsOpComponent, nodePropsAreEqual),
-  MouseOp: memo(MouseOpComponent, nodePropsAreEqual),
-  OutOp: memo(OutOpComponent, nodePropsAreEqual),
-  RampOp: memo(RampOpComponent, nodePropsAreEqual),
-  RerouteOp: memo(RerouteOpComponent, nodePropsAreEqual),
-  TableEditorOp: memo(TableEditorOpComponent, nodePropsAreEqual),
-  TimeOp: memo(TimeOpComponent, nodePropsAreEqual),
-  UnknownOperator: memo(UnknownOperatorComponent, nodePropsAreEqual),
-  ViewerOp: memo(ViewerOpComponent, nodePropsAreEqual),
-  ContainerOp: memo(ContainerOpComponent, nodePropsAreEqual),
+  BrushableHistogramOp: memoNode(BrushableHistogramOpComponent),
+  CommentOp: memoNode(CommentOpComponent),
+  GeocoderOp: memoNode(GeocoderOpComponent),
+  GeoEditorOp: memoNode(GeoEditorOpComponent),
+  MapStyleConfiguratorOp: memoNode(MapStyleConfiguratorOpComponent),
+  DirectionsOp: memoNode(DirectionsOpComponent),
+  MouseOp: memoNode(MouseOpComponent),
+  OutOp: memoNode(OutOpComponent),
+  RampOp: memoNode(RampOpComponent),
+  RerouteOp: memoNode(RerouteOpComponent),
+  TableEditorOp: memoNode(TableEditorOpComponent),
+  TimeOp: memoNode(TimeOpComponent),
+  UnknownOperator: memoNode(UnknownOperatorComponent),
+  ViewerOp: memoNode(ViewerOpComponent),
+  ContainerOp: memoNode(ContainerOpComponent),
 } as const as ReactFlowNodeTypes
 
 export const edgeComponents = {
@@ -420,6 +441,7 @@ function MultiInputEdgeComponent({
 }
 
 export const resizeableNodes = [
+  'CommentOp',
   'ViewerOp',
   'TableEditorOp',
   'CodeOp',
@@ -1864,18 +1886,14 @@ function MouseOpComponent({
   id,
   type,
 }: ReactFlowNodeProps<NodeDataJSON<MouseOp>> & { type: 'MouseOp' }) {
-  const op = getOp(id as string)
+  const op = getOp(id as string) as MouseOp | undefined
 
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 })
   const isDimmed = useNodeDimmed(id)
 
-  // Inject the container element into the operator
+  // Point the operator at the render surface, in either display mode
   useEffect(() => {
-    if (!op) return
-    const container = document.querySelector('.transform-scale')
-    if (container) {
-      op.setContainer(container)
-    }
+    op?.setSurface(() => document.querySelector<HTMLElement>(RENDER_SURFACE_SELECTOR))
   }, [op])
 
   // Subscribe to output for display

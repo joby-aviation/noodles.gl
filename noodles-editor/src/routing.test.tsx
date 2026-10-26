@@ -38,6 +38,7 @@ vi.mock('./noodles/utils/filesystem', () => ({
   writeFileToDirectory: () => Promise.resolve(),
   fileExists: () => Promise.resolve(false),
   directoryExists: () => Promise.resolve(false),
+  queryPermission: () => Promise.resolve('granted'),
   requestPermission: () => Promise.resolve('granted'),
 }))
 
@@ -46,6 +47,7 @@ vi.mock('./noodles/utils/directory-handle-cache', () => ({
   directoryHandleCache: {
     getAllCachedHandles: () => Promise.resolve([]),
     cacheHandle: () => Promise.resolve(),
+    subscribe: () => () => {},
   },
 }))
 

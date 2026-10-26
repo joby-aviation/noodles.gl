@@ -17,6 +17,19 @@ export interface CachedHandleEntry {
 // DirectoryHandleCache service for managing persistent directory handles
 export class DirectoryHandleCache {
   private db: IDBDatabase | null = null
+  private listeners = new Set<() => void>()
+
+  // Call `listener` after any change to the remembered projects. Returns an unsubscribe function.
+  subscribe(listener: () => void): () => void {
+    this.listeners.add(listener)
+    return () => {
+      this.listeners.delete(listener)
+    }
+  }
+
+  private notify() {
+    for (const listener of this.listeners) listener()
+  }
 
   // Initialize the IndexedDB database
   async init(): Promise<void> {
@@ -61,7 +74,10 @@ export class DirectoryHandleCache {
 
       const request = store.put(entry)
 
-      request.onsuccess = () => resolve()
+      request.onsuccess = () => {
+        resolve()
+        this.notify()
+      }
       request.onerror = () => reject(new Error('Failed to cache directory handle'))
     })
   }
@@ -98,12 +114,16 @@ export class DirectoryHandleCache {
       const store = transaction.objectStore(STORE_NAME)
       const request = store.clear()
 
-      request.onsuccess = () => resolve()
+      request.onsuccess = () => {
+        resolve()
+        this.notify()
+      }
       request.onerror = () => reject(new Error('Failed to clear cache'))
     })
   }
 
-  // Remove a specific cached handle
+  // Forget a project's folder, for example from "Remove from list". The folder and its
+  // files on disk are not touched.
   async removeHandle(projectName: string): Promise<void> {
     if (!this.db) await this.init()
 
@@ -112,7 +132,10 @@ export class DirectoryHandleCache {
       const store = transaction.objectStore(STORE_NAME)
       const request = store.delete(projectName)
 
-      request.onsuccess = () => resolve()
+      request.onsuccess = () => {
+        resolve()
+        this.notify()
+      }
       request.onerror = () => reject(new Error('Failed to remove cached handle'))
     })
   }
@@ -123,12 +146,11 @@ export class DirectoryHandleCache {
       const cached = await this.getCachedHandle(projectName)
       if (!cached) return false
 
+      // Keep the handle when access isn't granted: after a browser restart the permission
+      // is back to 'prompt' and a click can grant it again. Forgetting the handle here
+      // would drop the project from Recent projects.
       const hasPermission = await requestPermission(cached.handle, 'readwrite')
-      if (!hasPermission) {
-        // Permission denied, remove invalid cache
-        await this.removeHandle(projectName)
-        return false
-      }
+      if (!hasPermission) return false
 
       // Handle is valid, update last validated timestamp
       await this.cacheHandle(projectName, cached.handle, cached.path)
@@ -177,15 +199,35 @@ export class DirectoryHandleCache {
     })
   }
 
-  // Rename a project (update cache entry with new name and handle)
+  // Point a project at a different folder, keyed by the new folder's name. Used when the
+  // project is renamed (copied to a new folder) and when the user chooses a project's folder
+  // again after moving or renaming it on disk. One transaction, so a failure keeps the old entry.
   async renameProject(
     oldName: string,
     newName: string,
     newHandle: FileSystemDirectoryHandle
   ): Promise<void> {
-    // Remove old entry and add new entry
-    await this.removeHandle(oldName)
-    await this.cacheHandle(newName, newHandle, newHandle.name)
+    if (!this.db) await this.init()
+
+    return new Promise((resolve, reject) => {
+      const transaction = this.db!.transaction([STORE_NAME], 'readwrite')
+      const store = transaction.objectStore(STORE_NAME)
+      if (oldName !== newName) store.delete(oldName)
+      const entry: CachedHandleEntry = {
+        projectName: newName,
+        handle: newHandle,
+        path: newHandle.name,
+        cachedAt: Date.now(),
+      }
+      store.put(entry)
+
+      transaction.oncomplete = () => {
+        resolve()
+        this.notify()
+      }
+      transaction.onerror = () => reject(new Error('Failed to rename project'))
+      transaction.onabort = () => reject(new Error('Failed to rename project'))
+    })
   }
 }
 

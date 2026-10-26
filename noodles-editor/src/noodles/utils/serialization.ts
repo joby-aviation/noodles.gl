@@ -8,7 +8,7 @@ import { debugSerialize } from '../../utils/debug'
 import { resizeableNodes } from '../components/op-components'
 import { captureNodeUIMetadata } from '../fields'
 import { UnknownOperator } from '../operators'
-import type { useOperatorStore } from '../store'
+import type { useGraphStore } from '../store'
 import { deepEqual } from './deep-equal'
 import type { ExtractProps } from './extract-props'
 import type { StorageType } from './filesystem'
@@ -31,12 +31,17 @@ export type EditorSettings = {
   showOverlay?: boolean
   autoLayout?: Partial<AutoLayoutSettings>
   showDebugInfo?: boolean
+  // Examples only: node selected when the example first opens (see utils/starter-node.ts)
+  startNode?: string
 }
 
 export type { RenderSettings } from './render-settings-constants'
 export { DEFAULT_RENDER_SETTINGS } from './render-settings-constants'
 
-export type NoodlesProjectJSON = ReactFlowJsonObject & {
+export type NoodlesProjectJSON = Omit<ReactFlowJsonObject, 'viewport'> & {
+  // Older files carry the graph viewport. It is ignored on load, which fits the graph
+  // instead, and never written.
+  viewport?: ReactFlowJsonObject['viewport']
   version: number
   timeline: Record<string, unknown>
   name?: string
@@ -57,7 +62,6 @@ export const EMPTY_PROJECT: NoodlesProjectJSON = {
   timeline: {},
   nodes: [],
   edges: [],
-  viewport: { x: 0, y: 0, zoom: 1 },
   editorSettings: {},
 }
 
@@ -110,7 +114,7 @@ function setsEqual(a: Set<string>, b: Set<string>): boolean {
 }
 
 export function serializeNodes(
-  store: ReturnType<typeof useOperatorStore.getState>,
+  store: ReturnType<typeof useGraphStore.getState>,
   nodes: ReactFlowNode<Record<string, unknown>>[],
   edges: ReactFlowEdge[],
   options?: SerializeNodesOptions
@@ -201,6 +205,8 @@ export function serializeNodes(
       dragging: __,
       hidden: ___,
       dragHandle: ____,
+      // Set by NodeResizer while a resize is in progress
+      resizing: _____,
       measured,
       width,
       height,
@@ -257,7 +263,7 @@ export function serializeNodes(
 }
 
 export function serializeEdges(
-  _store: ReturnType<typeof useOperatorStore.getState>,
+  _store: ReturnType<typeof useGraphStore.getState>,
   nodes: ReactFlowNode<Record<string, unknown>>[],
   edges: ReactFlowEdge[]
 ) {

@@ -1,5 +1,5 @@
 {
-  "projectVersion": 19,
+  "projectVersion": 20,
   "customFieldTypes": [
     "number",
     "string",
@@ -1075,9 +1075,8 @@
           "default": null
         },
         "offset": {
-          "type": "Vec3Field",
+          "type": "Vec2Field",
           "default": [
-            0,
             0,
             0
           ]
@@ -1179,7 +1178,7 @@
         },
         "a": {
           "type": "NumberField",
-          "default": 1
+          "default": 255
         }
       },
       "outputs": {
@@ -1208,6 +1207,19 @@
           "type": "Vec2Field"
         }
       }
+    },
+    "CommentOp": {
+      "name": "Comment",
+      "type": "CommentOp",
+      "category": "utility",
+      "description": "A note that explains the nodes beside it. Double-click to edit its text. Nothing connects to it",
+      "inputs": {
+        "text": {
+          "type": "StringField",
+          "default": ""
+        }
+      },
+      "outputs": {}
     },
     "CompassWidgetOp": {
       "name": "CompassWidget",
@@ -2345,6 +2357,26 @@
         "pointRadiusBillboard": {
           "type": "BooleanField",
           "default": false
+        },
+        "iconAtlas": {
+          "type": "FileUrlField",
+          "default": "https://raw.githubusercontent.com/visgl/deck.gl-data/master/website/icon-atlas.png"
+        },
+        "iconMapping": {
+          "type": "MapStyleField",
+          "default": "https://raw.githubusercontent.com/visgl/deck.gl-data/master/website/icon-atlas.json"
+        },
+        "getIcon": {
+          "type": "StringField",
+          "default": "marker"
+        },
+        "getIconSize": {
+          "type": "NumberField",
+          "default": 32
+        },
+        "getIconColor": {
+          "type": "ColorField",
+          "default": "#fff"
         },
         "getText": {
           "type": "StringField",
@@ -4085,10 +4117,6 @@
           "type": "BooleanField",
           "default": false
         },
-        "altitude": {
-          "type": "NumberField",
-          "default": 1.5
-        },
         "nearZMultiplier": {
           "type": "NumberField",
           "default": 0.1
@@ -4317,10 +4345,6 @@
         "pointRadiusUnits": {
           "type": "StringLiteralField",
           "default": "pixels"
-        },
-        "autoLabels": {
-          "type": "BooleanField",
-          "default": false
         },
         "parameters": {
           "type": "CompoundPropsField",
@@ -4817,6 +4841,10 @@
         "url": {
           "type": "FileUrlField",
           "default": ""
+        },
+        "tileType": {
+          "type": "StringLiteralField",
+          "default": "vector"
         },
         "sourceLayer": {
           "type": "StringField",
@@ -5493,10 +5521,6 @@
           "type": "StringLiteralField",
           "default": "bottom-left"
         },
-        "label": {
-          "type": "StringField",
-          "default": "Scale"
-        },
         "viewId": {
           "type": "StringField",
           "default": ""
@@ -5863,7 +5887,7 @@
       "name": "Shapefile",
       "type": "ShapefileOp",
       "category": "data",
-      "description": "Load a Shapefile (.shp) and convert to GeoJSON",
+      "description": "Load a Shapefile (.shp) and convert to GeoJSON, with attributes from the .dbf file beside it",
       "inputs": {
         "url": {
           "type": "FileUrlField",
@@ -6201,9 +6225,7 @@
       "inputs": {
         "color": {
           "type": "ColorField",
-          "default": {
-            "accessor": true
-          }
+          "default": "#0000ffff"
         }
       },
       "outputs": {
@@ -6655,10 +6677,6 @@
           "type": "NumberField",
           "default": 1
         },
-        "maxLodMetricValue": {
-          "type": "NumberField",
-          "default": 2
-        },
         "maxScreenSpaceError": {
           "type": "NumberField",
           "default": 50
@@ -6716,11 +6734,11 @@
         },
         "maxCacheSize": {
           "type": "NumberField",
-          "default": null
+          "defaultText": "Infinity"
         },
         "maxCacheByteSize": {
           "type": "NumberField",
-          "default": null
+          "defaultText": "Infinity"
         },
         "refinementStrategy": {
           "type": "StringLiteralField",
@@ -6735,12 +6753,7 @@
         },
         "extent": {
           "type": "UnknownField",
-          "default": [
-            null,
-            null,
-            null,
-            null
-          ]
+          "defaultText": "[-Infinity,-Infinity,Infinity,Infinity]"
         },
         "renderSubLayers": {
           "type": "FunctionField",

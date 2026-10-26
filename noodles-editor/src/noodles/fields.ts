@@ -38,6 +38,8 @@ type BaseFieldOptions = {
   transform?: (val: unknown, ...args: unknown[]) => unknown
   accessor?: boolean
   showByDefault?: boolean // Defaults to true. Set to false to hide field by default in UI.
+  label?: string // Friendly name for the UI. Defaults to a humanized field name.
+  description?: string // One-line explanation of what the field does, shown in the UI.
   useDeepEquality?: boolean // Use deep equality when comparing values to prevent unnecessary updates
   maxDepth?: number // Maximum depth for deep equality checks (Infinity = unlimited)
 }
@@ -133,6 +135,11 @@ export abstract class Field<
   // Should this field be shown by default in the UI? Defaults to true.
   showByDefault = true
 
+  // Friendly name and one-line explanation for the UI. The field's key stays the identifier
+  // used in edges, references and expressions. See utils/field-docs.ts for the fallbacks.
+  label?: string
+  description?: string
+
   // Use deep equality when comparing values to prevent unnecessary updates
   // Only enable for fields with stable, value-typed data (plain objects, arrays, primitives)
   // Do not enable for fields containing class instances, Date, Map, Set with identity semantics
@@ -205,6 +212,8 @@ export abstract class Field<
     showByDefault,
     useDeepEquality,
     maxDepth,
+    label,
+    description,
   }: Partial<O>) {
     let schema = this.schema
 
@@ -212,6 +221,9 @@ export abstract class Field<
     if (showByDefault !== undefined) {
       this.showByDefault = showByDefault
     }
+
+    if (label !== undefined) this.label = label
+    if (description !== undefined) this.description = description
 
     // Set useDeepEquality if specified
     if (useDeepEquality !== undefined) {
@@ -804,10 +816,13 @@ export class DataField<D extends Field = Field, TElement = unknown> extends Fiel
     return subschema.readonly()
   }
 
-  constructor(public field?: D) {
+  constructor(
+    public field?: D,
+    options?: BaseFieldOptions
+  ) {
     const subschema = field?.schema || z.unknown()
     const defaultValue = typeof field?.defaultValue !== 'undefined' ? field.defaultValue : []
-    super(defaultValue, { subschema } as SubSchemaOptions<D['schema']>)
+    super(defaultValue, { ...options, subschema } as SubSchemaOptions<D['schema']>)
   }
 }
 
@@ -827,13 +842,16 @@ export class GeoJsonField<D extends Field = Field, TElement = unknown> extends F
     return subschema.readonly()
   }
 
-  constructor(public field?: D) {
+  constructor(
+    public field?: D,
+    options?: BaseFieldOptions
+  ) {
     const subschema = field?.schema || z.unknown()
     const defaultValue =
       typeof field?.defaultValue !== 'undefined'
         ? field.defaultValue
         : { type: 'FeatureCollection', features: [] }
-    super(defaultValue, { subschema } as SubSchemaOptions<D['schema']>)
+    super(defaultValue, { ...options, subschema } as SubSchemaOptions<D['schema']>)
   }
 }
 
@@ -1678,7 +1696,7 @@ export class MapLibreLayerField extends Field<
       code: z.string(),
       renderingMode: z.enum(['2d', '3d']).optional(),
       beforeId: z.string().optional(),
-      params: z.record(z.unknown()).optional(),
+      params: z.record(z.string(), z.unknown()).optional(),
     })
   }
 }
@@ -1726,7 +1744,7 @@ export class VisualizationField extends Field<
             code: z.string(),
             renderingMode: z.enum(['2d', '3d']).optional(),
             beforeId: z.string().optional(),
-            params: z.record(z.unknown()).optional(),
+            params: z.record(z.string(), z.unknown()).optional(),
           })
         )
         .optional(),

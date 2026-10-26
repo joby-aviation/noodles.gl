@@ -155,12 +155,7 @@
       "id": "/color-ramp.out.color->/scatterplot-layer.par.getFillColor"
     }
   ],
-  "viewport": {
-    "x": 371.10759039675463,
-    "y": 461.29570352289136,
-    "zoom": 0.5265126624852493
-  },
-  "version": 19,
+  "version": 20,
   "name": "World Flights",
   "editorSettings": {
     "layoutMode": "noodles-on-top",
@@ -425,6 +420,70 @@
         },
         "locked": false
       }
+    },
+    {
+      "id": "/data-note",
+      "type": "CommentOp",
+      "position": {
+        "x": -560,
+        "y": 60
+      },
+      "data": {
+        "inputs": {
+          "text": "This loads the flight routes from a file on the web. Click it to see the data."
+        },
+        "locked": false
+      },
+      "width": 265,
+      "height": 80
+    },
+    {
+      "id": "/transform-note",
+      "type": "CommentOp",
+      "position": {
+        "x": -26,
+        "y": -560
+      },
+      "data": {
+        "inputs": {
+          "text": "This code turns each flight into a path with a time for every point. Click it to read or change the code."
+        },
+        "locked": false
+      },
+      "width": 420,
+      "height": 80
+    },
+    {
+      "id": "/trails-note",
+      "type": "CommentOp",
+      "position": {
+        "x": 1223,
+        "y": -130
+      },
+      "data": {
+        "inputs": {
+          "text": "This layer draws the moving flight trails. Click it and change trailLength to make them longer."
+        },
+        "locked": false
+      },
+      "width": 300,
+      "height": 80
+    },
+    {
+      "id": "/try-next-note",
+      "type": "CommentOp",
+      "position": {
+        "x": 1875,
+        "y": 380
+      },
+      "data": {
+        "inputs": {
+          "text": "Try next:\n- Press the space bar to play the flights on the Timeline.\n- Click color-ramp and pick a different colorScheme.\n- Press Export and pick Video (MP4) to save the animation."
+        },
+        "locked": false
+      },
+      "width": 340,
+      "height": 170
     }
   ],
   "timeline": {

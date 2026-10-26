@@ -4,16 +4,23 @@ import { useEffect, useState } from 'react'
 import { Group, Panel, Separator, useDefaultLayout, usePanelRef } from 'react-resizable-panels'
 import { DockablePane } from './components/dockable-pane'
 import s from './layout.module.css'
+import type { MapMode } from './noodles/store'
 import { useUIStore } from './noodles/store'
+import {
+  createPanelVisibilityTracker,
+  trackMapModeChanged,
+  trackPanelToggled,
+} from './noodles/utils/editor-analytics'
 
 // Percentage-based splits (sidebar/main/properties, map/noodles) are persisted by
 // useDefaultLayout under 'react-resizable-panels:<group id>' keys. The timeline and
 // spreadsheet panels are pixel-sized instead so they keep their size when the window
 // or the surrounding panels change; their sizes are persisted under these keys.
-const TIMELINE_HEIGHT_KEY = 'noodles-timeline-height'
+const TIMELINE_HEIGHT_KEY = 'noodles-timeline-height-v2'
 const SPREADSHEET_WIDTH_KEY = 'noodles-spreadsheet-width'
 
-const TIMELINE_DEFAULT_HEIGHT = 200
+// Toolbar, ruler and two track rows
+const TIMELINE_DEFAULT_HEIGHT = 130
 const SPREADSHEET_DEFAULT_WIDTH = 400
 
 function loadPx(key: string, fallback: number): number {
@@ -28,6 +35,8 @@ function savePx(key: string, px: number | undefined) {
 // Panel state was briefly persisted under these keys by an earlier revision
 localStorage.removeItem('noodles-panel-sizes')
 localStorage.removeItem('noodles-panel-collapsed')
+// Saved on first layout at the old 200px default; dropped so the shorter default applies
+localStorage.removeItem('noodles-timeline-height')
 
 export function Layout({
   top,
@@ -53,10 +62,23 @@ export function Layout({
   const sidebarSearchFocusTrigger = useUIStore(state => state.sidebarSearchFocusTrigger)
 
   const sidebarRef = usePanelRef()
-  const timelineRef = usePanelRef()
   const spreadsheetRef = usePanelRef()
 
   const [sidebarCollapsed, setSidebarCollapsed] = useState(true)
+  // The sidebar and properties panels are shown and hidden by dragging their separators
+  // (and the sidebar by its chevron or Cmd+F), so their visibility is tracked on resize
+  const [trackSidebarVisible] = useState(() => createPanelVisibilityTracker('sidebar'))
+  const [trackPropertiesVisible] = useState(() => createPanelVisibilityTracker('properties'))
+
+  const changeMapMode = (mode: MapMode) => {
+    if (mode !== mapMode) trackMapModeChanged(mode)
+    setMapMode(mode)
+  }
+
+  const expandTimeline = () => {
+    trackPanelToggled('timeline', true)
+    setTimelineExpanded(true)
+  }
 
   // TimelinePanel needs its height as a number to size its canvases
   const [timelineHeightPx, setTimelineHeightPx] = useState(() =>
@@ -93,11 +115,7 @@ export function Layout({
     <div className={s.layout}>
       <div className={s.topBar}>{top}</div>
 
-      <Group
-        orientation="vertical"
-        className={s.rootGroup}
-        onLayoutChanged={() => savePx(TIMELINE_HEIGHT_KEY, timelineRef.current?.getSize().inPixels)}
-      >
+      <Group orientation="vertical" className={s.rootGroup}>
         <Panel id="workspace" minSize="20%">
           <Group
             orientation="horizontal"
@@ -112,7 +130,10 @@ export function Layout({
               maxSize="30%"
               collapsible
               collapsedSize={0}
-              onResize={size => setSidebarCollapsed(size.asPercentage === 0)}
+              onResize={size => {
+                setSidebarCollapsed(size.asPercentage === 0)
+                trackSidebarVisible(size.asPercentage > 0)
+              }}
               className={s.sidebarPanel}
             >
               {left}
@@ -151,7 +172,7 @@ export function Layout({
                         <button
                           type="button"
                           className={cx(s.paneActionButton, s.underlayRestoreButton)}
-                          onClick={() => setMapMode('docked')}
+                          onClick={() => changeMapMode('docked')}
                           title="Dock map back into its own panel"
                         >
                           <i className="pi pi-window-maximize" />
@@ -187,6 +208,7 @@ export function Layout({
               maxSize="30%"
               collapsible
               collapsedSize={0}
+              onResize={size => trackPropertiesVisible(size.asPercentage > 0)}
               className={s.rightPanel}
             >
               {right}
@@ -199,12 +221,16 @@ export function Layout({
             <Separator className={s.horizontalHandle} />
             <Panel
               id="timeline"
-              panelRef={timelineRef}
               defaultSize={`${loadPx(TIMELINE_HEIGHT_KEY, TIMELINE_DEFAULT_HEIGHT)}px`}
-              minSize="150px"
+              minSize="100px"
               maxSize="800px"
               groupResizeBehavior="preserve-pixel-size"
-              onResize={size => setTimelineHeightPx(size.inPixels)}
+              onResize={size => {
+                setTimelineHeightPx(size.inPixels)
+                // Saved here, not in the group's onLayoutChanged, which reports the
+                // min size while the panel mounts and would shrink it on the next load
+                savePx(TIMELINE_HEIGHT_KEY, size.inPixels)
+              }}
               className={s.timelinePanel}
             >
               {timeline(timelineHeightPx)}
@@ -228,7 +254,7 @@ export function Layout({
         <button
           type="button"
           className={s.timelineCollapseTab}
-          onClick={() => setTimelineExpanded(true)}
+          onClick={expandTimeline}
           title="Expand Timeline (click to open)"
         >
           <ChevronUpIcon />
@@ -241,13 +267,13 @@ export function Layout({
         storageKey="noodles-floating-map"
         mode={mapMode}
         dockTo={mapMode === 'underlay' ? mapUnderlayAnchor : mapDockAnchor}
-        onDock={() => setMapMode('docked')}
+        onDock={() => changeMapMode('docked')}
         dockedActions={
           <>
             <button
               type="button"
               className={s.paneActionButton}
-              onClick={() => setMapMode('underlay')}
+              onClick={() => changeMapMode('underlay')}
               title="Show map behind the node graph"
             >
               <i className="pi pi-clone" />
@@ -255,7 +281,7 @@ export function Layout({
             <button
               type="button"
               className={s.paneActionButton}
-              onClick={() => setMapMode('floating')}
+              onClick={() => changeMapMode('floating')}
               title="Pop out map into a floating window"
             >
               <i className="pi pi-external-link" />

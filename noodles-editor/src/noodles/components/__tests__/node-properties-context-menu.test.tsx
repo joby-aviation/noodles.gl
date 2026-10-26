@@ -50,8 +50,16 @@ const renderNodeProperties = (nodeId: string) => {
   )
 }
 
+// Rows show friendly labels; `data-field-key` holds the field key. The field component's
+// own (hidden) <label> carries it too, so pick the panel's span
+const getRowLabel = (fieldName: string) => {
+  const label = document.querySelector<HTMLElement>(`span[data-field-key="${fieldName}"]`)
+  expect(label).toBeInTheDocument()
+  return label!
+}
+
 const openContextMenuOnField = (fieldName: string) => {
-  const label = screen.getByText(fieldName, { selector: 'span' })
+  const label = getRowLabel(fieldName)
   const listItem = label.closest('[role="listitem"]')
   expect(listItem).toBeInTheDocument()
   fireEvent.contextMenu(listItem!)
@@ -59,6 +67,11 @@ const openContextMenuOnField = (fieldName: string) => {
 
 // The property row also renders a "Hide field"/"Show field" icon button, so
 // context menu items must be queried within the menu itself to avoid ambiguity.
+// Fields hidden by default are collapsed under "More settings"
+const showMoreSettings = () => {
+  fireEvent.click(screen.getByRole('button', { name: /More settings/ }))
+}
+
 const getContextMenu = () => {
   const menu = document.querySelector('.contextMenu')
   expect(menu).toBeInTheDocument()
@@ -230,6 +243,7 @@ describe('Context menu Hide/Show field', () => {
     })
     renderNodeProperties('/deck')
     // 'effects' is hidden by default on DeckRendererOp
+    showMoreSettings()
     openContextMenuOnField('effects')
 
     expect(within(getContextMenu()).getByRole('button', { name: 'Show field' })).toBeInTheDocument()
@@ -269,6 +283,7 @@ describe('Context menu Hide/Show field', () => {
     const op = getOp('/deck')!
     expect(op.isFieldVisible('effects')).toBe(false)
 
+    showMoreSettings()
     openContextMenuOnField('effects')
     fireEvent.click(within(getContextMenu()).getByRole('button', { name: 'Show field' }))
 
@@ -318,7 +333,7 @@ describe('Context menu on output fields', () => {
     renderNodeProperties('/num')
 
     // Right-click on the output field "val"
-    const label = screen.getAllByText('val').find(el => {
+    const label = Array.from(document.querySelectorAll('[data-field-key="val"]')).find(el => {
       const listItem = el.closest('[role="listitem"]')
       return listItem?.querySelector('[class*="outputRow"]')
     })
@@ -422,7 +437,7 @@ describe('Context menu expression actions', () => {
     })
     renderNodeProperties('/num')
     // NumberOp has both an input and an output named 'val'; inputs render first
-    const label = screen.getAllByText('val', { selector: 'span' })[0]
+    const label = getRowLabel('val')
     fireEvent.contextMenu(label.closest('[role="listitem"]')!)
 
     const item = screen.getByText('Edit expression')
@@ -441,7 +456,7 @@ describe('Context menu expression actions', () => {
     field.setExpression('40 + 2')
     renderNodeProperties('/num')
     // NumberOp has both an input and an output named 'val'; inputs render first
-    const label = screen.getAllByText('val', { selector: 'span' })[0]
+    const label = getRowLabel('val')
     fireEvent.contextMenu(label.closest('[role="listitem"]')!)
 
     fireEvent.click(screen.getByText('Remove expression'))
@@ -470,7 +485,7 @@ describe('Context menu expression actions', () => {
     mockEdges = edges
     renderNodeProperties('/num')
     // NumberOp has both an input and an output named 'val'; inputs render first
-    const label = screen.getAllByText('val', { selector: 'span' })[0]
+    const label = getRowLabel('val')
     fireEvent.contextMenu(label.closest('[role="listitem"]')!)
 
     expect(screen.getByText('Edit expression')).toBeDisabled()
