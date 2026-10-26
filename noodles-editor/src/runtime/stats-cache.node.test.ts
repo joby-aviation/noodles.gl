@@ -52,6 +52,27 @@ describe('stats cache', () => {
     expect(third.stats).toEqual({ dots_v_min: 7 })
   })
 
+  it('publishes a shared result under each stats node’s own names', async () => {
+    const sql = countingSql()
+    const cache: StatsCache = new Map()
+    const engine = sql as unknown as Parameters<typeof queryLayer>[0]
+    // Two layers whose stats run the same query over the same rows
+    const other = {
+      ...layer,
+      id: 'rings',
+      plan: {
+        ...layer.plan,
+        stats: [
+          { sql: 'STATS', params: ['cut'], outputs: [{ column: 'lo', param: 'rings_v_min' }] },
+        ],
+      },
+    } as unknown as Parameters<typeof queryLayer>[1]
+    await queryLayer(engine, layer, { cut: 3, size: 1 }, cache)
+    const second = await queryLayer(engine, other, { cut: 3, size: 1 }, cache)
+    expect(sql.runs.filter(r => r === 'STATS')).toHaveLength(1)
+    expect(second.stats).toEqual({ rings_v_min: 3 })
+  })
+
   it('runs the stats every time without a cache', async () => {
     const sql = countingSql()
     const engine = sql as unknown as Parameters<typeof queryLayer>[0]

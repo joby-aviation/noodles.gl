@@ -60,12 +60,13 @@ export interface LayerData {
 }
 
 /**
- * Stats results by their query and the values it binds. A layer's stats (the extent of
- * colmin/colmax) read only its input rows, so a requery that leaves those alone, such as a
- * value only the layer's own query reads, reuses them. The runtime clears it when relations
- * are rebuilt.
+ * Stats results by their query and the values it binds: the query's result columns, which
+ * each stats node then publishes under its own parameter names, since two nodes can run the
+ * same query. A layer's stats (the extent of colmin/colmax) read only its input rows, so a
+ * requery that leaves those alone, such as a value only the layer's own query reads, reuses
+ * them. The runtime clears it when relations are rebuilt.
  */
-export type StatsCache = Map<string, Record<string, number>>
+export type StatsCache = Map<string, Record<string, unknown>>
 
 export async function queryLayer(
   sql: SqlEngine,
@@ -81,21 +82,16 @@ export async function queryLayer(
   for (const s of plan.stats) {
     const bound = s.params.map(p => bindValue(all, p))
     const key = JSON.stringify([s.sql, bound])
-    let published = statsCache?.get(key)
-    if (!published) {
+    let row = statsCache?.get(key)
+    if (!row) {
       const { table } = await sql.run(s.sql, bound)
-      const row = table.get(0) as Record<string, unknown> | null
-      const computed: Record<string, number> = {}
-      for (const o of s.outputs) {
-        const v = Number(row?.[o.column])
-        computed[o.param] = Number.isFinite(v) ? v : 0
-      }
-      published = computed
-      statsCache?.set(key, computed)
+      row = { ...((table.get(0) as Record<string, unknown> | null) ?? {}) }
+      statsCache?.set(key, row)
     }
-    for (const [param, v] of Object.entries(published)) {
-      stats[param] = v
-      all[param] = v
+    for (const o of s.outputs) {
+      const v = Number(row[o.column])
+      stats[o.param] = Number.isFinite(v) ? v : 0
+      all[o.param] = stats[o.param]
     }
   }
   const { table } = await sql.run(

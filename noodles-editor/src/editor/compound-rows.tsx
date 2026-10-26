@@ -112,16 +112,12 @@ export function ColorGroupRows({
     )
   }
 
-  // Only names an expression can use as written
-  const numeric = columns.filter(c => c.type === 'num' && addressable(c.name)).map(c => c.name)
-  // The program lists a vector attribute (a position, an RGB color) as a number too, so a ramp
-  // starts on a numeric column none of the layer's channels already reads
-  const channelValues = new Set(
-    (op?.params ?? [])
-      .map(p => node.params[p.name])
-      .filter((v): v is string => typeof v === 'string')
-  )
-  const firstScalar = numeric.find(c => !channelValues.has(c)) ?? numeric[0]
+  // One number per row, under a name an expression can use as written: the program lists a
+  // position or an RGB color as FLOAT[w], which a ramp cannot read
+  const numeric = columns
+    .filter(c => c.type === 'num' && !/\[\d+\]$/.test(c.duckType) && addressable(c.name))
+    .map(c => c.name)
+  const firstScalar = numeric[0]
   const choose = (next: ColorMode) => {
     if (next === mode) return
     analytics.track('color_mode_changed', { mode: next, operatorType: node.op })
