@@ -465,7 +465,12 @@ describe('table data clipboard', () => {
           [1, 2],
           { datetime: 'not scheduled', timezone: 'UTC' },
         ],
-        ['9007199254740994', { name: 'Bob' }, 'not a vector', 'unknown'],
+        [
+          '9007199254740994',
+          { name: 'Bob' },
+          'not a vector',
+          { datetime: 'later', timezone: 'Invalid/Zone' },
+        ],
       ],
       { firstRowContainsHeaders: true }
     )
@@ -487,7 +492,7 @@ describe('table data clipboard', () => {
         identifier: '9007199254740994',
         metadata: '{"name":"Bob"}',
         mixed: 'not a vector',
-        'invalid datetime': 'unknown',
+        'invalid datetime': '{"datetime":"later","timezone":"Invalid/Zone"}',
       },
     ])
   })
