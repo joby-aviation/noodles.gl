@@ -183,6 +183,20 @@ describe('colorscale', () => {
     expect(expr('c2')).toMatch(/^ramp\(.*, 1\)$/);
   });
 
+  it('names the wrangle ramp inside a function its body declares', () => {
+    const { ramps, nodes } = desugar(g([
+      source,
+      { id: 'c1', type: 'colorscale', input: 'src', name: 'Cd', expr: 'v', ramp: 'viridis', domain: ['0', '1'] },
+      { id: 'w', type: 'wrangle', input: 'c1', body: 'fn shade(x) = ramp(x); @Cd2 = shade(v)', ramp: 'turbo' },
+      render('w'),
+    ]));
+    expect(ramps).toEqual(['viridis', 'turbo']);
+    // shade(v) is inlined to ramp(v), which then names turbo, the wrangle's ramp
+    const w = nodes.find((n) => n.id === 'w#Cd2') as { expr: { kind: string; fn?: string; args: { kind: string; value?: number }[] } };
+    expect(w.expr).toMatchObject({ kind: 'call', fn: 'ramp' });
+    expect(w.expr.args[1]).toEqual({ kind: 'num', value: 1 });
+  });
+
   it('names the wrangle ramp in each ramp() call of its body', () => {
     const { ramps, nodes } = desugar(g([
       source,

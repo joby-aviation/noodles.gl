@@ -9,13 +9,13 @@
  */
 
 import { registerUdfs, type UdfSpec } from './udfs.js';
-import { type Expr, walk } from './expr.js';
+import type { Expr } from './expr.js';
 import { parseWrangle, expandWrangle } from './wrangle.js';
 import { type AttributeConventions, HOUDINI_CONVENTIONS } from './conventions.js';
 import type { LayerKind, LayerPropValue } from './layers.js';
 import {
   type FunctionDef, type FunctionRegistry, type FunctionSpec,
-  addFunction, buildRegistry,
+  addFunction, buildRegistry, inlineFunctions,
 } from './functions.js';
 import { GEO_PRELUDE } from './geo.js';
 
@@ -709,7 +709,9 @@ export function desugar(
             // chain off their predecessor so ordering within the body is preserved.
             inputs: input === (node.inputs?.[0] ?? node.input) ? node.inputs : undefined,
             name: s.name,
-            expr: k === undefined ? s.expr : withRampIndex(s.expr, k),
+            // Functions are inlined first, so a ramp() inside one (`fn shade(x) = ramp(x)`)
+            // samples this wrangle's ramp too, not the graph's first
+            expr: k === undefined ? s.expr : withRampIndex(inlineFunctions(s.expr, functions), k),
             source: `line ${s.line}`,
           });
           input = `${node.id}#${s.name}`;
@@ -755,13 +757,24 @@ export function desugar(
 
 /**
  * `expr` with each one-argument `ramp(t)` call made `ramp(t, k)`, so it samples ramp k of the
- * graph's ramps. A call that already names its ramp is left alone.
+ * graph's ramps. A call that already names its ramp is left alone. A new tree: inlined
+ * function bodies can share nodes with the registry, which other wrangles inline too.
  */
-function withRampIndex(expr: Expr, k: number): Expr {
-  walk(expr, (n) => {
-    if (n.kind === 'call' && n.fn === 'ramp' && n.args.length === 1) n.args.push({ kind: 'num', value: k });
-  });
-  return expr;
+function withRampIndex(e: Expr, k: number): Expr {
+  const go = (n: Expr) => withRampIndex(n, k);
+  switch (e.kind) {
+    case 'unary': return { ...e, operand: go(e.operand) };
+    case 'binary': return { ...e, left: go(e.left), right: go(e.right) };
+    case 'vec': return { ...e, components: e.components.map(go) };
+    case 'swizzle': return { ...e, target: go(e.target) };
+    case 'cond': return { ...e, test: go(e.test), then: go(e.then), else: go(e.else) };
+    case 'call': {
+      const args = e.args.map(go);
+      if (e.fn === 'ramp' && args.length === 1) args.push({ kind: 'num', value: k });
+      return { ...e, args };
+    }
+    default: return e;
+  }
 }
 
 /** Entries per ramp in a LUT, and so the stride between ramps in `buildRampLuts`. */
