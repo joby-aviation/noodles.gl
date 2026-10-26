@@ -4,7 +4,7 @@
 // expression. They stay separate parameters because the planner routes them differently: units
 // are a deck prop, a channel is per-row data. Nothing here changes the document format.
 
-import type { OpDef, ParamDef } from '@noodles.gl/planner'
+import type { OpDef, ParamDef, ParamValue } from '@noodles.gl/planner'
 
 export interface UnitsPair {
   // The number the units apply to
@@ -46,7 +46,8 @@ export function compoundsOf(op: Pick<OpDef, 'params'>): Compounds {
   const taken = new Set<string>()
   const ramp = op.params.find(p => p.name === 'ramp' && p.kind === 'menu')
   for (const p of op.params) {
-    if (!isChannel(p) || !/color/i.test(p.name)) continue
+    // `color`, `sourceColor`, `lineColorChannel`; not `colorWeight`, which is a number
+    if (!isChannel(p) || !/color(Channel)?$/i.test(p.name)) continue
     // The help names what an empty channel uses ("Empty uses the constant Outline color.");
     // without one, the layer's first Style color nobody else claimed
     const named = /Empty uses (?:the constant )?([^.]+)\./.exec(p.help ?? '')?.[1]?.toLowerCase()
@@ -62,6 +63,42 @@ export function compoundsOf(op: Pick<OpDef, 'params'>): Compounds {
     ...colors.flatMap(c => [c.solid, c.ramp].filter((n): n is string => n !== undefined)),
   ])
   return { units, colors, absorbed }
+}
+
+// A name an expression can use as written. A column like `total-cost` would read as
+// subtraction, so pickers that write expressions offer only these.
+export const addressable = (name: string) => /^[A-Za-z_][A-Za-z0-9_]*$/.test(name)
+
+const callsRamp = (v: ParamValue | undefined) => typeof v === 'string' && /\bramp\(/.test(v)
+
+// `compoundsOf` for one node's values. A units parameter that holds a reference or an expression
+// keeps its own row, which shows the link and can break it. The ramp is drawn in the color
+// control only while that control's Ramp mode is its sole user: any other channel calling
+// ramp(), or a custom color expression, keeps it on its own row.
+export function compoundsFor(
+  op: Pick<OpDef, 'params'>,
+  params: Record<string, ParamValue>
+): Compounds & { rampIn?: string } {
+  const all = compoundsOf(op)
+  const units = all.units.filter(u => {
+    const v = params[u.units]
+    return v === undefined || typeof v !== 'object'
+  })
+  const rampGroups = all.colors.filter(c => {
+    const v = params[c.channel]
+    return typeof v === 'string' && colorValue(v).mode === 'ramp'
+  })
+  const ramp = all.colors.find(c => c.ramp)?.ramp
+  const users = op.params.filter(p => isChannel(p) && callsRamp(params[p.name]))
+  const others = users.filter(p => !rampGroups.some(g => g.channel === p.name))
+  const rampIn = ramp && rampGroups[0] && others.length === 0 ? rampGroups[0].channel : undefined
+  const absorbed = new Set<string>([
+    ...units.map(u => u.units),
+    ...all.colors.map(c => c.solid).filter((n): n is string => n !== undefined),
+  ])
+  // Shown in the Ramp control, or read by nothing: either way not a row of its own
+  if (ramp && (rampIn || users.length === 0)) absorbed.add(ramp)
+  return { units, colors: all.colors, absorbed, rampIn }
 }
 
 export type ColorMode = 'solid' | 'attribute' | 'ramp' | 'expression'

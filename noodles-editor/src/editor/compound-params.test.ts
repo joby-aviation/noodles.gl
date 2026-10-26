@@ -1,6 +1,12 @@
 import { OPERATOR_INDEX } from '@noodles.gl/planner'
 import { describe, expect, it } from 'vitest'
-import { colorValue, compoundsOf, rampExpression } from './compound-params'
+import {
+  addressable,
+  colorValue,
+  compoundsFor,
+  compoundsOf,
+  rampExpression,
+} from './compound-params'
 
 const op = (type: string) => {
   const def = OPERATOR_INDEX.get(type)
@@ -61,5 +67,51 @@ describe('colorValue', () => {
     })
     expect(colorValue('ramp(fit(sqrt(mag), 0, 3, 0, 1))')).toEqual({ mode: 'expression' })
     expect(colorValue('[1, 0, 0]')).toEqual({ mode: 'expression' })
+  })
+})
+
+describe('compoundsFor', () => {
+  it('leaves a numeric weight channel out of the color controls', () => {
+    expect(compoundsOf(op('hexagon')).colors.map(c => c.channel)).not.toContain('colorWeight')
+    expect(compoundsOf(op('grid-layer')).colors.map(c => c.channel)).not.toContain('colorWeight')
+  })
+
+  it('keeps referenced or expression-driven units on their own row', () => {
+    const linked = compoundsFor(op('scatter'), { radiusUnits: { ref: 'other/radiusUnits' } })
+    expect(linked.units).toEqual([])
+    expect(linked.absorbed.has('radiusUnits')).toBe(false)
+    expect(compoundsFor(op('scatter'), { radiusUnits: 'meters' }).absorbed.has('radiusUnits')).toBe(
+      true
+    )
+  })
+
+  it('draws the ramp in the color control only while its Ramp mode is the only user', () => {
+    const inRamp = compoundsFor(op('scatter'), { color: rampExpression('mag', 0, 7) })
+    expect(inRamp.rampIn).toBe('color')
+    expect(inRamp.absorbed.has('ramp')).toBe(true)
+
+    // Another channel reads the ramp too: it keeps its own row
+    const shared = compoundsFor(op('scatter'), {
+      color: rampExpression('mag', 0, 7),
+      radius: 'ramp(mag)[0]',
+    })
+    expect(shared.rampIn).toBeUndefined()
+    expect(shared.absorbed.has('ramp')).toBe(false)
+
+    // A custom color expression calling ramp() keeps it on its own row as well
+    const custom = compoundsFor(op('scatter'), { color: 'ramp(fit(sqrt(mag), 0, 3, 0, 1))' })
+    expect(custom.absorbed.has('ramp')).toBe(false)
+
+    // Nothing reads the ramp: no row for it
+    expect(compoundsFor(op('scatter'), {}).absorbed.has('ramp')).toBe(true)
+  })
+})
+
+describe('addressable', () => {
+  it('accepts names an expression can use as written', () => {
+    expect(addressable('Magnitude')).toBe(true)
+    expect(addressable('total_cost')).toBe(true)
+    expect(addressable('total-cost')).toBe(false)
+    expect(addressable('2021 sales')).toBe(false)
   })
 })

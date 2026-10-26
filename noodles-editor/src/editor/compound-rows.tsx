@@ -13,7 +13,13 @@ import cx from 'classnames'
 import { useEffect, useState } from 'react'
 import { analytics } from '../utils/analytics'
 import { ChannelInput } from './channel-input'
-import { type ColorGroup, type ColorMode, colorValue, rampExpression } from './compound-params'
+import {
+  addressable,
+  type ColorGroup,
+  type ColorMode,
+  colorValue,
+  rampExpression,
+} from './compound-params'
 import s from './doc-editor.module.css'
 import { useEngineState } from './doc-engine'
 import { setParam } from './doc-ops'
@@ -35,11 +41,15 @@ const set = (node: DocNode, name: string, value: string | undefined) =>
 // channels call ramp()
 function rampInUse(doc: EditorDoc, except: string): string | undefined {
   for (const n of doc.nodes) {
-    if (n.id === except || typeof n.params.ramp !== 'string') continue
+    if (n.id === except) continue
+    // A node that leaves its ramp at the default still uses the default
+    const rampDef = OPERATOR_INDEX.get(n.op)?.params.find(p => p.name === 'ramp')
+    const ramp = n.params.ramp ?? rampDef?.default
+    if (typeof ramp !== 'string') continue
     const callsRamp = Object.values(n.params).some(
       v => typeof v === 'string' && v.includes('ramp(')
     )
-    if (n.op === 'color-ramp' || callsRamp) return n.params.ramp
+    if (n.op === 'color-ramp' || callsRamp) return ramp
   }
   return undefined
 }
@@ -57,12 +67,15 @@ export function ColorGroupRows({
   group,
   fields,
   wired,
+  showRamp,
 }: {
   node: DocNode
   doc: EditorDoc
   group: ColorGroup
   fields: NodeFields
   wired: Set<string>
+  // The ramp menu belongs to this control (compoundsFor's `rampIn`)
+  showRamp: boolean
 }) {
   const op = OPERATOR_INDEX.get(node.op)
   const def = op?.params.find(p => p.name === group.channel)
@@ -70,12 +83,18 @@ export function ColorGroupRows({
   const raw = node.params[group.channel]
   const text = typeof raw === 'string' ? raw : ''
   const value = colorValue(text)
-  // An empty channel reads as Solid, so a mode just chosen and not yet filled in is kept here
-  const [pending, setPending] = useState<ColorMode>()
+  // The mode last chosen, with the text it left in the channel. It holds while the channel still
+  // says that, so ƒ opens on an attribute and Attr on an empty channel; an edit elsewhere (an
+  // undo, the assistant) changes the text, and the mode reads from the channel again.
+  const [chosen, setChosen] = useState<{ mode: ColorMode; text: string }>()
   if (!def) return null
   // A channel driven by a parameter expression, a reference or a wire: its own row says so
   if (raw !== undefined && typeof raw !== 'string') return paramRow(def)
-  const mode = text === '' && pending ? pending : value.mode
+  const mode = chosen && chosen.text === text ? chosen.mode : value.mode
+  const write = (next: ColorMode, t: string | undefined) => {
+    setChosen({ mode: next, text: t ?? '' })
+    set(node, group.channel, t)
+  }
 
   function paramRow(d: ParamDef | undefined, label?: string) {
     const b = d && fields.bindings.get(d.name)
@@ -92,7 +111,8 @@ export function ColorGroupRows({
     )
   }
 
-  const numeric = columns.filter(c => c.type === 'num').map(c => c.name)
+  // Only names an expression can use as written
+  const numeric = columns.filter(c => c.type === 'num' && addressable(c.name)).map(c => c.name)
   // The program lists a vector attribute (a position, an RGB color) as a number too, so a ramp
   // starts on a numeric column none of the layer's channels already reads
   const channelValues = new Set(
@@ -104,20 +124,21 @@ export function ColorGroupRows({
   const choose = (next: ColorMode) => {
     if (next === mode) return
     analytics.track('color_mode_changed', { mode: next, operatorType: node.op })
-    setPending(next)
-    if (next === 'solid') return set(node, group.channel, undefined)
+    if (next === 'solid') return write(next, undefined)
     if (next === 'ramp') {
       const column = value.mode === 'ramp' ? value.column : firstScalar
+      const expression = column ? rampExpression(column, 0, 1) : undefined
       // The engine binds one color ramp per graph, so start on the one the graph already uses
       const used = group.ramp && rampInUse(doc, node.id)
+      setChosen({ mode: next, text: expression ?? '' })
       return docStore().edit(d => {
-        setParam(d, node.id, group.channel, column ? rampExpression(column, 0, 1) : undefined)
+        setParam(d, node.id, group.channel, expression)
         if (group.ramp && used) setParam(d, node.id, group.ramp, used)
       }, `p:${node.id}.${group.channel}`)
     }
-    // Attribute and Expression start from what the channel holds, if it suits them
-    if (next === 'attribute') return set(node, group.channel, value.column)
-    if (value.mode === 'solid') return set(node, group.channel, undefined)
+    // Attribute starts from the column the channel reads; Expression keeps what it holds
+    if (next === 'attribute') return write(next, value.column)
+    setChosen({ mode: next, text })
   }
 
   return (
@@ -146,21 +167,20 @@ export function ColorGroupRows({
             label="Attribute"
             def={def}
             value={text}
-            suggestions={columns.map(c => c.name)}
+            suggestions={columns.map(c => c.name).filter(addressable)}
             placeholder="an RGB attribute, such as magnitude_color"
-            onCommit={t => set(node, group.channel, t || undefined)}
+            onCommit={t => write('attribute', t || undefined)}
           />
         )}
         {mode === 'ramp' && (
           <RampControls
             columns={numeric}
             value={value}
-            onChange={(column, min, max) =>
-              set(node, group.channel, rampExpression(column, min, max))
-            }
+            onChange={(column, min, max) => write('ramp', rampExpression(column, min, max))}
           />
         )}
         {mode === 'ramp' &&
+          showRamp &&
           paramRow(
             op?.params.find(p => p.name === group.ramp),
             'Ramp'
@@ -171,7 +191,7 @@ export function ColorGroupRows({
             def={def}
             value={text}
             placeholder="ramp(fit(mag, 0, 7, 0, 1))"
-            onCommit={t => set(node, group.channel, t || undefined)}
+            onCommit={t => write('expression', t || undefined)}
           />
         )}
       </div>
@@ -180,6 +200,12 @@ export function ColorGroupRows({
       )}
     </div>
   )
+}
+
+// A typed number, or `fallback` when it isn't one; 0 is a number
+const finite = (text: string, fallback: number) => {
+  const n = Number(text)
+  return text.trim() !== '' && Number.isFinite(n) ? n : fallback
 }
 
 function RampControls({
@@ -210,7 +236,7 @@ function RampControls({
           value={column}
           onChange={e => {
             // Columns arrive once the engine has compiled; never write a ramp over none
-            if (e.target.value) onChange(e.target.value, Number(min) || 0, Number(max) || 1)
+            if (e.target.value) onChange(e.target.value, finite(min, 0), finite(max, 1))
           }}
         >
           {options.map(c => (
@@ -253,7 +279,9 @@ function RampControls({
 
 // A value's units, as a small menu on the value's own row
 export function UnitsSelect({ node, def }: { node: DocNode; def: ParamDef }) {
-  const value = String(node.params[def.name] ?? def.default)
+  // compoundsFor leaves a referenced or expression-driven units on its own row
+  const raw = node.params[def.name]
+  const value = String(typeof raw === 'string' ? raw : def.default)
   return (
     <select
       className={s.unitsSelect}

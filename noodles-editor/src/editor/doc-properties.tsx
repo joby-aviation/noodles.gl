@@ -13,7 +13,7 @@ import {
 } from '@noodles.gl/planner'
 import cx from 'classnames'
 import { useEffect, useRef, useState } from 'react'
-import { compoundsOf } from './compound-params'
+import { compoundsFor } from './compound-params'
 import { ColorGroupRows, UnitsSelect } from './compound-rows'
 import s from './doc-editor.module.css'
 import { type EngineState, useEngineState } from './doc-engine'
@@ -95,7 +95,7 @@ function NodeParams({ node, doc, multi }: { node: DocNode; doc: EditorDoc; multi
   const replaced = PANE_EDITORS[node.op]?.replaces ?? []
   const visible = op.params.filter(p => shown(p, node, op) && !replaced.includes(p.name))
   // Units, solid colors and the ramp are drawn inside the control they belong to
-  const compounds = compoundsOf(op)
+  const compounds = compoundsFor(op, node.params)
   const folders = [
     ...new Set(
       visible.filter(p => !compounds.absorbed.has(p.name)).map(p => p.folder ?? 'Parameters')
@@ -226,6 +226,7 @@ function NodeParams({ node, doc, multi }: { node: DocNode; doc: EditorDoc; multi
                             group={color}
                             fields={fields}
                             wired={wired}
+                            showRamp={compounds.rampIn === color.channel}
                           />
                         )
                       const b = fields.bindings.get(def.name)
