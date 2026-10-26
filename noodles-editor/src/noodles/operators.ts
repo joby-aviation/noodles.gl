@@ -83,7 +83,7 @@ import {
   subscribeToRenderSurfaceSize,
   toRenderSurfacePoint,
 } from '../render/render-surface-size'
-import { subscribeToPosition } from '../timeline/timeline-store'
+import { getTimelineStore, subscribeToPosition } from '../timeline/timeline-store'
 import * as utils from '../utils'
 import { analytics } from '../utils/analytics'
 import { getArc } from '../utils/arc-geometry'
@@ -2364,8 +2364,8 @@ export class TimeOp extends Operator<TimeOp> {
   static description = 'Get the current clock, timeline, and session time'
 
   private timeState$ = new BehaviorSubject({ now: Date.now(), tick: 0, sequenceTime: 0 })
-  private rafId?: number
   private positionUnsub?: () => void
+  private disposed = false
 
   constructor(id: OpId, inputs?: unknown, locked?: boolean) {
     super(id, inputs, locked)
@@ -2402,34 +2402,29 @@ export class TimeOp extends Operator<TimeOp> {
       this.markDirty()
     })
     this.subs.push(sub)
+  }
 
+  // Called by the GraphExecutor loop once per tick. Instances outside the executor (e.g.
+  // ones created to read operator metadata) never tick, so they hold no loop or listener.
+  advanceClock(now: number) {
+    if (this.disposed) return
+    const current = this.timeState$.value
+    const sequenceTime = this.positionUnsub ? current.sequenceTime : this.followTimeline()
+    this.timeState$.next({ now, tick: current.tick + 1, sequenceTime })
+  }
+
+  // Subscribes on the first tick and returns the current position
+  private followTimeline(): number {
     this.positionUnsub = subscribeToPosition((pos: number) => {
       const current = this.timeState$.value
       this.timeState$.next({ ...current, sequenceTime: pos })
     })
-
-    // Start RAF loop after outputs are fully initialized
-    this.startRAF()
-  }
-
-  private startRAF() {
-    const update = () => {
-      const current = this.timeState$.value
-      this.timeState$.next({
-        ...current,
-        now: Date.now(),
-        tick: current.tick + 1,
-      })
-      this.rafId = requestAnimationFrame(update)
-    }
-    update()
+    return getTimelineStore().position
   }
 
   dispose() {
-    if (this.rafId !== undefined) {
-      cancelAnimationFrame(this.rafId)
-    }
     this.positionUnsub?.()
+    this.disposed = true
     this.timeState$.complete()
     super.dispose()
   }

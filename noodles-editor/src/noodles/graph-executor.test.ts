@@ -12,6 +12,7 @@ import {
   NumberOp,
   Operator,
   PullExecutionStatus,
+  TimeOp,
 } from './operators'
 import { clearOps, setOp } from './store'
 import type { ExtractProps } from './utils/extract-props'
@@ -3036,5 +3037,30 @@ describe('GraphExecutor - ForLoopMetaOp accumulator and iteration metadata', () 
 
     expect(lastIsFirst).toBe(true)
     expect(lastIsLast).toBe(true)
+  })
+})
+
+describe('GraphExecutor clock', () => {
+  it('advances TimeOps every loop tick, even while a frame is still pulling', () => {
+    const executor = new GraphExecutor({ targetFPS: 60 })
+    const clock = new TimeOp('/clock')
+    const outside = new TimeOp('/outside')
+    executor.addNode(clock)
+    // A frame that never settles, like one blocked on a slow network operator
+    const executeFrame = vi.spyOn(executor, 'executeFrame').mockReturnValue(new Promise(() => {}))
+    const loop = (executor as unknown as { loop: (time: number) => void }).loop
+
+    loop(1000)
+    loop(1100)
+    loop(1200)
+
+    expect(executeFrame).toHaveBeenCalledOnce()
+    expect(clock.outputs.tick.value).toBe(3)
+    expect(clock.outputs.now.value).toBe(Date.now())
+    // Instances the executor doesn't own never tick
+    expect(outside.outputs.tick.value).toBe(0)
+
+    clock.dispose()
+    outside.dispose()
   })
 })
