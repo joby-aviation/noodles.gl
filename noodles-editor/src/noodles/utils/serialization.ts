@@ -27,6 +27,11 @@ export type EditorSettings = {
   startNode?: string
 }
 
+export type ProjectMigrationDiagnostic = {
+  type: 'migration'
+  message: string
+}
+
 export type { RenderSettings } from './render-settings-constants'
 export { DEFAULT_RENDER_SETTINGS } from './render-settings-constants'
 
@@ -46,6 +51,8 @@ export type NoodlesProjectJSON = Omit<ReactFlowJsonObject, 'viewport'> & {
     // Older files may carry AI keys. They are dropped on load and never written.
     anthropic?: string
   }
+  /** Transient load warnings. safeStringify deliberately omits these from project JSON. */
+  migrationDiagnostics?: ProjectMigrationDiagnostic[]
 }
 export type CopiedNodesJSON = Omit<ReactFlowJsonObject, 'viewport'>
 
@@ -60,9 +67,10 @@ export const EMPTY_PROJECT: NoodlesProjectJSON = {
 // Replace functions and circular references while preserving repeated references.
 // A connected field can share the exact same object value with its source. Once the
 // field is disconnected, that value becomes local state and must serialize in full.
-function getJsonSanitizer() {
+function getJsonSanitizer(root: unknown) {
   const ancestors: unknown[] = []
-  return function (this: unknown, _key: string, value: unknown) {
+  return function (this: unknown, key: string, value: unknown) {
+    if (this === root && key === 'migrationDiagnostics') return undefined
     if (typeof value === 'function') {
       return undefined
     }
@@ -84,7 +92,7 @@ function getJsonSanitizer() {
 }
 
 export function safeStringify(obj: Record<string, unknown>) {
-  return `${JSON.stringify(obj, getJsonSanitizer(), 2)}\n`
+  return `${JSON.stringify(obj, getJsonSanitizer(obj), 2)}\n`
 }
 
 // Pre-load all example asset URLs for download functionality

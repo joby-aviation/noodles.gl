@@ -1,4 +1,4 @@
-// noodles.json (schema 20) -> the planner's EditorDoc.
+// noodles.json (schema 21) -> the planner's EditorDoc.
 //
 // Noodles graphs pass JS rows between operators, and a layer's per-row values arrive as accessor
 // functions built by AccessorOp, MapRange, ColorRamp and Math. The planner passes tables, and a
@@ -71,9 +71,9 @@ export class MigrationError extends Error {}
 
 // ---------------------------------------------------------------------------
 /** The operator-graph schema this conversion reads: the latest migration's. */
-export const CONVERTED_SCHEMA = 20
+export const CONVERTED_SCHEMA = 21
 
-// Noodles defaults (schema 20), for the inputs this conversion reads
+// Noodles defaults (schema 21), for the inputs this conversion reads
 // ---------------------------------------------------------------------------
 
 export const DEFAULTS: Record<string, Record<string, unknown>> = {

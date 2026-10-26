@@ -1,5 +1,5 @@
 // Any project file as an editor document. Documents are saved as `EditorDoc` JSON; older
-// projects are operator graphs (noodles.json schema 1–20), migrated to the latest schema and converted.
+// projects are operator graphs (noodles.json schema 1–21), migrated to the latest schema and converted.
 
 import type { EditorDoc } from '@noodles.gl/planner'
 import { migrateProject } from '../noodles/utils/migrate-schema'
@@ -34,5 +34,7 @@ export async function loadDoc(json: unknown, name?: string): Promise<LoadedDoc> 
     ...project,
     name: name ?? project.name,
   } as NoodlesProject)
-  return { doc, warnings }
+  // What the migrations themselves reported, such as a TableEditor schema they could not keep
+  const migrated = (project.migrationDiagnostics ?? []).map(d => d.message)
+  return { doc, warnings: [...migrated, ...warnings] }
 }

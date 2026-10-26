@@ -8,6 +8,19 @@ import {
 } from './serialization'
 
 describe('safeStringify', () => {
+  it('does not persist transient migration diagnostics', () => {
+    const serialized = safeStringify({
+      version: 18,
+      migrationDiagnostics: [{ type: 'migration', message: 'Removed a legacy edge' }],
+      data: { migrationDiagnostics: 'user column value' },
+    })
+
+    expect(JSON.parse(serialized)).toEqual({
+      version: 18,
+      data: { migrationDiagnostics: 'user column value' },
+    })
+  })
+
   it('serializes a basic object correctly', () => {
     const obj = { a: 1, b: 'text', c: true }
     const result = safeStringify(obj)

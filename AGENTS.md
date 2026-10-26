@@ -102,7 +102,7 @@ A project is an `EditorDoc`:
 - `@/name.csv` is a file in the project's data directory.
 - The `deck` node holds the basemap style, the camera and the render settings.
 - The examples in `noodles-editor/src/examples/` are documents. Older operator-graph files
-  (`noodles.json` schema 1–20) are migrated and converted when they load; the examples' old
+  (`noodles.json` schema 1–21) are migrated and converted when they load; the examples' old
   graphs are conversion fixtures in `src/runtime/migrate/__fixtures__/`.
 - `npm run validate:projects -- path/to/noodles.json` (repo root) checks a document against
   the operator registry (`noodles-validate/registry.json`, regenerated with
@@ -232,4 +232,4 @@ The `noodles` MCP server (`.mcp.json`, [noodles-mcp](noodles-mcp/README.md)) loo
 ---
 
 **Last Updated**: 2026-10-24
-**Version**: `EditorDoc` version 1; older projects up to operator-graph schema 20
+**Version**: `EditorDoc` version 1; older projects up to operator-graph schema 21
