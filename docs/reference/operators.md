@@ -61,7 +61,7 @@ To update the pages after changing an operator, run `npm run generate:registry` 
 - [Slice](./operators/slice.md): Slice an array of data.
 - [Sort](./operators/sort.md): Sort an array of data based on a key.
 - [Switch](./operators/switch.md): Select one value from a list using an index (0, 1, 2...).
-- [TableEditor](./operators/table-editor.md): Edit a table with typed columns.
+- [TableEditor](./operators/table-editor.md): Edit a local table with typed columns and an internal schema.
 - [TimeSeries](./operators/time-series.md): Interpolate time-varying data at a given time.
 - [Viewer](./operators/viewer.md): Inspect data in the viewer.
 
