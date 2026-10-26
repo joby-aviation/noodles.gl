@@ -202,6 +202,7 @@ export function bindEngine(
 ): () => void {
   let doc: EditorDoc | undefined
   let time: number | undefined
+  let loadId: number | undefined
   let stopped = false
   const sync = async () => {
     const s = store.get()
@@ -212,9 +213,13 @@ export function bindEngine(
     const e = await openEngine(readAsset)
     if (stopped) return
     const docChanged = s.doc !== doc
+    // Another project: the engine forgets the last one's files and relations first
+    const projectChanged = loadId !== undefined && s.loadId !== loadId
+    loadId = s.loadId
     doc = s.doc
     time = s.time
     try {
+      if (projectChanged) await e.openProject()
       await (docChanged ? e.setDoc(s.doc, s.time) : e.setTime(s.time))
       publish({ vis: e.vis(), errors: errorsOf(e), ready: true })
     } catch (error) {

@@ -85,6 +85,9 @@ export class EngineHost {
         this.publish()
         return report
       }
+      case 'forget':
+        await this.runtime.forget()
+        return undefined
       case 'idle':
         await this.runtime.idle()
         // Whatever settled is on its way before the editor hears it settled

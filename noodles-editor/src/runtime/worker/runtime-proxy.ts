@@ -90,6 +90,10 @@ export class RuntimeProxy {
     return this.request({ type: 'idle' })
   }
 
+  forget(): Promise<void> {
+    return this.request({ type: 'forget' })
+  }
+
   layers(): LayerView[] {
     return this.order.map(id => this.states.get(id)).filter((s): s is LayerView => !!s)
   }
