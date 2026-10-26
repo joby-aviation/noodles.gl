@@ -33,11 +33,13 @@ function parseNumberList(text: string): number[] {
 
 interface GeoToolWizardProps {
   recipe: GeoRecipe | null
+  // Inputs to wire before the user picks anything, keyed by recipe input
+  presetSources?: Record<string, SourceRef>
   onOpenChange: (open: boolean) => void
   reactFlowRef: React.RefObject<HTMLDivElement>
 }
 
-export function GeoToolWizard({ recipe, onOpenChange }: GeoToolWizardProps) {
+export function GeoToolWizard({ recipe, presetSources, onOpenChange }: GeoToolWizardProps) {
   const doc = useEditor(st => st.doc)
   const engine = useEngineState()
 
@@ -50,10 +52,14 @@ export function GeoToolWizard({ recipe, onOpenChange }: GeoToolWizardProps) {
   useEffect(() => {
     if (!recipe) return
     setValues(defaultValuesFor(recipe))
-    setSources({})
+    const preset: Record<string, string> = {}
+    for (const [key, ref] of Object.entries(presetSources ?? {})) {
+      preset[key] = encodeSourceRef(ref)
+    }
+    setSources(preset)
     setAddLayer(recipe.layerable)
     setError(null)
-  }, [recipe])
+  }, [recipe, presetSources])
 
   // Every table in the document, features (a geom column) first, so the user can wire the new
   // node into their graph without hunting for ports

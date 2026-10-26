@@ -3,6 +3,8 @@ import { besideNetwork, commitBuilt } from '../../editor/doc-builder'
 import { docStore } from '../../editor/doc-store'
 import { drawingDoc, measurementDoc } from '../../editor/tool-docs'
 import { debugUI } from '../../utils/debug'
+import { type DrawFollowUp, featuresFor } from '../components/tools/draw-shapes'
+import { useMapToolStore } from '../components/tools/map-tool-store'
 import type { LngLat } from '../components/tools/measure-math'
 
 // Commits geometry produced by the on-map tools into the document: a Features node holding
@@ -26,5 +28,18 @@ export function useMapToolGraph() {
     commitBuilt(docStore(), measurementDoc(options(), points, closed))
   }, [])
 
-  return { saveDrawing, saveMeasurement }
+  // Writes the drawing as a Features node alone, then opens the follow-up's recipe with it
+  // already wired in. The recipe's output gets the layer, not the raw drawing.
+  const sendDrawingTo = useCallback((followUp: DrawFollowUp, features: GeoJSON.Feature[]) => {
+    const relevant = featuresFor(followUp, features)
+    if (relevant.length === 0) return
+    const built = drawingDoc(options(), relevant, undefined, false)
+    commitBuilt(docStore(), built)
+    useMapToolStore.getState().requestRecipe({
+      recipeId: followUp.recipeId,
+      sources: { [followUp.shapeInput]: { source: built.primaryNodeId, sourceHandle: 'out' } },
+    })
+  }, [])
+
+  return { saveDrawing, saveMeasurement, sendDrawingTo }
 }

@@ -22,13 +22,15 @@ const MEASURE_STYLE: FeatureStyle = { fill: [245, 158, 11], line: [245, 158, 11]
 export function drawingDoc(
   { doc, basePosition, network }: ToolOptions,
   features: GeoJSON.Feature[],
-  style: FeatureStyle = SHAPE_STYLE
+  style: FeatureStyle = SHAPE_STYLE,
+  // Off when the drawing feeds another node, whose output gets the layer instead
+  addLayer = true
 ): Built {
   const b = new DocBuilder(doc, basePosition, network)
   const drawn = b.add('features', 'drawing', 0, 0, {
     geojson: JSON.stringify({ type: 'FeatureCollection', features }, null, 2),
   })
-  b.drawFeatures({ id: drawn, port: 'out' }, 300, style)
+  if (addLayer) b.drawFeatures({ id: drawn, port: 'out' }, 300, style)
   return b.built(drawn)
 }
 
