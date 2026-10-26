@@ -122,6 +122,8 @@ export interface RuntimeLike {
   setGraph(graph: Graph, values: Values): Promise<unknown>
   setValues(values: Values): Promise<unknown>
   idle(): Promise<void>
+  /** Drop memoized relations and plans: another project, whose files may share names, opens. */
+  forget?(): Promise<void>
   layers(): LayerView[]
   program(): ProgramView | undefined
   view(): Record<string, number>
@@ -197,6 +199,27 @@ export class Engine {
   /** Host operators that failed on the last run. */
   errors(): { nodeId: string; message: string }[] {
     return this.hostErrors
+  }
+
+  /**
+   * A different project is opening. Its files can share names with this one's (`@/data.csv`),
+   * relations are memoized by the SQL that names them, and node ids repeat across projects, so
+   * drop all of it: the next setDoc registers this project's files and compiles from nothing.
+   */
+  async openProject(): Promise<void> {
+    await this.pending.catch(() => undefined)
+    this.registered.clear()
+    this.structure = undefined
+    this.built.clear()
+    this.extended.clear()
+    this.hostTables.clear()
+    // Host reads are keyed by relation hash, which another project with the same files and
+    // graph repeats
+    this.aggregates.clear()
+    this.features.clear()
+    this.rows.clear()
+    this.loadedRows.clear()
+    await this.runtime.forget?.()
   }
 
   /** Show a document: a structural edit recompiles, a value edit only rebinds. */

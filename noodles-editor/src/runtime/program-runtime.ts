@@ -200,6 +200,16 @@ export class ProgramRuntime {
     return this.values
   }
 
+  /**
+   * Another project is opening: forget its relations, plans and query results, since its files
+   * can share names, and so hashes, with this one's. The next setGraph compiles from nothing.
+   */
+  async forget(): Promise<void> {
+    await this.catalog.forget()
+    this.cache.clear()
+    this.queried.clear()
+  }
+
   /** A structural edit: recompile, keeping everything memoization says is still valid. */
   setGraph(graph: Graph, values: Record<string, number | string>): Promise<UpdateReport> {
     // The graph's JS functions exist in DuckDB before anything compiles against them
