@@ -256,6 +256,46 @@ describe('TableImportDialog', () => {
     )
   })
 
+  it('keeps commas while editing string-literal choices and applies them on blur', () => {
+    const onConfirm = vi.fn()
+    const request: TableImportRequest = {
+      mode: 'canvas',
+      format: 'tsv',
+      createPreview: () => ({
+        format: 'tsv',
+        schema: {
+          columns: [
+            {
+              name: 'person',
+              type: 'stringLiteral',
+              defaultValue: 'Alice',
+              options: { values: ['Alice'] },
+            },
+          ],
+        },
+        data: [{ person: 'Alice' }],
+      }),
+    }
+    render(
+      <TableImportDialog open request={request} onOpenChange={vi.fn()} onConfirm={onConfirm} />
+    )
+
+    const values = screen.getByLabelText('Allowed values for person')
+    fireEvent.change(values, { target: { value: 'Alice,' } })
+    expect(values).toHaveValue('Alice,')
+    fireEvent.change(values, { target: { value: 'Alice, Bob' } })
+    fireEvent.blur(values)
+    fireEvent.click(screen.getByRole('button', { name: 'Create Table' }))
+
+    expect(onConfirm).toHaveBeenCalledWith(
+      expect.objectContaining({
+        schema: {
+          columns: [expect.objectContaining({ options: { values: ['Alice', 'Bob'] } })],
+        },
+      })
+    )
+  })
+
   it('does not import when canceled', () => {
     const onConfirm = vi.fn()
     const onOpenChange = vi.fn()

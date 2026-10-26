@@ -266,6 +266,11 @@ function ColumnOptions({
   column: ColumnSchema
   onChange: (column: ColumnSchema) => void
 }) {
+  const formattedValues = column.options?.values?.join(', ') ?? ''
+  const [valuesText, setValuesText] = useState(formattedValues)
+
+  useEffect(() => setValuesText(formattedValues), [formattedValues])
+
   if (column.type === 'number') return <NumberOptions column={column} onChange={onChange} />
 
   if (column.type === 'stringLiteral') {
@@ -275,9 +280,10 @@ function ColumnOptions({
           Values
           <input
             aria-label={`Allowed values for ${column.name}`}
-            value={column.options?.values?.join(', ') ?? ''}
-            onChange={event => {
-              const values = event.currentTarget.value
+            value={valuesText}
+            onChange={event => setValuesText(event.currentTarget.value)}
+            onBlur={() => {
+              const values = valuesText
                 .split(',')
                 .map(value => value.trim())
                 .filter(Boolean)
