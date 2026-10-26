@@ -122,7 +122,8 @@ export function moveVertex(
 ): GeoJSON.Feature {
   const positions = [...vertexPositions(feature)]
   if (index < 0 || index >= positions.length) return feature
-  positions[index] = position
+  // The pointer only gives lng/lat, so any altitude the vertex had is kept
+  positions[index] = [...position.slice(0, 2), ...positions[index].slice(2)]
   return withVertices(feature, positions)
 }
 
@@ -163,7 +164,9 @@ export function segmentMidpoints(
   for (let i = 0; i < segments; i++) {
     const a = positions[i]
     const b = positions[(i + 1) % positions.length]
-    midpoints.push({ insertAt: i + 1, position: [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2] })
+    const position = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2]
+    if (a.length > 2 && b.length > 2) position.push((a[2] + b[2]) / 2)
+    midpoints.push({ insertAt: i + 1, position })
   }
   return midpoints
 }

@@ -170,6 +170,23 @@ describe('vertex editing', () => {
     expect((moveVertex(holed, 1, [2, 0]).geometry as GeoJSON.Polygon).coordinates[1]).toEqual(hole)
   })
 
+  it('keeps a vertex altitude when it moves', () => {
+    const raised = buildShape([a, b, c], 'line') as GeoJSON.Feature
+    const withAltitude = {
+      ...raised,
+      geometry: {
+        type: 'LineString' as const,
+        coordinates: [
+          [0, 0, 100],
+          [1, 0, 200],
+          [1, 1, 300],
+        ],
+      },
+    }
+    expect(vertexPositions(moveVertex(withAltitude, 1, [5, 5]))[1]).toEqual([5, 5, 200])
+    expect(segmentMidpoints(withAltitude)[0].position).toEqual([0.5, 0, 150])
+  })
+
   it('moves a point', () => {
     expect(moveVertex(point, 0, [5, 6]).geometry).toEqual({ type: 'Point', coordinates: [5, 6] })
   })

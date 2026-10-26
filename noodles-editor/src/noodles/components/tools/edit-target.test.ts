@@ -56,6 +56,24 @@ describe('resolveEditTarget', () => {
     })
   })
 
+  it('locks a target whose geometry a connection, expression or keyframes drive', () => {
+    const connected = [
+      { source: '/number', target: '/geo-editor', targetHandle: 'par.geojson' },
+      { source: '/geo-editor', target: '/drawn-layer', targetHandle: 'par.data' },
+    ]
+    expect(resolveEditTarget('/drawn-layer', getOp, connected)?.locked).toMatch(/connection/)
+
+    const driven = fakeOp('/driven', 'Point', {
+      coordinates: { ...field([0, 0]), expression: 'x' },
+    })
+    expect(resolveEditTarget('/driven', () => driven, [])?.locked).toMatch(/expression/)
+    expect(writeTargetFeatures(driven, 'point', [])).toBe(false)
+
+    const keyframed = (opId: string, input: string) => opId === '/point' && input === 'coordinates'
+    expect(resolveEditTarget('/point', getOp, [], keyframed)?.locked).toMatch(/keyframed/)
+    expect(resolveEditTarget('/geo-editor', getOp, [], keyframed)?.locked).toBeUndefined()
+  })
+
   it('ignores layers fed by anything else, and other nodes', () => {
     const edges = [{ source: '/number', target: '/drawn-layer', targetHandle: 'par.data' }]
     expect(resolveEditTarget('/drawn-layer', getOp, edges)).toBeNull()

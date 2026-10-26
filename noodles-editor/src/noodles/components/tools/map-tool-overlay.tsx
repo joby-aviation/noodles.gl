@@ -162,10 +162,12 @@ export function MapToolOverlay({
 
   // Editing starts from the node's own geometry. Runs after the reset above, so the
   // loaded shapes are not cleared again.
+  // Any unfinished drawing is dropped too, so it can't be finished into the new node.
   useEffect(() => {
+    reset()
     if (!editSession) return
     setShapes(editSession.features.map(feature => ({ id: nextShapeId.current++, feature })))
-  }, [editSession])
+  }, [editSession, reset])
 
   // Switching mode mid-shape would produce a geometry the user did not ask for.
   // Adjusted during render rather than in an effect so stale points never paint.
@@ -309,7 +311,16 @@ export function MapToolOverlay({
     const handle = findHandle(event)
     if (!handle) return
     event.preventDefault()
+    // The release ends the gesture wherever it happens. A click on the surface follows
+    // a release there in the same task, so clearing after it skips only that one click.
     suppressClickRef.current = true
+    const endGesture = () => {
+      window.removeEventListener('mouseup', endGesture)
+      setTimeout(() => {
+        suppressClickRef.current = false
+      }, 0)
+    }
+    window.addEventListener('mouseup', endGesture)
 
     if (handle.type === 'vertex' && event.altKey) {
       const shape = shapes.find(candidate => candidate.id === handle.shapeId)
@@ -493,9 +504,11 @@ export function MapToolOverlay({
     .map(p => `${p.x},${p.y}`)
     .join(' ')
 
+  // Features with no geometry stay in `shapes` so saving keeps them, but draw nothing
   const savedShapes = shapes
-    .map(({ id, feature }) => {
+    .flatMap(({ id, feature }) => {
       const geometry = feature.geometry
+      if (!geometry) return []
       const ring =
         geometry.type === 'Polygon'
           ? (geometry.coordinates[0] as [number, number][])
@@ -504,15 +517,17 @@ export function MapToolOverlay({
             : geometry.type === 'Point'
               ? [geometry.coordinates as [number, number]]
               : []
-      return {
-        id,
-        isPolygon: geometry.type === 'Polygon',
-        isPoint: geometry.type === 'Point',
-        // A ring repeats its first vertex at the end, so the index keeps keys unique
-        vertices: ring
-          .map(([lng, lat], i) => ({ key: `${i}:${lng},${lat}`, screen: toScreen({ lng, lat }) }))
-          .filter((v): v is { key: string; screen: ScreenPoint } => v.screen !== null),
-      }
+      return [
+        {
+          id,
+          isPolygon: geometry.type === 'Polygon',
+          isPoint: geometry.type === 'Point',
+          // A ring repeats its first vertex at the end, so the index keeps keys unique
+          vertices: ring
+            .map(([lng, lat], i) => ({ key: `${i}:${lng},${lat}`, screen: toScreen({ lng, lat }) }))
+            .filter((v): v is { key: string; screen: ScreenPoint } => v.screen !== null),
+        },
+      ]
     })
     .filter(shape => shape.vertices.length > 0)
 

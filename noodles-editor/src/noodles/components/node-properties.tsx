@@ -840,7 +840,7 @@ export function NodeProperties({ nodeId }: { nodeId: string }) {
           )}
         </div>
       )}
-      <EditOnMapButton nodeId={nodeId} edges={edges} from="properties" className={s.editOnMap} />
+      <EditOnMapButton nodeId={nodeId} from="properties" className={s.editOnMap} />
       <div className={s.section}>
         <div className={s.sectionHeader}>
           <div className={s.sectionTitle}>Inputs</div>

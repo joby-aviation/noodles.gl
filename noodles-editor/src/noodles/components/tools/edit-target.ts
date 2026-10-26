@@ -7,11 +7,22 @@ export type EditKind = 'geo-editor' | 'point'
 export interface EditTarget {
   opId: string
   kind: EditKind
+  // Set when the geometry input is driven by something else, which would overwrite a
+  // saved edit: the reason, shown on the disabled button
+  locked?: string
+}
+
+// The input that holds each kind's geometry
+export const GEOMETRY_INPUT: Record<EditKind, string> = {
+  'geo-editor': 'geojson',
+  point: 'coordinates',
 }
 
 interface FieldLike {
   value: unknown
   setValue: (value: unknown) => void
+  // Set while an expression drives the field
+  expression?: string | null
 }
 
 export interface EditableOp {
@@ -37,22 +48,44 @@ function kindOf(op: EditableOp): EditKind | null {
   return null
 }
 
+// A connection, an expression or keyframes would replace whatever the editor saves
+function lockedReason(
+  op: EditableOp,
+  kind: EditKind,
+  edges: EdgeLike[],
+  isKeyframed: (opId: string, input: string) => boolean
+): string | undefined {
+  const input = GEOMETRY_INPUT[kind]
+  if (edges.some(edge => edge.target === op.id && edge.targetHandle === `par.${input}`)) {
+    return 'Its geometry comes from a connection'
+  }
+  if (field(op, input)?.expression) return 'Its geometry comes from an expression'
+  if (isKeyframed(op.id, input)) return 'Its geometry is keyframed'
+  return undefined
+}
+
 // The node itself when it holds editable geometry, else the GeoEditor or Point wired
-// into a layer's Data input
+// into a layer's Data input. `edges` should hold the graph's edges, since both the
+// node's and its source's incoming edges are read.
 export function resolveEditTarget(
   opId: string,
   getOp: (id: string) => EditableOp | undefined,
-  edges: EdgeLike[]
+  edges: EdgeLike[],
+  isKeyframed: (opId: string, input: string) => boolean = () => false
 ): EditTarget | null {
   const op = getOp(opId)
   if (!op) return null
-  const kind = kindOf(op)
-  if (kind) return { opId, kind }
-  if (!displayName(op).endsWith('Layer')) return null
-  const dataEdge = edges.find(edge => edge.target === opId && edge.targetHandle === 'par.data')
-  const source = dataEdge && getOp(dataEdge.source)
-  const sourceKind = source && kindOf(source)
-  return source && sourceKind ? { opId: source.id, kind: sourceKind } : null
+  let target: EditableOp | undefined = op
+  let kind = kindOf(op)
+  if (!kind) {
+    if (!displayName(op).endsWith('Layer')) return null
+    const dataEdge = edges.find(edge => edge.target === opId && edge.targetHandle === 'par.data')
+    target = dataEdge && getOp(dataEdge.source)
+    kind = target ? kindOf(target) : null
+  }
+  if (!target || !kind) return null
+  const locked = lockedReason(target, kind, edges, isKeyframed)
+  return locked ? { opId: target.id, kind, locked } : { opId: target.id, kind }
 }
 
 function field(op: EditableOp, name: string): FieldLike | undefined {
@@ -95,6 +128,7 @@ export function writeTargetFeatures(
   kind: EditKind,
   features: GeoJSON.Feature[]
 ): boolean {
+  if (field(op, GEOMETRY_INPUT[kind])?.expression) return false
   if (kind === 'geo-editor') {
     const target = field(op, 'geojson')
     if (!target) return false
