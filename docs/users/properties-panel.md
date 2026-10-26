@@ -41,7 +41,7 @@ A layer's **Color** is one control with four modes:
 
 - **Solid**: one color for every row, set with the swatch.
 - **Attr**: an RGB attribute of the rows; the field suggests the input's columns.
-- **Ramp**: a color ramp over a numeric column. Pick the column, the range that maps to the ramp's ends, and the ramp. A graph uses one ramp, so a layer switched to Ramp starts on the ramp the graph already uses.
+- **Ramp**: a color ramp over a numeric column. Pick the column and the ramp; the picker shows each ramp's colors. **Auto**, on by default, fits the range to the column's smallest and largest values over the layer's rows, and follows the data when it changes. Uncheck it to set the range that maps to the ramp's ends by hand.
 - **ƒ**: any row expression in 0–1 color.
 
 A value with **units**, such as Radius scale or Width scale, shows its units menu on the same row.

@@ -59,11 +59,19 @@ describe('colorValue', () => {
   })
 
   it('reads the ramp form back, and leaves other expressions as written', () => {
-    expect(colorValue(rampExpression('Magnitude', 0, 7.5))).toEqual({
+    expect(colorValue(rampExpression('Magnitude', [0, 7.5]))).toEqual({
       mode: 'ramp',
       column: 'Magnitude',
-      min: 0,
-      max: 7.5,
+      range: [0, 7.5],
+    })
+    expect(colorValue(rampExpression('Magnitude', 'auto'))).toEqual({
+      mode: 'ramp',
+      column: 'Magnitude',
+      range: 'auto',
+    })
+    // colmin of another column is a custom expression, not the auto form
+    expect(colorValue('ramp(fit(mag, colmin(depth), colmax(mag), 0, 1))')).toEqual({
+      mode: 'expression',
     })
     expect(colorValue('ramp(fit(sqrt(mag), 0, 3, 0, 1))')).toEqual({ mode: 'expression' })
     expect(colorValue('[1, 0, 0]')).toEqual({ mode: 'expression' })
@@ -86,13 +94,13 @@ describe('compoundsFor', () => {
   })
 
   it('draws the ramp in the color control only while its Ramp mode is the only user', () => {
-    const inRamp = compoundsFor(op('scatter'), { color: rampExpression('mag', 0, 7) })
+    const inRamp = compoundsFor(op('scatter'), { color: rampExpression('mag', [0, 7]) })
     expect(inRamp.rampIn).toBe('color')
     expect(inRamp.absorbed.has('ramp')).toBe(true)
 
     // Another channel reads the ramp too: it keeps its own row
     const shared = compoundsFor(op('scatter'), {
-      color: rampExpression('mag', 0, 7),
+      color: rampExpression('mag', [0, 7]),
       radius: 'ramp(mag)[0]',
     })
     expect(shared.rampIn).toBeUndefined()

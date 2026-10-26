@@ -18,6 +18,7 @@ import {
   type ColorGroup,
   type ColorMode,
   colorValue,
+  type RampRange,
   rampExpression,
 } from './compound-params'
 import s from './doc-editor.module.css'
@@ -127,7 +128,10 @@ export function ColorGroupRows({
     if (next === 'solid') return write(next, undefined)
     if (next === 'ramp') {
       const column = value.mode === 'ramp' ? value.column : firstScalar
-      const expression = column ? rampExpression(column, 0, 1) : undefined
+      // Auto by default: the domain follows the data until the range is fixed by hand
+      const expression = column
+        ? rampExpression(column, value.mode === 'ramp' && value.range ? value.range : 'auto')
+        : undefined
       // The engine binds one color ramp per graph, so start on the one the graph already uses
       const used = group.ramp && rampInUse(doc, node.id)
       setChosen({ mode: next, text: expression ?? '' })
@@ -176,7 +180,7 @@ export function ColorGroupRows({
           <RampControls
             columns={numeric}
             value={value}
-            onChange={(column, min, max) => write('ramp', rampExpression(column, min, max))}
+            onChange={(column, range) => write('ramp', rampExpression(column, range))}
           />
         )}
         {mode === 'ramp' &&
@@ -215,15 +219,23 @@ function RampControls({
 }: {
   columns: string[]
   value: ReturnType<typeof colorValue>
-  onChange: (column: string, min: number, max: number) => void
+  onChange: (column: string, range: RampRange) => void
 }) {
   const column = value.column ?? columns[0] ?? ''
-  const [min, setMin] = useState(String(value.min ?? 0))
-  const [max, setMax] = useState(String(value.max ?? 1))
-  useEffect(() => setMin(String(value.min ?? 0)), [value.min])
-  useEffect(() => setMax(String(value.max ?? 1)), [value.max])
+  const auto = value.range === 'auto'
+  const fixed = Array.isArray(value.range) ? value.range : undefined
+  // The fixed ends, kept while Auto is on so unchecking it brings them back
+  const [min, setMin] = useState(String(fixed?.[0] ?? 0))
+  const [max, setMax] = useState(String(fixed?.[1] ?? 1))
+  useEffect(() => {
+    if (fixed) setMin(String(fixed[0]))
+  }, [fixed?.[0]])
+  useEffect(() => {
+    if (fixed) setMax(String(fixed[1]))
+  }, [fixed?.[1]])
+  const manual = (): RampRange => [finite(min, 0), finite(max, 1)]
   const commit = (lo: number, hi: number) => {
-    if (column && Number.isFinite(lo) && Number.isFinite(hi)) onChange(column, lo, hi)
+    if (column && Number.isFinite(lo) && Number.isFinite(hi)) onChange(column, [lo, hi])
   }
   const options = columns.includes(column) || !column ? columns : [column, ...columns]
   return (
@@ -236,7 +248,7 @@ function RampControls({
           value={column}
           onChange={e => {
             // Columns arrive once the engine has compiled; never write a ramp over none
-            if (e.target.value) onChange(e.target.value, finite(min, 0), finite(max, 1))
+            if (e.target.value) onChange(e.target.value, auto ? 'auto' : manual())
           }}
         >
           {options.map(c => (
@@ -249,6 +261,14 @@ function RampControls({
       <div className={s.paramDriven}>
         <span className={s.paramLabel}>Range</span>
         <span className={s.range}>
+          <label className={s.autoToggle} title="Fit the range to the column's values">
+            <input
+              type="checkbox"
+              checked={auto}
+              onChange={e => column && onChange(column, e.target.checked ? 'auto' : manual())}
+            />
+            Auto
+          </label>
           {[
             { label: 'From', v: min, setV: setMin },
             { label: 'To', v: max, setV: setMax },
@@ -259,6 +279,8 @@ function RampControls({
               aria-label={label}
               className={s.rangeInput}
               value={v}
+              disabled={auto}
+              title={auto ? 'Uncheck Auto to set the range by hand' : undefined}
               onChange={e => setV(e.target.value)}
               // The input's own value, which a fast blur reads before the state catches up
               onBlur={e =>

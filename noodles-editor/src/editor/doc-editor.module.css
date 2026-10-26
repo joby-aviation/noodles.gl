@@ -538,6 +538,32 @@
   width: 0;
 }
 
+.rangeInput:disabled {
+  color: var(--color-text-disabled, #666);
+  cursor: default;
+}
+
+.autoToggle {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 4px;
+  padding-right: 2px;
+  color: var(--color-text-secondary, #888);
+  font-size: 11px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.autoToggle input {
+  /* The editor's global styles hide native checkboxes; this one is drawn as the browser's */
+  appearance: auto;
+  width: 12px;
+  height: 12px;
+  margin: 0;
+  accent-color: var(--color-text-accent, #4a9eff);
+}
+
 /* A value's units sit after the value, before the link and keyframe gutter */
 .unitsSelect {
   flex: none;

@@ -103,28 +103,39 @@ export function compoundsFor(
 
 export type ColorMode = 'solid' | 'attribute' | 'ramp' | 'expression'
 
+// A ramp's domain: the column's extent over the layer's rows, or fixed ends
+export type RampRange = 'auto' | [number, number]
+
 export interface ColorValue {
   mode: ColorMode
   column?: string
-  min?: number
-  max?: number
+  range?: RampRange
 }
 
 const NUM = '(-?\\d+(?:\\.\\d+)?(?:e-?\\d+)?)'
 const RAMP = new RegExp(
   `^ramp\\(\\s*fit\\(\\s*([A-Za-z_][A-Za-z0-9_]*)\\s*,\\s*${NUM}\\s*,\\s*${NUM}\\s*,\\s*0\\s*,\\s*1\\s*\\)\\s*\\)$`
 )
+const RAMP_AUTO =
+  /^ramp\(\s*fit\(\s*([A-Za-z_][A-Za-z0-9_]*)\s*,\s*colmin\(\s*\1\s*\)\s*,\s*colmax\(\s*\1\s*\)\s*,\s*0\s*,\s*1\s*\)\s*\)$/
 
-// What a color channel's text holds. `ramp(fit(col, lo, hi, 0, 1))` is the by-value form this
-// control writes, so it reads back as one; any other expression is shown as written.
+// What a color channel's text holds. `ramp(fit(col, lo, hi, 0, 1))`, and its auto form
+// `ramp(fit(col, colmin(col), colmax(col), 0, 1))`, are what the Ramp mode writes, so they read
+// back as Ramp; any other expression is shown as written.
 export function colorValue(text: string): ColorValue {
   const t = text.trim()
   if (t === '') return { mode: 'solid' }
   if (/^[A-Za-z_][A-Za-z0-9_]*$/.test(t)) return { mode: 'attribute', column: t }
+  const auto = RAMP_AUTO.exec(t)
+  if (auto) return { mode: 'ramp', column: auto[1], range: 'auto' }
   const m = RAMP.exec(t)
-  if (m) return { mode: 'ramp', column: m[1], min: Number(m[2]), max: Number(m[3]) }
+  if (m) return { mode: 'ramp', column: m[1], range: [Number(m[2]), Number(m[3])] }
   return { mode: 'expression' }
 }
 
-export const rampExpression = (column: string, min: number, max: number) =>
-  `ramp(fit(${column}, ${min}, ${max}, 0, 1))`
+// The Ramp mode's channel text. Auto fits the domain to the column's extent over the layer's
+// rows (colmin and colmax, computed in SQL); fixed ends map straight to the ramp's ends.
+export const rampExpression = (column: string, range: RampRange) =>
+  range === 'auto'
+    ? `ramp(fit(${column}, colmin(${column}), colmax(${column}), 0, 1))`
+    : `ramp(fit(${column}, ${range[0]}, ${range[1]}, 0, 1))`
