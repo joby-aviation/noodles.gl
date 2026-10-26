@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { NoodlesProjectJSON } from '../utils/serialization'
-import { down, up } from './020-remove-table-schema-ports'
+import { down, up } from './021-remove-table-schema-ports'
 
 const parentSchema = {
   columns: [
@@ -30,14 +30,14 @@ function nodeInputs(node: NoodlesProjectJSON['nodes'][number] | undefined) {
 }
 
 const baseProject: NoodlesProjectJSON = {
-  version: 19,
+  version: 20,
   timeline: {},
   nodes: [],
   edges: [],
   viewport: { x: 0, y: 0, zoom: 1 },
 }
 
-describe('020-remove-table-schema-ports', () => {
+describe('021-remove-table-schema-ports', () => {
   it('materializes schemas for standalone legacy tables', async () => {
     const project: NoodlesProjectJSON = {
       ...baseProject,
@@ -144,7 +144,7 @@ describe('020-remove-table-schema-ports', () => {
     })
     expect(migrated.migrationDiagnostics).toEqual([
       {
-        type: 'stale-edge',
+        type: 'migration',
         message: 'Repaired a legacy persisted schema on /legacy.',
       },
     ])
@@ -337,11 +337,11 @@ describe('020-remove-table-schema-ports', () => {
     )
     expect(migrated.migrationDiagnostics).toEqual([
       {
-        type: 'stale-edge',
+        type: 'migration',
         message:
           'Could not resolve schema connection /source.out.val->/target.par.schema; the source is not a TableEditor schema output.',
       },
-      { type: 'stale-edge', message: 'Ignored malformed persisted schema on /target.' },
+      { type: 'migration', message: 'Ignored malformed persisted schema on /target.' },
     ])
     warn.mockRestore()
   })
@@ -382,7 +382,7 @@ describe('020-remove-table-schema-ports', () => {
     ).toBe(true)
     expect(migrated.migrationDiagnostics).toEqual([
       {
-        type: 'stale-edge',
+        type: 'migration',
         message: expect.stringContaining('Schema connection cycle'),
       },
     ])
@@ -411,7 +411,7 @@ describe('020-remove-table-schema-ports', () => {
     expect(migrated.edges).toEqual([])
     expect(migrated.migrationDiagnostics).toEqual([
       {
-        type: 'stale-edge',
+        type: 'migration',
         message: expect.stringContaining('target node is missing'),
       },
     ])
@@ -430,6 +430,17 @@ describe('020-remove-table-schema-ports', () => {
           type: 'CodeOp',
           position: { x: 100, y: 0 },
           data: { inputs: { code: "return op('/table').out.schema" } },
+        },
+        {
+          id: '/query',
+          type: 'DuckDbOp',
+          position: { x: 150, y: 0 },
+          data: {
+            inputs: {
+              query: 'SELECT * FROM {{/table.out.schema.columns}}',
+              ignoredInputReference: '{{/table.par.schema}}',
+            },
+          },
         },
         {
           id: '/consumer',
@@ -451,26 +462,30 @@ describe('020-remove-table-schema-ports', () => {
 
     const migrated = await up(project)
 
-    expect(nodeInputs(migrated.nodes[2]).value).toBeUndefined()
+    expect(nodeInputs(migrated.nodes.find(node => node.id === '/consumer')).value).toBeUndefined()
     expect(migrated.edges).toEqual([])
     expect(migrated.migrationDiagnostics).toEqual([
       {
-        type: 'stale-edge',
-        message: expect.stringContaining('/code contains code that references'),
+        type: 'migration',
+        message: expect.stringContaining('/code contains a reference'),
       },
       {
-        type: 'stale-edge',
+        type: 'migration',
+        message: expect.stringContaining('/query contains a reference'),
+      },
+      {
+        type: 'migration',
         message: expect.stringContaining('source schema is unresolved'),
       },
     ])
-    expect(warn).toHaveBeenCalledTimes(2)
+    expect(warn).toHaveBeenCalledTimes(3)
     warn.mockRestore()
   })
 
   it('keeps materialized schemas when migrating down', async () => {
     const project = {
       ...baseProject,
-      version: 20,
+      version: 21,
       nodes: [tableNode('/table', { schema: parentSchema })],
     }
 

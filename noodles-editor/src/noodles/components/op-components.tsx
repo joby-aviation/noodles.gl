@@ -65,7 +65,12 @@ import {
   useOperatorStore,
   useUIStore,
 } from '../store'
-import { inferSchema, isTableSchema, type TableSchema } from '../table-schema'
+import {
+  getTableSchemaValidationError,
+  inferSchema,
+  isTableSchema,
+  type TableSchema,
+} from '../table-schema'
 import type { NodeDataJSON } from '../transform-graph'
 import { canConnect } from '../utils/can-connect'
 import {
@@ -1987,7 +1992,12 @@ export function TableEditorOpComponent({
   const handleSchemaChange = (newSchema: TableSchema, newData?: unknown[]) => {
     // Keep the schema/data mutation atomic. The editor normally prevents invalid
     // drafts from reaching here, but this boundary also protects programmatic callers.
-    if (!isTableSchema(newSchema)) return
+    if (!isTableSchema(newSchema)) {
+      console.warn(
+        `Ignored invalid TableEditor schema: ${getTableSchemaValidationError(newSchema) ?? 'unknown validation error'}`
+      )
+      return
+    }
 
     const before = captureOperatorInputs()
     op.inputs.schema.setValue(newSchema)

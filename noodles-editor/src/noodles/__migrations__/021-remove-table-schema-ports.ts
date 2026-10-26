@@ -1,9 +1,10 @@
+import { fnRe, mustacheRe } from '../fields'
 import {
   inferSchema,
   isTableSchema,
   repairTableSchema,
-  validateValue,
   type TableSchema,
+  validateValue,
 } from '../table-schema'
 import { parseHandleId } from '../utils/path-utils'
 import type { NoodlesProjectJSON, ProjectMigrationDiagnostic } from '../utils/serialization'
@@ -56,7 +57,12 @@ function isTableSchemaHandle(handle: string | null | undefined) {
 }
 
 function containsRemovedSchemaReference(value: unknown): boolean {
-  if (typeof value === 'string') return /\bop\s*\([^)]*\)\s*\.out\.schema\b/.test(value)
+  if (typeof value === 'string') {
+    return [...value.matchAll(mustacheRe), ...value.matchAll(fnRe)].some(({ groups }) => {
+      const fieldPath = groups?.fieldPath
+      return groups?.inOut === 'out' && (fieldPath === 'schema' || fieldPath?.startsWith('schema.'))
+    })
+  }
   if (Array.isArray(value)) return value.some(containsRemovedSchemaReference)
   return isRecord(value) && Object.values(value).some(containsRemovedSchemaReference)
 }
@@ -68,8 +74,8 @@ function containsRemovedSchemaReference(value: unknown): boolean {
 export async function up(project: NoodlesProjectJSON): Promise<NoodlesProjectJSON> {
   const migrationDiagnostics: ProjectMigrationDiagnostic[] = []
   const report = (message: string) => {
-    console.warn(`[migration 020] ${message}`)
-    migrationDiagnostics.push({ type: 'stale-edge', message })
+    console.warn(`[migration 021] ${message}`)
+    migrationDiagnostics.push({ type: 'migration', message })
   }
   const nodesById = new Map(project.nodes.map(node => [node.id, node]))
   const incomingSchemaEdges = new Map<string, NoodlesProjectJSON['edges']>()
@@ -77,7 +83,7 @@ export async function up(project: NoodlesProjectJSON): Promise<NoodlesProjectJSO
   for (const node of project.nodes) {
     if (containsRemovedSchemaReference(inputsFor(node))) {
       report(
-        `${node.id} contains code that references the removed TableEditor .out.schema output; update it manually.`
+        `${node.id} contains a reference to the removed TableEditor .out.schema output; update it manually.`
       )
     }
   }
@@ -254,7 +260,7 @@ export async function up(project: NoodlesProjectJSON): Promise<NoodlesProjectJSO
   }
 }
 
-// Removed live relationships cannot be reconstructed safely. Materialized values remain valid in v19.
+// Removed live relationships cannot be reconstructed safely. Materialized values remain valid in v20.
 export async function down(project: NoodlesProjectJSON): Promise<NoodlesProjectJSON> {
   return project
 }

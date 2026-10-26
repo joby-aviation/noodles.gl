@@ -36,7 +36,7 @@ export type EditorSettings = {
 }
 
 export type ProjectMigrationDiagnostic = {
-  type: 'stale-edge'
+  type: 'migration'
   message: string
 }
 

@@ -414,7 +414,7 @@ describe('serializeNodes', () => {
   it('does not persist transient migration diagnostics', () => {
     const serialized = safeStringify({
       version: 18,
-      migrationDiagnostics: [{ type: 'stale-edge', message: 'Removed a legacy edge' }],
+      migrationDiagnostics: [{ type: 'migration', message: 'Removed a legacy edge' }],
       data: { migrationDiagnostics: 'user column value' },
     })
 
