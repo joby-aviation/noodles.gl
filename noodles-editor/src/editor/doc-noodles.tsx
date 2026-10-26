@@ -40,6 +40,7 @@ import { setParam } from './doc-ops'
 import { getUIStore, useUIStore } from './ui-store'
 import '../noodles/layers.css'
 import { agentBench, externalControl } from '../noodles/globals'
+import { getKeysStore, type KeysConfig, keysProjectId, useKeysStore } from '../noodles/keys-store'
 import { trackChatClosed, trackChatOpened } from '../noodles/utils/editor-analytics'
 import { claimStarterSelection, findStarterNodeId } from '../noodles/utils/starter-node'
 import { DocProperties } from './doc-properties'
@@ -69,8 +70,13 @@ async function readProjectAsset(name: string): Promise<Uint8Array> {
   return new Uint8Array(result.data)
 }
 
-/** Open a document. The timeline panel follows it through `bindTimeline`. */
-function openDoc(doc: EditorDoc) {
+/**
+ * Open a document. The timeline panel follows it through `bindTimeline`. `keysProject` names
+ * the project for the per-project key choices in Settings.
+ */
+function openDoc(doc: EditorDoc, keysProject?: string) {
+  // The project's own keys win over the browser's, so they go in before anything reads a key
+  getKeysStore().setProjectKeys(doc.meta?.apiKeys as KeysConfig | undefined, keysProject)
   resetTimelinePanel()
   getUIStore().setStarterHintNodeId(null)
   docStore().load(doc)
@@ -99,10 +105,10 @@ function selectStarterNode(exampleId: string) {
   analytics.track('starter_node_selected', { operatorType: starter.op })
 }
 
-async function openJson(json: unknown, name?: string): Promise<void> {
+async function openJson(json: unknown, name?: string, keysProject?: string): Promise<void> {
   const { doc, warnings } = await loadDoc(json, name)
   for (const w of warnings) console.info('[open]', w)
-  openDoc(doc)
+  openDoc(doc, keysProject)
 }
 
 export function useDocNoodles(): Visualization {
@@ -114,6 +120,14 @@ export function useDocNoodles(): Visualization {
   const { setCurrentDirectory, setActiveStorageType, setError } = useFileSystemStore()
   const doc = useEditor(s => s.doc)
   const dirty = useEditor(s => s.dirty)
+  // Editing a project key in Settings changes what the project file saves
+  useEffect(
+    () =>
+      useKeysStore.subscribe((state, prev) => {
+        if (state.projectKeyEdits !== prev.projectKeyEdits) docStore().set({ dirty: true })
+      }),
+    []
+  )
   const selection = useEditor(s => s.selection)
   const { vis } = useEngineState()
   useEffect(() => visCommitted(vis), [vis])
@@ -168,14 +182,14 @@ export function useDocNoodles(): Visualization {
           if (inMemory) {
             setCurrentDirectory(null, projectName)
             setActiveStorageType('memory')
-            await openJson(inMemory, projectName)
+            await openJson(inMemory, projectName, keysProjectId(routePrefix, projectName))
             return
           }
         }
         if (projectName === 'new') {
           setCurrentDirectory(null, 'new')
           setActiveStorageType('memory')
-          await openJson(newProjectJSON, 'new')
+          await openJson(newProjectJSON, 'new', keysProjectId(routePrefix, 'new'))
           return
         }
         if (routePrefix === '/examples') {
@@ -190,7 +204,7 @@ export function useDocNoodles(): Visualization {
           await copyExampleAssetsToMemory(projectName, projectName)
           setCurrentDirectory(null, projectName)
           setActiveStorageType('memory')
-          await openJson(json, projectName)
+          await openJson(json, projectName, keysProjectId(routePrefix, projectName))
           selectStarterNode(projectName)
           return
         }
@@ -215,7 +229,11 @@ export function useDocNoodles(): Visualization {
         }
         setCurrentDirectory(result.data.directoryHandle, projectName)
         setActiveStorageType(storageType)
-        await openJson(result.data.projectData, projectName)
+        await openJson(
+          result.data.projectData,
+          projectName,
+          keysProjectId(routePrefix, projectName)
+        )
         analytics.track('project_opened', { storageType, source: 'url' })
       } catch (error) {
         setError({
@@ -280,7 +298,7 @@ export function useDocNoodles(): Visualization {
     projectName,
     storageType,
     navigate,
-    open: openJson,
+    open: (json, name) => openJson(json, name, keysProjectId('/projects', name)),
     onNewProject,
     onImport,
   })

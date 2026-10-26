@@ -12,6 +12,7 @@ import { RenameDialog } from '../noodles/components/rename-dialog'
 import { SaveAsDialog } from '../noodles/components/save-as-dialog'
 import { StorageErrorHandler } from '../noodles/components/storage-error-handler'
 import { useFileSystemStore } from '../noodles/filesystem-store'
+import { getKeysForProject, getKeysStore, keysProjectId } from '../noodles/keys-store'
 import {
   copyDataDirectory,
   copyMemoryDataToDirectory,
@@ -51,7 +52,22 @@ interface ProjectFilesOptions {
   onImport: () => Promise<void>
 }
 
-const projectJson = () => docStore().get().doc as unknown as NoodlesProjectJSON
+// The document as saved, with the project's keys as they are now: Settings can edit them
+export function projectJson(): NoodlesProjectJSON {
+  const { doc } = docStore().get()
+  const { apiKeys: _opened, ...meta } = doc.meta ?? {}
+  const apiKeys = getKeysForProject()
+  return {
+    ...doc,
+    meta: { ...meta, ...(apiKeys ? { apiKeys } : {}) },
+  } as unknown as NoodlesProjectJSON
+}
+
+// The document is written: what Settings shows as the project's saved keys follows it
+function markSaved() {
+  getKeysStore().markProjectKeysSaved()
+  docStore().set({ dirty: false })
+}
 
 const isAbort = (error: unknown) => error instanceof Error && error.name === 'AbortError'
 
@@ -89,14 +105,18 @@ export function useProjectFiles({
     [setError]
   )
 
-  // The document now lives in a folder: remember it and show its name in the route
+  // The document now lives in a folder: remember it and show its name in the route. The
+  // per-project key choices move with a project, or are copied to a copy of it (Save As).
   const savedTo = useCallback(
-    async (directory: FileSystemDirectoryHandle, name: string) => {
+    async (directory: FileSystemDirectoryHandle, name: string, keys: 'move' | 'copy') => {
       await directoryHandleCache.cacheHandle(name, directory, directory.name)
+      const keysProject = keysProjectId('/projects', name)
+      if (keys === 'move') getKeysStore().moveKeyOverridesTo(keysProject)
+      else getKeysStore().copyKeyOverridesTo(keysProject)
       setCurrentDirectory(directory, name)
       setActiveStorageType('fileSystemAccess')
       navigate(`/projects/${name}`, { replace: true })
-      docStore().set({ dirty: false })
+      markSaved()
     },
     [setCurrentDirectory, setActiveStorageType, navigate]
   )
@@ -110,7 +130,7 @@ export function useProjectFiles({
         if (!(await requestPermission(directory, 'readwrite'))) return
         await writeFileToDirectory(directory, 'noodles.json', safeStringify(projectJson()))
         await copyMemoryDataToDirectory(projectName, directory)
-        await savedTo(directory, directory.name)
+        await savedTo(directory, directory.name, 'move')
         memoryProjectStore.deleteProject(projectName)
         analytics.track('project_saved', { storageType: 'memory', promoted: true })
       } catch (error) {
@@ -124,7 +144,7 @@ export function useProjectFiles({
       return
     }
     setCurrentDirectory(result.data.directoryHandle, projectName)
-    docStore().set({ dirty: false })
+    markSaved()
     analytics.track('project_saved', { storageType })
   }, [projectName, storageType, savedTo, reportError, setError, setCurrentDirectory])
 
@@ -155,7 +175,7 @@ export function useProjectFiles({
         else if (currentDirectory) await copyDataDirectory(currentDirectory, target)
       }
       if (storageType === 'memory' && projectName) memoryProjectStore.deleteProject(projectName)
-      await savedTo(target, target.name)
+      await savedTo(target, target.name, 'copy')
       analytics.track('project_saved_as', {
         fromStorageType: storageType,
         toStorageType: 'fileSystemAccess',
@@ -188,7 +208,7 @@ export function useProjectFiles({
       await writeFileToDirectory(directory, 'noodles.json', safeStringify(projectJson()))
       if (currentDirectory) await copyDataDirectory(currentDirectory, directory)
       if (projectName) await directoryHandleCache.renameProject(projectName, newName, directory)
-      await savedTo(directory, newName)
+      await savedTo(directory, newName, 'move')
       analytics.track('project_renamed', {
         fromStorageType: storageType,
         toStorageType: 'fileSystemAccess',

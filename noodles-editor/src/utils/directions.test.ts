@@ -61,7 +61,7 @@ describe('Google traffic-aware directions', () => {
   const importLibrary = vi.fn()
 
   beforeEach(() => {
-    useKeysStore.setState({ browserKeys: {}, projectKeys: undefined, saveInProject: false })
+    useKeysStore.setState({ browserKeys: {}, projectKeys: undefined, keyOverrides: {} })
     getKeysStore().setBrowserKey('googleMaps', 'test-google-key')
     computeRoutes.mockResolvedValue({
       routes: [

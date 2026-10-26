@@ -44,6 +44,7 @@ import {
   calculateRenderSurfaceSize,
   observeRenderSurface,
   setRenderSurfaceSize,
+  toRenderSurfacePoint,
 } from './render/render-surface-size'
 import { captureScreenshot, useRenderer } from './render/renderer'
 import { deckRenderingDefaults, mapRenderingDefaults } from './render/rendering-defaults'
@@ -867,6 +868,7 @@ export default function TimelineEditor() {
     return (
       <div
         ref={renderSurfaceRef}
+        data-render-surface
         style={{ position: 'relative', width: '100%', height: '100%' }}
         onPointerMove={trackPointer}
       >
@@ -966,12 +968,7 @@ let pointerFrame = 0
 function trackPointer(e: ReactPointerEvent<HTMLDivElement>) {
   const engine = currentEngine()
   if (!engine?.readsPointer()) return
-  const el = e.currentTarget
-  const rect = el.getBoundingClientRect()
-  const scaleX = el.offsetWidth ? rect.width / el.offsetWidth : 1
-  const scaleY = el.offsetHeight ? rect.height / el.offsetHeight : 1
-  const x = (e.clientX - rect.left) / scaleX
-  const y = (e.clientY - rect.top) / scaleY
+  const { x, y } = toRenderSurfacePoint(e.currentTarget, e.clientX, e.clientY)
   cancelAnimationFrame(pointerFrame)
   pointerFrame = requestAnimationFrame(() => void engine.setPointer(x, y))
 }

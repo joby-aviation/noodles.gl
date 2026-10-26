@@ -11,6 +11,7 @@ import {
   resetRenderSurfaceSize,
   setRenderSurfaceSize,
   subscribeToRenderSurfaceSize,
+  toRenderSurfacePoint,
 } from './render-surface-size'
 
 beforeEach(() => {
@@ -89,6 +90,30 @@ describe('render surface size', () => {
 
     stop()
     expect(disconnect).toHaveBeenCalledOnce()
+  })
+})
+
+// A 1000x500 surface laid out at `rect` on screen
+function createSurface(rect: { left: number; top: number; width: number; height: number }) {
+  const element = document.createElement('div')
+  Object.defineProperties(element, {
+    offsetWidth: { configurable: true, get: () => 1000 },
+    offsetHeight: { configurable: true, get: () => 500 },
+  })
+  element.getBoundingClientRect = () => ({ ...rect, x: rect.left, y: rect.top }) as DOMRect
+  return element
+}
+
+describe('toRenderSurfacePoint', () => {
+  it('offsets by the surface position in responsive mode', () => {
+    const element = createSurface({ left: 100, top: 50, width: 1000, height: 500 })
+    expect(toRenderSurfacePoint(element, 350, 150)).toEqual({ x: 250, y: 100 })
+  })
+
+  it('removes the TransformScale factor in fixed mode', () => {
+    // Scaled down to half size on screen
+    const element = createSurface({ left: 100, top: 50, width: 500, height: 250 })
+    expect(toRenderSurfacePoint(element, 350, 150)).toEqual({ x: 500, y: 200 })
   })
 })
 

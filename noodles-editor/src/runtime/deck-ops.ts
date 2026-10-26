@@ -17,7 +17,6 @@ import {
   toSql,
 } from '@noodles.gl/planner'
 import * as d3 from 'd3'
-import { toMaskTargetPosition } from '../noodles/extensions/mask-3d-extension'
 import { applyStyleOverrides } from '../utils/map-style-utils'
 import { registerValueOperators } from './value-ops'
 
@@ -711,14 +710,7 @@ export const DECK_OPS: DeckOp[] = [
       num('innerRadius', 1000, { min: 0, step: 1 }),
       num('fadeRange', 7, { min: 0, step: 0.1 }),
     ],
-    p => {
-      // The shader takes an Earth-centered position, not lng/lat/alt
-      const [lng, lat, alt = 0] = (p.targetPosition as number[] | undefined) ?? [0, 0, 0]
-      return {
-        extension: { type: 'Mask3DExtension' },
-        props: { ...p, targetPosition: toMaskTargetPosition(lng, lat, alt) },
-      }
-    }
+    p => ({ extension: { type: 'Mask3DExtension' }, props: p })
   ),
   extensionOp(
     'terrain-extension',

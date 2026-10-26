@@ -5,11 +5,12 @@ import { useAgentModelStore } from '../ai-chat/agent/model-store'
 import { validateCustomEndpoint } from '../ai-chat/agent/providers/custom'
 import { ENDPOINT_PRESETS, type EndpointPreset } from '../ai-chat/agent/providers/endpoint-presets'
 import { WEBLLM_MODELS, webgpuAvailable, webllmModelLabel } from '../ai-chat/agent/providers/webllm'
-import type { ProviderPreference } from '../noodles/keys-store'
+import type { KeySource, KeyType, ProviderPreference } from '../noodles/keys-store'
 import { getEnvKeys, useKeysStore } from '../noodles/keys-store'
 import { useOpenRouterConnect } from '../noodles/use-openrouter-connect'
 import { getGitSettings, saveGitSettings, useGitSettings } from '../noodles/utils/git-settings'
 import { analytics } from '../utils/analytics'
+import { getLoadedGoogleMapsKey } from '../utils/geocoding'
 import s from './settings-dialog.module.css'
 
 type EndpointStatus =
@@ -25,20 +26,30 @@ interface SettingsDialogProps {
   projectName?: string | null
 }
 
-// Component that groups all sources (browser, project, env) for a single key type
+// Component that groups all sources (project, browser, env) for a single key type
 interface KeyGroupProps {
   label: string
   description: string
   placeholder: string
   browserValue: string
+  // Undefined for AI keys, which have no project slot
   projectValue?: string
   envValue?: string
-  activeSource: 'browser' | 'project' | 'env' | null
+  activeSource: KeySource | null
   onBrowserChange: (value: string) => void
   onBrowserClear: () => void
-  onProjectRemove?: () => void
-  notice?: string
+  onProjectChange?: (value: string) => void
+  onProjectClear?: () => void
+  // Picks which key the project uses. Only offered while the project has a key of its own.
+  onUse?: (source: KeySource) => void
+  notice?: React.ReactNode
   inputRef?: React.RefObject<HTMLInputElement>
+}
+
+const SOURCE_NAMES: Record<KeySource, string> = {
+  project: 'Project',
+  browser: 'Browser',
+  env: 'Environment',
 }
 
 const KeyGroup = ({
@@ -51,14 +62,30 @@ const KeyGroup = ({
   activeSource,
   onBrowserChange,
   onBrowserClear,
-  onProjectRemove,
+  onProjectChange,
+  onProjectClear,
+  onUse,
   notice,
   inputRef,
 }: KeyGroupProps) => {
-  const handleCopy = (value: string, source: 'project' | 'env') => {
+  const handleCopy = (value: string, source: KeySource) => {
     navigator.clipboard.writeText(value)
     analytics.track('key_copied', { source })
   }
+
+  const sourceLabel = (source: KeySource, value: string | undefined) => (
+    <div className={s.keySourceLabel}>
+      <span className={s.sourceText}>{SOURCE_NAMES[source]}</span>
+      {activeSource === source && <span className={s.activeBadge}>Active</span>}
+      {onUse && projectValue && value && activeSource !== source && (
+        <button type="button" onClick={() => onUse(source)} className={s.copyButton}>
+          Use
+        </button>
+      )}
+    </div>
+  )
+
+  const overridden = projectValue && activeSource && activeSource !== 'project'
 
   return (
     <div className={s.keyGroup}>
@@ -68,18 +95,45 @@ const KeyGroup = ({
       </div>
 
       <div className={s.keySourcesList}>
+        {/* Project key, saved in noodles.json */}
+        {onProjectChange && (
+          <div className={s.keySource}>
+            {sourceLabel('project', projectValue)}
+            <input
+              type="text"
+              value={projectValue ?? ''}
+              onChange={e => onProjectChange(e.target.value)}
+              placeholder="Saved in the project file"
+              aria-label={`${label} (project)`}
+              className={s.input}
+            />
+            {projectValue && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => handleCopy(projectValue, 'project')}
+                  className={s.copyButton}
+                >
+                  Copy
+                </button>
+                <button type="button" onClick={onProjectClear} className={s.clearButton}>
+                  Clear
+                </button>
+              </>
+            )}
+          </div>
+        )}
+
         {/* Browser key input */}
         <div className={s.keySource}>
-          <div className={s.keySourceLabel}>
-            <span className={s.sourceText}>Browser</span>
-            {activeSource === 'browser' && <span className={s.activeBadge}>Active</span>}
-          </div>
+          {sourceLabel('browser', browserValue)}
           <input
             ref={inputRef}
             type="text"
             value={browserValue}
             onChange={e => onBrowserChange(e.target.value)}
             placeholder={placeholder}
+            aria-label={`${label} (browser)`}
             className={s.input}
           />
           {browserValue && (
@@ -89,36 +143,10 @@ const KeyGroup = ({
           )}
         </div>
 
-        {/* Project key (read-only) */}
-        {projectValue && (
-          <div className={s.keySource}>
-            <div className={s.keySourceLabel}>
-              <span className={s.sourceText}>Project</span>
-              {activeSource === 'project' && <span className={s.activeBadge}>Active</span>}
-            </div>
-            <div className={s.keyPreview}>{projectValue}</div>
-            <button
-              type="button"
-              onClick={() => handleCopy(projectValue, 'project')}
-              className={s.copyButton}
-            >
-              Copy
-            </button>
-            {onProjectRemove && (
-              <button type="button" onClick={onProjectRemove} className={s.clearButton}>
-                Remove
-              </button>
-            )}
-          </div>
-        )}
-
         {/* Environment key (read-only) */}
         {envValue && (
           <div className={s.keySource}>
-            <div className={s.keySourceLabel}>
-              <span className={s.sourceText}>Environment</span>
-              {activeSource === 'env' && <span className={s.activeBadge}>Active</span>}
-            </div>
+            {sourceLabel('env', envValue)}
             <div className={s.keyPreview}>{envValue}</div>
             <button
               type="button"
@@ -130,6 +158,12 @@ const KeyGroup = ({
           </div>
         )}
 
+        {overridden && (
+          <div className={s.keyDescription}>
+            Using your {activeSource === 'env' ? 'environment' : 'browser'} key for this project
+            instead of the project's key.
+          </div>
+        )}
         {notice && <div className={s.keyDescription}>{notice}</div>}
       </div>
     </div>
@@ -150,17 +184,21 @@ export function SettingsDialog({ open, setOpen, projectName = null }: SettingsDi
 
   // Store subscriptions
   const browserKeys = useKeysStore(state => state.browserKeys)
-  const saveInProject = useKeysStore(state => state.saveInProject)
+  // Subscribed so the Active badges follow override changes
+  useKeysStore(state => state.keyOverrides)
   const projectKeys = useKeysStore(state => state.projectKeys || {})
+  const savedProjectKeys = useKeysStore(state => state.savedProjectKeys)
+  const projectId = useKeysStore(state => state.projectId)
   const ignoredProjectKeys = useKeysStore(state => state.ignoredProjectKeys)
   const providerPreference = useKeysStore(state => state.getProviderPreference())
   const customEndpoint = useKeysStore(state => state.getCustomEndpoint())
   const setBrowserKey = useKeysStore(state => state.setBrowserKey)
-  const setSaveInProjectAction = useKeysStore(state => state.setSaveInProject)
+  const setProjectKey = useKeysStore(state => state.setProjectKey)
+  const setKeyOverride = useKeysStore(state => state.setKeyOverride)
   const setProviderPreference = useKeysStore(state => state.setProviderPreference)
   const setCustomEndpoint = useKeysStore(state => state.setCustomEndpoint)
   const getActiveSource = useKeysStore(state => state.getActiveSource)
-  const removeProjectKey = useKeysStore(state => state.removeProjectKey)
+  const getKey = useKeysStore(state => state.getKey)
   const clearBrowserKey = useKeysStore(state => state.clearBrowserKey)
 
   // OpenRouter sign-in. A key the OAuth flow minted is stored as a browser key,
@@ -297,13 +335,49 @@ export function SettingsDialog({ open, setOpen, projectName = null }: SettingsDi
     }
   }
 
-  const handleSaveInProjectToggle = (enabled: boolean) => {
-    setSaveInProjectAction(enabled)
-
-    if (enabled) {
-      analytics.track('keys_save_in_project_enabled')
+  // The Maps JavaScript API keeps the key it loaded with, so a change needs a reload
+  const googleMapsReloadNotice = () => {
+    const loadedKey = getLoadedGoogleMapsKey()
+    if (!loadedKey || loadedKey === getKey('googleMaps')) return undefined
+    // Project keys aren't kept in the browser, so reloading before saving would bring back the old one
+    if (projectKeys.googleMaps !== savedProjectKeys?.googleMaps) {
+      return 'Place search and directions still use the previous key. Save the project, then reload the page to apply it.'
     }
+    return (
+      <>
+        Place search and directions still use the previous key.{' '}
+        <button type="button" onClick={() => window.location.reload()} className={s.copyButton}>
+          Reload to apply
+        </button>
+      </>
+    )
   }
+
+  // Props for a key that has project, browser and env slots
+  const slotProps = (key: Exclude<KeyType, 'anthropic' | 'openrouter'>) => ({
+    browserValue: browserKeys[key] || '',
+    projectValue: projectKeys[key],
+    envValue: envKeys[key],
+    activeSource: getActiveSource(key),
+    onBrowserChange: (value: string) => setBrowserKey(key, value),
+    onBrowserClear: () => {
+      setBrowserKey(key, undefined)
+      analytics.track('key_cleared', { key })
+    },
+    onProjectChange: (value: string) => setProjectKey(key, value),
+    onProjectClear: () => {
+      setProjectKey(key, undefined)
+      analytics.track('project_key_removed', { key })
+    },
+    // Choices are stored per project, so there's nowhere to keep one without a project id
+    onUse:
+      projectId === undefined
+        ? undefined
+        : (source: KeySource) => {
+            setKeyOverride(key, source === 'project' ? null : source)
+            analytics.track('key_source_chosen', { key, source })
+          },
+  })
 
   const handleDisconnectOpenRouter = () => {
     clearBrowserKey('openrouter')
@@ -884,9 +958,10 @@ export function SettingsDialog({ open, setOpen, projectName = null }: SettingsDi
                   <h3 className={s.sectionTitle}>API Keys</h3>
 
                   <div className={s.privacyNote}>
-                    Your API keys are never sent to Noodles.gl servers. Keys can be stored in your
-                    browser or in project files. AI provider keys are never read from or saved to
-                    project files.
+                    Your API keys are never sent to Noodles.gl servers. A key in the project file is
+                    saved in plain text and used by everyone who opens the project, unless they
+                    choose their own key. AI provider keys are never read from or saved to project
+                    files.
                   </div>
 
                   <div className={s.keysGroup}>
@@ -894,57 +969,22 @@ export function SettingsDialog({ open, setOpen, projectName = null }: SettingsDi
                       label="Mapbox Access Token"
                       description="Enables Mapbox basemaps and high-quality driving directions. Without it, directions fall back to OSRM (free, OpenStreetMap-based) and place search falls back to Photon."
                       placeholder="pk.eyJ1..."
-                      browserValue={browserKeys.mapbox || ''}
-                      projectValue={projectKeys.mapbox}
-                      envValue={envKeys.mapbox}
-                      activeSource={getActiveSource('mapbox')}
-                      onBrowserChange={value => setBrowserKey('mapbox', value)}
-                      onBrowserClear={() => {
-                        setBrowserKey('mapbox', undefined)
-                        analytics.track('key_cleared', { key: 'mapbox' })
-                      }}
-                      onProjectRemove={() => {
-                        removeProjectKey('mapbox')
-                        analytics.track('project_key_removed', { key: 'mapbox' })
-                      }}
+                      {...slotProps('mapbox')}
                     />
 
                     <KeyGroup
                       label="Google Maps API Key"
                       description="Enables traffic-aware driving, transit directions, and higher-quality place search. Enable the Maps JavaScript API, Routes API, and Places API in Google Cloud."
                       placeholder="AIza..."
-                      browserValue={browserKeys.googleMaps || ''}
-                      projectValue={projectKeys.googleMaps}
-                      envValue={envKeys.googleMaps}
-                      activeSource={getActiveSource('googleMaps')}
-                      onBrowserChange={value => setBrowserKey('googleMaps', value)}
-                      onBrowserClear={() => {
-                        setBrowserKey('googleMaps', undefined)
-                        analytics.track('key_cleared', { key: 'googleMaps' })
-                      }}
-                      onProjectRemove={() => {
-                        removeProjectKey('googleMaps')
-                        analytics.track('project_key_removed', { key: 'googleMaps' })
-                      }}
+                      {...slotProps('googleMaps')}
+                      notice={googleMapsReloadNotice()}
                     />
 
                     <KeyGroup
                       label="Cesium Ion Access Token"
                       description="Required for Cesium Ion 3D tile datasets. Not needed if you use custom 3D tile URLs directly."
                       placeholder="eyJhb..."
-                      browserValue={browserKeys.cesium || ''}
-                      projectValue={projectKeys.cesium}
-                      envValue={envKeys.cesium}
-                      activeSource={getActiveSource('cesium')}
-                      onBrowserChange={value => setBrowserKey('cesium', value)}
-                      onBrowserClear={() => {
-                        setBrowserKey('cesium', undefined)
-                        analytics.track('key_cleared', { key: 'cesium' })
-                      }}
-                      onProjectRemove={() => {
-                        removeProjectKey('cesium')
-                        analytics.track('project_key_removed', { key: 'cesium' })
-                      }}
+                      {...slotProps('cesium')}
                     />
 
                     <KeyGroup
@@ -991,40 +1031,8 @@ export function SettingsDialog({ open, setOpen, projectName = null }: SettingsDi
                       label="Overpass API Endpoint"
                       description="Used by the Overpass operator to query OpenStreetMap data. Defaults to overpass.openstreetmap.fr (France mirror with reliable CORS)."
                       placeholder="https://overpass.openstreetmap.fr/api/interpreter"
-                      browserValue={browserKeys.overpass || ''}
-                      projectValue={projectKeys.overpass}
-                      envValue={envKeys.overpass}
-                      activeSource={getActiveSource('overpass')}
-                      onBrowserChange={value => setBrowserKey('overpass', value)}
-                      onBrowserClear={() => {
-                        setBrowserKey('overpass', undefined)
-                        analytics.track('key_cleared', { key: 'overpass' })
-                      }}
-                      onProjectRemove={() => {
-                        removeProjectKey('overpass')
-                        analytics.track('project_key_removed', { key: 'overpass' })
-                      }}
+                      {...slotProps('overpass')}
                     />
-                  </div>
-
-                  {/* Save in project checkbox */}
-                  <div className={s.settingItem}>
-                    <label className={s.settingLabel}>
-                      <input
-                        type="checkbox"
-                        checked={saveInProject}
-                        onChange={e => handleSaveInProjectToggle(e.target.checked)}
-                        className={s.checkbox}
-                      />
-                      <div className={s.settingContent}>
-                        <div className={s.settingName}>Save browser keys in project file</div>
-                        <div className={s.settingDescription}>
-                          Include your browser map and data keys in the project file when saving.
-                          Only enable this if you want to share them with collaborators. Keys are
-                          stored in plain text. AI provider keys are never saved in a project file.
-                        </div>
-                      </div>
-                    </label>
                   </div>
                 </div>
               </>
