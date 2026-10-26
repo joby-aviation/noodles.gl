@@ -4,6 +4,7 @@ import {
   type FormEvent,
   type KeyboardEventHandler,
   type MouseEvent as ReactMouseEvent,
+  type RefObject,
   type TouchEvent as ReactTouchEvent,
   useCallback,
   useEffect,
@@ -289,6 +290,7 @@ export interface DraggableNumberInputProps {
   initialDrag?: InitialNumberDrag
   /** Text to show instead of `value` when an edit starts from unparsed input. */
   initialText?: string
+  inputRef?: RefObject<HTMLInputElement | null>
   'aria-label'?: string
 }
 
@@ -316,6 +318,7 @@ export function DraggableNumberInput({
   placeholder,
   initialDrag,
   initialText,
+  inputRef,
   'aria-label': ariaLabel,
 }: DraggableNumberInputProps) {
   const validStep = Number.isFinite(step) && step > 0 ? step : 1
@@ -494,6 +497,7 @@ export function DraggableNumberInput({
       ref={containerRef}
     >
       <input
+        ref={inputRef}
         id={id}
         type="number"
         onFocus={() => {

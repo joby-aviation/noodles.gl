@@ -98,6 +98,7 @@ interface CellEditorProps {
   column: ColumnSchema
   initialNumberDrag?: InitialNumberDrag
   editingSeed?: string
+  registerCommit?: (commit: () => void) => void
 }
 
 /** `-`, `+`, and `.` start a number but cannot be parsed into one yet. */
@@ -111,6 +112,7 @@ function NumberCellEditor({
   column,
   initialNumberDrag,
   editingSeed,
+  registerCommit,
 }: CellEditorProps) {
   const defaultValue = typeof column.defaultValue === 'number' ? column.defaultValue : 0
   // Hold an unparseable first character until a digit completes it, so typing `-` or `.`
@@ -119,6 +121,7 @@ function NumberCellEditor({
     editingSeed !== undefined && PARTIAL_NUMBER_SEED.test(editingSeed) ? editingSeed : undefined
   )
   const seededEmpty = seedPrefixRef.current !== undefined
+  const inputRef = useRef<HTMLInputElement>(null)
 
   const applyConstraints = (newValue: number) => {
     let constrainedValue = newValue
@@ -146,10 +149,15 @@ function NumberCellEditor({
     onComplete(advance)
   }
 
+  useLayoutEffect(() => {
+    registerCommit?.(() => parseAndCommit(inputRef.current?.value ?? ''))
+  })
+
   return (
     <DraggableNumberInput
       value={typeof value === 'number' ? value : defaultValue}
       initialText={seededEmpty ? '' : undefined}
+      inputRef={inputRef}
       onChange={handleNumberChange}
       onBlur={event => parseAndCommit(event.currentTarget.value)}
       onDragEnd={onComplete}
@@ -856,6 +864,7 @@ function EditableCell({ getValue, row, column, table }: EditableCellProps) {
   const valueRef = useRef(currentValue)
   const prevValueRef = useRef(currentValue)
   const isEditingRef = useRef(false)
+  const editorCommitRef = useRef<(() => void) | null>(null)
   const meta = table.options.meta
   const columnIndex = meta?.columnIndexById?.get(column.id)
   const coordinate = useMemo(
@@ -883,6 +892,7 @@ function EditableCell({ getValue, row, column, table }: EditableCellProps) {
       // Guard against committing twice when a flush is followed by the blur it caused
       if (!isEditingRef.current) return
       isEditingRef.current = false
+      editorCommitRef.current = null
       meta?.activeEdit?.clear()
       if (columnIndex !== undefined) meta?.updateData?.(row.index, columnIndex, valueRef.current)
       if (coordinate) meta?.finishEditing?.(coordinate, advance)
@@ -893,6 +903,7 @@ function EditableCell({ getValue, row, column, table }: EditableCellProps) {
   const handleCancel = () => {
     if (!isEditingRef.current) return
     isEditingRef.current = false
+    editorCommitRef.current = null
     valueRef.current = currentValue
     setValue(currentValue)
     meta?.activeEdit?.clear()
@@ -926,7 +937,7 @@ function EditableCell({ getValue, row, column, table }: EditableCellProps) {
     valueRef.current = seededValue
     setValue(seededValue)
     isEditingRef.current = true
-    meta?.activeEdit?.set(handleComplete)
+    meta?.activeEdit?.set(() => (editorCommitRef.current ?? handleComplete)())
   }, [colSchema, currentValue, handleComplete, isEditing, meta?.activeEdit, meta?.editingSeed])
 
   if (!colSchema) {
@@ -973,6 +984,9 @@ function EditableCell({ getValue, row, column, table }: EditableCellProps) {
             column={colSchema}
             initialNumberDrag={meta?.initialNumberDrag}
             editingSeed={meta?.editingSeed}
+            registerCommit={commit => {
+              editorCommitRef.current = commit
+            }}
           />
         </div>
       </div>

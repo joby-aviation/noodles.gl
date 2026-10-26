@@ -1251,6 +1251,35 @@ describe('TableEditor', () => {
     )
   })
 
+  it('parses unfinished number text before a forced scroll commit', () => {
+    const onDataChange = vi.fn()
+    render(
+      <TableEditor
+        op={mockOp}
+        data={simpleData}
+        schema={simpleSchema}
+        onDataChange={onDataChange}
+        onSchemaChange={vi.fn()}
+      />
+    )
+
+    const count = screen.getByText('10').closest('[role="gridcell"]') as HTMLElement
+    fireEvent.click(count)
+    fireEvent.keyDown(count, { key: '.' })
+    const editor = screen.getByRole('spinbutton', { name: 'Edit count' })
+    fireEvent.change(editor, { target: { value: '0' } })
+    fireEvent.change(editor, { target: { value: '05' } })
+    fireEvent.scroll(screen.getByRole('grid').parentElement as HTMLElement)
+
+    expect(onDataChange).toHaveBeenCalledWith(
+      [
+        { name: 'Alice', count: 0.05 },
+        { name: 'Bob', count: 20 },
+      ],
+      'Edit cell count'
+    )
+  })
+
   it('applies the column default when Tab commits a cleared number cell', () => {
     const onDataChange = vi.fn()
     render(
