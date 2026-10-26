@@ -1383,6 +1383,10 @@ export function TableEditor({
   const tableWrapperRef = useRef<HTMLDivElement>(null)
   const tableGridRef = useRef<HTMLTableElement>(null)
   const gridFocusWithinRef = useRef(false)
+  const pendingKeyboardEditRef = useRef<{
+    coordinate: TableCellCoordinate
+    seed?: string
+  }>()
   const scrollToGridRowRef = useRef<((rowIndex: number) => void) | null>(null)
   const activeEdit = useActiveEdit()
   const previousDataRef = useRef(data)
@@ -2349,15 +2353,41 @@ export function TableEditor({
     ? virtualRows.map(virtualRow => virtualRow.index)
     : tableRows.map((_, rowIndex) => rowIndex)
   const renderedRowRange = `${renderedRowIndexes[0] ?? ''}:${renderedRowIndexes.at(-1) ?? ''}`
-  const activeCellIsRendered = activeCell !== null && renderedRowIndexes.includes(activeCell.row)
+  const firstRenderedRow = renderedRowIndexes[0]
+  const lastRenderedRow = renderedRowIndexes.at(-1)
+  const isRowRendered = useCallback(
+    (row: number) =>
+      firstRenderedRow !== undefined && lastRenderedRow !== undefined
+        ? row >= firstRenderedRow && row <= lastRenderedRow
+        : false,
+    [firstRenderedRow, lastRenderedRow]
+  )
+  const activeCellIsRendered = activeCell !== null && isRowRendered(activeCell.row)
   useLayoutEffect(() => {
     if (renderedRowRange === ':') return
+    const pendingEdit = pendingKeyboardEditRef.current
+    if (
+      pendingEdit &&
+      isRowRendered(pendingEdit.coordinate.row) &&
+      coordinatesEqual(activeCell, pendingEdit.coordinate)
+    ) {
+      pendingKeyboardEditRef.current = undefined
+      beginEditing(pendingEdit.coordinate, pendingEdit.seed)
+      return
+    }
     if (!activeCellIsRendered && gridFocusWithinRef.current) {
       tableGridRef.current?.focus({ preventScroll: true })
       return
     }
     focusActiveCell()
-  }, [activeCellIsRendered, focusActiveCell, renderedRowRange])
+  }, [
+    activeCell,
+    activeCellIsRendered,
+    beginEditing,
+    focusActiveCell,
+    isRowRendered,
+    renderedRowRange,
+  ])
   const virtualPaddingTop =
     virtualizeRows && virtualRows.length > 0
       ? Math.max(0, (virtualRows[0]?.start ?? 0) - TABLE_HEADER_HEIGHT)
@@ -2373,6 +2403,18 @@ export function TableEditor({
   scrollToGridRowRef.current = virtualizeRows
     ? rowIndex => rowVirtualizer.scrollToIndex(rowIndex, { align: 'auto' })
     : null
+
+  const beginKeyboardEditing = useCallback(
+    (coordinate: TableCellCoordinate, seed?: string) => {
+      if (!virtualizeRows || isRowRendered(coordinate.row)) {
+        beginEditing(coordinate, seed)
+        return
+      }
+      pendingKeyboardEditRef.current = { coordinate, seed }
+      scrollToGridRowRef.current?.(coordinate.row)
+    },
+    [beginEditing, isRowRendered, virtualizeRows]
+  )
 
   const handleCellKeyDown = useCallback(
     (event: React.KeyboardEvent<HTMLElement>, coordinate: TableCellCoordinate) => {
@@ -2406,7 +2448,7 @@ export function TableEditor({
         case 'Enter':
         case 'F2':
           event.preventDefault()
-          beginEditing(target)
+          beginKeyboardEditing(target)
           return
         case 'Escape':
           event.preventDefault()
@@ -2434,13 +2476,13 @@ export function TableEditor({
         default:
           if (event.key.length === 1 && !event.ctrlKey && !event.metaKey && !event.altKey) {
             event.preventDefault()
-            beginEditing(target, event.key)
+            beginKeyboardEditing(target, event.key)
           }
       }
     },
     [
       activeCell,
-      beginEditing,
+      beginKeyboardEditing,
       clearSelection,
       editingCell,
       moveActiveCell,

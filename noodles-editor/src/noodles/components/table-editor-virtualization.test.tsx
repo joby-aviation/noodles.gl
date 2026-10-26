@@ -170,4 +170,32 @@ describe('TableEditor row virtualization', () => {
     expect(virtualizerSpies.scrollToIndex).toHaveBeenCalledWith(1, { align: 'auto' })
     expect(screen.getByText('Row 2').closest('[role="gridcell"]')).toHaveFocus()
   })
+
+  it('scrolls an unmounted active cell into view before keyboard editing', () => {
+    const schema: TableSchema = {
+      columns: [{ name: 'label', type: 'string', defaultValue: '' }],
+    }
+    const data = Array.from({ length: 1_000 }, (_, index) => ({ label: `Row ${index + 1}` }))
+
+    render(
+      <TableEditor
+        op={new TableEditorOp('/keyboard-edit-virtual-table')}
+        data={data}
+        schema={schema}
+        onDataChange={vi.fn()}
+        onSchemaChange={vi.fn()}
+      />
+    )
+
+    const firstCell = screen.getByText('Row 1').closest('[role="gridcell"]') as HTMLElement
+    firstCell.focus()
+    act(() => virtualizerSpies.setFirstVisible?.(500))
+    const grid = screen.getByRole('grid')
+    expect(grid).toHaveFocus()
+
+    fireEvent.keyDown(grid, { key: 'Z' })
+
+    expect(virtualizerSpies.scrollToIndex).toHaveBeenCalledWith(0, { align: 'auto' })
+    expect(screen.getByRole('textbox')).toHaveValue('Z')
+  })
 })
