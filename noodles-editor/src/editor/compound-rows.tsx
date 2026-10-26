@@ -38,23 +38,6 @@ const MODES: { mode: ColorMode; label: string; title: string }[] = [
 const set = (node: DocNode, name: string, value: string | undefined) =>
   docStore().edit(d => setParam(d, node.id, name, value), `p:${node.id}.${name}`)
 
-// The ramp another node already colors with, if any: a Color Ramp node's, or a layer's whose
-// channels call ramp()
-function rampInUse(doc: EditorDoc, except: string): string | undefined {
-  for (const n of doc.nodes) {
-    if (n.id === except) continue
-    // A node that leaves its ramp at the default still uses the default
-    const rampDef = OPERATOR_INDEX.get(n.op)?.params.find(p => p.name === 'ramp')
-    const ramp = n.params.ramp ?? rampDef?.default
-    if (typeof ramp !== 'string') continue
-    const callsRamp = Object.values(n.params).some(
-      v => typeof v === 'string' && v.includes('ramp(')
-    )
-    if (n.op === 'color-ramp' || callsRamp) return ramp
-  }
-  return undefined
-}
-
 // The columns of the rows feeding `port`, from the compiled program
 function useInputColumns(doc: EditorDoc, node: DocNode, port: string) {
   const engine = useEngineState()
@@ -128,13 +111,8 @@ export function ColorGroupRows({
       const expression = column
         ? rampExpression(column, value.mode === 'ramp' && value.range ? value.range : 'auto')
         : undefined
-      // The engine binds one color ramp per graph, so start on the one the graph already uses
-      const used = group.ramp && rampInUse(doc, node.id)
       setChosen({ mode: next, text: expression ?? '' })
-      return docStore().edit(d => {
-        setParam(d, node.id, group.channel, expression)
-        if (group.ramp && used) setParam(d, node.id, group.ramp, used)
-      }, `p:${node.id}.${group.channel}`)
+      return set(node, group.channel, expression)
     }
     // Attribute starts from the column the channel reads; Expression keeps what it holds
     if (next === 'attribute') return write(next, value.column)
