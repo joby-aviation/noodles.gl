@@ -477,7 +477,7 @@ export function rowwiseSql(
   for (const node of analysis.order) {
     // A color ramp's `ramp(t)` samples a LUT on the GPU and the CPU; inside a relation it is
     // three columns read from the ramp's stops instead (see rampColumns)
-    const ramped = rampedArg(node, analysis.ramp);
+    const ramped = rampedArg(node, analysis.ramps);
     if (!node.feasible.has('sql') && !ramped) {
       throw new PlanError(`Node ${node.id}: feeds ${label}, so it must run in SQL, and it has no SQL form`);
     }
@@ -497,7 +497,7 @@ export function rowwiseSql(
           break;
         }
         const { items } = ramped
-          ? { items: rampColumns(toSql(inlineParams(ramped, values, used, `Node ${node.id}`), new SqlParams()).code, analysis.ramp!, name) }
+          ? { items: rampColumns(toSql(inlineParams(ramped.t, values, used, `Node ${node.id}`), new SqlParams()).code, ramped.ramp, name) }
           : toSqlColumns(e, name, new SqlParams(), castToDouble);
         const outNames = node.width === 1 ? [name] : Array.from({ length: node.width }, (_, i) => `${name}_${i}`);
         sql = `SELECT ${excluding(outNames)}, ${items.join(', ')} FROM (${sql})`;
@@ -531,14 +531,18 @@ export function rowwiseSql(
 }
 
 /**
- * The argument of an attribute that is `ramp(t)` and nothing else, when `t` itself has a SQL
- * form: a color ramp's output, which a relation can compute from the ramp's stops.
+ * The argument of an attribute that is `ramp(t)` or `ramp(t, k)` and nothing else, when `t`
+ * itself has a SQL form: a color ramp's output, which a relation can compute from the stops of
+ * ramp k of the graph's ramps (the first, without k).
  */
-function rampedArg(node: AnalyzedNode, ramp: string | undefined): Expr | undefined {
+function rampedArg(node: AnalyzedNode, ramps: readonly string[]): { t: Expr; ramp: string } | undefined {
   const e = node.expr;
-  if (node.kind !== 'attribute' || !ramp || !RAMP_STOPS[ramp]) return undefined;
-  if (e?.kind !== 'call' || e.fn !== 'ramp' || e.args.length !== 1) return undefined;
-  return enginesFor(e.args[0]).has('sql') ? e.args[0] : undefined;
+  if (node.kind !== 'attribute' || e?.kind !== 'call' || e.fn !== 'ramp') return undefined;
+  if (e.args.length === 2 && e.args[1].kind !== 'num') return undefined;
+  const k = e.args.length === 2 && e.args[1].kind === 'num' ? e.args[1].value : 0;
+  const ramp = ramps[k];
+  if (!ramp || !RAMP_STOPS[ramp] || e.args.length > 2) return undefined;
+  return enginesFor(e.args[0]).has('sql') ? { t: e.args[0], ramp } : undefined;
 }
 
 /**

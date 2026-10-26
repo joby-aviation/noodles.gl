@@ -155,6 +155,8 @@ export interface Analysis {
   groupBy: string[];
   aggregateNames: string[];
   ramp?: RampName;
+  /** Every ramp `ramp(t, k)` reads, by k. */
+  ramps: RampName[];
   /** Column preserving source row identity, if requested via `preserveRowId`. */
   rowIdColumn?: string;
   params: Record<string, ParamSpec>;
@@ -240,7 +242,7 @@ export function analyze(
   /** After `params` is read off the tree, so a node keeps its source names. */
   const hoist = (e: Expr): Expr =>
     options.hoist === false ? e : hoistParams(e, isNumericParam, derived);
-  const { nodes, notes: sugarNotes, ramp, functions } = desugar(graph, conventions);
+  const { nodes, notes: sugarNotes, ramp, ramps, functions } = desugar(graph, conventions);
   const notes = [...sugarNotes];
   const byId = new Map(nodes.map((n) => [n.id, n]));
 
@@ -549,6 +551,7 @@ export function analyze(
     groupBy,
     aggregateNames,
     ramp,
+    ramps,
     rowIdColumn,
     params: { ...declared },
     derived: [...derived.values()],

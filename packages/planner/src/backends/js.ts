@@ -77,8 +77,8 @@ const JS_FN: Record<string, (args: string[][], width: number, c: number) => stri
     const j = (c + 2) % 3;
     return `((${x[i]}) * (${y[j]}) - (${x[j]}) * (${y[i]}))`;
   },
-  // Matches the WGSL sampleRamp: the LUT is provided by the caller as `rampAt(t, c)`.
-  ramp: (a, _w, c) => `rampAt(${a[0][0]}, ${c})`,
+  // Matches the WGSL sampleRamp: the LUTs are provided by the caller as `rampAt(t, c, k)`.
+  ramp: (a, _w, c) => `rampAt(${a[0][0]}, ${c}, ${a[1] ? a[1][0] : 0})`,
 };
 
 function emit(e: Expr, ctx: Ctx): string[] {
