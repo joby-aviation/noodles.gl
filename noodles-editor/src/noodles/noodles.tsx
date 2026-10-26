@@ -40,7 +40,7 @@ import { analytics } from '../utils/analytics'
 import { lazyWithReload, staleChunk } from '../utils/stale-chunk'
 import { setCurrentProject, setModificationApplier } from '../webmcp/bridge'
 import { agentBench, externalControl } from './globals'
-import { getKeysForProject, getKeysStore } from './keys-store'
+import { getKeysForProject, getKeysStore, keysProjectId, useKeysStore } from './keys-store'
 import newProjectJSON from './new.json'
 import { BitmapOverlayWidget, type BitmapOverlayWidgetProps } from './widgets/bitmap-overlay-widget'
 import { LegendWidget, type LegendWidgetProps } from './widgets/legend-widget'
@@ -383,6 +383,15 @@ export function getNoodles(): Visualization {
       onNodesChangeBase(changes)
     },
     [onNodesChangeBase]
+  )
+
+  // Editing a project key in Settings changes what the project file saves
+  useEffect(
+    () =>
+      useKeysStore.subscribe((state, prev) => {
+        if (state.projectKeyEdits !== prev.projectKeyEdits) setHasUnsavedChanges(true)
+      }),
+    []
   )
 
   // Wrap onEdgesChange to mark unsaved changes
@@ -1076,7 +1085,10 @@ export function getNoodles(): Visualization {
       // Install embedded keys before constructing operators. Key-dependent operators
       // may inspect credentials while their fields and listeners are initialized.
       const keysStore = getKeysStore()
-      keysStore.setProjectKeys(apiKeys)
+      keysStore.setProjectKeys(
+        apiKeys,
+        name === undefined ? undefined : keysProjectId(targetRoutePrefix ?? routePrefix, name)
+      )
 
       // Dispose all old operators cleanly (executionState.complete() + unsubscribeListeners)
       const store = getOpStore()
@@ -1423,10 +1435,12 @@ export function getNoodles(): Visualization {
         await directoryHandleCache.cacheHandle(directoryName, directoryHandle, directoryName)
 
         const oldProjectName = projectName
+        getKeysStore().moveKeyOverridesTo(keysProjectId('/projects', directoryName))
         setCurrentDirectory(directoryHandle, directoryName)
         setActiveStorageType('fileSystemAccess')
         navigate(`/projects/${directoryName}`, { replace: true })
         memoryProjectStore.deleteProject(oldProjectName)
+        getKeysStore().markProjectKeysSaved()
         setHasUnsavedChanges(false)
         analytics.track('project_saved', { storageType: 'memory', promoted: true })
       } catch (error) {
@@ -1444,6 +1458,7 @@ export function getNoodles(): Visualization {
     const result = await save(storageType, projectName, noodlesProjectJson, cacheFiles)
     if (result.success) {
       setCurrentDirectory(result.data.directoryHandle, projectName)
+      getKeysStore().markProjectKeysSaved()
       setHasUnsavedChanges(false)
       analytics.track('project_saved', { storageType })
     } else {
@@ -1549,6 +1564,8 @@ export function getNoodles(): Visualization {
       // Cache the directory handle
       await directoryHandleCache.cacheHandle(directoryName, directoryHandle, directoryHandle.name)
 
+      getKeysStore().copyKeyOverridesTo(keysProjectId('/projects', directoryName))
+
       // Update store with directory handle
       setCurrentDirectory(directoryHandle, directoryName)
 
@@ -1559,6 +1576,7 @@ export function getNoodles(): Visualization {
       navigate(`/projects/${directoryName}`, { replace: true })
 
       // Mark as saved
+      getKeysStore().markProjectKeysSaved()
       setHasUnsavedChanges(false)
 
       analytics.track('project_saved_as', {
@@ -1626,6 +1644,8 @@ export function getNoodles(): Visualization {
           await directoryHandleCache.cacheHandle(newName, directoryHandle, directoryHandle.name)
         }
 
+        getKeysStore().moveKeyOverridesTo(keysProjectId('/projects', newName))
+
         // Update store with directory handle
         setCurrentDirectory(directoryHandle, newName)
 
@@ -1636,6 +1656,7 @@ export function getNoodles(): Visualization {
         navigate(`/projects/${newName}`, { replace: true })
 
         // Mark as saved
+        getKeysStore().markProjectKeysSaved()
         setHasUnsavedChanges(false)
 
         analytics.track('project_renamed', {
