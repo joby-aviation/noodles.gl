@@ -4,6 +4,7 @@ import * as deckWidgets from '@deck.gl/widgets'
 import * as turf from '@turf/turf'
 import { Temporal } from 'temporal-polyfill'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { getTimelineStore } from '../timeline/timeline-store'
 import { NumberField, StringField } from './fields'
 import { getKeysStore } from './keys-store'
 import {
@@ -1090,6 +1091,29 @@ describe('TimeOp', () => {
     expect(clock.outputs.now.value).toBe(2000)
 
     clock.dispose()
+  })
+
+  it('follows the timeline only once the executor ticks it', () => {
+    const timeline = getTimelineStore()
+    timeline.setPosition(0)
+    const clock = new TimeOp('/clock')
+
+    // Instances outside the executor (e.g. for operator metadata) never subscribe
+    timeline.setPosition(2)
+    expect(clock.outputs.sequenceTime.value).toBe(0)
+
+    // The first tick picks up the current position, then follows changes
+    clock.advanceClock(1000)
+    expect(clock.outputs.sequenceTime.value).toBe(2)
+    timeline.setPosition(3)
+    expect(clock.outputs.sequenceTime.value).toBe(3)
+
+    clock.dispose()
+    timeline.setPosition(4)
+    clock.advanceClock(2000)
+    expect(clock.outputs.sequenceTime.value).toBe(3)
+    expect(clock.outputs.tick.value).toBe(1)
+    timeline.setPosition(0)
   })
 
   it('does not run its own animation frame loop', () => {

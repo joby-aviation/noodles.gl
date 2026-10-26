@@ -80,7 +80,7 @@ import './utils/bigint-fix' // BigInt JSON polyfill for DuckDB
 import * as duckdb from '@duckdb/duckdb-wasm'
 import { getRenderSurfaceSize, subscribeToRenderSurfaceSize } from '../render/render-surface-size'
 import { getTransformScaleFactor } from '../render/transform-scale'
-import { subscribeToPosition } from '../timeline/timeline-store'
+import { getTimelineStore, subscribeToPosition } from '../timeline/timeline-store'
 import * as utils from '../utils'
 import { analytics } from '../utils/analytics'
 import { getArc } from '../utils/arc-geometry'
@@ -2150,6 +2150,7 @@ export class TimeOp extends Operator<TimeOp> {
 
   private timeState$ = new BehaviorSubject({ now: Date.now(), tick: 0, sequenceTime: 0 })
   private positionUnsub?: () => void
+  private disposed = false
 
   constructor(id: OpId, inputs?: unknown, locked?: boolean) {
     super(id, inputs, locked)
@@ -2179,22 +2180,29 @@ export class TimeOp extends Operator<TimeOp> {
       this.markDirty()
     })
     this.subs.push(sub)
+  }
 
+  // Called by the GraphExecutor loop once per tick. Instances outside the executor (e.g.
+  // ones created to read operator metadata) never tick, so they hold no loop or listener.
+  advanceClock(now: number) {
+    if (this.disposed) return
+    const current = this.timeState$.value
+    const sequenceTime = this.positionUnsub ? current.sequenceTime : this.followTimeline()
+    this.timeState$.next({ now, tick: current.tick + 1, sequenceTime })
+  }
+
+  // Subscribes on the first tick and returns the current position
+  private followTimeline(): number {
     this.positionUnsub = subscribeToPosition((pos: number) => {
       const current = this.timeState$.value
       this.timeState$.next({ ...current, sequenceTime: pos })
     })
-  }
-
-  // Called by the GraphExecutor loop once per tick. Instances outside the executor (e.g.
-  // ones created to read operator metadata) never tick, so they don't keep a loop alive.
-  advanceClock(now: number) {
-    const current = this.timeState$.value
-    this.timeState$.next({ ...current, now, tick: current.tick + 1 })
+    return getTimelineStore().position
   }
 
   dispose() {
     this.positionUnsub?.()
+    this.disposed = true
     this.timeState$.complete()
     super.dispose()
   }
