@@ -1,3 +1,4 @@
+import { RAMP_STOPS } from './types.js';
 import { describe, it, expect } from 'vitest';
 import { evaluateStage, materialize, toUint8Color } from './cpu-stage.js';
 import { plan, type Schema, type PhysicalPlan } from './planner.js';
@@ -165,6 +166,24 @@ describe('evaluateStage numeric correctness', () => {
     expect(Cd.data[0]).toBeCloseTo(0.267, 3);
     expect(Cd.data[3]).toBeCloseTo(0.993, 3);
     expect(Cd.data[5]).toBeCloseTo(0.144, 3);
+  });
+
+  it('samples each ramp from its own part of the LUT when a graph uses two', () => {
+    const p = cpuPlan([
+      source,
+      { id: 'a', type: 'attribute', input: 'src', name: 'P', expr: '[lng, lat, 0]' },
+      { id: 'c', type: 'colorscale', input: 'a', expr: 'elevation', ramp: 'viridis', domain: ['0', '1'] },
+      { id: 'm', type: 'colorscale', input: 'c', name: 'Cm', expr: 'elevation', ramp: 'magma', domain: ['0', '1'] },
+      { id: 'out', type: 'render', input: 'm', mode: 'points' },
+    ]);
+    const r = run(p, { lng: [0, 0], lat: [0, 0], elevation: [0, 1] });
+    const viridis = r.values.get('Cd')!.data;
+    const magma = r.values.get('Cm')!.data;
+    // Viridis starts dark purple; magma starts nearly black and ends pale yellow
+    expect(viridis[0]).toBeCloseTo(RAMP_STOPS.viridis[0][0], 3);
+    expect(magma[0]).toBeCloseTo(RAMP_STOPS.magma[0][0], 3);
+    expect(magma[3]).toBeCloseTo(RAMP_STOPS.magma.at(-1)![0], 3);
+    expect(magma[3]).not.toBeCloseTo(viridis[3], 2);
   });
 
   it('propagates NaN from a null rather than turning it into a number', () => {

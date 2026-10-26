@@ -15,7 +15,7 @@ import { type AttributeConventions, HOUDINI_CONVENTIONS } from './conventions.js
 import type { LayerKind, LayerPropValue } from './layers.js';
 import {
   type FunctionDef, type FunctionRegistry, type FunctionSpec,
-  addFunction, buildRegistry,
+  addFunction, buildRegistry, inlineFunctions,
 } from './functions.js';
 import { GEO_PRELUDE } from './geo.js';
 
@@ -597,7 +597,7 @@ export function statParamName(nodeId: string, op: StatOp): string {
 export function desugar(
   graph: Graph,
   conv: AttributeConventions = HOUDINI_CONVENTIONS,
-): { nodes: CoreNode[]; notes: string[]; ramp?: RampName; functions: FunctionRegistry } {
+): { nodes: CoreNode[]; notes: string[]; ramp?: RampName; ramps: RampName[]; functions: FunctionRegistry } {
   // Graph-level declarations first, then any hoisted out of wrangle bodies. Both land in one
   // flat registry, so a redefinition is an error wherever it came from. The geo prelude is
   // the registry's starting point, which is what puts it in scope for every graph.
@@ -605,9 +605,14 @@ export function desugar(
   registerUdfs(functions, graph.udfs);
   const out: CoreNode[] = [];
   const notes: string[] = [];
-  // One LUT is bound per kernel, so this prototype supports one ramp per graph.
-  // Two colorscales with different ramps is a real use case and a real limitation.
-  const ramps = new Set<RampName>();
+  // Every ramp the graph uses, in order of first use. Each `ramp(t)` call is rewritten to
+  // `ramp(t, k)`, k its ramp's place here, and the backends read ramp k: one LUT holding every
+  // ramp in turn on the GPU and the CPU, the ramp's own stops in SQL.
+  const ramps: RampName[] = [];
+  const rampIndex = (ramp: RampName): number => {
+    if (!ramps.includes(ramp)) ramps.push(ramp);
+    return ramps.indexOf(ramp);
+  };
   /**
    * Sugar that expands into several nodes changes which id represents its output, so any
    * node downstream still pointing at the original has to be redirected. Recorded here and
@@ -646,7 +651,7 @@ export function desugar(
       }
 
       case 'colorscale': {
-        ramps.add(node.ramp);
+        const k = rampIndex(node.ramp);
         const [d0, d1] = domainRefs(node);
         const t = `clamp(fit((${node.expr}), (${d0}), (${d1}), 0.0, 1.0), 0.0, 1.0)`;
         out.push({
@@ -654,7 +659,7 @@ export function desugar(
           type: 'attribute',
           input: node.input,
           name: node.name ?? conv.color,
-          expr: `ramp(${t})`,
+          expr: `ramp(${t}, ${k})`,
         });
         notes.push(`${node.id}: colorscale desugared to attribute '${node.name ?? conv.color}' via ramp()`);
         break;
@@ -693,7 +698,7 @@ export function desugar(
           }
         }
         const expanded = expandWrangle(node.id, statements);
-        if (/\bramp\s*\(/.test(node.body)) ramps.add(node.ramp ?? 'viridis');
+        const k = /\bramp\s*\(/.test(node.body) ? rampIndex(node.ramp ?? 'viridis') : undefined;
         let input = node.inputs?.[0] ?? node.input;
         for (const s of expanded) {
           out.push({
@@ -704,7 +709,9 @@ export function desugar(
             // chain off their predecessor so ordering within the body is preserved.
             inputs: input === (node.inputs?.[0] ?? node.input) ? node.inputs : undefined,
             name: s.name,
-            expr: s.expr,
+            // Functions are inlined first, so a ramp() inside one (`fn shade(x) = ramp(x)`)
+            // samples this wrangle's ramp too, not the graph's first
+            expr: k === undefined ? s.expr : withRampIndex(inlineFunctions(s.expr, functions), k),
             source: `line ${s.line}`,
           });
           input = `${node.id}#${s.name}`;
@@ -727,16 +734,10 @@ export function desugar(
         );
 
       default:
-        if (node.type === 'bin2d') ramps.add(node.ramp);
+        if (node.type === 'bin2d') rampIndex(node.ramp);
         out.push(node);
         break;
     }
-  }
-
-  if (ramps.size > 1) {
-    throw new Error(
-      `Graph uses ${ramps.size} different ramps (${[...ramps].join(', ')}); this prototype binds one LUT per graph`,
-    );
   }
 
   // Redirect references to any node whose id changed during expansion. Nodes created by
@@ -751,7 +752,39 @@ export function desugar(
     }
   }
 
-  return { nodes: out, notes, ramp: [...ramps][0], functions };
+  return { nodes: out, notes, ramp: ramps[0], ramps, functions };
+}
+
+/**
+ * `expr` with each one-argument `ramp(t)` call made `ramp(t, k)`, so it samples ramp k of the
+ * graph's ramps. A call that already names its ramp is left alone. A new tree: inlined
+ * function bodies can share nodes with the registry, which other wrangles inline too.
+ */
+function withRampIndex(e: Expr, k: number): Expr {
+  const go = (n: Expr) => withRampIndex(n, k);
+  switch (e.kind) {
+    case 'unary': return { ...e, operand: go(e.operand) };
+    case 'binary': return { ...e, left: go(e.left), right: go(e.right) };
+    case 'vec': return { ...e, components: e.components.map(go) };
+    case 'swizzle': return { ...e, target: go(e.target) };
+    case 'cond': return { ...e, test: go(e.test), then: go(e.then), else: go(e.else) };
+    case 'call': {
+      const args = e.args.map(go);
+      if (e.fn === 'ramp' && args.length === 1) args.push({ kind: 'num', value: k });
+      return { ...e, args };
+    }
+    default: return e;
+  }
+}
+
+/** Entries per ramp in a LUT, and so the stride between ramps in `buildRampLuts`. */
+export const RAMP_LUT_SIZE = 256;
+
+/** Every ramp's LUT, one after another, as `ramp(t, k)` reads them: ramp k starts at entry k × size. */
+export function buildRampLuts(ramps: readonly RampName[], size = RAMP_LUT_SIZE): Float32Array {
+  const out = new Float32Array(Math.max(ramps.length, 1) * size * 4);
+  ramps.forEach((r, k) => out.set(buildRampLut(r, size), k * size * 4));
+  return out;
 }
 
 /** Build a 256-entry RGB LUT from a ramp's stops. */
