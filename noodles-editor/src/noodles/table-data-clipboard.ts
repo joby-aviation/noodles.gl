@@ -1,7 +1,13 @@
 import { csvParseRows, tsvFormatRows, tsvParseRows } from 'd3'
 import DOMPurify from 'dompurify'
 import { Temporal } from 'temporal-polyfill'
-import { type ColumnSchema, getDefaultValue, isTableSchema, type TableSchema } from './table-schema'
+import {
+  type ColumnSchema,
+  getDefaultValue,
+  isTableSchema,
+  type TableSchema,
+  validateValue,
+} from './table-schema'
 import { coerceSchemaValue, parseSchemaClipboard } from './table-schema-clipboard'
 import type { CopiedNodesJSON } from './utils/serialization'
 
@@ -579,7 +585,7 @@ function isStrictDate(value: unknown): boolean {
 
 function isStrictDateTime(value: unknown): boolean {
   if (isRecord(value) && typeof value.datetime === 'string' && typeof value.timezone === 'string') {
-    return true
+    return validateValue(value, { name: '', type: 'dateTime' })
   }
   if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}T/.test(value.trim())) return false
   try {

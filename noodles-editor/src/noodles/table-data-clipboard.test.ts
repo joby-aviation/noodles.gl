@@ -458,14 +458,20 @@ describe('table data clipboard', () => {
   it('keeps unsafe integer identifiers and structured JSON values as strings', () => {
     const inferred = inferTableData(
       [
-        ['identifier', 'metadata', 'mixed'],
-        ['9007199254740993', { name: 'Alice' }, [1, 2]],
-        ['9007199254740994', { name: 'Bob' }, 'not a vector'],
+        ['identifier', 'metadata', 'mixed', 'invalid datetime'],
+        [
+          '9007199254740993',
+          { name: 'Alice' },
+          [1, 2],
+          { datetime: 'not scheduled', timezone: 'UTC' },
+        ],
+        ['9007199254740994', { name: 'Bob' }, 'not a vector', 'unknown'],
       ],
       { firstRowContainsHeaders: true }
     )
 
     expect(inferred.schema.columns.map(column => column.type)).toEqual([
+      'string',
       'string',
       'string',
       'string',
@@ -475,11 +481,13 @@ describe('table data clipboard', () => {
         identifier: '9007199254740993',
         metadata: '{"name":"Alice"}',
         mixed: '[1,2]',
+        'invalid datetime': '{"datetime":"not scheduled","timezone":"UTC"}',
       },
       {
         identifier: '9007199254740994',
         metadata: '{"name":"Bob"}',
         mixed: 'not a vector',
+        'invalid datetime': 'unknown',
       },
     ])
   })
