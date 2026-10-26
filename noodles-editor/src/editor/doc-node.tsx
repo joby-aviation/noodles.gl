@@ -22,6 +22,8 @@ import s from './doc-network.module.css'
 import { setParam } from './doc-ops'
 import { docStore, useEditor } from './doc-store'
 import { colorToFieldHex, fieldHexToColor } from './field-adapter'
+import { pillHeight } from './multi-port'
+import { MultiPortHandle } from './multi-port-handle'
 import { shownValue, summaryOf } from './node-summary'
 
 const CATEGORY_HEADERS: Record<string, string | undefined> = {
@@ -156,22 +158,45 @@ function draggedType(
   return (side === 'source' ? def?.outputs : def?.inputs)?.find(p => p.name === handle)?.type
 }
 
-function PortRow({ port, side, dim }: { port: PortSpec; side: 'in' | 'out'; dim: boolean }) {
+function PortRow({
+  nodeId,
+  port,
+  side,
+  dim,
+}: {
+  nodeId: string
+  port: PortSpec
+  side: 'in' | 'out'
+  dim: boolean
+}) {
+  const multi = side === 'in' && !!port.multi
+  // A multi input's row grows with its pill, so a long pill doesn't run into the next row
+  const wires = useEditor(st =>
+    multi ? st.doc.edges.filter(e => e.target === nodeId && e.targetPort === port.name).length : 0
+  )
+  const className = cx(PORT_CLASS[port.type], dim && s.dim)
   return (
-    <div className={cx(s.port, side === 'out' && s.portOut)}>
-      <Handle
-        id={port.name}
-        type={side === 'in' ? 'target' : 'source'}
-        position={side === 'in' ? Position.Left : Position.Right}
-        className={cx(PORT_CLASS[port.type], dim && s.dim)}
-      />
+    <div
+      className={cx(s.port, side === 'out' && s.portOut)}
+      style={multi ? { height: Math.max(18, pillHeight(wires) + 4) } : undefined}
+    >
+      {multi ? (
+        <MultiPortHandle port={port.name} className={className} />
+      ) : (
+        <Handle
+          id={port.name}
+          type={side === 'in' ? 'target' : 'source'}
+          position={side === 'in' ? Position.Left : Position.Right}
+          className={className}
+        />
+      )}
       {side === 'out'
         ? port.type === 'table'
           ? 'rows'
           : port.name === 'out'
             ? port.type
             : port.name
-        : `${port.label ?? port.name}${port.multi ? ' …' : ''}`}
+        : (port.label ?? port.name)}
     </div>
   )
 }
@@ -301,7 +326,7 @@ export function DocNodeComponent({ id, selected }: NodeProps) {
       />
       <div className={s.body}>
         {op.inputs.map(p => (
-          <PortRow key={`in-${p.name}`} port={p} side="in" dim={dimIn(p.type)} />
+          <PortRow key={`in-${p.name}`} nodeId={id} port={p} side="in" dim={dimIn(p.type)} />
         ))}
         {params.map(p => (
           <div className={cx(s.port, s.paramPort)} key={`par-${p.name}`}>
@@ -319,7 +344,7 @@ export function DocNodeComponent({ id, selected }: NodeProps) {
           </div>
         ))}
         {op.outputs.map(p => (
-          <PortRow key={`out-${p.name}`} port={p} side="out" dim={dimOut(p.type)} />
+          <PortRow key={`out-${p.name}`} nodeId={id} port={p} side="out" dim={dimOut(p.type)} />
         ))}
         {badges.length > 0 && (
           <div className={s.badges}>

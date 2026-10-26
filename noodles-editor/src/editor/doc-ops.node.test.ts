@@ -53,6 +53,38 @@ describe('document operations', () => {
     expect(lowerDocument(d).errors).toEqual([])
   })
 
+  it('inserts a wire at a slot of a multi input and moves one already there', () => {
+    const d = doc()
+    const layers = () =>
+      d.edges
+        .filter(e => e.targetPort === 'layers')
+        .sort((a, b) => (a.index ?? 0) - (b.index ?? 0))
+        .map(e => e.source)
+    const b = addNode(d, 'scatter', 0, 0)
+    const c = addNode(d, 'scatter', 0, 0)
+    connect(d, 'src', 'out', b.id, 'in')
+    connect(d, 'src', 'out', c.id, 'in')
+    connect(d, b.id, 'out', 'map', 'layers', 0)
+    expect(layers()).toEqual([b.id, 'dots'])
+    connect(d, c.id, 'out', 'map', 'layers', 1)
+    expect(layers()).toEqual([b.id, c.id, 'dots'])
+    // Boundary 3 is after the last slot
+    connect(d, b.id, 'out', 'map', 'layers', 3)
+    expect(layers()).toEqual([c.id, 'dots', b.id])
+    connect(d, b.id, 'out', 'map', 'layers', 0)
+    expect(layers()).toEqual([b.id, c.id, 'dots'])
+    // Either boundary of a wire's own slot leaves it where it is
+    connect(d, c.id, 'out', 'map', 'layers', 2)
+    expect(layers()).toEqual([b.id, c.id, 'dots'])
+    expect(
+      d.edges
+        .filter(e => e.targetPort === 'layers')
+        .map(e => e.index)
+        .sort()
+    ).toEqual([0, 1, 2])
+    expect(lowerDocument(d).errors).toEqual([])
+  })
+
   it('refuses a wire that would make a cycle or join mismatched types', () => {
     const d = doc()
     expect(validConnection(d, 'dots', 'out', 'src', 'in0')).toBe(false)

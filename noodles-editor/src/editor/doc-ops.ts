@@ -102,13 +102,16 @@ export function validConnection(
   return !downstream.has(source)
 }
 
-/** Wire an output to an input: it replaces a single input's wire, and appends to a multi one. */
+/** Wire an output to an input: it replaces a single input's wire, and joins a multi one. */
 export function connect(
   doc: EditorDoc,
   source: string,
   sourcePort: string,
   target: string,
-  targetPort: string
+  targetPort: string,
+  // For a multi input, the slot the wire goes in: it lands last without one, and a wire
+  // already in the port moves there
+  at?: number
 ): DocEdge | undefined {
   if (!validConnection(doc, source, sourcePort, target, targetPort)) return undefined
   const multi = isMulti(doc, target, targetPort)
@@ -121,20 +124,38 @@ export function connect(
       e.target === target &&
       e.targetPort === targetPort
   )
-  if (same) return same
-  const index = multi
-    ? doc.edges.filter(e => e.target === target && e.targetPort === targetPort).length
-    : undefined
+  if (same) {
+    if (multi && at !== undefined) moveToSlot(doc, same, at)
+    return same
+  }
+  const count = doc.edges.filter(e => e.target === target && e.targetPort === targetPort).length
   const edge: DocEdge = {
     id: newId('e'),
     source,
     sourcePort,
     target,
     targetPort,
-    ...(index !== undefined ? { index } : {}),
+    ...(multi ? { index: count } : {}),
   }
   doc.edges.push(edge)
+  if (multi && at !== undefined) moveToSlot(doc, edge, at)
   return edge
+}
+
+// Puts a multi input's wire at boundary `at` between the slots the port shows (0 is before the
+// first), renumbering the rest densely around it
+function moveToSlot(doc: EditorDoc, edge: DocEdge, at: number): void {
+  const wires = doc.edges
+    .filter(e => e.target === edge.target && e.targetPort === edge.targetPort)
+    .sort((a, b) => (a.index ?? 0) - (b.index ?? 0))
+  const from = wires.indexOf(edge)
+  // Boundaries past the wire's own slot shift down one once it leaves it
+  const to = Math.max(0, Math.min(wires.length - 1, at > from ? at - 1 : at))
+  wires.splice(from, 1)
+  wires.splice(to, 0, edge)
+  wires.forEach((e, i) => {
+    e.index = i
+  })
 }
 
 /** Remove wires, renumbering what is left on each multi input so its order stays dense. */

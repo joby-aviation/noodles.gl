@@ -19,6 +19,7 @@ Open the editor and follow along.
 ### Node Editor
 - **Add Nodes**: Press `Tab` or right-click an empty area of the canvas to open the Add Node menu
 - **Connect Data**: Drag from an output port to an input port
+- **Order Inputs**: A port that takes several wires, such as the deck's `layers`, is a pill with a slot per wire, top slot first. Drop a wire between two slots to put it there, or drag a wire's end to another slot to reorder
 - **Navigate**: Double-click a subnet (or select it and press `Enter`) to go inside, use the breadcrumbs or press `U` to go back up, press `F` to frame the whole network, and press `L` to lay it out left to right
 
 ### Parameter Pane

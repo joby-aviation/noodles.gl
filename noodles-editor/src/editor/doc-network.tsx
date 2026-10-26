@@ -41,9 +41,24 @@ import {
 } from './doc-ops'
 import { docStore, useEditor } from './doc-store'
 import { AddNodeMenu, ContextMenu, type MenuItem } from './menus'
-import { useUIStore } from './ui-store'
+import { MultiPortEdge } from './multi-port-handle'
+import { getUIStore, useUIStore } from './ui-store'
 
 const nodeTypes = { doc: DocNodeComponent, comment: DocCommentComponent }
+const edgeTypes = { multi: MultiPortEdge }
+
+// A drag that ended anywhere but a multi input leaves no slot behind
+const clearSlot = () => getUIStore().setPendingInsertionIndex(null)
+
+// The slot a drop onto a multi input picked, once: it belongs to the drag that just ended
+function takeSlot(c: Connection): number | undefined {
+  const ui = getUIStore()
+  const pending = ui.pendingInsertionIndex
+  ui.setPendingInsertionIndex(null)
+  return pending?.nodeId === c.target && pending.handleId === c.targetHandle
+    ? pending.index
+    : undefined
+}
 
 const PORT_COLOR: Record<string, string> = {
   table: '#22c55e',
@@ -178,6 +193,14 @@ export function DocNetwork({ children }: { children?: ReactNode }) {
   const lowered = useEngineState().lowered
   const edges: Edge[] = useMemo(() => {
     const here = new Set(doc.nodes.filter(n => n.parent === network).map(n => n.id))
+    // Each multi input's wires in order, to space them on its pill. Indices need not be dense
+    // (older files number layers 0, 10, 20), so a wire's slot is its rank.
+    const slots = new Map<string, string[]>()
+    for (const e of [...doc.edges].sort((a, b) => (a.index ?? 0) - (b.index ?? 0)))
+      if (e.index !== undefined) {
+        const key = `${e.target}|${e.targetPort}`
+        slots.set(key, [...(slots.get(key) ?? []), e.id])
+      }
     const wires: Edge[] = doc.edges
       .filter(e => here.has(e.source) && here.has(e.target))
       .map(e => {
@@ -192,7 +215,15 @@ export function DocNetwork({ children }: { children?: ReactNode }) {
           sourceHandle: e.sourcePort,
           targetHandle: e.targetPort,
           style: { stroke: PORT_COLOR[type], strokeWidth: 1.6, opacity: 0.85 },
-          label: e.index !== undefined && e.index > 0 ? String(e.index) : undefined,
+          ...(e.index !== undefined
+            ? {
+                type: 'multi',
+                data: {
+                  index: slots.get(`${e.target}|${e.targetPort}`)?.indexOf(e.id) ?? 0,
+                  count: slots.get(`${e.target}|${e.targetPort}`)?.length ?? 1,
+                },
+              }
+            : {}),
         }
       })
     // Parameter references (ch() and ref values), dashed as Noodles drew reference edges
@@ -290,8 +321,30 @@ export function DocNetwork({ children }: { children?: ReactNode }) {
   )
 
   const onConnect = useCallback((c: Connection) => {
+    const at = takeSlot(c)
     docStore().edit(d => {
-      connect(d, c.source, c.sourceHandle ?? 'out', c.target, c.targetHandle ?? 'in')
+      connect(d, c.source, c.sourceHandle ?? 'out', c.target, c.targetHandle ?? 'in', at)
+    })
+  }, [])
+
+  // Dragging a wire's end to another input moves it there; onto another slot of its own multi
+  // input, it reorders the input's wires
+  const onReconnect = useCallback((old: Edge, c: Connection) => {
+    const at = takeSlot(c)
+    docStore().edit(d => {
+      const same =
+        old.source === c.source &&
+        old.sourceHandle === c.sourceHandle &&
+        old.target === c.target &&
+        old.targetHandle === c.targetHandle
+      if (!same) {
+        if (
+          !validConnection(d, c.source, c.sourceHandle ?? 'out', c.target, c.targetHandle ?? 'in')
+        )
+          return
+        removeEdges(d, [old.id])
+      }
+      connect(d, c.source, c.sourceHandle ?? 'out', c.target, c.targetHandle ?? 'in', at)
     })
   }, [])
 
@@ -455,8 +508,12 @@ export function DocNetwork({ children }: { children?: ReactNode }) {
         nodes={nodes}
         edges={edges}
         nodeTypes={nodeTypes}
+        edgeTypes={edgeTypes}
         onNodesChange={onNodesChange}
         onConnect={onConnect}
+        onReconnect={onReconnect}
+        onConnectEnd={clearSlot}
+        onReconnectEnd={clearSlot}
         isValidConnection={isValidConnection}
         deleteKeyCode={null}
         selectionKeyCode="Shift"
