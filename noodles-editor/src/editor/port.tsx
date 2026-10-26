@@ -7,7 +7,7 @@ import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import s from './doc-editor.module.css'
 import { docStore } from './doc-store'
-import { startLinkDrag } from './link-drag'
+import { startPortDrag } from './link-drag'
 import type { Connection, LinkDrag } from './param-links'
 import { useUIStore } from './ui-store'
 
@@ -53,16 +53,13 @@ export function Port({
 
   return (
     <>
-      {/* biome-ignore lint/a11y/noStaticElementInteractions: dragging the port is the pointer gesture; the link button and the right-click menu make the same link from the keyboard */}
+      {/* biome-ignore lint/a11y/noStaticElementInteractions: dragging from the port is the pointer gesture; the link button and the right-click menu make the same link from the keyboard */}
       <span
         className={cx(s.port, side === 'out' && s.portOut, connections.length > 0 && s.portOn)}
         data-port={side}
-        draggable
-        onMouseDown={close}
-        onDragStart={e => {
-          e.stopPropagation()
+        onPointerDown={e => {
           close()
-          startLinkDrag(e, drag)
+          startPortDrag(e, drag, side)
         }}
         onMouseEnter={e => show(e.currentTarget)}
         onMouseLeave={hide}

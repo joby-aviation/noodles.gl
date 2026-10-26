@@ -727,6 +727,8 @@
   background: var(--color-bg-base, #1b1d21);
   cursor: grab;
   opacity: 0.6;
+  /* A touch drags a line from the port rather than scrolling the panel */
+  touch-action: none;
 }
 
 .paramRow:hover .port {

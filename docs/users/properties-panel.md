@@ -58,7 +58,7 @@ A parameter can take its value from somewhere other than its editor:
 
 ### Linking Parameters by Dragging
 
-Each parameter that can follow another has two **ports**, as in Cavalry: an input at the left of its row and an output at the right. A node with number outputs, such as an Extent's `min` and `max`, lists them under **Outputs**, each with an output port. A port is hollow until it is connected and blue once it is. Rest the pointer on a port to see what it is connected to; click an entry to go to it.
+Each parameter that can follow another has two **ports**, as in Cavalry: an input at the left of its row and an output at the right. A node with number outputs, such as an Extent's `min` and `max`, lists them under **Outputs**, each with an output port. A port is hollow until it is connected and blue once it is. While you drag from a port, a line follows the pointer and snaps to the port of a row that can take it; press Escape to cancel. Rest the pointer on a port to see what it is connected to; click an entry to go to it.
 
 - **Output onto a parameter**: drag an output port onto another parameter's row. That parameter now reads it. Rows that can take the link light up while you drag; a color only links to a color, a number to a number.
 - **Input onto an output**: drag a parameter's input port onto another row, or onto an output, to make the parameter read it, as After Effects' pick whip does.
