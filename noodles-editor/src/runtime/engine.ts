@@ -213,6 +213,12 @@ export class Engine {
     this.built.clear()
     this.extended.clear()
     this.hostTables.clear()
+    // Host reads are keyed by relation hash, which another project with the same files and
+    // graph repeats
+    this.aggregates.clear()
+    this.features.clear()
+    this.rows.clear()
+    this.loadedRows.clear()
     await this.runtime.forget?.()
   }
 

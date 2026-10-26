@@ -52,3 +52,30 @@ it('reads each project’s own file when another project opens', async () => {
   expect(layer?.error).toBeUndefined()
   expect(layer?.data?.rows).toBe(2)
 })
+
+// A host operator's read of a node's rows is cached by relation hash. Two projects with the
+// same file name and graph hash the same, so the cache must not outlive the project.
+it('reads host rows from the project that is open', async () => {
+  let csv = 'Longitude,Latitude,Magnitude\n-122.4,37.8,3.1\n'
+  const engine = new Engine(duck, {
+    registerFile: async (name, bytes) => duck.registerFile(name, bytes),
+    readAsset: async () => new TextEncoder().encode(csv),
+  })
+  const rowsOf = async () => {
+    for (let i = 0; i < 50; i++) {
+      const rows = engine.peekRows('data-source')
+      if (rows) return rows
+      await new Promise(resolve => setTimeout(resolve, 10))
+    }
+    throw new Error('rows never read')
+  }
+  await engine.setDoc(doc('first', '[Longitude, Latitude]'))
+  await engine.settle()
+  expect(await rowsOf()).toEqual([{ Longitude: -122.4, Latitude: 37.8, Magnitude: 3.1 }])
+
+  csv = 'Longitude,Latitude,Magnitude\n-118.2,34.1,4.5\n'
+  await engine.openProject()
+  await engine.setDoc(doc('second', '[Longitude, Latitude]'))
+  await engine.settle()
+  expect(await rowsOf()).toEqual([{ Longitude: -118.2, Latitude: 34.1, Magnitude: 4.5 }])
+})
