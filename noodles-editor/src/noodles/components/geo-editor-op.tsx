@@ -1,13 +1,11 @@
 import type { NodeProps as ReactFlowNodeProps } from '@xyflow/react'
 import cx from 'classnames'
-import { useState } from 'react'
 
 import type { Field, IField } from '../fields'
 import s from '../noodles.module.css'
 import type { IOperator, Operator } from '../operators'
 import { getOp } from '../store'
 import { FieldComponent } from './field-components'
-import { GeoEditorDialog } from './geo-editor-dialog'
 import {
   NodeHeader,
   OutputHandle,
@@ -27,7 +25,6 @@ export function GeoEditorOpComponent(props: ReactFlowNodeProps) {
 function GeoEditorOpInner({ id, type, op }: ReactFlowNodeProps & { op: Operator<IOperator> }) {
   const isDimmed = useNodeDimmed(id)
   const locked = useLocked(op)
-  const [dialogOpen, setDialogOpen] = useState(false)
   useFieldVisibility(op)
 
   return (
@@ -41,14 +38,6 @@ function GeoEditorOpInner({ id, type, op }: ReactFlowNodeProps & { op: Operator<
           handle={PAR_HANDLE_OPTIONS}
         />
         {!locked && <EditOnMapButton nodeId={id} from="node" className="nodrag" />}
-        <button
-          type="button"
-          className={s.configureButton}
-          onClick={() => setDialogOpen(true)}
-          disabled={locked}
-        >
-          Open Editor
-        </button>
         <div className={s.outputHandleContainer}>
           <OutputHandle
             id="featureCollection"
@@ -56,7 +45,6 @@ function GeoEditorOpInner({ id, type, op }: ReactFlowNodeProps & { op: Operator<
           />
         </div>
       </div>
-      <GeoEditorDialog operator={op} open={dialogOpen} onOpenChange={setDialogOpen} />
     </div>
   )
 }

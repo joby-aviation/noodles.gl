@@ -66,6 +66,7 @@
   left: 12px;
   width: 240px;
   max-height: calc(100vh - 60px);
+  overflow-x: hidden;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
@@ -391,4 +392,42 @@
 
 .primaryAction:disabled:hover {
   background-color: #3b82f6;
+}
+
+/* Move / Add / Remove for the points of finished shapes */
+.toolRow {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.toolLabel {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-text-secondary);
+}
+
+.readoutNotice {
+  font-size: 10px;
+  color: #f59e0b;
+}
+
+.addHandle {
+  fill: #3b82f6;
+  stroke: #fff;
+  stroke-width: calc(1.5px * var(--unit, 1));
+}
+
+.addGhost {
+  fill: rgba(59, 130, 246, 0.6);
+  stroke: #fff;
+  stroke-width: calc(2px * var(--unit, 1));
+}
+
+.removeHandle {
+  fill: #ef4444;
+  stroke: #fff;
+  stroke-width: calc(2px * var(--unit, 1));
 }

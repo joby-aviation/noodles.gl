@@ -291,4 +291,83 @@ describe('MapToolOverlay drawing', () => {
     overlay.clickAt(100, 100)
     expect(screen.getByText('Click to add the next point')).toBeTruthy()
   })
+
+  describe('point tools', () => {
+    const triangle = (): EditSession => ({
+      opId: '/geo-editor',
+      kind: 'geo-editor',
+      label: 'geo-editor',
+      features: [
+        {
+          type: 'Feature',
+          geometry: {
+            type: 'Polygon',
+            coordinates: [
+              [
+                [50, 50],
+                [150, 50],
+                [150, 150],
+                [50, 50],
+              ],
+            ],
+          },
+          properties: {},
+        },
+      ],
+    })
+    const ring = (overlay: ReturnType<typeof renderOverlay>) => {
+      fireEvent.click(screen.getByText(/Save to geo-editor/))
+      const [, features] = overlay.onSaveEdits.mock.calls[0]
+      return (features[0].geometry as GeoJSON.Polygon).coordinates[0]
+    }
+
+    it('adds a point where an edge is clicked, and never starts a new shape', () => {
+      const overlay = renderOverlay({ editSession: triangle() })
+      canvas = overlay.canvas
+      fireEvent.click(screen.getByText('Add'))
+      expect(screen.getByText('Click an edge to add a point there')).toBeTruthy()
+      // Near the top edge, between the first two points
+      fireEvent.mouseDown(overlay.surface, { clientX: 90, clientY: 54, button: 0 })
+      fireEvent.mouseUp(window, { clientX: 90, clientY: 54 })
+      overlay.clickAt(90, 54)
+      // Far from any edge: nothing happens
+      fireEvent.mouseDown(overlay.surface, { clientX: 300, clientY: 250, button: 0 })
+      overlay.clickAt(300, 250)
+      expect(screen.queryByText(/more point/)).toBeNull()
+      expect(ring(overlay)).toEqual([
+        [50, 50],
+        [90, 54],
+        [150, 50],
+        [150, 150],
+        [50, 50],
+      ])
+    })
+
+    it('removes a clicked point, but not below what the shape needs', () => {
+      const session = triangle()
+      const square = session.features[0].geometry as GeoJSON.Polygon
+      square.coordinates[0].splice(3, 0, [50, 150])
+      const overlay = renderOverlay({ editSession: session })
+      canvas = overlay.canvas
+      fireEvent.click(screen.getByText('Remove'))
+      fireEvent.mouseDown(overlay.surface, { clientX: 150, clientY: 150, button: 0 })
+      fireEvent.mouseDown(overlay.surface, { clientX: 150, clientY: 50, button: 0 })
+      expect(screen.getByText('A polygon needs at least 3 points')).toBeTruthy()
+      expect(ring(overlay)).toEqual([
+        [50, 50],
+        [150, 50],
+        [50, 150],
+        [50, 50],
+      ])
+    })
+
+    it('goes back to drawing when a shape type is picked', () => {
+      const overlay = renderOverlay({ editSession: triangle() })
+      canvas = overlay.canvas
+      fireEvent.click(screen.getByText('Remove'))
+      fireEvent.click(screen.getByText('Line'))
+      overlay.clickAt(300, 250)
+      expect(screen.getByText('Click to add the next point')).toBeTruthy()
+    })
+  })
 })
