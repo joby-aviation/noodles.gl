@@ -1,7 +1,9 @@
 import { useReactFlow } from '@xyflow/react'
 import { useCallback } from 'react'
 import { debugUI } from '../../utils/debug'
+import { type DrawFollowUp, featuresFor } from '../components/tools/draw-shapes'
 import { createDrawingGraph, createMeasurementGraph } from '../components/tools/map-tool-pipelines'
+import { useMapToolStore } from '../components/tools/map-tool-store'
 import type { LngLat } from '../components/tools/measure-math'
 import type { Operator, OpType } from '../operators'
 import { useNestingStore, useOperatorStore } from '../store'
@@ -84,5 +86,31 @@ export function useMapToolGraph() {
     [commit, basePosition, makeNodeId]
   )
 
-  return { saveDrawing, saveMeasurement }
+  // Writes the drawing as a GeoEditor alone, then opens the follow-up's recipe with the
+  // editor already wired in. The recipe's output gets the layer, not the raw drawing.
+  const sendDrawingTo = useCallback(
+    (followUp: DrawFollowUp, features: GeoJSON.Feature[]) => {
+      const relevant = featuresFor(followUp, features)
+      if (relevant.length === 0) return
+      const built = createDrawingGraph({
+        features: relevant,
+        basePosition: basePosition(),
+        makeNodeId,
+        addLayer: false,
+      })
+      commit(built)
+      useMapToolStore.getState().requestRecipe({
+        recipeId: followUp.recipeId,
+        sources: {
+          [followUp.shapeInput]: {
+            source: built.primaryNodeId,
+            sourceHandle: 'out.featureCollection',
+          },
+        },
+      })
+    },
+    [commit, basePosition, makeNodeId]
+  )
+
+  return { saveDrawing, saveMeasurement, sendDrawingTo }
 }

@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import type { SourceRef } from './geo-recipes'
 
 // Which interactive map tool is armed. The shelf sets this; the overlay in the output
 // pane reads it and takes over clicks on the map. Only one tool is armed at a time so
@@ -9,6 +10,13 @@ export type MeasureMode = 'distance' | 'area'
 export type DrawMode = 'point' | 'line' | 'polygon'
 export type DistanceUnit = 'kilometers' | 'miles' | 'meters' | 'nauticalmiles'
 
+// Asks the shelf to open a geo recipe wizard with some inputs already wired. The Draw
+// tool uses this to hand a finished drawing to Clip, Buffer and the like.
+export interface RecipeRequest {
+  recipeId: string
+  sources: Record<string, SourceRef>
+}
+
 export interface MapToolStoreState {
   activeTool: MapTool
   measureMode: MeasureMode
@@ -17,6 +25,7 @@ export interface MapToolStoreState {
   // Set when Draw was started from the shelf and needs a GeoEditor node to write into.
   // The overlay scaffolds one on first use and remembers it for the session.
   drawTargetOpId: string | null
+  recipeRequest: RecipeRequest | null
   setActiveTool: (tool: MapTool) => void
   // Arming the same tool twice disarms it, so the shelf button behaves like a toggle
   toggleTool: (tool: Exclude<MapTool, null>) => void
@@ -24,6 +33,7 @@ export interface MapToolStoreState {
   setDistanceUnit: (unit: DistanceUnit) => void
   setDrawMode: (mode: DrawMode) => void
   setDrawTargetOpId: (id: string | null) => void
+  requestRecipe: (request: RecipeRequest | null) => void
 }
 
 export const useMapToolStore = create<MapToolStoreState>(set => ({
@@ -32,10 +42,12 @@ export const useMapToolStore = create<MapToolStoreState>(set => ({
   distanceUnit: 'kilometers',
   drawMode: 'polygon',
   drawTargetOpId: null,
+  recipeRequest: null,
   setActiveTool: tool => set({ activeTool: tool }),
   toggleTool: tool => set(state => ({ activeTool: state.activeTool === tool ? null : tool })),
   setMeasureMode: mode => set({ measureMode: mode }),
   setDistanceUnit: unit => set({ distanceUnit: unit }),
   setDrawMode: mode => set({ drawMode: mode }),
   setDrawTargetOpId: id => set({ drawTargetOpId: id }),
+  requestRecipe: request => set({ recipeRequest: request }),
 }))
