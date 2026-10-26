@@ -1,7 +1,7 @@
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import type { Map as MapLibre } from 'maplibre-gl'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { MapToolOverlay } from './map-tool-overlay'
+import { type EditSession, MapToolOverlay } from './map-tool-overlay'
 import { useMapToolStore } from './map-tool-store'
 
 // A stand-in for maplibre whose camera maps lng/lat straight to canvas pixels, so a
@@ -26,7 +26,15 @@ function stubMap() {
   return { mapRef: { current: map as unknown as MapLibre }, canvas }
 }
 
-function renderOverlay({ detached = false } = {}) {
+function renderOverlay({
+  detached = false,
+  editSession = null,
+  onSaveEdits = vi.fn(() => true),
+}: {
+  detached?: boolean
+  editSession?: EditSession | null
+  onSaveEdits?: ReturnType<typeof vi.fn>
+} = {}) {
   const { mapRef, canvas } = stubMap()
   const onSaveDrawing = vi.fn()
   const onSendDrawing = vi.fn()
@@ -38,12 +46,14 @@ function renderOverlay({ detached = false } = {}) {
         onSaveMeasurement={vi.fn()}
         onSendDrawing={onSendDrawing}
         detached={detached}
+        editSession={editSession}
+        onSaveEdits={onSaveEdits}
       />
     </div>
   )
   const surface = document.querySelector('svg')?.parentElement as HTMLElement
   const clickAt = (x: number, y: number) => fireEvent.click(surface, { clientX: x, clientY: y })
-  return { canvas, clickAt, onSaveDrawing, onSendDrawing }
+  return { canvas, clickAt, surface, onSaveDrawing, onSendDrawing, onSaveEdits }
 }
 
 describe('MapToolOverlay drawing', () => {
@@ -133,5 +143,79 @@ describe('MapToolOverlay drawing', () => {
     expect(writeText).toHaveBeenCalledTimes(1)
     expect(screen.getByText(/Copy failed/)).toBeTruthy()
     vi.restoreAllMocks()
+  })
+
+  it('drags a vertex of an existing GeoEditor shape and saves it back', () => {
+    const session: EditSession = {
+      opId: '/geo-editor',
+      kind: 'geo-editor',
+      label: 'geo-editor',
+      features: [
+        {
+          type: 'Feature',
+          geometry: {
+            type: 'Polygon',
+            coordinates: [
+              [
+                [50, 50],
+                [150, 50],
+                [150, 150],
+                [50, 50],
+              ],
+            ],
+          },
+          properties: { name: 'zone' },
+        },
+      ],
+    }
+    useMapToolStore.setState({ editTarget: session })
+    const overlay = renderOverlay({ editSession: session })
+    canvas = overlay.canvas
+    expect(screen.getByText('Editing geo-editor')).toBeTruthy()
+    const save = screen.getByText(/Save to geo-editor/).closest('button') as HTMLButtonElement
+    expect(save.disabled).toBe(true)
+
+    fireEvent.mouseDown(overlay.surface, { clientX: 151, clientY: 151, button: 0 })
+    fireEvent.mouseMove(window, { clientX: 200, clientY: 180 })
+    fireEvent.mouseUp(window, { clientX: 200, clientY: 180 })
+    // The click that ends a drag must not start a new shape
+    overlay.clickAt(200, 180)
+    expect(screen.queryByText(/Add 2 more points/)).toBeNull()
+
+    expect(save.disabled).toBe(false)
+    fireEvent.click(save)
+    const [target, features] = overlay.onSaveEdits.mock.calls[0]
+    expect(target.opId).toBe('/geo-editor')
+    expect(features).toHaveLength(1)
+    expect(features[0].properties).toEqual({ name: 'zone' })
+    expect(features[0].geometry.coordinates[0]).toEqual([
+      [50, 50],
+      [150, 50],
+      [200, 180],
+      [50, 50],
+    ])
+  })
+
+  it('moves a Point node to wherever the map is clicked', () => {
+    const session: EditSession = {
+      opId: '/point',
+      kind: 'point',
+      label: 'point',
+      features: [
+        { type: 'Feature', geometry: { type: 'Point', coordinates: [10, 10] }, properties: {} },
+      ],
+    }
+    useMapToolStore.setState({ drawMode: 'point', editTarget: session })
+    const overlay = renderOverlay({ editSession: session })
+    canvas = overlay.canvas
+    expect(screen.queryByText('Polygon')).toBeNull()
+    overlay.clickAt(120, 90)
+    overlay.clickAt(300, 200)
+    expect(screen.getAllByText('Point')).toHaveLength(1)
+    fireEvent.click(screen.getByText(/Save to point/))
+    const [, features] = overlay.onSaveEdits.mock.calls[0]
+    expect(features).toEqual([
+      { type: 'Feature', geometry: { type: 'Point', coordinates: [300, 200] }, properties: {} },
+    ])
   })
 })

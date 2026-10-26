@@ -2,16 +2,22 @@ import { useReactFlow } from '@xyflow/react'
 import { useCallback } from 'react'
 import { debugUI } from '../../utils/debug'
 import { type DrawFollowUp, featuresFor } from '../components/tools/draw-shapes'
+import {
+  type EditableOp,
+  type EditTarget,
+  writeTargetFeatures,
+} from '../components/tools/edit-target'
 import { createDrawingGraph, createMeasurementGraph } from '../components/tools/map-tool-pipelines'
 import { useMapToolStore } from '../components/tools/map-tool-store'
 import type { LngLat } from '../components/tools/measure-math'
 import type { Operator, OpType } from '../operators'
-import { useNestingStore, useOperatorStore } from '../store'
+import { getOp, useNestingStore, useOperatorStore } from '../store'
 import type { NodeJSON } from '../transform-graph'
 import { appendUniqueEdges } from '../utils/edge-integrity'
 import { nodeId } from '../utils/id-utils'
 import { normalizeMultiInputEdges } from '../utils/multi-input-utils'
 import { resolveNodeOverlaps } from '../utils/node-layout'
+import { captureOperatorInputs, firePropertyMutation } from '../utils/property-history'
 
 // Commits geometry produced by the on-map tools into the graph. The maths and node
 // shapes live in pure modules; this hook only supplies ids, position and React Flow.
@@ -112,5 +118,15 @@ export function useMapToolGraph() {
     [commit, basePosition, makeNodeId]
   )
 
-  return { saveDrawing, saveMeasurement, sendDrawingTo }
+  // Writes edited shapes back to the node they came from, as one undo step
+  const saveEdits = useCallback((target: EditTarget, features: GeoJSON.Feature[]) => {
+    const op = getOp(target.opId) as unknown as EditableOp | undefined
+    if (!op) return false
+    const before = captureOperatorInputs()
+    const written = writeTargetFeatures(op, target.kind, features)
+    if (written) firePropertyMutation('Edit shapes on map', before)
+    return written
+  }, [])
+
+  return { saveDrawing, saveMeasurement, sendDrawingTo, saveEdits }
 }

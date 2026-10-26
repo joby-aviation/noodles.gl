@@ -16,6 +16,7 @@ import {
   useLocked,
   useNodeDimmed,
 } from './op-components'
+import { EditOnMapButton } from './tools/edit-on-map-button'
 
 export function GeoEditorOpComponent(props: ReactFlowNodeProps) {
   const op = getOp(props.id as string)
@@ -39,6 +40,7 @@ function GeoEditorOpInner({ id, type, op }: ReactFlowNodeProps & { op: Operator<
           disabled={locked}
           handle={PAR_HANDLE_OPTIONS}
         />
+        {!locked && <EditOnMapButton nodeId={id} from="node" className="nodrag" />}
         <button
           type="button"
           className={s.configureButton}

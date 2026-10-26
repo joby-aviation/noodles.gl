@@ -370,3 +370,25 @@
   padding: 6px 8px;
   font-size: 11px;
 }
+
+/* Grab handles on finished shapes: vertices to drag, midpoints to add a vertex */
+.vertexHandle {
+  fill: #22c55e;
+  stroke: #fff;
+  stroke-width: calc(2px * var(--unit, 1));
+}
+
+.midpointHandle {
+  fill: rgba(255, 255, 255, 0.85);
+  stroke: #22c55e;
+  stroke-width: calc(1.5px * var(--unit, 1));
+}
+
+.primaryAction:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.primaryAction:disabled:hover {
+  background-color: #3b82f6;
+}
