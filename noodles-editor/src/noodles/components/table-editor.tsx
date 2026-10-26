@@ -134,19 +134,13 @@ function NumberCellEditor({
 
   const handleNumberChange = (newValue: number) => {
     const prefix = seedPrefixRef.current
-    const prefixed = prefix === undefined ? newValue : Number(`${prefix}${newValue}`)
-    onChange(applyConstraints(Number.isFinite(prefixed) ? prefixed : newValue))
+    if (prefix !== undefined) return
+    onChange(applyConstraints(newValue))
   }
 
   const parseAndCommit = (inputValue: string, advance?: EditAdvance) => {
     const prefix = seedPrefixRef.current
-    const displayedValue = Number.parseFloat(inputValue)
-    // A controlled update may already have replaced the input text with the prefixed value.
-    // Only prepend the seed when the input still contains the unprefixed text.
-    const parsed =
-      prefix !== undefined && displayedValue !== value
-        ? Number.parseFloat(`${prefix}${inputValue}`)
-        : displayedValue
+    const parsed = Number.parseFloat(`${prefix ?? ''}${inputValue}`)
     seedPrefixRef.current = undefined
     handleNumberChange(Number.isNaN(parsed) ? defaultValue : parsed)
     onComplete(advance)
@@ -212,10 +206,11 @@ function StringLiteralCellEditor({
   onComplete,
   onCancel,
   column,
+  editingSeed,
 }: CellEditorProps) {
   const selectRef = useRef<HTMLSelectElement>(null)
   const currentValue = String(value ?? '')
-  const [localValue, setLocalValue] = useState(currentValue)
+  const [localValue, setLocalValue] = useState(editingSeed ?? currentValue)
   const [suggestionsOpen, setSuggestionsOpen] = useState(false)
   const configuredValues = column.options?.values ?? []
   const freeform = column.options?.freeform ?? false

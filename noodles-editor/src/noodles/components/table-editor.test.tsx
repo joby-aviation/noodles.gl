@@ -1062,6 +1062,38 @@ describe('TableEditor', () => {
     expect(screen.getByText('Bob').closest('[role="gridcell"]')).toHaveAttribute('tabindex', '0')
   })
 
+  it('replaces a freeform string-literal cell from the first typed character', () => {
+    const onDataChange = vi.fn()
+    render(
+      <TableEditor
+        op={mockOp}
+        data={[{ status: 'Alpha' }]}
+        schema={{
+          columns: [
+            {
+              name: 'status',
+              type: 'stringLiteral',
+              defaultValue: 'Alpha',
+              options: { values: ['Alpha', 'Beta'], freeform: true },
+            },
+          ],
+        }}
+        onDataChange={onDataChange}
+        onSchemaChange={vi.fn()}
+      />
+    )
+
+    const cell = screen.getByText('Alpha').closest('[role="gridcell"]') as HTMLElement
+    fireEvent.click(cell)
+    fireEvent.keyDown(cell, { key: 'Z' })
+    const editor = screen.getByRole('textbox')
+    expect(editor).toHaveValue('Z')
+    fireEvent.change(editor, { target: { value: 'Za' } })
+    fireEvent.keyDown(editor, { key: 'Enter' })
+
+    expect(onDataChange).toHaveBeenCalledWith([{ status: 'Za' }], 'Edit cell status')
+  })
+
   it('wraps Tab to the next row and keeps keyboard movement visible', () => {
     const scrollIntoView = vi.spyOn(Element.prototype, 'scrollIntoView')
     render(
@@ -1188,6 +1220,35 @@ describe('TableEditor', () => {
     fireEvent.keyDown(fractionEditor, { key: 'Enter' })
     expect(onDataChange).not.toHaveBeenCalled()
     expect(screen.getByText('0.5')).toBeInTheDocument()
+  })
+
+  it('keeps decimal zeros while a prefixed fractional edit is unfinished', () => {
+    const onDataChange = vi.fn()
+    render(
+      <TableEditor
+        op={mockOp}
+        data={simpleData}
+        schema={simpleSchema}
+        onDataChange={onDataChange}
+        onSchemaChange={vi.fn()}
+      />
+    )
+
+    const count = screen.getByText('10').closest('[role="gridcell"]') as HTMLElement
+    fireEvent.click(count)
+    fireEvent.keyDown(count, { key: '.' })
+    const editor = screen.getByRole('spinbutton', { name: 'Edit count' })
+    fireEvent.change(editor, { target: { value: '0' } })
+    fireEvent.change(editor, { target: { value: '05' } })
+    fireEvent.keyDown(editor, { key: 'Enter' })
+
+    expect(onDataChange).toHaveBeenCalledWith(
+      [
+        { name: 'Alice', count: 0.05 },
+        { name: 'Bob', count: 20 },
+      ],
+      'Edit cell count'
+    )
   })
 
   it('applies the column default when Tab commits a cleared number cell', () => {
