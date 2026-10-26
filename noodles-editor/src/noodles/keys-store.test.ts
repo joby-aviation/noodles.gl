@@ -382,6 +382,15 @@ describe('Keys Store', () => {
       expect(Object.keys(getKeysStore().keyOverrides)).toEqual(['project-a', 'project-renamed'])
     })
 
+    it('should move the choices when the project is renamed', () => {
+      getKeysStore().setKeyOverride('cesium', 'browser')
+      getKeysStore().moveKeyOverridesTo('project-renamed')
+      getKeysStore().setProjectKeys({ cesium: 'project-cesium' }, 'project-renamed')
+
+      expect(getKeysStore().getKey('cesium')).toBe('browser-cesium')
+      expect(Object.keys(getKeysStore().keyOverrides)).toEqual(['project-renamed'])
+    })
+
     it('should replace choices left at the new name by an earlier project', () => {
       getKeysStore().setProjectKeys({ cesium: 'project-cesium' }, 'project-b')
       getKeysStore().setKeyOverride('cesium', 'browser')

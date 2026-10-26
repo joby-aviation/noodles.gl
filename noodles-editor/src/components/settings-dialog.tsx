@@ -188,6 +188,7 @@ export function SettingsDialog({ open, setOpen, projectName = null }: SettingsDi
   useKeysStore(state => state.keyOverrides)
   const projectKeys = useKeysStore(state => state.projectKeys || {})
   const savedProjectKeys = useKeysStore(state => state.savedProjectKeys)
+  const projectId = useKeysStore(state => state.projectId)
   const ignoredProjectKeys = useKeysStore(state => state.ignoredProjectKeys)
   const providerPreference = useKeysStore(state => state.getProviderPreference())
   const customEndpoint = useKeysStore(state => state.getCustomEndpoint())
@@ -368,10 +369,14 @@ export function SettingsDialog({ open, setOpen, projectName = null }: SettingsDi
       setProjectKey(key, undefined)
       analytics.track('project_key_removed', { key })
     },
-    onUse: (source: KeySource) => {
-      setKeyOverride(key, source === 'project' ? null : source)
-      analytics.track('key_source_chosen', { key, source })
-    },
+    // Choices are stored per project, so there's nowhere to keep one without a project id
+    onUse:
+      projectId === undefined
+        ? undefined
+        : (source: KeySource) => {
+            setKeyOverride(key, source === 'project' ? null : source)
+            analytics.track('key_source_chosen', { key, source })
+          },
   })
 
   const handleDisconnectOpenRouter = () => {

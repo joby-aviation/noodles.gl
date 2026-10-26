@@ -138,6 +138,16 @@ describe('SettingsDialog API keys', () => {
     expect(within(group).queryByRole('button', { name: 'Use' })).toBeNull()
   })
 
+  it('should not offer a choice without a project id', () => {
+    vi.stubEnv('VITE_CESIUM_ACCESS_TOKEN', '')
+    getKeysStore().setProjectKeys({ cesium: 'project-cesium' })
+    getKeysStore().setBrowserKey('cesium', 'browser-cesium')
+    openApiKeysTab()
+
+    const group = keyGroup('Cesium Ion Access Token')
+    expect(within(group).queryByRole('button', { name: 'Use' })).toBeNull()
+  })
+
   it('should not offer to save browser keys in the project file', () => {
     openApiKeysTab()
 

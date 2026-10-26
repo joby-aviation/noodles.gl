@@ -114,6 +114,7 @@ interface KeysActions {
   setProjectKeys: (keys: KeysConfig | undefined, projectId?: string) => void
   setKeyOverride: (key: KeyType, source: 'browser' | 'env' | null) => void
   copyKeyOverridesTo: (projectId: string) => void
+  moveKeyOverridesTo: (projectId: string) => void
   markProjectKeysSaved: () => void
   setProviderPreference: (preference: ProviderPreference) => void
   setCustomEndpoint: (config: CustomEndpointConfig | undefined) => void
@@ -236,6 +237,15 @@ export const useKeysStore = create<KeysStore>()(
           projectId,
           keyOverrides: forProject ? { ...others, [projectId]: forProject } : others,
         })
+      },
+
+      // Renaming leaves nothing at the old place, so its choices go too
+      moveKeyOverridesTo: projectId => {
+        const current = get().projectId
+        get().copyKeyOverridesTo(projectId)
+        if (current === undefined || current === projectId) return
+        const { [current]: _moved, ...others } = get().keyOverrides
+        set({ keyOverrides: others })
       },
 
       markProjectKeysSaved: () => {

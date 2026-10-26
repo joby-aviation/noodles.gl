@@ -1336,7 +1336,7 @@ export function getNoodles(): Visualization {
         await directoryHandleCache.cacheHandle(directoryName, directoryHandle, directoryName)
 
         const oldProjectName = projectName
-        getKeysStore().copyKeyOverridesTo(keysProjectId('/projects', directoryName))
+        getKeysStore().moveKeyOverridesTo(keysProjectId('/projects', directoryName))
         setCurrentDirectory(directoryHandle, directoryName)
         setActiveStorageType('fileSystemAccess')
         navigate(`/projects/${directoryName}`, { replace: true })
@@ -1545,7 +1545,7 @@ export function getNoodles(): Visualization {
           await directoryHandleCache.cacheHandle(newName, directoryHandle, directoryHandle.name)
         }
 
-        getKeysStore().copyKeyOverridesTo(keysProjectId('/projects', newName))
+        getKeysStore().moveKeyOverridesTo(keysProjectId('/projects', newName))
 
         // Update store with directory handle
         setCurrentDirectory(directoryHandle, newName)
