@@ -66,6 +66,19 @@ describe('KeyPrompts', () => {
     expect(screen.getByText(/Reload the page to apply it/)).toBeTruthy()
   })
 
+  it('should still ask for a reload after switching back to the project key', () => {
+    vi.mocked(getLoadedGoogleMapsKey).mockReturnValue('browser-google')
+    render(<KeyPrompts />)
+    fireEvent.click(screen.getByRole('button', { name: 'Use mine' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Use project key' }))
+
+    expect(
+      screen.getByText(/Google search and directions still use the previous Google Maps key/)
+    ).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Dismiss' }))
+    expect(screen.queryByRole('status')).toBeNull()
+  })
+
   it('should hide a dismissed prompt without recording a choice', () => {
     render(<KeyPrompts />)
     fireEvent.click(screen.getByRole('button', { name: 'Dismiss' }))

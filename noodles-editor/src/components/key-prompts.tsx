@@ -40,9 +40,19 @@ export function KeyPrompts() {
   const getKey = useKeysStore(state => state.getKey)
   const setKeyOverride = useKeysStore(state => state.setKeyOverride)
   const [dismissed, setDismissed] = useState<Set<string>>(() => new Set())
+  // Keys answered here, so the reload a choice needs is still asked for once its prompt closes
+  const [answered, setAnswered] = useState<Set<string>>(() => new Set())
+
+  // The Maps JavaScript API keeps the key it loaded with
+  const needsReload = (key: PromptedKey) => {
+    const loadedKey = key === 'googleMaps' ? getLoadedGoogleMapsKey() : null
+    return !!loadedKey && loadedKey !== getKey(key)
+  }
 
   const prompts = PROMPTED_KEY_TYPES.flatMap(key => {
-    const prompt = getPrompt(key)
+    const prompt: KeyPrompt | { kind: 'reload' } | null =
+      getPrompt(key) ??
+      (answered.has(`${projectId}|${key}`) && needsReload(key) ? { kind: 'reload' } : null)
     if (!prompt) return []
     const id = `${projectId}|${key}|${prompt.kind}`
     return dismissed.has(id) ? [] : [{ key, prompt, id }]
@@ -51,18 +61,13 @@ export function KeyPrompts() {
 
   const answer = (key: KeyType, prompt: KeyPrompt, source: 'project' | 'browser' | 'env') => {
     setKeyOverride(key, source)
+    setAnswered(previous => new Set(previous).add(`${projectId}|${key}`))
     analytics.track('key_prompt_answered', { key, kind: prompt.kind, source })
   }
 
-  const dismiss = (id: string, key: KeyType, prompt: KeyPrompt) => {
+  const dismiss = (id: string, key: KeyType, kind: string) => {
     setDismissed(previous => new Set(previous).add(id))
-    analytics.track('key_prompt_dismissed', { key, kind: prompt.kind })
-  }
-
-  // The Maps JavaScript API keeps the key it loaded with
-  const needsReload = (key: PromptedKey) => {
-    const loadedKey = key === 'googleMaps' ? getLoadedGoogleMapsKey() : null
-    return !!loadedKey && loadedKey !== getKey(key)
+    analytics.track('key_prompt_dismissed', { key, kind })
   }
 
   // In the body, so the docked map's layers can't sit above the prompts and take their clicks
@@ -77,6 +82,8 @@ export function KeyPrompts() {
               `Using your ${SOURCE_NAMES[prompt.source]} ${KEY_NAMES[key]} for this project.`}
             {prompt.kind === 'rejected' &&
               `${SERVICE_NAMES[key]} rejected the project's ${KEY_NAMES[key]} on this site.`}
+            {prompt.kind === 'reload' &&
+              `${SERVICE_NAMES[key]} search and directions still use the previous ${KEY_NAMES[key]}.`}
             {needsReload(key) && (
               <span className={s.secondaryText}> Reload the page to apply it.</span>
             )}
@@ -84,7 +91,7 @@ export function KeyPrompts() {
           <div className={s.actions}>
             <button
               type="button"
-              onClick={() => dismiss(id, key, prompt)}
+              onClick={() => dismiss(id, key, prompt.kind)}
               className={s.secondaryButton}
             >
               Dismiss

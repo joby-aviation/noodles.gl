@@ -321,10 +321,11 @@ export const useKeysStore = create<KeysStore>()(
         const fingerprint = fingerprintKey(slots.project)
         if (state.rejectedKeys[key] === fingerprint) return { kind: 'rejected', mine }
 
-        const decided =
-          state.keyOverrides[state.projectId]?.[key]?.projectKeyFingerprint === fingerprint
+        // A choice of a personal key that has since been cleared doesn't answer the question
+        const choice = state.keyOverrides[state.projectId]?.[key]
+        const kept = choice?.source === 'project' && choice.projectKeyFingerprint === fingerprint
         // A key typed into Settings isn't news to the user, so only ask about one from the file
-        if (decided || slots.project !== state.savedProjectKeys?.[key]) return null
+        if (kept || slots.project !== state.savedProjectKeys?.[key]) return null
         return { kind: 'choose', mine }
       },
 

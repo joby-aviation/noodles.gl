@@ -649,6 +649,14 @@ describe('Keys Store', () => {
       expect(getKeysStore().getPrompt('cesium')).toEqual({ kind: 'choose', mine: 'browser' })
     })
 
+    it('should ask about the environment key once the chosen browser key is cleared', () => {
+      vi.stubEnv('VITE_CESIUM_ACCESS_TOKEN', 'env-cesium')
+      getKeysStore().setKeyOverride('cesium', 'browser')
+      getKeysStore().setBrowserKey('cesium', undefined)
+
+      expect(getKeysStore().getPrompt('cesium')).toEqual({ kind: 'choose', mine: 'env' })
+    })
+
     it('should not ask about a project key typed into Settings', () => {
       getKeysStore().setProjectKey('cesium', 'typed-cesium')
 
