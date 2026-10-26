@@ -27,6 +27,7 @@ import { docStore, useEditor } from './doc-store'
 import { NodeFields } from './field-adapter'
 import { startLinkDrag, useParamLinkTarget } from './link-drag'
 import { ContextMenu, type MenuItem } from './menus'
+import { isRampParam, RampPicker } from './ramp-picker'
 import { RefPicker, referenceable } from './ref-picker'
 
 /** Whether a parameter shows, given the values its `when` reads. */
@@ -315,6 +316,13 @@ export function ParamRow({
             />
             {value !== undefined && <span className={s.evaluated}>{fmt(value)}</span>}
           </div>
+        ) : isRampParam(def) ? (
+          <RampPicker
+            label={label ?? def.label}
+            def={def}
+            value={String(raw ?? def.default ?? '')}
+            onChange={v => set(v === def.default ? undefined : v)}
+          />
         ) : isChannel(def) ? (
           <ChannelInput
             label={label ?? def.label}
