@@ -361,12 +361,17 @@ export function coerceSchemaValue(value: unknown, column: ColumnSchema): ValueCo
       coerced = typeof value === 'string' ? parseStrictNumber(value) : undefined
       break
     case 'string':
-      coerced =
-        typeof value === 'number' && Number.isFinite(value)
-          ? String(value)
-          : typeof value === 'boolean' || typeof value === 'bigint'
-            ? String(value)
-            : undefined
+      if (typeof value === 'number' && Number.isFinite(value)) {
+        coerced = String(value)
+      } else if (typeof value === 'boolean' || typeof value === 'bigint') {
+        coerced = String(value)
+      } else if (Array.isArray(value) || isRecord(value)) {
+        try {
+          coerced = JSON.stringify(value)
+        } catch {
+          coerced = undefined
+        }
+      }
       break
     case 'boolean':
       if (typeof value === 'string' && /^(true|false)$/i.test(value.trim())) {

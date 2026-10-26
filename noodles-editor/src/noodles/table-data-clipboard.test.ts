@@ -442,6 +442,35 @@ describe('table data clipboard', () => {
     expect(inferred.schema.columns.map(column => column.type)).toEqual(['string', 'string'])
   })
 
+  it('keeps unsafe integer identifiers and structured JSON values as strings', () => {
+    const inferred = inferTableData(
+      [
+        ['identifier', 'metadata', 'mixed'],
+        ['9007199254740993', { name: 'Alice' }, [1, 2]],
+        ['9007199254740994', { name: 'Bob' }, 'not a vector'],
+      ],
+      { firstRowContainsHeaders: true }
+    )
+
+    expect(inferred.schema.columns.map(column => column.type)).toEqual([
+      'string',
+      'string',
+      'string',
+    ])
+    expect(inferred.data).toEqual([
+      {
+        identifier: '9007199254740993',
+        metadata: '{"name":"Alice"}',
+        mixed: '[1,2]',
+      },
+      {
+        identifier: '9007199254740994',
+        metadata: '{"name":"Bob"}',
+        mixed: 'not a vector',
+      },
+    ])
+  })
+
   it('plans lossless row growth and flags resets or right-edge overflow for preview', () => {
     const schema = {
       columns: [

@@ -542,6 +542,7 @@ function parseStrictNumber(value: string): number | undefined {
   const text = value.trim()
   if (!/^[+-]?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?$/.test(text)) return undefined
   const parsed = Number(text)
+  if (/^[+-]?\d+$/.test(text) && !Number.isSafeInteger(parsed)) return undefined
   return Number.isFinite(parsed) ? parsed : undefined
 }
 
