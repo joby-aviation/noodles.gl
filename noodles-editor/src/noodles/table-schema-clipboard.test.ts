@@ -28,6 +28,31 @@ describe('schema clipboard serialization', () => {
     })
   })
 
+  it('serializes Date defaults in the canonical date-only format', () => {
+    const column: ColumnSchema = {
+      name: 'day',
+      type: 'date',
+      defaultValue: new Date('2026-10-23T18:30:00.000Z'),
+    }
+
+    expect(parseSchemaClipboard(serializeColumnClipboard(column))).toEqual({
+      success: true,
+      payload: {
+        kind: 'column-schema',
+        column: { ...column, defaultValue: '2026-10-23' },
+      },
+    })
+    expect(
+      parseSchemaClipboard(serializeSchemaClipboard({ columns: [column] }))
+    ).toMatchObject({
+      success: true,
+      payload: {
+        kind: 'table-schema',
+        schema: { columns: [{ defaultValue: '2026-10-23' }] },
+      },
+    })
+  })
+
   it('accepts validated raw table and column schemas', () => {
     expect(parseSchemaClipboard('{"columns":[{"name":"x","type":"number"}]}')).toEqual({
       success: true,
@@ -283,6 +308,13 @@ describe('coerceSchemaValue', () => {
         defaultValue: 5,
       })
     ).toEqual({ status: 'reset', value: 5 })
+    expect(
+      coerceSchemaValue('11', {
+        name: 'negative',
+        type: 'number',
+        options: { max: -5 },
+      })
+    ).toEqual({ status: 'reset', value: -5 })
     expect(
       coerceSchemaValue(2, {
         name: 'anchor',

@@ -301,6 +301,10 @@ describe('getDefaultValue', () => {
   it('should respect min option for number columns', () => {
     expect(getDefaultValue({ name: 'test', type: 'number', options: { min: 10 } })).toBe(10)
   })
+
+  it('should respect a negative max when no minimum is defined', () => {
+    expect(getDefaultValue({ name: 'test', type: 'number', options: { max: -5 } })).toBe(-5)
+  })
 })
 
 describe('validateValue', () => {

@@ -109,6 +109,18 @@ function cloneSchema(schema: TableSchema): TableSchema {
   return { columns: schema.columns.map(cloneColumn) }
 }
 
+function columnForClipboard(column: ColumnSchema): ColumnSchema {
+  const copy = cloneColumn(column)
+  if (copy.type === 'date' && copy.defaultValue instanceof Date) {
+    copy.defaultValue = copy.defaultValue.toISOString().split('T')[0]
+  }
+  return copy
+}
+
+function schemaForClipboard(schema: TableSchema): TableSchema {
+  return { columns: schema.columns.map(columnForClipboard) }
+}
+
 function duplicateSchemaError(schema: TableSchema): string | undefined {
   const names = new Map<string, number>()
   const identities = new Map<string, number>()
@@ -180,7 +192,7 @@ export function serializeSchemaClipboard(schema: TableSchema): string {
   const envelope: TableSchemaClipboardEnvelope = {
     $noodles: 'table-schema',
     version: TABLE_SCHEMA_CLIPBOARD_VERSION,
-    schema: cloneSchema(schema),
+    schema: schemaForClipboard(schema),
   }
   return JSON.stringify(envelope, null, 2)
 }
@@ -191,7 +203,7 @@ export function serializeColumnClipboard(column: ColumnSchema): string {
   const envelope: ColumnSchemaClipboardEnvelope = {
     $noodles: 'column-schema',
     version: TABLE_SCHEMA_CLIPBOARD_VERSION,
-    column: cloneColumn(column),
+    column: columnForClipboard(column),
   }
   return JSON.stringify(envelope, null, 2)
 }
