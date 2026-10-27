@@ -226,9 +226,10 @@ export default function TimelineEditor() {
 
   const isPlaying = useTimelineStore(state => state.playing)
   const doc = useEditor(state => state.doc)
+  const time = useEditor(state => state.time)
   const cameraControl = useMemo(
-    () => cameraControlOf(doc, { isRendering, isPlaying }),
-    [doc, isRendering, isPlaying]
+    () => cameraControlOf(doc, { isRendering, isPlaying, time }),
+    [doc, isRendering, isPlaying, time]
   )
   const cameraHistoryRef = useRef(cameraGesture())
 
@@ -272,7 +273,6 @@ export default function TimelineEditor() {
 
   // Moving the playhead (scrubbing, stepping, playing) goes back to the camera, unless the
   // viewport is locked
-  const time = useEditor(state => state.time)
   const lastTime = useRef(time)
   useEffect(() => {
     if (time === lastTime.current) return

@@ -537,6 +537,26 @@ export const DECK_OPS: DeckOp[] = [
     }),
   },
 
+  {
+    noodles: 'SwitchOp',
+    def: {
+      type: 'switch-value',
+      label: 'Switch Value',
+      category: 'output',
+      description:
+        'One of several values, chosen by Index: a camera from several View States wired into the deck, say. Keyframe Index to cut between cameras; with Blend, a decimal Index blends the two either side, so keyframing it flies from one camera to the next.',
+      inputs: [],
+      outputs: [{ name: 'value', type: 'value' }],
+      params: [
+        wired('values', 'value'),
+        num('index', 0, { min: 0, step: 1, help: 'Which value, counting from 0 in wiring order' }),
+        toggle('blend', false),
+      ],
+    },
+    lists: ['values'],
+    build: p => switchValue((p.values as unknown[] | undefined) ?? [], Number(p.index), !!p.blend),
+  },
+
   // --- widgets -------------------------------------------------------------------------
   widgetOp(
     'compass-widget',
@@ -1069,6 +1089,18 @@ export const DECK_OPS: DeckOp[] = [
     },
   },
 ]
+
+/**
+ * The value at `index`, as the Noodles SwitchOp chose it: the one below a decimal index, or with
+ * `blend` the two either side interpolated.
+ */
+export function switchValue(values: unknown[], index: number, blend: boolean): unknown {
+  if (values.length === 0) return undefined
+  const i = Math.max(0, Math.min(Number.isFinite(index) ? index : 0, values.length - 1))
+  const lower = Math.floor(i)
+  if (!blend || lower === i) return values[lower]
+  return d3.interpolate(values[lower] as object, values[Math.ceil(i)] as object)(i - lower)
+}
 
 export const DECK_OP_INDEX = new Map(DECK_OPS.map(o => [o.def.type, o]))
 // The deck operator replacing a Noodles operator class

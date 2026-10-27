@@ -1,10 +1,11 @@
 // Moving the map with Lock to view on (viewport-camera.ts) edits the active camera: the deck
-// node's own camera, or the View State node wired into its view state. A camera that another
+// node's own camera, or the View State node wired into its view state, directly or through the
+// Switch Values that pick it at the playhead. A camera that another
 // node, an expression, a reference or a wire drives cannot be moved from the map, nor can any
 // camera while the timeline plays or an export runs. A keyframed camera parameter isn't keyed
 // by moving the map: its new value waits as an unkeyed change (pending-keys.ts).
 
-import { type EditorDoc, nameOf } from '@noodles.gl/planner'
+import { type DocNode, type EditorDoc, evaluateTrack, nameOf } from '@noodles.gl/planner'
 import { setParam } from './doc-ops'
 
 export const CAMERA_PARAMS = ['longitude', 'latitude', 'zoom', 'pitch', 'bearing'] as const
@@ -17,13 +18,40 @@ export interface CameraControl {
   reason: string | null
 }
 
-/** The node whose camera the map shows: a View State wired into the deck, else the deck. */
-export function drivingCamera(doc: EditorDoc): string | null {
+/**
+ * The node whose camera the map shows at `time`: a View State wired into the deck, or the one a
+ * Switch Value wired into it picks there, else the deck itself.
+ */
+export function drivingCamera(doc: EditorDoc, time = 0): string | null {
   const deck = deckOf(doc)
   if (!deck) return null
   const wire = doc.edges.find(e => e.target === deck.id && e.targetPort === 'viewState')
   if (!wire) return deck.id
-  return doc.nodes.find(n => n.id === wire.source)?.op === 'view-state' ? wire.source : null
+  let source = doc.nodes.find(n => n.id === wire.source)
+  // Switches can feed switches; a loop of them picks nothing
+  for (let hops = 0; source?.op === 'switch-value' && hops < 16; hops++) {
+    const picked = switchedInput(doc, source, time)
+    source = picked ? doc.nodes.find(n => n.id === picked) : undefined
+  }
+  return source?.op === 'view-state' ? source.id : null
+}
+
+/**
+ * The input a Switch Value picks at `time`, as its build does: undefined while its Index is an
+ * expression, a reference or a wire, or blends two inputs.
+ */
+export function switchedInput(doc: EditorDoc, node: DocNode, time: number): string | undefined {
+  if (doc.edges.some(e => e.target === node.id && e.targetPort === 'par:index')) return undefined
+  const track = doc.timeline?.tracks.find(t => t.target === `${node.id}.index`)
+  const raw = track ? evaluateTrack(track, time) : (node.params.index ?? 0)
+  if (typeof raw !== 'number' || !Number.isFinite(raw)) return undefined
+  const inputs = doc.edges
+    .filter(e => e.target === node.id && e.targetPort === 'par:values')
+    .sort((a, b) => (a.index ?? 0) - (b.index ?? 0))
+  if (inputs.length === 0) return undefined
+  const i = Math.max(0, Math.min(raw, inputs.length - 1))
+  if (node.params.blend === true && Math.floor(i) !== i) return undefined
+  return inputs[Math.floor(i)].source
 }
 
 const deckOf = (doc: EditorDoc) =>
@@ -31,14 +59,16 @@ const deckOf = (doc: EditorDoc) =>
 
 export function cameraControlOf(
   doc: EditorDoc,
-  { isRendering, isPlaying }: { isRendering: boolean; isPlaying: boolean }
+  { isRendering, isPlaying, time = 0 }: { isRendering: boolean; isPlaying: boolean; time?: number }
 ): CameraControl {
-  const nodeId = drivingCamera(doc)
+  const nodeId = drivingCamera(doc, time)
   const off = (reason: string): CameraControl => ({ nodeId, enabled: false, reason })
   if (!nodeId) {
     const deck = deckOf(doc)
     const wire = deck && doc.edges.find(e => e.target === deck.id && e.targetPort === 'viewState')
     const from = wire && doc.nodes.find(n => n.id === wire.source)
+    if (from?.op === 'switch-value')
+      return off(`${nameOf(from)} isn't on one View State here, so the map can't move a camera.`)
     return off(
       from ? `${nameOf(from)} drives the camera, so the map can't move it.` : 'No camera to move.'
     )
