@@ -135,6 +135,32 @@ describe('values', () => {
     expect(doc.nodes.map(n => n.id)).not.toContain('/xy')
   })
 
+  it('converts a SwitchOp choosing the camera to a Switch Value of View States', () => {
+    const { doc } = toEditorDoc(
+      deck(
+        [
+          op('/sf', 'MapViewStateOp', { longitude: -122.4, latitude: 37.8, zoom: 10 }),
+          op('/ny', 'MapViewStateOp', { longitude: -74, latitude: 40.7, zoom: 11 }),
+          op('/shots', 'SwitchOp', { index: 1, blend: true }),
+        ],
+        [
+          wire('/sf', 'viewState', '/shots', 'values'),
+          wire('/ny', 'viewState', '/shots', 'values'),
+          wire('/shots', 'value', '/deck', 'viewState'),
+        ]
+      )
+    )
+    const shots = doc.nodes.find(n => n.id === '/shots')
+    expect(shots).toMatchObject({ op: 'switch-value', params: { index: 1, blend: true } })
+    const into = (target: string, port: string) =>
+      doc.edges
+        .filter(e => e.target === target && e.targetPort === port)
+        .sort((a, b) => (a.index ?? 0) - (b.index ?? 0))
+        .map(e => e.source)
+    expect(into('/shots', 'par:values')).toEqual(['/sf', '/ny'])
+    expect(into(doc.nodes.find(n => n.op === 'deck')?.id ?? '', 'viewState')).toEqual(['/shots'])
+  })
+
   it('make an opaque color from RGBA channels, each clamped to a whole 0 to 255', () => {
     const color = (inputs: Record<string, unknown>) =>
       toEditorDoc(
