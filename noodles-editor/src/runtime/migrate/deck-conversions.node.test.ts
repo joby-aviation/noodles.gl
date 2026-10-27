@@ -161,6 +161,38 @@ describe('values', () => {
     expect(into(doc.nodes.find(n => n.op === 'deck')?.id ?? '', 'viewState')).toEqual(['/shots'])
   })
 
+  it('converts a camera SwitchOp feeding another as two Switch Values', () => {
+    const { doc } = toEditorDoc(
+      deck(
+        [
+          op('/a', 'MapViewStateOp', { zoom: 3 }),
+          op('/b', 'MapViewStateOp', { zoom: 6 }),
+          op('/c', 'MapViewStateOp', { zoom: 9 }),
+          op('/inner', 'SwitchOp', { index: 1 }),
+          op('/outer', 'SwitchOp', { index: 0 }),
+        ],
+        [
+          wire('/a', 'viewState', '/inner', 'values'),
+          wire('/b', 'viewState', '/inner', 'values'),
+          wire('/inner', 'value', '/outer', 'values'),
+          wire('/c', 'viewState', '/outer', 'values'),
+          wire('/outer', 'value', '/deck', 'viewState'),
+        ]
+      )
+    )
+    expect(doc.nodes.filter(n => n.id === '/inner' || n.id === '/outer').map(n => n.op)).toEqual([
+      'switch-value',
+      'switch-value',
+    ])
+    const into = (target: string) =>
+      doc.edges
+        .filter(e => e.target === target && e.targetPort === 'par:values')
+        .sort((a, b) => (a.index ?? 0) - (b.index ?? 0))
+        .map(e => e.source)
+    expect(into('/inner')).toEqual(['/a', '/b'])
+    expect(into('/outer')).toEqual(['/inner', '/c'])
+  })
+
   it('make an opaque color from RGBA channels, each clamped to a whole 0 to 255', () => {
     const color = (inputs: Record<string, unknown>) =>
       toEditorDoc(
