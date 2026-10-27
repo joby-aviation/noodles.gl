@@ -355,9 +355,25 @@ function ColorCellEditor({ value, onChange, onComplete, onCancel }: CellEditorPr
   )
 }
 
-function Point2DCellEditor({ value, onChange, onComplete, onCancel, column }: CellEditorProps) {
+function parseBufferedVectorComponent(input: HTMLInputElement | null, fallback: number): number {
+  if (!input) return fallback
+  if (input.value.trim() === '') return 0
+  const parsed = Number.parseFloat(input.value)
+  return Number.isNaN(parsed) ? fallback : parsed
+}
+
+function Point2DCellEditor({
+  value,
+  onChange,
+  onComplete,
+  onCancel,
+  column,
+  registerCommit,
+}: CellEditorProps) {
   const [lng, lat] = (value as [number, number]) || [0, 0]
   const latestRef = useRef([lng, lat] as [number, number])
+  const lngInputRef = useRef<HTMLInputElement>(null)
+  const latInputRef = useRef<HTMLInputElement>(null)
   const [geocodingOpen, setGeocodingOpen] = useState(false)
 
   const updateLng = (newValue: number) => {
@@ -404,10 +420,23 @@ function Point2DCellEditor({ value, onChange, onComplete, onCancel, column }: Ce
     onComplete()
   }
 
+  useLayoutEffect(() => {
+    registerCommit?.(() => {
+      const bufferedValue: [number, number] = [
+        parseBufferedVectorComponent(lngInputRef.current, latestRef.current[0]),
+        parseBufferedVectorComponent(latInputRef.current, latestRef.current[1]),
+      ]
+      latestRef.current = bufferedValue
+      onChange(bufferedValue)
+      onComplete()
+    })
+  })
+
   return (
     <fieldset className={s.point2dEditor} onBlur={handleBlur} aria-label={`Edit ${column.name}`}>
       <DraggableNumberInput
         value={latestRef.current[0]}
+        inputRef={lngInputRef}
         onChange={updateLng}
         onBlur={event => {
           if (event.currentTarget.value === '') updateLng(0)
@@ -423,6 +452,7 @@ function Point2DCellEditor({ value, onChange, onComplete, onCancel, column }: Ce
       />
       <DraggableNumberInput
         value={latestRef.current[1]}
+        inputRef={latInputRef}
         onChange={updateLat}
         onBlur={event => {
           if (event.currentTarget.value === '') updateLat(0)
@@ -462,9 +492,19 @@ function Point2DCellEditor({ value, onChange, onComplete, onCancel, column }: Ce
   )
 }
 
-function Vec3CellEditor({ value, onChange, onComplete, onCancel, column }: CellEditorProps) {
+function Vec3CellEditor({
+  value,
+  onChange,
+  onComplete,
+  onCancel,
+  column,
+  registerCommit,
+}: CellEditorProps) {
   const [x, y, z] = (value as [number, number, number]) || [0, 0, 0]
   const latestRef = useRef([x, y, z] as [number, number, number])
+  const xInputRef = useRef<HTMLInputElement>(null)
+  const yInputRef = useRef<HTMLInputElement>(null)
+  const zInputRef = useRef<HTMLInputElement>(null)
 
   const updateX = (newValue: number) => {
     const newVal: [number, number, number] = [newValue, latestRef.current[1], latestRef.current[2]]
@@ -511,10 +551,24 @@ function Vec3CellEditor({ value, onChange, onComplete, onCancel, column }: CellE
   const channelNames =
     column.type === 'point3d' ? ['Longitude', 'Latitude', 'Altitude'] : ['X', 'Y', 'Z']
 
+  useLayoutEffect(() => {
+    registerCommit?.(() => {
+      const bufferedValue: [number, number, number] = [
+        parseBufferedVectorComponent(xInputRef.current, latestRef.current[0]),
+        parseBufferedVectorComponent(yInputRef.current, latestRef.current[1]),
+        parseBufferedVectorComponent(zInputRef.current, latestRef.current[2]),
+      ]
+      latestRef.current = bufferedValue
+      onChange(bufferedValue)
+      onComplete()
+    })
+  })
+
   return (
     <fieldset className={s.vec3Editor} onBlur={handleBlur} aria-label={`Edit ${column.name}`}>
       <DraggableNumberInput
         value={latestRef.current[0]}
+        inputRef={xInputRef}
         onChange={updateX}
         onBlur={event => {
           if (event.currentTarget.value === '') updateX(0)
@@ -530,6 +584,7 @@ function Vec3CellEditor({ value, onChange, onComplete, onCancel, column }: CellE
       />
       <DraggableNumberInput
         value={latestRef.current[1]}
+        inputRef={yInputRef}
         onChange={updateY}
         onBlur={event => {
           if (event.currentTarget.value === '') updateY(0)
@@ -544,6 +599,7 @@ function Vec3CellEditor({ value, onChange, onComplete, onCancel, column }: CellE
       />
       <DraggableNumberInput
         value={latestRef.current[2]}
+        inputRef={zInputRef}
         onChange={updateZ}
         onBlur={event => {
           if (event.currentTarget.value === '') updateZ(0)

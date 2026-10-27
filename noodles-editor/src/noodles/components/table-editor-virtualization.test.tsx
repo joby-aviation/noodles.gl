@@ -175,6 +175,46 @@ describe('TableEditor row virtualization', () => {
     )
   })
 
+  it.each([
+    ['vec2', [10, 20], 'X', [0, 20]],
+    ['point2d', [10, 20], 'Longitude', [0, 20]],
+    ['vec3', [10, 20, 30], 'X', [0, 20, 30]],
+    ['point3d', [10, 20, 30], 'Longitude', [0, 20, 30]],
+  ] as const)(
+    'commits a cleared %s component when a resize unmounts the edited row',
+    (type, initialValue, inputName, expectedValue) => {
+      const schema: TableSchema = {
+        columns: [{ name: 'position', type, defaultValue: initialValue }],
+      }
+      const data = Array.from({ length: 1_000 }, () => ({ position: initialValue }))
+      const onDataChange = vi.fn()
+
+      render(
+        <TableEditor
+          op={new TableEditorOp(`/resized-${type}-table`)}
+          data={data}
+          schema={schema}
+          onDataChange={onDataChange}
+          onSchemaChange={vi.fn()}
+        />
+      )
+
+      const cell = document.querySelector<HTMLElement>(
+        '[data-grid-row="0"][data-grid-column="0"]'
+      ) as HTMLElement
+      fireEvent.doubleClick(cell)
+      fireEvent.change(screen.getByRole('spinbutton', { name: inputName }), {
+        target: { value: '' },
+      })
+      act(() => virtualizerSpies.setFirstVisible?.(500))
+
+      expect(onDataChange).toHaveBeenCalledWith(
+        [{ position: expectedValue }, ...data.slice(1)],
+        'Edit cell position'
+      )
+    }
+  )
+
   it('keeps the grid focused and keyboard-reachable when the active row unmounts', () => {
     const schema: TableSchema = {
       columns: [{ name: 'label', type: 'string', defaultValue: '' }],
