@@ -24,6 +24,7 @@ import { useUIStore } from './editor/ui-store'
 import {
   cameraOf,
   navigates,
+  playheadShowsCamera,
   showsCamera,
   useViewportCamera,
   viewportCamera,
@@ -243,6 +244,17 @@ export default function TimelineEditor() {
     !!(shownViewport ?? activeCamera) &&
     (navigation === 'camera' || (navigation === 'viewport' && geographic))
   const cameraNode = doc.nodes.find(n => n.id === cameraControl.nodeId)
+
+  // Moving the playhead (scrubbing, stepping, playing) goes back to the camera, unless the
+  // viewport is locked
+  const time = useEditor(state => state.time)
+  const lastTime = useRef(time)
+  useEffect(() => {
+    if (time === lastTime.current) return
+    lastTime.current = time
+    const v = viewportCamera()
+    if (playheadShowsCamera(v)) v.setLookThrough(true)
+  }, [time])
 
   // Starting playback or an export, or leaving camera view, can stop the map moving the camera
   // mid-drag. Close the gesture then so the next drag is an undo step of its own.

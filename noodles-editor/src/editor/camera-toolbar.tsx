@@ -1,6 +1,6 @@
 // The map's camera switches (viewport-camera.ts), in its top-left corner as Blender's viewport
 // header has them: whether the map shows the viewport or looks through the active camera, and
-// whether moving the map moves that camera. Numpad 0 toggles camera view, as in Blender.
+// the lock that pins the one you are in. Numpad 0 toggles camera view, as in Blender.
 
 import cx from 'classnames'
 import { useEffect } from 'react'
@@ -75,20 +75,27 @@ export function CameraToolbar({
         className={cx(s.lock, lock && s.lockOn)}
         aria-pressed={lock}
         title={
-          lock
-            ? 'Moving the map moves the camera. Click to move the viewport instead.'
-            : 'Lock the camera to the view: moving the map moves the camera'
+          lookThrough
+            ? lock
+              ? 'Camera locked: moving the map moves the camera. Click to unlock.'
+              : 'Lock the camera view: moving the map moves the camera'
+            : lock
+              ? 'Viewport locked: the timeline leaves the view here. Click to unlock.'
+              : 'Lock the viewport: scrubbing the timeline stays here'
         }
         onClick={() => {
           viewportCamera().setLock(!lock)
-          analytics.track('camera_lock_toggled', { on: !lock })
+          analytics.track('camera_lock_toggled', {
+            on: !lock,
+            view: lookThrough ? 'camera' : 'viewport',
+          })
         }}
       >
         <i className={cx('pi', lock ? 'pi-lock' : 'pi-lock-open')} />
       </button>
       {lock && lookThrough && control.reason && (
         <div className={s.reason} role="status">
-          {control.reason} Moving the map moves the viewport.
+          {control.reason} Unlock to look around in the viewport.
         </div>
       )}
     </div>

@@ -1,9 +1,10 @@
 // The map's two cameras, as Blender's 3D viewport has: the viewport, which you move around
 // freely and which never renders, and the active camera, the document's, which exports and
-// screenshots render through. Camera view looks through the active camera. With Lock to view on
-// as well, moving the map moves the active camera; otherwise moving the map leaves camera view
-// and moves the viewport. The viewport and both switches are the editor's, kept per project in
-// this browser, not in the document.
+// screenshots render through. Moving the map takes you to the viewport; moving the playhead
+// (scrubbing, stepping, playing) takes you back to the camera. The lock pins whichever you are
+// in: a locked viewport stays put when the playhead moves, and a locked camera view stays when
+// the map moves, which then moves the camera itself. The viewport and the switches are the
+// editor's, kept per project in this browser, not in the document.
 
 import { create } from 'zustand'
 
@@ -33,7 +34,7 @@ export function cameraOf(v: unknown): Camera | undefined {
 export interface ViewportSwitches {
   // Looking through the active camera
   lookThrough: boolean
-  // Moving the map in camera view moves the active camera
+  // Pins the view you are in: the viewport through playhead moves, the camera through map moves
   lock: boolean
 }
 
@@ -46,12 +47,19 @@ export function showsCamera(
 }
 
 /**
- * What moving the map moves: the active camera when looking through it locked and it can be
- * edited, else the viewport.
+ * What moving the map moves: the active camera in a locked camera view, if it can be edited,
+ * and nothing if it can't; otherwise the viewport.
  */
-export function navigates(s: ViewportSwitches, cameraEditable: boolean): 'camera' | 'viewport' {
-  return s.lookThrough && s.lock && cameraEditable ? 'camera' : 'viewport'
+export function navigates(
+  s: ViewportSwitches,
+  cameraEditable: boolean
+): 'camera' | 'viewport' | 'none' {
+  if (s.lookThrough && s.lock) return cameraEditable ? 'camera' : 'none'
+  return 'viewport'
 }
+
+/** Whether a playhead move takes the map back to the camera: unless the viewport is locked. */
+export const playheadShowsCamera = (s: ViewportSwitches) => !s.lookThrough && !s.lock
 
 interface Saved extends ViewportSwitches {
   viewport?: Camera
@@ -113,13 +121,12 @@ export const useViewportCamera = create<ViewportState>((set, get) => ({
   },
   // Leaving camera view goes back to where the viewport was, or starts it at the camera
   setLookThrough: (on, from) => {
-    // Lock stays as it is: outside camera view it has nothing to move, as in Blender
+    // The lock stays on, and pins the view you switched to
     set(s => ({ lookThrough: on, viewport: s.viewport ?? from }))
     save(get())
   },
-  // Locking looks through the camera, as it is the camera that moves
   setLock: on => {
-    set(s => ({ lock: on, lookThrough: on || s.lookThrough }))
+    set({ lock: on })
     save(get())
   },
   setViewport: camera => {

@@ -4,6 +4,7 @@ import { cameraControlOf, drivingCamera } from './camera-control'
 import {
   cameraOf,
   navigates,
+  playheadShowsCamera,
   showsCamera,
   useViewportCamera,
   viewportCamera,
@@ -30,11 +31,18 @@ describe('what the map shows and moves', () => {
     expect(showsCamera({ lookThrough: false, lock: false, viewport: here }, false)).toBe(false)
   })
 
-  it('moves the camera only when looking through it, locked, and it can be edited', () => {
+  it('moves the camera only in a locked camera view that can be edited', () => {
     expect(navigates({ lookThrough: true, lock: true }, true)).toBe('camera')
-    expect(navigates({ lookThrough: true, lock: true }, false)).toBe('viewport')
+    // A locked camera view that can't move holds still rather than leaving for the viewport
+    expect(navigates({ lookThrough: true, lock: true }, false)).toBe('none')
     expect(navigates({ lookThrough: true, lock: false }, true)).toBe('viewport')
     expect(navigates({ lookThrough: false, lock: true }, true)).toBe('viewport')
+  })
+
+  it('goes back to the camera when the playhead moves, unless the viewport is locked', () => {
+    expect(playheadShowsCamera({ lookThrough: false, lock: false })).toBe(true)
+    expect(playheadShowsCamera({ lookThrough: false, lock: true })).toBe(false)
+    expect(playheadShowsCamera({ lookThrough: true, lock: false })).toBe(false)
   })
 
   it('reads a camera from a view state, defaulting pitch and bearing', () => {
@@ -99,13 +107,13 @@ describe('the viewport store', () => {
     expect(viewportCamera()).toMatchObject({ lookThrough: false, viewport: here })
   })
 
-  it('locking looks through the camera, and leaving camera view keeps the lock', () => {
+  it('the lock pins the view it is in, and stays when switching views', () => {
     viewportCamera().open('quakes')
     viewportCamera().setLookThrough(false, here)
     viewportCamera().setLock(true)
-    expect(viewportCamera()).toMatchObject({ lookThrough: true, lock: true })
-    viewportCamera().setLookThrough(false)
     expect(viewportCamera()).toMatchObject({ lookThrough: false, lock: true })
+    viewportCamera().setLookThrough(true)
+    expect(viewportCamera()).toMatchObject({ lookThrough: true, lock: true })
   })
 
   it('keeps each project’s viewport in this browser', () => {

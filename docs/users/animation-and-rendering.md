@@ -14,11 +14,11 @@ Scrub the timeline further ahead and change the value to set a new keyframe. It 
 
 The camera is the deck node's Longitude, Latitude, Zoom, Pitch and Bearing, or those of a View State node wired into the deck's view state. Exports and screenshots always render through it. Keyframing the camera costs no queries while the animation plays.
 
-The map has two cameras, as Blender's viewport does. The switch in its top-left corner chooses which one it shows:
+The map has two cameras, as Blender's viewport does. The switch in its top-left corner shows which one you are looking through:
 
-- **Viewport**: a view of your own to look around in. Panning, zooming and tilting move it and change nothing in the project. The editor remembers it per project, in this browser.
-- **Camera** (named after the camera node, such as `deck`): the map looks through the active camera, as exports do. Press Numpad 0 to switch between the two. Moving the map while you look through the camera takes you back to the viewport.
-- **Lock** (the padlock): moving the map moves the camera itself. A camera parameter with keyframes gets a keyframe at the playhead. A camera that another node, an expression, a reference or a wire drives, such as a Fit Bounds wired into the deck, can't be moved this way; the map moves the viewport instead and says what drives the camera. Nothing moves the camera while the timeline plays.
+- **Viewport**: a view of your own to look around in. Panning, zooming and tilting the map take you here, and change nothing in the project. The editor remembers it per project, in this browser.
+- **Camera** (named after the camera node, such as `deck`): the map looks through the active camera, as exports do. Scrubbing or playing the timeline brings you back here. Press Numpad 0 to switch between the two.
+- **Lock** (the padlock) pins the one you are in. A locked viewport stays put when the timeline moves. A locked camera view stays when you move the map, and moving the map moves the camera itself; a keyframed camera parameter gets a keyframe at the playhead. A camera that another node, an expression, a reference or a wire drives, such as a Fit Bounds wired into the deck, can't be moved, so a locked camera view holds still and says what drives it. Nothing moves the camera while the timeline plays.
 
 ### Animating data
 
