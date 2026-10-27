@@ -20,7 +20,7 @@ const doc = (): EditorDoc => ({
         keyframes: [{ id: 'k1', time: 0, value: 4, interpolation: 'bezier' }],
       },
     ],
-  },
+  } as EditorDoc['timeline'],
 })
 
 const view = { longitude: -118, latitude: 34, zoom: 9, pitch: 20, bearing: 5 }
@@ -34,11 +34,17 @@ afterEach(() => cleanup())
 describe('writing a locked camera', () => {
   it('changes static parameters and holds keyframed ones back, unkeyed', () => {
     const d = doc()
-    expect(writeCamera(d, 'map', view)).toEqual({ 'map.zoom': 9 })
+    expect(writeCamera(d, 'map', view)).toEqual({ changed: { 'map.zoom': 9 }, same: [] })
     expect(d.nodes[0].params).toMatchObject({ longitude: -118, latitude: 34, pitch: 20 })
     expect(d.timeline?.tracks[0].keyframes).toEqual([
       expect.objectContaining({ time: 0, value: 4 }),
     ])
+  })
+
+  it('holds no change for a keyframed parameter the move left where it was keyed', () => {
+    // A pan: zoom comes back as keyed, with float noise
+    const pan = { ...view, zoom: 4.0000000001 }
+    expect(writeCamera(doc(), 'map', pan, { zoom: 4 })).toEqual({ changed: {}, same: ['map.zoom'] })
   })
 
   it('needs no undo step when every camera parameter is keyframed', () => {
@@ -49,7 +55,7 @@ describe('writing a locked camera', () => {
         target: `map.${p}`,
         keyframes: [],
       })),
-    }
+    } as unknown as EditorDoc['timeline']
     expect(writesStatic(d, 'map')).toBe(false)
   })
 })
@@ -65,7 +71,7 @@ describe('a changed keyframed parameter in Properties', () => {
   }
 
   it('is marked changed, shows the new value, and its keyframe button keys it', () => {
-    pendingKeys().set({ 'map.zoom': 9 })
+    pendingKeys().set(docStore().get().doc, { 'map.zoom': 9 })
     const { container, getByText } = zoomRow()
     const row = container.querySelector('[data-field-row]') as HTMLElement
     expect(row.className).toMatch(/paramChanged/)
@@ -80,11 +86,34 @@ describe('a changed keyframed parameter in Properties', () => {
   })
 
   it('is not marked once its change is dropped', () => {
-    pendingKeys().set({ 'map.zoom': 9 })
+    pendingKeys().set(docStore().get().doc, { 'map.zoom': 9 })
     pendingKeys().clear()
     const { container } = zoomRow()
     expect((container.querySelector('[data-field-row]') as HTMLElement).className).not.toMatch(
       /paramChanged/
     )
+  })
+})
+
+describe('a change and later edits to its keyframes', () => {
+  it('is dropped when the keyframes change, or the track goes', () => {
+    pendingKeys().set(docStore().get().doc, { 'map.zoom': 9 })
+    pendingKeys().reconcile(docStore().get().doc)
+    expect(pendingKeys().values).toEqual({ 'map.zoom': 9 })
+
+    // Typing 5 into the keyframed Zoom keys 5 at the playhead
+    docStore().edit(d => {
+      const k = d.timeline?.tracks[0].keyframes[0]
+      if (k) k.value = 5
+    })
+    pendingKeys().reconcile(docStore().get().doc)
+    expect(pendingKeys().values).toEqual({})
+
+    pendingKeys().set(docStore().get().doc, { 'map.zoom': 9 })
+    docStore().edit(d => {
+      if (d.timeline) d.timeline.tracks = []
+    })
+    pendingKeys().reconcile(docStore().get().doc)
+    expect(pendingKeys().values).toEqual({})
   })
 })

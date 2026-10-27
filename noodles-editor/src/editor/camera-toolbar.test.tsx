@@ -1,3 +1,4 @@
+import type { EditorDoc } from '@noodles.gl/planner'
 import { cleanup, fireEvent, render } from '@testing-library/react'
 import { afterEach, beforeEach, expect, it } from 'vitest'
 import { CameraToolbar } from './camera-toolbar'
@@ -43,9 +44,9 @@ it('keys every unkeyed camera change at the playhead with Key', () => {
         { target: 'deck.zoom', keyframes: [] },
         { target: 'deck.pitch', keyframes: [] },
       ],
-    },
+    } as unknown as EditorDoc['timeline'],
   })
-  pendingKeys().set({ 'deck.zoom': 9, 'deck.pitch': 30 })
+  pendingKeys().set(docStore().get().doc, { 'deck.zoom': 9, 'deck.pitch': 30 })
   const { getByText } = render(
     <CameraToolbar
       control={control}

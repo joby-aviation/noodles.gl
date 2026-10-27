@@ -61,26 +61,34 @@ export function cameraControlOf(
 }
 
 /**
- * The map's view state written to a camera node: its static parameters change, and the values
- * of its keyframed ones are returned, by key, to hold as unkeyed changes (pending-keys.ts).
+ * The map's view state written to a camera node: its static parameters change, and its
+ * keyframed ones are sorted by whether they moved from `current`, the camera as keyed at the
+ * playhead. The ones that moved are held as unkeyed changes (pending-keys.ts); the ones that
+ * didn't, or came back, have no change to hold.
  */
 export function writeCamera(
   doc: EditorDoc,
   nodeId: string,
-  viewState: unknown
-): Record<string, number> {
-  const keyed: Record<string, number> = {}
-  if (!viewState || typeof viewState !== 'object') return keyed
+  viewState: unknown,
+  current?: Partial<Record<(typeof CAMERA_PARAMS)[number], number>>
+): { changed: Record<string, number>; same: string[] } {
+  const changed: Record<string, number> = {}
+  const same: string[] = []
+  if (!viewState || typeof viewState !== 'object') return { changed, same }
   const v = viewState as Record<string, unknown>
   for (const p of CAMERA_PARAMS) {
     const value = v[p]
     if (typeof value !== 'number' || !Number.isFinite(value)) continue
     const key = `${nodeId}.${p}`
-    if (doc.timeline?.tracks.some(t => t.target === key)) keyed[key] = value
-    else setParam(doc, nodeId, p, value)
+    if (!doc.timeline?.tracks.some(t => t.target === key)) setParam(doc, nodeId, p, value)
+    else if (current?.[p] !== undefined && sameValue(value, current[p])) same.push(key)
+    else changed[key] = value
   }
-  return keyed
+  return { changed, same }
 }
+
+// A map reports a pan's zoom back with float noise
+const sameValue = (a: number, b: number) => Math.abs(a - b) <= 1e-6 * Math.max(1, Math.abs(b))
 
 /** Whether a camera write would change any static parameter, so it needs an undo step. */
 export const writesStatic = (doc: EditorDoc, nodeId: string) =>

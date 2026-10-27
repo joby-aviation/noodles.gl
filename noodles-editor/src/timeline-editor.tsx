@@ -283,6 +283,10 @@ export default function TimelineEditor() {
     if (playheadShowsCamera(v)) v.setLookThrough(true)
   }, [time])
 
+  // An edit to a changed parameter's keyframes (typing a value, removing the track, an undo)
+  // wins over the change made before it
+  useEffect(() => pendingKeys().reconcile(doc), [doc])
+
   // An export renders the document's camera, keyed values and all
   useEffect(() => {
     if (isRendering) pendingKeys().clear()
@@ -306,14 +310,15 @@ export default function TimelineEditor() {
         // Static parameters change in the document, one undo step a drag; keyframed ones wait,
         // unkeyed, for their keyframe buttons
         const store = docStore()
-        let keyed: Record<string, number> = {}
+        let keyed: ReturnType<typeof writeCamera> = { changed: {}, same: [] }
         if (writesStatic(store.get().doc, id))
           store.edit(d => {
-            keyed = writeCamera(d, id, viewState)
+            keyed = writeCamera(d, id, viewState, activeCamera)
           }, cameraHistoryRef.current.tag())
         // Every parameter keyframed: nothing in the document changes, so no undo step
-        else keyed = writeCamera(store.get().doc, id, viewState)
-        pendingKeys().set(keyed)
+        else keyed = writeCamera(store.get().doc, id, viewState, activeCamera)
+        pendingKeys().clear(keyed.same)
+        pendingKeys().set(store.get().doc, keyed.changed)
         return
       }
       const camera = cameraOf(viewState)
@@ -322,7 +327,7 @@ export default function TimelineEditor() {
       if (v.lookThrough) v.setLookThrough(false)
       v.setViewport(camera)
     },
-    [navigation, cameraControl.nodeId, geographic]
+    [navigation, cameraControl.nodeId, geographic, activeCamera]
   )
 
   const finishCameraGesture = useCallback(() => {
@@ -797,10 +802,12 @@ export default function TimelineEditor() {
         return
       }
 
-      // A screenshot is the camera's, as an export is: from the viewport, look through it first
-      // and let the map draw there
-      if (!viewportCamera().lookThrough) {
+      // A screenshot is the camera's, as an export is: from the viewport, look through it first,
+      // and let the map draw there, without the camera's unkeyed changes
+      const unkeyed = Object.keys(pendingKeys().values).length > 0
+      if (!viewportCamera().lookThrough || unkeyed) {
         viewportCamera().setLookThrough(true)
+        pendingKeys().clear()
         await mapIdle(mapRef.current)
       }
 
