@@ -1,69 +1,62 @@
-// Dragging the map edits the camera of the selected node, when that node is the camera the
-// map shows: the deck node's own camera, or the View State node wired into its view state.
-// A camera parameter an expression, a reference or a wire drives cannot be dragged; a
-// keyframed one gets a key at the playhead.
+// Moving the map with Lock to view on (viewport-camera.ts) edits the active camera: the deck
+// node's own camera, or the View State node wired into its view state. A camera that another
+// node, an expression, a reference or a wire drives cannot be moved from the map, nor can any
+// camera while the timeline plays or an export runs; the map moves the viewport instead. A
+// keyframed camera parameter gets a key at the playhead.
 
-import type { EditorDoc } from '@noodles.gl/planner'
+import { type EditorDoc, nameOf } from '@noodles.gl/planner'
 import { setParam } from './doc-ops'
 
 export const CAMERA_PARAMS = ['longitude', 'latitude', 'zoom', 'pitch', 'bearing'] as const
 
 export interface CameraControl {
-  /** The selected camera node, when one is selected. */
+  /** The active camera's node, when the map shows a node's camera. */
   nodeId: string | null
   enabled: boolean
-  /** Why dragging is off, for a selected camera; null when it is on or nothing is selected. */
+  /** Why the map can't move the active camera; null when it can. */
   reason: string | null
-}
-
-const isCamera = (doc: EditorDoc, id: string) => {
-  const op = doc.nodes.find(n => n.id === id)?.op
-  return op === 'deck' || op === 'view-state'
 }
 
 /** The node whose camera the map shows: a View State wired into the deck, else the deck. */
 export function drivingCamera(doc: EditorDoc): string | null {
-  const deck =
-    doc.nodes.find(n => n.op === 'deck' && !n.parent) ?? doc.nodes.find(n => n.op === 'deck')
+  const deck = deckOf(doc)
   if (!deck) return null
   const wire = doc.edges.find(e => e.target === deck.id && e.targetPort === 'viewState')
   if (!wire) return deck.id
   return doc.nodes.find(n => n.id === wire.source)?.op === 'view-state' ? wire.source : null
 }
 
+const deckOf = (doc: EditorDoc) =>
+  doc.nodes.find(n => n.op === 'deck' && !n.parent) ?? doc.nodes.find(n => n.op === 'deck')
+
 export function cameraControlOf(
   doc: EditorDoc,
-  selected: readonly string[],
   { isRendering, isPlaying }: { isRendering: boolean; isPlaying: boolean }
 ): CameraControl {
-  const cameras = selected.filter(id => isCamera(doc, id))
-  if (selected.length !== 1 || cameras.length !== 1) {
-    return {
-      nodeId: null,
-      enabled: false,
-      reason: cameras.length ? 'Select one camera node to drag the map.' : null,
-    }
-  }
-  const nodeId = cameras[0]
+  const nodeId = drivingCamera(doc)
   const off = (reason: string): CameraControl => ({ nodeId, enabled: false, reason })
-  if (isRendering) return off('Camera controls are disabled while exporting.')
-  // A write during playback would land on whatever frame is playing
-  if (isPlaying) return off('Pause the timeline to drag the camera.')
-  if (drivingCamera(doc) !== nodeId) {
-    return off('This camera does not drive the visible map, so dragging cannot edit it.')
+  if (!nodeId) {
+    const deck = deckOf(doc)
+    const wire = deck && doc.edges.find(e => e.target === deck.id && e.targetPort === 'viewState')
+    const from = wire && doc.nodes.find(n => n.id === wire.source)
+    return off(
+      from ? `${nameOf(from)} drives the camera, so the map can't move it.` : 'No camera to move.'
+    )
   }
+  if (isRendering) return off('The camera stays still while exporting.')
+  // A write during playback would land on whatever frame is playing
+  if (isPlaying) return off('Pause the timeline to move the camera.')
   const node = doc.nodes.find(n => n.id === nodeId)
+  const name = node ? nameOf(node) : nodeId
   const wired = CAMERA_PARAMS.filter(p =>
     doc.edges.some(e => e.target === nodeId && e.targetPort === `par:${p}`)
   )
-  if (wired.length) return off(`Disconnect camera inputs to drag the map: ${wired.join(', ')}.`)
+  if (wired.length) return off(`Wires drive ${name}'s ${wired.join(', ')}.`)
   const driven = CAMERA_PARAMS.filter(p => {
     const v = node?.params[p]
     return v !== null && typeof v === 'object' && !Array.isArray(v)
   })
-  if (driven.length) {
-    return off(`Clear camera expressions and references to drag the map: ${driven.join(', ')}.`)
-  }
+  if (driven.length) return off(`Expressions or references drive ${name}'s ${driven.join(', ')}.`)
   return { nodeId, enabled: true, reason: null }
 }
 

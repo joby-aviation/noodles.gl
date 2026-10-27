@@ -1,0 +1,97 @@
+// The map's camera switches (viewport-camera.ts), in its top-left corner as Blender's viewport
+// header has them: whether the map shows the viewport or looks through the active camera, and
+// whether moving the map moves that camera. Numpad 0 toggles camera view, as in Blender.
+
+import cx from 'classnames'
+import { useEffect } from 'react'
+import { analytics } from '../utils/analytics'
+import type { CameraControl } from './camera-control'
+import s from './camera-toolbar.module.css'
+import { type Camera, useViewportCamera, viewportCamera } from './viewport-camera'
+
+const typing = (t: EventTarget | null) =>
+  t instanceof HTMLElement &&
+  (t.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(t.tagName))
+
+export function toggleCameraView(camera: Camera | undefined) {
+  const on = !viewportCamera().lookThrough
+  viewportCamera().setLookThrough(on, camera)
+  analytics.track('camera_view_toggled', { on, via: 'shortcut' })
+}
+
+export function CameraToolbar({
+  control,
+  camera,
+  cameraName,
+}: {
+  control: CameraControl
+  // The active camera's view now, which a viewport that has never moved starts from
+  camera: Camera | undefined
+  cameraName: string | undefined
+}) {
+  const lookThrough = useViewportCamera(st => st.lookThrough)
+  const lock = useViewportCamera(st => st.lock)
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.code !== 'Numpad0' || typing(e.target) || e.metaKey || e.ctrlKey || e.altKey) return
+      e.preventDefault()
+      toggleCameraView(camera)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [camera])
+
+  const show = (on: boolean) => {
+    if (on === lookThrough) return
+    viewportCamera().setLookThrough(on, camera)
+    analytics.track('camera_view_toggled', { on, via: 'toolbar' })
+  }
+
+  return (
+    <div className={s.toolbar}>
+      <fieldset className={s.segmented} aria-label="Map shows">
+        <button
+          type="button"
+          className={cx(s.segment, !lookThrough && s.segmentOn)}
+          aria-pressed={!lookThrough}
+          title="The viewport: look around freely. Exports still use the camera."
+          onClick={() => show(false)}
+        >
+          Viewport
+        </button>
+        <button
+          type="button"
+          className={cx(s.segment, lookThrough && s.segmentOn)}
+          aria-pressed={lookThrough}
+          title="Look through the active camera, as exports do (Numpad 0)"
+          onClick={() => show(true)}
+        >
+          <i className="pi pi-video" />
+          {cameraName ?? 'Camera'}
+        </button>
+      </fieldset>
+      <button
+        type="button"
+        className={cx(s.lock, lock && s.lockOn)}
+        aria-pressed={lock}
+        title={
+          lock
+            ? 'Moving the map moves the camera. Click to move the viewport instead.'
+            : 'Lock the camera to the view: moving the map moves the camera'
+        }
+        onClick={() => {
+          viewportCamera().setLock(!lock)
+          analytics.track('camera_lock_toggled', { on: !lock })
+        }}
+      >
+        <i className={cx('pi', lock ? 'pi-lock' : 'pi-lock-open')} />
+      </button>
+      {lock && lookThrough && control.reason && (
+        <div className={s.reason} role="status">
+          {control.reason} Moving the map moves the viewport.
+        </div>
+      )}
+    </div>
+  )
+}

@@ -1488,10 +1488,6 @@
           "kind": "float",
           "default": 0
         },
-        "follow": {
-          "kind": "toggle",
-          "default": false
-        },
         "mapStyle": {
           "kind": "url",
           "default": "",
