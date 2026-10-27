@@ -1,8 +1,8 @@
 // Moving the map with Lock to view on (viewport-camera.ts) edits the active camera: the deck
 // node's own camera, or the View State node wired into its view state. A camera that another
 // node, an expression, a reference or a wire drives cannot be moved from the map, nor can any
-// camera while the timeline plays or an export runs; the map moves the viewport instead. A
-// keyframed camera parameter gets a key at the playhead.
+// camera while the timeline plays or an export runs. A keyframed camera parameter isn't keyed
+// by moving the map: its new value waits as an unkeyed change (pending-keys.ts).
 
 import { type EditorDoc, nameOf } from '@noodles.gl/planner'
 import { setParam } from './doc-ops'
@@ -60,14 +60,31 @@ export function cameraControlOf(
   return { nodeId, enabled: true, reason: null }
 }
 
-/** The map's view state written to a camera node: a key at `time` where a param is keyframed. */
-export function writeCamera(doc: EditorDoc, nodeId: string, viewState: unknown, time: number) {
-  if (!viewState || typeof viewState !== 'object') return
+/**
+ * The map's view state written to a camera node: its static parameters change, and the values
+ * of its keyframed ones are returned, by key, to hold as unkeyed changes (pending-keys.ts).
+ */
+export function writeCamera(
+  doc: EditorDoc,
+  nodeId: string,
+  viewState: unknown
+): Record<string, number> {
+  const keyed: Record<string, number> = {}
+  if (!viewState || typeof viewState !== 'object') return keyed
   const v = viewState as Record<string, unknown>
   for (const p of CAMERA_PARAMS) {
-    if (typeof v[p] === 'number' && Number.isFinite(v[p])) setParam(doc, nodeId, p, v[p], time)
+    const value = v[p]
+    if (typeof value !== 'number' || !Number.isFinite(value)) continue
+    const key = `${nodeId}.${p}`
+    if (doc.timeline?.tracks.some(t => t.target === key)) keyed[key] = value
+    else setParam(doc, nodeId, p, value)
   }
+  return keyed
 }
+
+/** Whether a camera write would change any static parameter, so it needs an undo step. */
+export const writesStatic = (doc: EditorDoc, nodeId: string) =>
+  CAMERA_PARAMS.some(p => !doc.timeline?.tracks.some(t => t.target === `${nodeId}.${p}`))
 
 /**
  * One drag, one undo step: every write of a gesture carries the same edit tag. deck.gl reports

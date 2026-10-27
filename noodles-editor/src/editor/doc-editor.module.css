@@ -528,6 +528,26 @@
   border-color: #e6b53d;
 }
 
+/* Changed but not keyed, as Blender's orange */
+.diamondChanged {
+  background: #ff8a3d;
+  border-color: #ff8a3d;
+}
+
+.paramChanged {
+  background: rgb(255 138 61 / 12%);
+  box-shadow: inset 2px 0 0 #ff8a3d;
+}
+
+/* The changed value beside the keyed one the widget still shows */
+.pendingValue {
+  flex: none;
+  margin-right: 6px;
+  color: #ff8a3d;
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 11px;
+}
+
 .routes {
   display: flex;
   gap: 3px;

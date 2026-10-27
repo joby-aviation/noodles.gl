@@ -25,6 +25,7 @@ import { clearTrack, pathTo, promote, removeKey, setKey, setParam } from './doc-
 import { docStore, useEditor } from './doc-store'
 import { NodeFields } from './field-adapter'
 import { ContextMenu, type MenuItem } from './menus'
+import { pendingKeys, usePendingKeys } from './pending-keys'
 import { RefPicker, referenceable } from './ref-picker'
 
 /** Whether a parameter shows, given the values its `when` reads. */
@@ -126,6 +127,10 @@ export function ParamRow({
   const atKey = track?.keyframes.some(k => Math.abs(k.time - time) < 1e-3)
   const value = engine.slots.get(key)
   const canKey = keyable(def, field) && !wired && mode === 'literal'
+  // A keyframed value changed but not keyed yet (pending-keys.ts): the keyframe button keys it
+  const pendingValue = usePendingKeys(st => st.values[key])
+  const changed = pendingValue !== undefined && !!track
+  const keyValue = () => (changed ? pendingValue : Number(field.value))
   const wire = doc.edges.find(e => e.target === node.id && e.targetPort === `par:${def.name}`)
   const debug = useEditor(st => st.debug)
   // What a change costs is the planner's business; debug mode shows it
@@ -205,7 +210,10 @@ export function ParamRow({
     {
       label: atKey ? 'Update keyframe' : 'Add keyframe at playhead',
       disabled: !canKey,
-      onClick: () => docStore().edit(d => setKey(d, key, time, Number(field.value)), `key:${key}`),
+      onClick: () => {
+        docStore().edit(d => setKey(d, key, time, keyValue()), `key:${key}`)
+        pendingKeys().clear([key])
+      },
     },
     {
       label: 'Remove keyframe here',
@@ -244,7 +252,7 @@ export function ParamRow({
   return (
     // biome-ignore lint/a11y/noStaticElementInteractions: right-click opens the parameter's menu
     <div
-      className={s.paramRow}
+      className={cx(s.paramRow, changed && s.paramChanged)}
       // A field label's tooltip opens when keyboard focus reaches this row's input
       data-field-row
       title={`${def.help ?? def.label}\n${key}`}
@@ -322,18 +330,38 @@ export function ParamRow({
             ⛓
           </button>
         )}
+        {changed && (
+          <span
+            className={s.pendingValue}
+            title="Changed but not keyed: the keyframe button keys it at the playhead. Moving the playhead drops it."
+          >
+            {fmt(pendingValue)}
+          </span>
+        )}
         {canKey || track ? (
           <button
             type="button"
-            className={cx(s.diamond, { [s.diamondTrack]: !!track, [s.diamondOn]: atKey })}
-            title={atKey ? 'Keyframe at the playhead (click to remove)' : 'Click to set a keyframe'}
-            disabled={!canKey && !atKey}
-            onClick={() =>
-              docStore().edit(d => {
-                if (atKey) removeKey(d, key, time)
-                else setKey(d, key, time, Number(field.value))
-              })
+            className={cx(s.diamond, {
+              [s.diamondTrack]: !!track,
+              [s.diamondOn]: atKey && !changed,
+              [s.diamondChanged]: changed,
+            })}
+            title={
+              changed
+                ? `Changed to ${fmt(pendingValue)}: click to key it at the playhead`
+                : atKey
+                  ? 'Keyframe at the playhead (click to remove)'
+                  : 'Click to set a keyframe'
             }
+            disabled={!canKey && !atKey}
+            onClick={() => {
+              docStore().edit(d => {
+                // A changed value keys over the keyframe at the playhead rather than removing it
+                if (atKey && !changed) removeKey(d, key, time)
+                else setKey(d, key, time, keyValue())
+              })
+              if (changed) pendingKeys().clear([key])
+            }}
           />
         ) : null}
       </div>

@@ -120,7 +120,8 @@ Opening a saved project by its URL (`/projects/:name`, which is where Recent pro
 | `layer_reordered` | `from, to, layers` | layer-stack.tsx: a layer dragged, or moved with Alt+Up/Down; positions count from the top |
 | `map_interacted` | `kind` | editor-analytics.ts (from timeline-editor.tsx) |
 | `camera_view_toggled` | `on, via` | camera-toolbar.tsx: the map looks through the active camera (`on`) or shows the viewport, from the toolbar or Numpad 0 (`via`) |
-| `camera_lock_toggled` | `on` | camera-toolbar.tsx: Lock to view, so moving the map moves the camera |
+| `camera_lock_toggled` | `on, view` | camera-toolbar.tsx: the lock pins the view it is in (`view`: `viewport` stays through playhead moves, `camera` moves with the map) |
+| `camera_keyed` | `params` | camera-toolbar.tsx: the Key button keyed the camera's unkeyed changes; `params` is how many |
 | `chat_opened` | `source` | top-menu-bar.tsx, doc-noodles.tsx |
 | `chat_closed` | `source` | top-menu-bar.tsx, doc-noodles.tsx |
 | `brushable_histogram_opened` | none | histogram-editor.tsx, when the parameter pane shows a Brushable Histogram |
