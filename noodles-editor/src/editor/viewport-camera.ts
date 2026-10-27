@@ -4,7 +4,8 @@
 // (scrubbing, stepping, playing) takes you back to the camera. The lock pins whichever you are
 // in: a locked viewport stays put when the playhead moves, and a locked camera view stays when
 // the map moves, which then moves the camera itself. The viewport and the switches are the
-// editor's, kept per project in this browser, not in the document.
+// editor's, not the document's, kept per project for this page load: reloading starts every
+// project back at its own camera.
 
 import { create } from 'zustand'
 
@@ -16,7 +17,12 @@ export interface Camera {
   bearing: number
 }
 
-const STORAGE_KEY = 'noodles-viewport'
+// Where an earlier version kept viewports across reloads; dropped once so none come back
+try {
+  localStorage.removeItem('noodles-viewport')
+} catch {
+  // Storage off: nothing was kept
+}
 
 /** A map view state as a camera, when it has a position and a zoom. */
 export function cameraOf(v: unknown): Camera | undefined {
@@ -79,45 +85,19 @@ interface ViewportState extends Saved {
 
 const DEFAULTS: Saved = { lookThrough: true, lock: false }
 
-function readAll(): Record<string, Saved> {
-  try {
-    return JSON.parse(localStorage.getItem(STORAGE_KEY) ?? '{}') as Record<string, Saved>
-  } catch {
-    return {}
-  }
-}
+// Each project's viewport and switches, for this page load only
+const session = new Map<string, Saved>()
 
-let saveTimer: ReturnType<typeof setTimeout> | undefined
-let pending: { project: string; saved: Saved } | undefined
-
-function flush() {
-  clearTimeout(saveTimer)
-  if (!pending) return
-  const { project, saved } = pending
-  pending = undefined
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...readAll(), [project]: saved }))
-  } catch {
-    // Storage full or off: the viewport lasts for the session
-  }
-}
-
-// Written a moment after the last change, so a drag doesn't write storage every frame. Opening
-// another project writes it at once (`open`), so a quick switch keeps it.
 function save(state: ViewportState) {
   const { project, lookThrough, lock, viewport } = state
-  if (!project) return
-  pending = { project, saved: { lookThrough, lock, viewport } }
-  clearTimeout(saveTimer)
-  saveTimer = setTimeout(flush, 300)
+  if (project) session.set(project, { lookThrough, lock, viewport })
 }
 
 export const useViewportCamera = create<ViewportState>((set, get) => ({
   ...DEFAULTS,
   open: project => {
     if (project === get().project) return
-    flush()
-    set({ ...DEFAULTS, viewport: undefined, ...(project ? readAll()[project] : {}), project })
+    set({ ...DEFAULTS, viewport: undefined, ...(project ? session.get(project) : {}), project })
   },
   // Leaving camera view goes back to where the viewport was, or starts it at the camera
   setLookThrough: (on, from) => {

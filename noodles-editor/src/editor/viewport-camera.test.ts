@@ -180,15 +180,15 @@ describe('the viewport store', () => {
     expect(viewportCamera()).toMatchObject({ lookThrough: true, lock: true })
   })
 
-  it('keeps each project’s viewport in this browser', () => {
-    vi.useFakeTimers()
+  it('keeps each project’s viewport while the page is open, and stores none for a reload', () => {
     viewportCamera().open('quakes')
     viewportCamera().setLookThrough(false, here)
-    vi.advanceTimersByTime(400)
     viewportCamera().open('taxis')
     expect(viewportCamera()).toMatchObject({ lookThrough: true, viewport: undefined })
     viewportCamera().open('quakes')
     expect(viewportCamera()).toMatchObject({ lookThrough: false, viewport: here })
+    // Nothing outlives the page: a reload starts at the project's camera
+    expect(localStorage.getItem('noodles-viewport')).toBeNull()
   })
 })
 
@@ -209,7 +209,6 @@ describe('switching projects quickly', () => {
     viewportCamera().setLookThrough(false, here)
     viewportCamera().open('examples:taxis')
     viewportCamera().setViewport({ ...here, zoom: 3 })
-    vi.advanceTimersByTime(400)
     viewportCamera().open('examples:quakes')
     expect(viewportCamera().viewport).toEqual(here)
     vi.useRealTimers()
