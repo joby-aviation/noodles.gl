@@ -6,6 +6,7 @@ import { type EditorDoc, OPERATOR_INDEX } from '@noodles.gl/planner'
 import { PrimeReactProvider } from 'primereact/api'
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useParams } from 'wouter'
+import { KeyPrompts } from '../components/key-prompts'
 import { getPendingQuickStartAction } from '../components/quick-start-modal'
 import { CreateFromSQLDialog } from '../noodles/components/create-from-sql-dialog'
 import { ErrorBoundary } from '../noodles/components/error-boundary'
@@ -405,6 +406,7 @@ export function useDocNoodles(): Visualization {
             onConfirm={onConfirmCreateFromSQL}
             onClose={() => setPendingCreateFromSQL(null)}
           />
+          <KeyPrompts />
         </TimelineProvider>
       </PrimeReactProvider>
     </div>
