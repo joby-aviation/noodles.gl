@@ -19,7 +19,7 @@ import { ColorSwatch } from '../noodles/components/color-swatch'
 import ns from '../noodles/noodles.module.css'
 import { type EngineState, useEngineState } from './doc-engine'
 import s from './doc-network.module.css'
-import { setParam } from './doc-ops'
+import { isListParam, setParam } from './doc-ops'
 import { docStore, useEditor } from './doc-store'
 import { colorToFieldHex, fieldHexToColor } from './field-adapter'
 import { pillHeight } from './multi-port'
@@ -328,21 +328,37 @@ export function DocNodeComponent({ id, selected }: NodeProps) {
         {op.inputs.map(p => (
           <PortRow key={`in-${p.name}`} nodeId={id} port={p} side="in" dim={dimIn(p.type)} />
         ))}
-        {params.map(p => (
-          <div className={cx(s.port, s.paramPort)} key={`par-${p.name}`}>
-            <Handle
-              id={`par:${p.name}`}
-              type="target"
-              position={Position.Left}
-              className={cx(
-                PORT_CLASS[p.portType ?? 'number'],
-                s.paramHandle,
-                dragging && !wired.has(`par:${p.name}`) && !fits(p.portType ?? 'number') && s.dim
-              )}
+        {params.map(p =>
+          // A list parameter takes several wires in order, drawn as a multi input's pill
+          isListParam(op.type, p.name) ? (
+            <PortRow
+              key={`par-${p.name}`}
+              nodeId={id}
+              port={{
+                name: `par:${p.name}`,
+                type: p.portType ?? 'value',
+                label: p.label,
+                multi: true,
+              }}
+              side="in"
+              dim={!!dragging && !wired.has(`par:${p.name}`) && !fits(p.portType ?? 'value')}
             />
-            {p.label}
-          </div>
-        ))}
+          ) : (
+            <div className={cx(s.port, s.paramPort)} key={`par-${p.name}`}>
+              <Handle
+                id={`par:${p.name}`}
+                type="target"
+                position={Position.Left}
+                className={cx(
+                  PORT_CLASS[p.portType ?? 'number'],
+                  s.paramHandle,
+                  dragging && !wired.has(`par:${p.name}`) && !fits(p.portType ?? 'number') && s.dim
+                )}
+              />
+              {p.label}
+            </div>
+          )
+        )}
         {op.outputs.map(p => (
           <PortRow key={`out-${p.name}`} nodeId={id} port={p} side="out" dim={dimOut(p.type)} />
         ))}

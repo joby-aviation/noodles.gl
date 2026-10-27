@@ -406,7 +406,8 @@
         "extensions": {
           "kind": "field",
           "default": [],
-          "portType": "value"
+          "portType": "value",
+          "multi": true
         }
       }
     },
@@ -3883,7 +3884,8 @@
         "objects": {
           "kind": "field",
           "default": null,
-          "portType": "value"
+          "portType": "value",
+          "multi": true
         }
       }
     },
@@ -4103,7 +4105,8 @@
         "extensions": {
           "kind": "field",
           "default": [],
-          "portType": "value"
+          "portType": "value",
+          "multi": true
         }
       }
     },
@@ -5018,7 +5021,8 @@
         "extensions": {
           "kind": "field",
           "default": [],
-          "portType": "value"
+          "portType": "value",
+          "multi": true
         }
       }
     },
@@ -5756,6 +5760,34 @@
         }
       }
     },
+    "switch-value": {
+      "name": "Switch Value",
+      "type": "switch-value",
+      "category": "output",
+      "description": "One of several values, chosen by Index: a camera from several View States wired into the deck, say. Keyframe Index to cut between cameras; with Blend, a decimal Index blends the two either side, so keyframing it flies from one camera to the next.",
+      "inputs": {},
+      "outputs": {
+        "value": {
+          "type": "value"
+        }
+      },
+      "params": {
+        "values": {
+          "kind": "field",
+          "default": null,
+          "portType": "value",
+          "multi": true
+        },
+        "index": {
+          "kind": "float",
+          "default": 0
+        },
+        "blend": {
+          "kind": "toggle",
+          "default": false
+        }
+      }
+    },
     "table": {
       "name": "Table",
       "type": "table",
@@ -5841,7 +5873,8 @@
         "extensions": {
           "kind": "field",
           "default": [],
-          "portType": "value"
+          "portType": "value",
+          "multi": true
         }
       }
     },
@@ -6124,7 +6157,8 @@
         "extensions": {
           "kind": "field",
           "default": [],
-          "portType": "value"
+          "portType": "value",
+          "multi": true
         }
       }
     },

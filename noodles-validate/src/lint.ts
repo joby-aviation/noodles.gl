@@ -480,6 +480,7 @@ function checkEdges(edges: unknown[], nodes: Map<string, NodeRecord>, report: Re
     const [target, port] = key.split('\u0000')
     const def = nodes.get(target)?.def
     if (!port.startsWith('par:') && def?.inputs[port]?.multi) continue
+    if (port.startsWith('par:') && def?.params[port.slice(4)]?.multi) continue
     report(
       'error',
       'multiple-inputs',
