@@ -19,6 +19,7 @@ import {
   CAMERA_PARAMS,
   cameraControlOf,
   cameraGesture,
+  drivingCamera,
   writeCamera,
   writesStatic,
 } from './editor/camera-control'
@@ -226,10 +227,12 @@ export default function TimelineEditor() {
 
   const isPlaying = useTimelineStore(state => state.playing)
   const doc = useEditor(state => state.doc)
-  const time = useEditor(state => state.time)
+  // Only which camera the playhead picks (a Switch Value's), not the playhead itself: this
+  // component renders the whole editor, and the playhead moves every frame of playback
+  const activeCameraId = useEditor(state => drivingCamera(state.doc, state.time))
   const cameraControl = useMemo(
-    () => cameraControlOf(doc, { isRendering, isPlaying, time }),
-    [doc, isRendering, isPlaying, time]
+    () => cameraControlOf(doc, { isRendering, isPlaying, camera: activeCameraId }),
+    [doc, isRendering, isPlaying, activeCameraId]
   )
   const cameraHistoryRef = useRef(cameraGesture())
 
@@ -273,15 +276,18 @@ export default function TimelineEditor() {
 
   // Moving the playhead (scrubbing, stepping, playing) goes back to the camera, unless the
   // viewport is locked
-  const lastTime = useRef(time)
   useEffect(() => {
-    if (time === lastTime.current) return
-    lastTime.current = time
-    // Unkeyed changes belong to the frame they were made on
-    pendingKeys().clear()
-    const v = viewportCamera()
-    if (playheadShowsCamera(v)) v.setLookThrough(true)
-  }, [time])
+    let last = docStore().get().time
+    return docStore().subscribe(() => {
+      const { time } = docStore().get()
+      if (time === last) return
+      last = time
+      // Unkeyed changes belong to the frame they were made on
+      pendingKeys().clear()
+      const v = viewportCamera()
+      if (playheadShowsCamera(v)) v.setLookThrough(true)
+    })
+  }, [])
 
   // An edit to a changed parameter's keyframes (typing a value, removing the track, an undo)
   // wins over the change made before it

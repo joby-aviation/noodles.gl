@@ -31,7 +31,7 @@ import {
 } from '../noodles/utils/serialization'
 import { expandTimelineIfAnimated } from '../noodles/utils/timeline-panel'
 import { TimelineProvider } from '../timeline/timeline-context'
-import { useTimelineStore } from '../timeline/timeline-store'
+import { getTimelineStore, useTimelineStore } from '../timeline/timeline-store'
 import { analytics } from '../utils/analytics'
 import type { Visualization } from '../visualizations'
 import { bindEngine, settleEngine, useEngineState, visCommitted } from './doc-engine'
@@ -166,8 +166,15 @@ export function useDocNoodles(): Visualization {
   // The engine runs whatever document the store holds, at the timeline's playhead.
   useEffect(() => bindEngine(docStore(), readProjectAsset), [])
   useEffect(() => bindTimeline(docStore()), [])
-  const position = useTimelineStore(s => s.position)
-  useEffect(() => docStore().set({ time: position }), [position])
+  // Copied outside React: a subscription here would render the whole editor each frame of
+  // playback to hand a number on
+  useEffect(() => {
+    docStore().set({ time: getTimelineStore().position })
+    return useTimelineStore.subscribe(
+      s => s.position,
+      position => docStore().set({ time: position })
+    )
+  }, [])
 
   // The route names the project.
   // biome-ignore lint/correctness/useExhaustiveDependencies: a route change opens a project; nothing else should
