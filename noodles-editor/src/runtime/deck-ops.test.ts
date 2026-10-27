@@ -63,3 +63,23 @@ describe('pmtiles', () => {
     expect(raster).not.toHaveProperty('sourceLayer')
   })
 })
+
+describe('switch-value', () => {
+  const sf = { longitude: -122.4, latitude: 37.8, zoom: 10 }
+  const ny = { longitude: -74, latitude: 40.7, zoom: 12 }
+  const build = (index: number, blend = false, values: unknown[] = [sf, ny]) =>
+    DECK_OP_INDEX.get('switch-value')?.build({ values, index, blend }, 'shots', env)
+
+  it('picks the value below the index, as the Noodles SwitchOp did, clamped to the inputs', () => {
+    expect(build(0)).toBe(sf)
+    expect(build(0.9)).toBe(sf)
+    expect(build(1)).toBe(ny)
+    expect(build(7)).toBe(ny)
+    expect(build(0, false, [])).toBeUndefined()
+  })
+
+  it('blends the two either side of a decimal index', () => {
+    expect(build(0.5, true)).toEqual({ longitude: -98.2, latitude: 39.25, zoom: 11 })
+    expect(build(1, true)).toBe(ny)
+  })
+})

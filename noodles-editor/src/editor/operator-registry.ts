@@ -4,6 +4,7 @@
 
 import type { OpDef, ParamDef, PortSpec } from '@noodles.gl/planner'
 import { OPERATORS } from '@noodles.gl/planner'
+import { DECK_OP_INDEX } from '../runtime/deck-ops'
 import { OP_CATALOG } from '../runtime/migrate/op-catalog'
 import { CONVERTED_SCHEMA } from '../runtime/migrate/to-editor-doc'
 import { CATEGORY_ORDER } from './categories'
@@ -44,7 +45,7 @@ export function jsText(value: unknown): string {
   return JSON.stringify(value) ?? 'null'
 }
 
-const param = (p: ParamDef) => {
+const param = (p: ParamDef, op: OpDef) => {
   const fallback = stableDefault(p)
   return {
     kind: p.kind,
@@ -53,6 +54,8 @@ const param = (p: ParamDef) => {
       : fallback !== undefined && { default: fallback }),
     ...(p.options && { options: p.options.map(o => o.value) }),
     ...(p.portType && { portType: p.portType }),
+    // A deck operator's list takes several edges, in order: a Switch Value's values
+    ...(DECK_OP_INDEX.get(op.type)?.lists?.includes(p.name) && { multi: true }),
   }
 }
 
@@ -63,7 +66,7 @@ const entry = (op: OpDef) => ({
   description: op.description,
   inputs: Object.fromEntries(op.inputs.map(p => [p.name, port(p)])),
   outputs: Object.fromEntries(op.outputs.map(p => [p.name, port(p)])),
-  params: Object.fromEntries(op.params.map(p => [p.name, param(p)])),
+  params: Object.fromEntries(op.params.map(p => [p.name, param(p, op)])),
 })
 
 // Every registered operator, sorted by type. Register the host operators first.

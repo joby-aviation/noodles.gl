@@ -29,6 +29,7 @@ import { NodeFields } from './field-adapter'
 import { useParamLinkTarget } from './link-drag'
 import { ContextMenu, type MenuItem } from './menus'
 import { connections } from './param-links'
+import { pendingKeys, usePendingKeys } from './pending-keys'
 import { Port } from './port'
 import { isRampParam, RampPicker } from './ramp-picker'
 import { RefPicker, referenceable } from './ref-picker'
@@ -135,6 +136,10 @@ export function ParamRow({
   const atKey = track?.keyframes.some(k => Math.abs(k.time - time) < 1e-3)
   const value = engine.slots.get(key)
   const canKey = keyable(def, field) && !wired && mode === 'literal'
+  // A keyframed value changed but not keyed yet (pending-keys.ts): the keyframe button keys it
+  const pendingValue = usePendingKeys(st => st.values[key])
+  const changed = pendingValue !== undefined && !!track
+  const keyValue = () => (changed ? pendingValue : Number(field.value))
   const wire = doc.edges.find(e => e.target === node.id && e.targetPort === `par:${def.name}`)
   // What the wire carries, from the output it reads: an output computed in SQL, such as an
   // Extent's, has no value here, rather than the parameter's default
@@ -217,7 +222,10 @@ export function ParamRow({
     {
       label: atKey ? 'Update keyframe' : 'Add keyframe at playhead',
       disabled: !canKey,
-      onClick: () => docStore().edit(d => setKey(d, key, time, Number(field.value)), `key:${key}`),
+      onClick: () => {
+        docStore().edit(d => setKey(d, key, time, keyValue()), `key:${key}`)
+        pendingKeys().clear([key])
+      },
     },
     {
       label: 'Remove keyframe here',
@@ -256,7 +264,11 @@ export function ParamRow({
   return (
     // biome-ignore lint/a11y/noStaticElementInteractions: right-click opens the parameter's menu; a dragged port drops here
     <div
-      className={cx(s.paramRow, linkTarget.accepts && s.paramRowLinkTarget)}
+      className={cx(
+        s.paramRow,
+        linkTarget.accepts && s.paramRowLinkTarget,
+        changed && s.paramChanged
+      )}
       // A field label's tooltip opens when keyboard focus reaches this row's input
       data-field-row
       title={`${def.help ?? def.label}\n${key}`}
@@ -346,6 +358,14 @@ export function ParamRow({
           )
         )}
         {inline}
+        {changed && (
+          <span
+            className={s.pendingValue}
+            title="Changed but not keyed: the keyframe button keys it at the playhead. Moving the playhead drops it."
+          >
+            {fmt(pendingValue)}
+          </span>
+        )}
         {/* Link and keyframe buttons share a fixed gutter, so every control ends at the same edge */}
         <span className={s.paramGutter}>
           {referenceable(def) && !wired && mode === 'literal' && (
@@ -364,17 +384,27 @@ export function ParamRow({
           {canKey || track ? (
             <button
               type="button"
-              className={cx(s.diamond, { [s.diamondTrack]: !!track, [s.diamondOn]: atKey })}
+              className={cx(s.diamond, {
+                [s.diamondTrack]: !!track,
+                [s.diamondOn]: atKey && !changed,
+                [s.diamondChanged]: changed,
+              })}
               title={
-                atKey ? 'Keyframe at the playhead (click to remove)' : 'Click to set a keyframe'
+                changed
+                  ? `Changed to ${fmt(pendingValue)}: click to key it at the playhead`
+                  : atKey
+                    ? 'Keyframe at the playhead (click to remove)'
+                    : 'Click to set a keyframe'
               }
               disabled={!canKey && !atKey}
-              onClick={() =>
+              onClick={() => {
                 docStore().edit(d => {
-                  if (atKey) removeKey(d, key, time)
-                  else setKey(d, key, time, Number(field.value))
+                  // A changed value keys over the keyframe at the playhead rather than removing it
+                  if (atKey && !changed) removeKey(d, key, time)
+                  else setKey(d, key, time, keyValue())
                 })
-              }
+                if (changed) pendingKeys().clear([key])
+              }}
             />
           ) : null}
         </span>

@@ -17,6 +17,7 @@ import {
   resolveRef,
   setKeyframe,
 } from '@noodles.gl/planner'
+import { DECK_OP_INDEX } from '../runtime/deck-ops'
 
 let counter = 0
 export const newId = (prefix: string): string =>
@@ -71,8 +72,13 @@ export function portType(
   return (side === 'in' ? def.inputs : def.outputs).find(p => p.name === port)?.type
 }
 
+/** A deck operator's list parameter, which takes several wires in order: a Switch Value's values. */
+export const isListParam = (op: string, param: string): boolean =>
+  !!DECK_OP_INDEX.get(op)?.lists?.includes(param)
+
 export function isMulti(doc: EditorDoc, nodeId: string, port: string): boolean {
   const node = doc.nodes.find(n => n.id === nodeId)
+  if (node && port.startsWith('par:')) return isListParam(node.op, port.slice(4))
   return !!(node && OPERATOR_INDEX.get(node.op)?.inputs.find(p => p.name === port)?.multi)
 }
 
