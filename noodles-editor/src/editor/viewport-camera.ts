@@ -85,34 +85,39 @@ interface ViewportState extends Saved {
 
 const DEFAULTS: Saved = { lookThrough: true, lock: false }
 
-// Each project's viewport and switches, for this page load only
-const session = new Map<string, Saved>()
-
-function save(state: ViewportState) {
-  const { project, lookThrough, lock, viewport } = state
-  if (project) session.set(project, { lookThrough, lock, viewport })
+/**
+ * A viewport store, with its own record of each project's viewport and switches. The editor
+ * makes one when the page loads, so a reload starts every project back at its camera.
+ */
+export function createViewportStore() {
+  const session = new Map<string, Saved>()
+  const save = (state: ViewportState) => {
+    const { project, lookThrough, lock, viewport } = state
+    if (project) session.set(project, { lookThrough, lock, viewport })
+  }
+  return create<ViewportState>((set, get) => ({
+    ...DEFAULTS,
+    open: project => {
+      if (project === get().project) return
+      set({ ...DEFAULTS, viewport: undefined, ...(project ? session.get(project) : {}), project })
+    },
+    // Leaving camera view goes back to where the viewport was, or starts it at the camera
+    setLookThrough: (on, from) => {
+      // The lock stays on, and pins the view you switched to
+      set(s => ({ lookThrough: on, viewport: s.viewport ?? from }))
+      save(get())
+    },
+    setLock: on => {
+      set({ lock: on })
+      save(get())
+    },
+    setViewport: camera => {
+      set({ viewport: camera })
+      save(get())
+    },
+  }))
 }
 
-export const useViewportCamera = create<ViewportState>((set, get) => ({
-  ...DEFAULTS,
-  open: project => {
-    if (project === get().project) return
-    set({ ...DEFAULTS, viewport: undefined, ...(project ? session.get(project) : {}), project })
-  },
-  // Leaving camera view goes back to where the viewport was, or starts it at the camera
-  setLookThrough: (on, from) => {
-    // The lock stays on, and pins the view you switched to
-    set(s => ({ lookThrough: on, viewport: s.viewport ?? from }))
-    save(get())
-  },
-  setLock: on => {
-    set({ lock: on })
-    save(get())
-  },
-  setViewport: camera => {
-    set({ viewport: camera })
-    save(get())
-  },
-}))
+export const useViewportCamera = createViewportStore()
 
 export const viewportCamera = () => useViewportCamera.getState()
