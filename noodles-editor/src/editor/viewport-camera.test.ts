@@ -1,13 +1,12 @@
 import type { DocNode, EditorDoc } from '@noodles.gl/planner'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it } from 'vitest'
 import { cameraControlOf, drivingCamera } from './camera-control'
 import {
   cameraOf,
+  createViewportStore,
   navigates,
   playheadShowsCamera,
   showsCamera,
-  useViewportCamera,
-  viewportCamera,
 } from './viewport-camera'
 
 const node = (id: string, op: string, params: DocNode['params'] = {}) =>
@@ -153,65 +152,48 @@ describe('a Switch Value of cameras', () => {
 })
 
 describe('the viewport store', () => {
+  // A store of its own for each test, as each page load gets
+  let store = createViewportStore()
+  const vc = () => store.getState()
   beforeEach(() => {
     localStorage.removeItem('noodles-viewport')
-    useViewportCamera.setState({
-      project: undefined,
-      lookThrough: true,
-      lock: false,
-      viewport: undefined,
-    })
+    store = createViewportStore()
   })
-  afterEach(() => vi.useRealTimers())
 
   it('starts a project in camera view, and leaves it at the camera when the viewport never moved', () => {
-    viewportCamera().open('quakes')
-    expect(viewportCamera()).toMatchObject({ lookThrough: true, lock: false, viewport: undefined })
-    viewportCamera().setLookThrough(false, here)
-    expect(viewportCamera()).toMatchObject({ lookThrough: false, viewport: here })
+    vc().open('quakes')
+    expect(vc()).toMatchObject({ lookThrough: true, lock: false, viewport: undefined })
+    vc().setLookThrough(false, here)
+    expect(vc()).toMatchObject({ lookThrough: false, viewport: here })
   })
 
   it('the lock pins the view it is in, and stays when switching views', () => {
-    viewportCamera().open('quakes')
-    viewportCamera().setLookThrough(false, here)
-    viewportCamera().setLock(true)
-    expect(viewportCamera()).toMatchObject({ lookThrough: false, lock: true })
-    viewportCamera().setLookThrough(true)
-    expect(viewportCamera()).toMatchObject({ lookThrough: true, lock: true })
+    vc().open('quakes')
+    vc().setLookThrough(false, here)
+    vc().setLock(true)
+    expect(vc()).toMatchObject({ lookThrough: false, lock: true })
+    vc().setLookThrough(true)
+    expect(vc()).toMatchObject({ lookThrough: true, lock: true })
   })
 
-  it('keeps each project’s viewport in this browser', () => {
-    vi.useFakeTimers()
-    viewportCamera().open('quakes')
-    viewportCamera().setLookThrough(false, here)
-    vi.advanceTimersByTime(400)
-    viewportCamera().open('taxis')
-    expect(viewportCamera()).toMatchObject({ lookThrough: true, viewport: undefined })
-    viewportCamera().open('quakes')
-    expect(viewportCamera()).toMatchObject({ lookThrough: false, viewport: here })
-  })
-})
-
-describe('switching projects quickly', () => {
-  beforeEach(() => {
-    localStorage.removeItem('noodles-viewport')
-    useViewportCamera.setState({
-      project: undefined,
-      lookThrough: true,
-      lock: false,
-      viewport: undefined,
-    })
+  it('keeps each project’s viewport while the page is open', () => {
+    vc().open('examples:quakes')
+    vc().setLookThrough(false, here)
+    vc().open('examples:taxis')
+    expect(vc()).toMatchObject({ lookThrough: true, viewport: undefined })
+    vc().setViewport({ ...here, zoom: 3 })
+    vc().open('examples:quakes')
+    expect(vc()).toMatchObject({ lookThrough: false, viewport: here })
   })
 
-  it('keeps the last view of a project left before its save was due', () => {
-    vi.useFakeTimers()
-    viewportCamera().open('examples:quakes')
-    viewportCamera().setLookThrough(false, here)
-    viewportCamera().open('examples:taxis')
-    viewportCamera().setViewport({ ...here, zoom: 3 })
-    vi.advanceTimersByTime(400)
-    viewportCamera().open('examples:quakes')
-    expect(viewportCamera().viewport).toEqual(here)
-    vi.useRealTimers()
+  it('starts every project back at its camera after a reload, and stores nothing', () => {
+    vc().open('quakes')
+    vc().setLookThrough(false, here)
+    vc().setLock(true)
+    // A reload: the page makes a new store
+    store = createViewportStore()
+    vc().open('quakes')
+    expect(vc()).toMatchObject({ lookThrough: true, lock: false, viewport: undefined })
+    expect(localStorage.getItem('noodles-viewport')).toBeNull()
   })
 })
