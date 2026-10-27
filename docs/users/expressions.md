@@ -61,7 +61,7 @@ An expression updates when the playhead or the pointer moves, or when a paramete
 
 To make a parameter follow another one, right-click it and choose **Reference a parameter...**, or click the link button next to it, and pick a parameter of the same kind on another node. A referenced parameter shows a chip naming its source: click the chip to go to that node, or click × to break the reference and keep the current value. **Copy parameter** and **Paste relative reference** do the same from the context menu.
 
-References work for numbers, colors, toggles and text. They are how several layers share one color from a **Color** node. Every reference and `ch()` call draws a dashed edge on the canvas, and a parameter that others read lists them under "used by".
+References work for numbers, colors, toggles and text. They are how several layers share one color from a **Color** node. Every reference and `ch()` call draws a dashed edge on the canvas, and the output port of a parameter that others read lists them when you rest the pointer on it.
 
 ## In SQL
 

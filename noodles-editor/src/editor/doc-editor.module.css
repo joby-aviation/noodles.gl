@@ -277,6 +277,14 @@
   color: rgb(255 255 255 / 75%);
 }
 
+/* A heading that doesn't fold, lined up with the folders' text */
+.folderHeadStatic,
+.folderHeadStatic:hover {
+  padding-left: 25px;
+  color: rgb(255 255 255 / 50%);
+  cursor: default;
+}
+
 .folderChevron {
   width: 10px;
   color: var(--color-text-secondary, #888);
@@ -285,7 +293,8 @@
 
 .paramRow {
   position: relative;
-  padding: 1px 4px 1px 16px;
+  /* Room for the input port on the left and the output port on the right */
+  padding: 1px 16px 1px 16px;
 }
 
 .paramRow:hover {
@@ -701,12 +710,12 @@
   min-width: 0;
 }
 
-/* A property's port, at the row's left edge: drag it onto another property or a node to make
-   that read this one. Hollow until the property reads something; filled when it does. */
+/* A property's ports, as Cavalry's: the input at the row's left edge reads something, the
+   output at its right edge is read. Hollow until connected; filled blue when connected. */
 .port {
   position: absolute;
   /* The middle of the row's first line (1px padding, a 22px line), not of the whole row: a
-     reference chip or a "used by" line below would pull it off the label */
+     reference chip below would pull it off the label */
   top: 12px;
   left: 5px;
   width: 7px;
@@ -718,6 +727,8 @@
   background: var(--color-bg-base, #1b1d21);
   cursor: grab;
   opacity: 0.6;
+  /* A touch drags a line from the port rather than scrolling the panel */
+  touch-action: none;
 }
 
 .paramRow:hover .port {
@@ -729,16 +740,63 @@
   transform: translateY(-50%) scale(1.3);
 }
 
-.portLinked {
+.portOut {
+  right: 5px;
+  left: auto;
+}
+
+.portOn {
   border-color: #9fc0ff;
   background: #9fc0ff;
   opacity: 1;
 }
 
-.portWired {
-  border-color: #ff9d9d;
-  background: #ff9d9d;
-  opacity: 1;
+/* What a hovered port is connected to */
+.portTip {
+  position: fixed;
+  z-index: 10000;
+  box-sizing: border-box;
+  padding: 4px;
+  border: 1px solid var(--color-border, #333);
+  border-radius: 4px;
+  background: var(--color-bg-elevated, #23262b);
+  box-shadow: 0 4px 16px rgb(0 0 0 / 40%);
+  font-size: 11px;
+  overflow-y: auto;
+}
+
+.portTipHead {
+  padding: 2px 6px 4px;
+  color: rgb(255 255 255 / 50%);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+
+.portTipItem {
+  display: block;
+  width: 100%;
+  padding: 3px 6px;
+  overflow: hidden;
+  border: 0;
+  border-radius: 3px;
+  background: transparent;
+  color: #9fc0ff;
+  font: inherit;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.portTipItem:hover {
+  background: rgb(159 192 255 / 14%);
+}
+
+.portTipEmpty {
+  padding: 2px 6px 4px;
+  color: var(--color-text-secondary, #888);
 }
 
 /* A property that can take the link being dragged */
@@ -818,21 +876,6 @@
 
 .refChipBreak:hover {
   opacity: 1;
-}
-
-.readers {
-  padding: 0 calc(var(--pane-gutter) + 4px) 2px calc(36cqw + 24px);
-  color: var(--color-text-secondary, #888);
-  font-size: 10.5px;
-}
-
-.readers button {
-  padding: 0;
-  border: 0;
-  background: transparent;
-  color: #9fc0ff;
-  font: inherit;
-  cursor: pointer;
 }
 
 .refPicker {
@@ -935,7 +978,7 @@
 .wired {
   font-family: ui-monospace, "SF Mono", Menlo, monospace;
   font-size: 11px;
-  color: #ff9d9d;
+  color: #9fc0ff;
 }
 
 .evaluated {

@@ -10,9 +10,10 @@ import {
   nodePath,
   OPERATOR_INDEX,
   type OpDef,
+  outputKey as slotOfOutput,
 } from '@noodles.gl/planner'
 import cx from 'classnames'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { EditOnMapButton } from '../noodles/components/tools/edit-on-map-button'
 import { compoundsFor } from './compound-params'
 import { ColorGroupRows, UnitsSelect } from './compound-rows'
@@ -21,8 +22,11 @@ import { type EngineState, useEngineState } from './doc-engine'
 import { headerOf } from './doc-node'
 import { renameNode, unpromote } from './doc-ops'
 import { docStore, useEditor } from './doc-store'
+import { useOutputLinkTarget } from './link-drag'
 import { PANE_EDITORS, PaneEditorFor } from './pane-editors'
-import { ParamRow, shown, useNodeFields } from './param-row'
+import { connections, outputKey, valueOutputs } from './param-links'
+import { fmt, ParamRow, shown, useNodeFields } from './param-row'
+import { Port } from './port'
 import { dismissStarterHint, getUIStore, useUIStore } from './ui-store'
 
 export const STARTER_HINT_TEXT =
@@ -249,8 +253,59 @@ function NodeParams({ node, doc, multi }: { node: DocNode; doc: EditorDoc; multi
             )
           })}
         {node.op === 'subnet' && <Promoted subnet={node} doc={doc} />}
+        <Outputs node={node} doc={doc} engine={engine} />
       </div>
       {debug && <NodeInfo node={node} op={op} engine={engine} />}
+    </div>
+  )
+}
+
+/** A node's value outputs, which a property reads over a wire: drag one onto it. */
+function Outputs({ node, doc, engine }: { node: DocNode; doc: EditorDoc; engine: EngineState }) {
+  const outputs = valueOutputs(node)
+  if (outputs.length === 0) return null
+  return (
+    <section className={s.folder}>
+      <div className={cx(s.folderHead, s.folderHeadStatic)}>Outputs</div>
+      {outputs.map(o => (
+        <OutputRow key={o.name} node={node} port={o.name} doc={doc} engine={engine} />
+      ))}
+    </section>
+  )
+}
+
+function OutputRow({
+  node,
+  port,
+  doc,
+  engine,
+}: {
+  node: DocNode
+  port: string
+  doc: EditorDoc
+  engine: EngineState
+}) {
+  const key = outputKey(node.id, port)
+  const target = useOutputLinkTarget(node.id, port)
+  const readBy = useMemo(() => connections(doc, key).readBy, [doc, key])
+  // Outputs computed in SQL, such as an Extent's, have no value here
+  const value = engine.slots.get(slotOfOutput(OPERATOR_INDEX.get(node.op), node.id, port))
+  return (
+    <div
+      className={cx(s.paramRow, target.accepts && s.paramRowLinkTarget)}
+      data-output={port}
+      {...target.props}
+    >
+      <div className={s.paramDriven}>
+        <span className={s.paramLabel}>{port}</span>
+        <span className={s.evaluated}>{fmt(value)}</span>
+      </div>
+      <Port
+        side="out"
+        drag={{ kind: 'source', key }}
+        connections={readBy}
+        hint="Drag onto a property or a layer to drive it"
+      />
     </div>
   )
 }

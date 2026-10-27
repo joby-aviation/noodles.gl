@@ -52,21 +52,20 @@ These are still separate parameters in the project file: `color`, `fillColor`, `
 
 A parameter can take its value from somewhere other than its editor:
 
-- **Wired**: a number node wired into the parameter's port. The row shows the source node and its value.
+- **Wired**: a number output, such as an Extent's `max`, wired into the parameter. The row shows the output it reads.
 - **Expression**: shows the expression text and its current value. See [Expressions](./expressions.md).
 - **Reference**: shows a chip naming the parameter it follows. Click the chip to go to that node, or click × to break the reference and keep the value.
 
-A parameter that other nodes reference lists them under "used by". Click one to go to it.
-
 ### Linking Parameters by Dragging
 
-Each parameter that can follow another has a **port**, the small circle at the left of its row, as in Cavalry. The port is hollow for a plain value, blue when the parameter reads another, and red when a wire drives it.
+Each parameter that can follow another has two **ports**, as in Cavalry: an input at the left of its row and an output at the right. A node with number outputs, such as an Extent's `min` and `max`, lists them under **Outputs**, each with an output port. A port is hollow until it is connected and blue once it is. While you drag from a port, a line follows the pointer and snaps to the port of a row that can take it; press Escape to cancel. Rest the pointer on a port to see what it is connected to; click an entry to go to it.
 
-- **Port onto a parameter**: drag a port onto another parameter's row. That parameter now reads this one. Rows that can take the link light up while you drag; a color only links to a color, a number to a number.
-- **Port onto a node**: drop it on a node in the Layers list and pick which of the node's parameters reads it. Rest on the node for a moment instead, and Properties switches to it, so you can drop on the exact parameter.
-- **Node onto a parameter**: drag a node from the Layers list onto a parameter's row to make it read one of the node's parameters. A node with one matching parameter links straight away; otherwise pick one.
+- **Output onto a parameter**: drag an output port onto another parameter's row. That parameter now reads it. Rows that can take the link light up while you drag; a color only links to a color, a number to a number.
+- **Input onto an output**: drag a parameter's input port onto another row, or onto an output, to make the parameter read it, as After Effects' pick whip does.
+- **Port onto a node**: drop a port on a node in the Layers list, and pick from the parameters and outputs of that node that fit. Rest on the node for a moment instead, and Properties switches to it, so you can drop on the exact row.
+- **Node onto a parameter**: drag a node from the Layers list onto a parameter's row and pick which of the node's parameters or outputs it reads.
 
-A link is a reference, so it shows as a chip and breaks with ×, and Cmd+Z undoes it. Links that would loop back on themselves are refused.
+A link between parameters is a reference, so it shows as a chip and breaks with ×. A link from an output is a wire, the same one the node graph draws. Cmd+Z undoes either. Links that would loop back on themselves are refused.
 
 ### Keyframes
 

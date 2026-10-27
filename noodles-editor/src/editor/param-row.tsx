@@ -13,9 +13,10 @@ import {
   type ParamDef,
   type ParamValue,
   resolveRef,
+  outputKey as slotOfOutput,
 } from '@noodles.gl/planner'
 import cx from 'classnames'
-import { type ReactNode, useEffect, useState } from 'react'
+import { type ReactNode, useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { inputComponents } from '../noodles/components/field-components'
 import type { Field } from '../noodles/fields'
@@ -25,8 +26,10 @@ import { type EngineState, useEngineState } from './doc-engine'
 import { clearTrack, pathTo, promote, removeKey, setKey, setParam } from './doc-ops'
 import { docStore, useEditor } from './doc-store'
 import { NodeFields } from './field-adapter'
-import { startLinkDrag, useParamLinkTarget } from './link-drag'
+import { useParamLinkTarget } from './link-drag'
 import { ContextMenu, type MenuItem } from './menus'
+import { connections } from './param-links'
+import { Port } from './port'
 import { isRampParam, RampPicker } from './ramp-picker'
 import { RefPicker, referenceable } from './ref-picker'
 
@@ -81,7 +84,7 @@ function routesOf(def: ParamDef, key: string, engine: EngineState) {
   return out
 }
 
-const fmt = (v: unknown): string => {
+export const fmt = (v: unknown): string => {
   if (typeof v === 'number') return Number.isFinite(v) ? String(+v.toFixed(3)) : 'NaN'
   if (Array.isArray(v)) return v.join(', ')
   return v === undefined ? '' : String(v)
@@ -133,6 +136,17 @@ export function ParamRow({
   const value = engine.slots.get(key)
   const canKey = keyable(def, field) && !wired && mode === 'literal'
   const wire = doc.edges.find(e => e.target === node.id && e.targetPort === `par:${def.name}`)
+  // What the wire carries, from the output it reads: an output computed in SQL, such as an
+  // Extent's, has no value here, rather than the parameter's default
+  const wiredValue =
+    wire &&
+    engine.slots.get(
+      slotOfOutput(
+        OPERATOR_INDEX.get(doc.nodes.find(n => n.id === wire.source)?.op ?? ''),
+        wire.source,
+        wire.sourcePort
+      )
+    )
   const debug = useEditor(st => st.debug)
   // What a change costs is the planner's business; debug mode shows it
   const routes = debug ? routesOf(def, key, engine) : []
@@ -152,16 +166,7 @@ export function ParamRow({
       return undefined
     }
   })()
-  const readers = [
-    ...new Set(
-      (engine.lowered?.references ?? [])
-        .filter(r => r.from === key)
-        .map(r => r.to.slice(0, r.to.lastIndexOf('.')))
-        .filter(id => id !== node.id)
-    ),
-  ]
-    .map(id => doc.nodes.find(n => n.id === id))
-    .filter((n): n is DocNode => !!n)
+  const links = useMemo(() => connections(doc, key), [doc, key])
   const goTo = (n: DocNode) => docStore().set({ network: n.parent, selection: [n.id] })
 
   const set = (v: ParamValue | undefined) =>
@@ -263,15 +268,11 @@ export function ParamRow({
       {...linkTarget.props}
     >
       {referenceable(def) && (
-        // biome-ignore lint/a11y/noStaticElementInteractions: dragging the port is the pointer gesture; the link button and the right-click menu make the same link from the keyboard
-        <span
-          className={cx(s.port, mode === 'ref' && s.portLinked, wire && s.portWired)}
-          draggable
-          onDragStart={e => {
-            e.stopPropagation()
-            startLinkDrag(e, { kind: 'param', key })
-          }}
-          title="Drag onto another property or node to link it to this one"
+        <Port
+          side="in"
+          drag={{ kind: 'target', key }}
+          connections={links.reads}
+          hint="Drag onto an output or a layer to read it"
         />
       )}
       <div className={s.paramMain}>
@@ -279,8 +280,8 @@ export function ParamRow({
           <div className={s.paramDriven}>
             <span className={s.paramLabel}>{label ?? def.label}</span>
             <span className={s.wired}>
-              ← {nameOf(doc.nodes.find(n => n.id === wire.source) ?? node)}
-              {value !== undefined ? ` = ${fmt(value)}` : ''}
+              ← {nameOf(doc.nodes.find(n => n.id === wire.source) ?? node)} › {wire.sourcePort}
+              {wiredValue !== undefined ? ` = ${fmt(wiredValue)}` : ''}
             </span>
           </div>
         ) : mode === 'ref' ? (
@@ -293,7 +294,7 @@ export function ParamRow({
                 title={`Reads ${isRef(raw) ? raw.ref : ''}. Click to go to it.`}
                 onClick={() => source && goTo(source.node)}
               >
-                ⛓ {source?.label ?? (isRef(raw) ? raw.ref : '')}
+                {source?.label ?? (isRef(raw) ? raw.ref : '')}
               </button>
               {value !== undefined && <span className={s.evaluated}>{fmt(value)}</span>}
               <button
@@ -378,18 +379,13 @@ export function ParamRow({
           ) : null}
         </span>
       </div>
-      {readers.length > 0 && (
-        <div className={s.readers}>
-          used by{' '}
-          {readers.map((n, i) => (
-            <span key={n.id}>
-              {i > 0 && ', '}
-              <button type="button" onClick={() => goTo(n)}>
-                {nameOf(n)}
-              </button>
-            </span>
-          ))}
-        </div>
+      {referenceable(def) && (
+        <Port
+          side="out"
+          drag={{ kind: 'source', key }}
+          connections={links.readBy}
+          hint="Drag onto a property or a layer to drive it"
+        />
       )}
       {picker && (
         <RefPicker

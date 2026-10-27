@@ -39,6 +39,8 @@ export interface Candidate {
   node: DocNode
   def: ParamDef
   label: string
+  // What the entry shows on the right, when not the parameter's value
+  value?: string
 }
 
 /** Parameters `def` on `node` can reference: the same kind of value, on any other node. */
@@ -140,7 +142,7 @@ export function RefPicker({
           >
             <span>{c.label}</span>
             <span className={s.refPickerValue}>
-              {shownValue(c.node.params[c.def.name] ?? c.def.default)}
+              {c.value ?? shownValue(c.node.params[c.def.name] ?? c.def.default)}
             </span>
           </button>
         ))}
