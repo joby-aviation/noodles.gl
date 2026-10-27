@@ -2448,8 +2448,11 @@ export function toEditorDoc(original: NoodlesProject): Migrated {
         edge(rows, sourcePort.get(rows) ?? 'out', n.id, `par:${field}`)
         continue
       }
-      // A layer a deck operator takes (props added to it) is the planner layer it becomes
-      if (PLANNER_LAYERS.has(src.type) || src.type === 'SwitchOp') {
+      // A layer a deck operator takes (props added to it) is the planner layer it becomes. A
+      // SwitchOp is one only where a layer goes; one choosing values (cameras into a Switch
+      // Value) is a deck operator of its own, below.
+      const takesLayer = deck.def.params.find(p => p.name === field)?.portType === 'layer'
+      if (PLANNER_LAYERS.has(src.type) || (src.type === 'SwitchOp' && takesLayer)) {
         migrateLayer(src.id, handleField(e.sourceHandle), {
           node: n.id,
           port: `par:${field}`,

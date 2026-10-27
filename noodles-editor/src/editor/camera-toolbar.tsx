@@ -8,6 +8,9 @@ import { shouldBlockKeyboardShortcut } from '../noodles/utils/input-detection'
 import { analytics } from '../utils/analytics'
 import type { CameraControl } from './camera-control'
 import s from './camera-toolbar.module.css'
+import { setKey } from './doc-ops'
+import { docStore } from './doc-store'
+import { pendingKeys } from './pending-keys'
 import { type Camera, useViewportCamera, viewportCamera } from './viewport-camera'
 
 export function toggleCameraView(camera: Camera | undefined) {
@@ -16,15 +19,30 @@ export function toggleCameraView(camera: Camera | undefined) {
   analytics.track('camera_view_toggled', { on, via: 'shortcut' })
 }
 
+// Every unkeyed change to the camera keyed at the playhead, one undo step
+function keyCamera(nodeId: string, changes: Record<string, number>) {
+  const store = docStore()
+  const time = store.get().time
+  const keys = Object.keys(changes).map(p => `${nodeId}.${p}`)
+  store.edit(d => {
+    for (const [p, v] of Object.entries(changes)) setKey(d, `${nodeId}.${p}`, time, v)
+  }, 'key-camera')
+  pendingKeys().clear(keys)
+  analytics.track('camera_keyed', { params: keys.length })
+}
+
 export function CameraToolbar({
   control,
   camera,
   cameraName,
+  changes,
 }: {
   control: CameraControl
   // The active camera's view now, which a viewport that has never moved starts from
   camera: Camera | undefined
   cameraName: string | undefined
+  // The camera's keyframed parameters changed but not keyed, by name
+  changes?: Record<string, number>
 }) {
   const lookThrough = useViewportCamera(st => st.lookThrough)
   const lock = useViewportCamera(st => st.lock)
@@ -93,6 +111,27 @@ export function CameraToolbar({
       >
         <i className={cx('pi', lock ? 'pi-lock' : 'pi-lock-open')} />
       </button>
+      {changes && control.nodeId && (
+        <>
+          <button
+            type="button"
+            className={s.keyChanges}
+            title={`Key the camera's changes at the playhead: ${Object.keys(changes).join(', ')}`}
+            onClick={() => control.nodeId && keyCamera(control.nodeId, changes)}
+          >
+            <span className={s.keyDiamond} />
+            Key
+          </button>
+          <button
+            type="button"
+            className={s.dropChanges}
+            title="Drop the camera's unkeyed changes"
+            onClick={() => pendingKeys().clear()}
+          >
+            <i className="pi pi-times" />
+          </button>
+        </>
+      )}
       {lock && lookThrough && control.reason && (
         <div className={s.reason} role="status">
           {control.reason} Unlock to look around in the viewport.

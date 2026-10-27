@@ -15,11 +15,18 @@ import {
   useState,
 } from 'react'
 import ReactMapGL, { type MapProps, useControl } from 'react-map-gl/maplibre'
-import { cameraControlOf, cameraGesture, writeCamera } from './editor/camera-control'
+import {
+  CAMERA_PARAMS,
+  cameraControlOf,
+  cameraGesture,
+  writeCamera,
+  writesStatic,
+} from './editor/camera-control'
 import { CameraToolbar } from './editor/camera-toolbar'
 import { currentEngine } from './editor/doc-engine'
 import { useDocNoodles } from './editor/doc-noodles'
 import { docStore, useEditor } from './editor/doc-store'
+import { pendingKeys, usePendingKeys } from './editor/pending-keys'
 import { useUIStore } from './editor/ui-store'
 import {
   cameraOf,
@@ -219,16 +226,20 @@ export default function TimelineEditor() {
 
   const isPlaying = useTimelineStore(state => state.playing)
   const doc = useEditor(state => state.doc)
+  const time = useEditor(state => state.time)
   const cameraControl = useMemo(
-    () => cameraControlOf(doc, { isRendering, isPlaying }),
-    [doc, isRendering, isPlaying]
+    () => cameraControlOf(doc, { isRendering, isPlaying, time }),
+    [doc, isRendering, isPlaying, time]
   )
   const cameraHistoryRef = useRef(cameraGesture())
 
   // The viewport and the camera view and lock switches are the editor's, per project: an example
   // and a saved project can share a name, so the key says where it lives
   const viewportKey = noodles.projectName && `${activeStorageType}:${noodles.projectName}`
-  useEffect(() => viewportCamera().open(viewportKey), [viewportKey])
+  useEffect(() => {
+    viewportCamera().open(viewportKey)
+    pendingKeys().clear()
+  }, [viewportKey])
   const viewport = useViewportCamera(st => st.viewport)
   const lookThrough = useViewportCamera(st => st.lookThrough)
   const lock = useViewportCamera(st => st.lock)
@@ -244,17 +255,42 @@ export default function TimelineEditor() {
     !!(shownViewport ?? activeCamera) &&
     (navigation === 'camera' || (navigation === 'viewport' && geographic))
   const cameraNode = doc.nodes.find(n => n.id === cameraControl.nodeId)
+  // A locked camera's unkeyed changes, which the map shows over its keyed values
+  const pending = usePendingKeys(st => st.values)
+  const pendingCamera = useMemo(() => {
+    const id = cameraControl.nodeId
+    const changed = id ? CAMERA_PARAMS.filter(p => pending[`${id}.${p}`] !== undefined) : []
+    if (!id || changed.length === 0) return undefined
+    return Object.fromEntries(changed.map(p => [p, pending[`${id}.${p}`]]))
+  }, [pending, cameraControl.nodeId])
+  // What the map shows instead of the engine's camera: the viewport, or the camera with its
+  // unkeyed changes
+  const shownCamera =
+    shownViewport ??
+    (geographic && lookThrough && !isRendering && pendingCamera
+      ? { ...activeCamera, ...pendingCamera }
+      : undefined)
 
   // Moving the playhead (scrubbing, stepping, playing) goes back to the camera, unless the
   // viewport is locked
-  const time = useEditor(state => state.time)
   const lastTime = useRef(time)
   useEffect(() => {
     if (time === lastTime.current) return
     lastTime.current = time
+    // Unkeyed changes belong to the frame they were made on
+    pendingKeys().clear()
     const v = viewportCamera()
     if (playheadShowsCamera(v)) v.setLookThrough(true)
   }, [time])
+
+  // An edit to a changed parameter's keyframes (typing a value, removing the track, an undo)
+  // wins over the change made before it
+  useEffect(() => pendingKeys().reconcile(doc), [doc])
+
+  // An export renders the document's camera, keyed values and all
+  useEffect(() => {
+    if (isRendering) pendingKeys().clear()
+  }, [isRendering])
 
   // Starting playback or an export, or leaving camera view, can stop the map moving the camera
   // mid-drag. Close the gesture then so the next drag is an undo step of its own.
@@ -271,11 +307,18 @@ export default function TimelineEditor() {
     (viewState: unknown) => {
       const id = cameraControl.nodeId
       if (navigation === 'camera' && id) {
+        // Static parameters change in the document, one undo step a drag; keyframed ones wait,
+        // unkeyed, for their keyframe buttons
         const store = docStore()
-        store.edit(
-          d => writeCamera(d, id, viewState, store.get().time),
-          cameraHistoryRef.current.tag()
-        )
+        let keyed: ReturnType<typeof writeCamera> = { changed: {}, same: [] }
+        if (writesStatic(store.get().doc, id))
+          store.edit(d => {
+            keyed = writeCamera(d, id, viewState, activeCamera)
+          }, cameraHistoryRef.current.tag())
+        // Every parameter keyframed: nothing in the document changes, so no undo step
+        else keyed = writeCamera(store.get().doc, id, viewState, activeCamera)
+        pendingKeys().clear(keyed.same)
+        pendingKeys().set(store.get().doc, keyed.changed)
         return
       }
       const camera = cameraOf(viewState)
@@ -284,7 +327,7 @@ export default function TimelineEditor() {
       if (v.lookThrough) v.setLookThrough(false)
       v.setViewport(camera)
     },
-    [navigation, cameraControl.nodeId, geographic]
+    [navigation, cameraControl.nodeId, geographic, activeCamera]
   )
 
   const finishCameraGesture = useCallback(() => {
@@ -311,8 +354,8 @@ export default function TimelineEditor() {
   const deckProps: DeckProps = {
     ...deckRenderingDefaults,
     ...visualizationDeckProps,
-    ...(shownViewport && {
-      viewState: { ...visualizationDeckProps?.viewState, ...shownViewport },
+    ...(shownCamera && {
+      viewState: { ...visualizationDeckProps?.viewState, ...shownCamera },
     }),
     controller: !basemapEnabled && canNavigate,
     // A few pixels of slack so thin arcs and small points can be clicked
@@ -380,8 +423,8 @@ export default function TimelineEditor() {
       redraw()
     },
     ...basemapProps,
-    // The viewport, when the map shows it rather than the camera
-    ...(shownViewport ?? {}),
+    // The viewport, or the camera's unkeyed changes
+    ...(shownCamera ?? {}),
     maxPitch: Math.min(basemapProps?.maxPitch ?? 85, 85),
     interactive: canNavigate,
     dragPan: canNavigate,
@@ -759,10 +802,12 @@ export default function TimelineEditor() {
         return
       }
 
-      // A screenshot is the camera's, as an export is: from the viewport, look through it first
-      // and let the map draw there
-      if (!viewportCamera().lookThrough) {
+      // A screenshot is the camera's, as an export is: from the viewport, look through it first,
+      // and let the map draw there, without the camera's unkeyed changes
+      const unkeyed = Object.keys(pendingKeys().values).length > 0
+      if (!viewportCamera().lookThrough || unkeyed) {
         viewportCamera().setLookThrough(true)
+        pendingKeys().clear()
         await mapIdle(mapRef.current)
       }
 
@@ -1000,6 +1045,7 @@ export default function TimelineEditor() {
               control={cameraControl}
               camera={activeCamera}
               cameraName={cameraNode ? nameOf(cameraNode) : undefined}
+              changes={pendingCamera}
             />
           )}
           {isFixedMode ? (

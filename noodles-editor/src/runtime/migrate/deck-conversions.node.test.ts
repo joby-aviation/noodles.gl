@@ -135,6 +135,64 @@ describe('values', () => {
     expect(doc.nodes.map(n => n.id)).not.toContain('/xy')
   })
 
+  it('converts a SwitchOp choosing the camera to a Switch Value of View States', () => {
+    const { doc } = toEditorDoc(
+      deck(
+        [
+          op('/sf', 'MapViewStateOp', { longitude: -122.4, latitude: 37.8, zoom: 10 }),
+          op('/ny', 'MapViewStateOp', { longitude: -74, latitude: 40.7, zoom: 11 }),
+          op('/shots', 'SwitchOp', { index: 1, blend: true }),
+        ],
+        [
+          wire('/sf', 'viewState', '/shots', 'values'),
+          wire('/ny', 'viewState', '/shots', 'values'),
+          wire('/shots', 'value', '/deck', 'viewState'),
+        ]
+      )
+    )
+    const shots = doc.nodes.find(n => n.id === '/shots')
+    expect(shots).toMatchObject({ op: 'switch-value', params: { index: 1, blend: true } })
+    const into = (target: string, port: string) =>
+      doc.edges
+        .filter(e => e.target === target && e.targetPort === port)
+        .sort((a, b) => (a.index ?? 0) - (b.index ?? 0))
+        .map(e => e.source)
+    expect(into('/shots', 'par:values')).toEqual(['/sf', '/ny'])
+    expect(into(doc.nodes.find(n => n.op === 'deck')?.id ?? '', 'viewState')).toEqual(['/shots'])
+  })
+
+  it('converts a camera SwitchOp feeding another as two Switch Values', () => {
+    const { doc } = toEditorDoc(
+      deck(
+        [
+          op('/a', 'MapViewStateOp', { zoom: 3 }),
+          op('/b', 'MapViewStateOp', { zoom: 6 }),
+          op('/c', 'MapViewStateOp', { zoom: 9 }),
+          op('/inner', 'SwitchOp', { index: 1 }),
+          op('/outer', 'SwitchOp', { index: 0 }),
+        ],
+        [
+          wire('/a', 'viewState', '/inner', 'values'),
+          wire('/b', 'viewState', '/inner', 'values'),
+          wire('/inner', 'value', '/outer', 'values'),
+          wire('/c', 'viewState', '/outer', 'values'),
+          wire('/outer', 'value', '/deck', 'viewState'),
+        ]
+      )
+    )
+    expect(doc.nodes.filter(n => n.id === '/inner' || n.id === '/outer').map(n => n.op)).toEqual([
+      'switch-value',
+      'switch-value',
+    ])
+    const into = (target: string) =>
+      doc.edges
+        .filter(e => e.target === target && e.targetPort === 'par:values')
+        .sort((a, b) => (a.index ?? 0) - (b.index ?? 0))
+        .map(e => e.source)
+    expect(into('/inner')).toEqual(['/a', '/b'])
+    expect(into('/outer')).toEqual(['/inner', '/c'])
+  })
+
   it('make an opaque color from RGBA channels, each clamped to a whole 0 to 255', () => {
     const color = (inputs: Record<string, unknown>) =>
       toEditorDoc(

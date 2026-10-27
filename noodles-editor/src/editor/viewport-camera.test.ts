@@ -88,6 +88,70 @@ describe('the active camera', () => {
   })
 })
 
+describe('a Switch Value of cameras', () => {
+  // Two View States into a switch, the switch into the deck
+  const shots = (switchParams: DocNode['params'], timeline?: EditorDoc['timeline']) => ({
+    ...doc(
+      [
+        node('map', 'deck'),
+        node('sf', 'view-state'),
+        node('ny', 'view-state'),
+        node('shots', 'switch-value', switchParams),
+      ],
+      [
+        {
+          id: 'a',
+          source: 'sf',
+          sourcePort: 'viewState',
+          target: 'shots',
+          targetPort: 'par:values',
+          index: 0,
+        },
+        {
+          id: 'b',
+          source: 'ny',
+          sourcePort: 'viewState',
+          target: 'shots',
+          targetPort: 'par:values',
+          index: 1,
+        },
+        { id: 'c', source: 'shots', sourcePort: 'value', target: 'map', targetPort: 'viewState' },
+      ]
+    ),
+    timeline,
+  })
+
+  it('makes the View State its Index picks the active camera', () => {
+    expect(drivingCamera(shots({ index: 0 }))).toBe('sf')
+    expect(drivingCamera(shots({ index: 1 }))).toBe('ny')
+  })
+
+  it('follows a keyframed Index at the playhead', () => {
+    const timeline = {
+      tracks: [
+        {
+          target: 'shots.index',
+          keyframes: [
+            { id: 'k0', time: 0, value: 0, interpolation: 'hold' },
+            { id: 'k1', time: 2, value: 1, interpolation: 'hold' },
+          ],
+        },
+      ],
+    } as unknown as EditorDoc['timeline']
+    expect(drivingCamera(shots({}, timeline), 1)).toBe('sf')
+    expect(drivingCamera(shots({}, timeline), 3)).toBe('ny')
+  })
+
+  it('has no one camera to move while blending between two', () => {
+    const between = shots({ index: 0.5, blend: true })
+    expect(drivingCamera(between)).toBeNull()
+    expect(cameraControlOf(between, idle).reason).toBe(
+      "shots isn't on one View State here, so the map can't move a camera."
+    )
+    expect(drivingCamera(shots({ index: 0.5 }))).toBe('sf')
+  })
+})
+
 describe('the viewport store', () => {
   beforeEach(() => {
     localStorage.removeItem('noodles-viewport')
