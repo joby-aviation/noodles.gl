@@ -35,6 +35,7 @@ import {
 import { useLocation, useParams } from 'wouter'
 import { globalContextManager } from '../ai-chat/global-context-manager'
 import type { NoodlesProject } from '../ai-chat/types'
+import { KeyPrompts } from '../components/key-prompts'
 import { getPendingQuickStartAction, planQuickStartAction } from '../components/quick-start-modal'
 import { analytics } from '../utils/analytics'
 import { lazyWithReload, staleChunk } from '../utils/stale-chunk'
@@ -2140,6 +2141,7 @@ export function getNoodles(): Visualization {
           validOperatorCount={operators.length}
         />
         <StorageErrorHandler />
+        <KeyPrompts />
       </div>
     </ErrorBoundary>
   )

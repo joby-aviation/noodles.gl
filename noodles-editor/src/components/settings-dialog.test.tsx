@@ -17,6 +17,7 @@ describe('SettingsDialog API keys', () => {
       projectId: undefined,
       projectKeyEdits: 0,
       ignoredProjectKeys: [],
+      rejectedKeys: {},
     })
   })
 
