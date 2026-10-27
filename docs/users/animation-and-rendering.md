@@ -12,7 +12,15 @@ Scrub the timeline further ahead and change the value to set a new keyframe. It 
 
 ### Camera moves
 
-The camera is the deck node's Longitude, Latitude, Zoom, Pitch and Bearing. Turn on the deck's **Drive the map camera** so those parameters and their keyframes move the map; with it off, the map is free to pan. Keyframing the camera costs no queries while the animation plays.
+The camera is the deck node's Longitude, Latitude, Zoom, Pitch and Bearing, or those of a View State node wired into the deck's view state. Exports and screenshots always render through it. Keyframing the camera costs no queries while the animation plays.
+
+The map has two cameras, as Blender's viewport does. The switch in its top-left corner shows which one you are looking through:
+
+- **Viewport**: a view of your own to look around in. Panning, zooming and tilting the map take you here, and change nothing in the project. The editor remembers it per project, in this browser.
+- **Camera** (named after the camera node, such as `deck`): the map looks through the active camera, as exports do. Scrubbing or playing the timeline brings you back here. Press Numpad 0 to switch between the two.
+- **Lock** (the padlock) pins the one you are in. A locked viewport stays put when the timeline moves. A locked camera view stays when you move the map, and moving the map moves the camera itself. A camera parameter without keyframes changes in the project. One with keyframes isn't keyed yet: the map shows the new view, and its row in Properties turns orange with the new value beside the keyed one. Click its keyframe button to key the new value at the playhead, or click **Key** in the map's corner to key every changed camera parameter at once; × drops the changes. Moving the playhead, opening another project or exporting drops them too. A camera that another node, an expression, a reference or a wire drives, such as a Fit Bounds wired into the deck, can't be moved, so a locked camera view holds still and says what drives it. Nothing moves the camera while the timeline plays.
+
+To cut or fly between shots, make each shot a **View State** and wire them into a **Switch Value**, in order, and the Switch Value into the deck's view state. Its **Index** picks the camera: 0 is the first one wired in. Keyframe Index to cut from one camera to the next; turn on **Blend** and a decimal Index is partway between two, so keyframing it from 0 to 1 flies from the first camera to the second. The map's camera switch names the View State Index picks at the playhead, and Lock moves that one. While Index is between two cameras with Blend on, there is no one camera to move. See the Camera Switch example.
 
 ### Animating data
 

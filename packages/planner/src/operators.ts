@@ -1431,7 +1431,6 @@ export const OPERATORS: OpDef[] = [
       { name: 'zoom', label: 'Zoom', kind: 'float', default: 1.5, min: 0, max: 22, step: 0.05, bind: 'prop', folder: 'Camera', port: true },
       { name: 'pitch', label: 'Pitch', kind: 'float', default: 0, min: 0, max: 85, step: 0.5, bind: 'prop', folder: 'Camera', port: true },
       { name: 'bearing', label: 'Bearing', kind: 'float', default: 0, min: -180, max: 180, step: 0.5, bind: 'prop', folder: 'Camera', port: true },
-      { name: 'follow', label: 'Drive the map camera', kind: 'toggle', default: false, folder: 'Camera', help: 'On: the camera parameters (and their keyframes) move the map. Off: the map is free to pan.' },
       { name: 'mapStyle', label: 'Map style URL', kind: 'url', default: '', help: 'A MapLibre style. Overrides Basemap when set; a style wired in (from a style configurator) overrides both.', port: true, portType: 'value' },
       { name: 'projection', label: 'Projection', kind: 'menu', default: 'mercator', options: [{ value: 'mercator', label: 'Mercator' }, { value: 'globe', label: 'Globe' }] },
       // Video export. Read by the renderer, never lowered.

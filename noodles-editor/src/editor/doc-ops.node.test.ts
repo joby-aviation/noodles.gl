@@ -2,6 +2,7 @@ import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { type EditorDoc, lowerDocument } from '@noodles.gl/planner'
 import { describe, expect, it } from 'vitest'
+import { registerDeckOperators } from '../runtime/deck-ops'
 import {
   addNode,
   connect,
@@ -51,6 +52,25 @@ describe('document operations', () => {
     removeEdges(d, ['e2'])
     expect(d.edges.filter(e => e.targetPort === 'layers').map(e => e.index)).toEqual([0])
     expect(lowerDocument(d).errors).toEqual([])
+  })
+
+  it('appends to a list parameter in order, as a Switch Value takes cameras', () => {
+    registerDeckOperators()
+    const d = doc()
+    for (const id of ['sf', 'ny']) d.nodes.push({ id, op: 'view-state', x: 0, y: 0, params: {} })
+    d.nodes.push({ id: 'shots', op: 'switch-value', x: 0, y: 0, params: {} })
+    connect(d, 'sf', 'viewState', 'shots', 'par:values')
+    connect(d, 'ny', 'viewState', 'shots', 'par:values')
+    expect(
+      d.edges.filter(e => e.targetPort === 'par:values').map(e => [e.source, e.index])
+    ).toEqual([
+      ['sf', 0],
+      ['ny', 1],
+    ])
+    // Another parameter port still takes one wire
+    connect(d, 'k', 'out', 'dots', 'par:radiusScale')
+    connect(d, addNode(d, 'number', 0, 0).id, 'out', 'dots', 'par:radiusScale')
+    expect(d.edges.filter(e => e.targetPort === 'par:radiusScale')).toHaveLength(1)
   })
 
   it('inserts a wire at a slot of a multi input and moves one already there', () => {
