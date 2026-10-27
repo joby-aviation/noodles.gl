@@ -19,7 +19,7 @@ import {
 } from './types.js';
 import { LAYER_SPECS, propParams, type LayerKind, type ChannelType, type LayerPropValue } from './layers.js';
 import { type AttributeConventions, attributeConventions, isInternal } from './conventions.js';
-import { type FunctionRegistry, inlineFunctions } from './functions.js';
+import { type FunctionRegistry, inlineFunctions, substituteColumns } from './functions.js';
 import { type DerivedParam, HOIST_PREFIX, hoistParams } from './hoist.js';
 
 export type Stage = 'sql' | 'cpu' | 'gpu';
@@ -146,6 +146,8 @@ export interface Analysis {
   functions: FunctionRegistry;
   bin2d?: Bin2dNode;
   statsNodes: StatsNode[];
+  /** Per stats node, the computed columns upstream of it, as expressions over the source. */
+  statsBindings: Map<string, Map<string, Expr>>;
   /** Placeable nodes in topological order. */
   order: AnalyzedNode[];
   sourceSchema: Schema;
@@ -314,6 +316,7 @@ export function analyze(
     readsString(e) ? new Set([...feasible].filter((s) => s === 'sql')) : feasible;
   const order: AnalyzedNode[] = [];
   const statsNodes: StatsNode[] = [];
+  const statsBindings = new Map<string, Map<string, Expr>>();
   let groupBy: string[] = [];
   let aggregateNames: string[] = [];
   let sawAggregate = false;
@@ -373,9 +376,18 @@ export function analyze(
       case 'layer':
         break;
 
-      case 'stats':
+      case 'stats': {
+        // A stats query reads the relation, where a column an attribute node computes does not
+        // exist yet: there it is that node's expression, over the source. The attributes
+        // analyzed so far are the ones upstream of this node, each written over the ones before.
+        const bound = new Map<string, Expr>();
+        for (const a of order) {
+          if (a.kind === 'attribute' && a.name && a.expr) bound.set(a.name, substituteColumns(a.expr, bound));
+        }
+        statsBindings.set(node.id, bound);
         statsNodes.push(node);
         break;
+      }
 
       case 'filter': {
         const resolved = parseOrThrow(node.predicate, node.id);
@@ -510,6 +522,26 @@ export function analyze(
   }
 
   for (const s of statsNodes) {
+    const bound = statsBindings.get(s.id);
+    let named: string[] = [];
+    try {
+      named = columnsOf(parseExpr(s.column));
+    } catch {
+      // Reported below, with the other unknown columns
+    }
+    if (bound && named.some((c) => bound.has(c))) {
+      // Over a computed column: the stats read its expression, which must have a SQL form
+      let tree: Expr;
+      try {
+        tree = substituteColumns(parseExpr(s.column), bound!);
+      } catch {
+        throw new PlanError(`Stats node ${s.id}: unknown column '${s.column}'`);
+      }
+      if (!enginesFor(tree).has('sql')) {
+        throw new PlanError(`Stats node ${s.id}: '${s.column}' is computed in a way SQL cannot read, so its extent is unavailable`);
+      }
+      continue;
+    }
     if (!sourceSchema.has(s.column) && !schema.has(s.column)) {
       // An expression over source columns: its statistics are one SQL aggregate over the
       // relation, so it may read nothing a later stage computes.
@@ -545,6 +577,7 @@ export function analyze(
     functions,
     bin2d: ordered.find((n): n is Bin2dNode => n.type === 'bin2d'),
     statsNodes,
+    statsBindings,
     order,
     sourceSchema,
     widths: schema,

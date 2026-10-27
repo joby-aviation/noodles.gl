@@ -229,6 +229,9 @@ function inline(e: Expr, reg: FunctionRegistry, stack: string[], depth: number):
  * true dependency set, so the planner is never misled. `param` nodes are likewise untouched,
  * which is what lets `fn f(x) = x * {{k}}` work.
  */
+/** `e` with each column `bound` names replaced by its expression. */
+export const substituteColumns = (e: Expr, bound: ReadonlyMap<string, Expr>): Expr => substitute(e, bound);
+
 function substitute(e: Expr, bound: ReadonlyMap<string, Expr>): Expr {
   switch (e.kind) {
     case 'col':

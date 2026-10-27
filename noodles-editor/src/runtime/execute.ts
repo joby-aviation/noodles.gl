@@ -59,10 +59,20 @@ export interface LayerData {
   code: string
 }
 
+/**
+ * Stats results by their query and the values it binds: the query's result columns, which
+ * each stats node then publishes under its own parameter names, since two nodes can run the
+ * same query. A layer's stats (the extent of colmin/colmax) read only its input rows, so a
+ * requery that leaves those alone, such as a value only the layer's own query reads, reuses
+ * them. The runtime clears it when relations are rebuilt.
+ */
+export type StatsCache = Map<string, Record<string, unknown>>
+
 export async function queryLayer(
   sql: SqlEngine,
   layer: LayerPlan,
-  values: Record<string, number | string>
+  values: Record<string, number | string>,
+  statsCache?: StatsCache
 ): Promise<QueriedLayer> {
   const started = performance.now()
   const plan = layer.plan
@@ -70,13 +80,16 @@ export async function queryLayer(
   const all: Record<string, number | string> = withDerived(plan, values)
   const stats: Record<string, number> = {}
   for (const s of plan.stats) {
-    const { table } = await sql.run(
-      s.sql,
-      s.params.map(p => bindValue(all, p))
-    )
-    const row = table.get(0) as Record<string, unknown> | null
+    const bound = s.params.map(p => bindValue(all, p))
+    const key = JSON.stringify([s.sql, bound])
+    let row = statsCache?.get(key)
+    if (!row) {
+      const { table } = await sql.run(s.sql, bound)
+      row = { ...((table.get(0) as Record<string, unknown> | null) ?? {}) }
+      statsCache?.set(key, row)
+    }
     for (const o of s.outputs) {
-      const v = Number(row?.[o.column])
+      const v = Number(row[o.column])
       stats[o.param] = Number.isFinite(v) ? v : 0
       all[o.param] = stats[o.param]
     }

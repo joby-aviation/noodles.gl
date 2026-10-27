@@ -23,7 +23,7 @@
 import type { GraphNode, LayerNode, DeckNode } from './types.js';
 import type { LayerKind, LayerPropValue } from './layers.js';
 import type { ParamValue } from './doc.js';
-import { RAMP_STOPS, type RampName } from './types.js';
+import { RAMP_STOPS, type RampName, statParamName } from './types.js';
 import { parseGeometry } from './geometry.js';
 import { GIS_OPERATORS } from './gis.js';
 
@@ -226,10 +226,19 @@ function geometryLiteral(ctx: LowerCtx, dims: number[], what: string): string {
   return `'${text.replace(/'/g, "''")}'`;
 }
 
+// `colmin(mag)` and `colmax(mag)` in a channel: the column's minimum and maximum over the
+// layer's rows
+const COLUMN_STAT = /\bcol(min|max)\(\s*([A-Za-z_][A-Za-z0-9_]*)\s*\)/g;
+
 /**
  * A layer: channel expressions, then the layer node. A channel that names an attribute binds
  * it directly; anything else — `sqrt(mag) * 2`, `ramp(fit(depth, 0, 700, 0, 1))` — becomes one
  * statement of a wrangle in front of the layer, so the planner places it like any attribute.
+ *
+ * `colmin(col)` and `colmax(col)` read the column's extent over the layer's input, so a ramp
+ * can fit its domain to the data: `ramp(fit(mag, colmin(mag), colmax(mag), 0, 1))`. Each
+ * column gets one stats node, computed in SQL as an Extent node's is, and the calls become
+ * the parameters it publishes; a change to the data requeries it, a slider does not.
  */
 function lowerLayer(
   ctx: LowerCtx,
@@ -241,8 +250,16 @@ function lowerLayer(
   const base = ctx.input('in');
   const bound: Record<string, string> = {};
   const lines: string[] = [];
+  const extents = new Map<string, string>();
   for (const { channel, param } of channels) {
-    const text = ctx.expr(param).trim();
+    const text = ctx.expr(param).trim().replace(COLUMN_STAT, (_m, op: 'min' | 'max', column: string) => {
+      let id = extents.get(column);
+      if (!id) {
+        id = safeId(`${ctx.id}__${column}_extent`);
+        extents.set(column, id);
+      }
+      return `{{${statParamName(id, op)}}}`;
+    });
     if (!text) continue;
     if (BARE.test(text)) { bound[channel] = text; continue; }
     const name = `${safeId(ctx.id)}_${channel}`;
@@ -250,6 +267,9 @@ function lowerLayer(
     bound[channel] = name;
   }
   const nodes: GraphNode[] = [];
+  for (const [column, id] of extents) {
+    nodes.push({ id, type: 'stats', input: base, column, ops: ['min', 'max'] });
+  }
   let input = base;
   if (lines.length) {
     const wid = `${ctx.id}__ch`;

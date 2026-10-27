@@ -19,6 +19,7 @@ hex_color(color)              a "#rrggbb" text column as a color
 - `[a, b]` makes a vector. A column with 2 to 4 numbers per row (`coordinates: [lng, lat]` in JSON) is a vector too: read one item with `coordinates[1]` or `coordinates.y`.
 - Operators: `+ - * / %`, comparisons, `&&`, `||`, `!` and `test ? a : b`.
 - Functions include `sqrt`, `abs`, `floor`, `ceil`, `round`, `exp`, `ln`, `log10`, `pow`, `sin`, `cos`, `atan2`, `min`, `max`, `clamp`, `fit(x, inMin, inMax, outMin, outMax)`, `lerp(a, b, t)`, `smoothstep`, `ramp(t)`, `coalesce`, `to_number` (text as a number), `category(value, n)` (a bucket from 0 to n - 1 per distinct value) and `random()`.
+- In a layer's channels, `colmin(col)` and `colmax(col)` are a column's smallest and largest value over the layer's rows, so `ramp(fit(mag, colmin(mag), colmax(mag), 0, 1))` spreads the ramp over the data. They are computed once in SQL and reused until the rows change.
 - Geographic functions take `[lng, lat]` points: `distance(a, b)` in kilometers, `bearing(a, b)`, `destination(p, km, degrees)`, `midpoint(a, b)`, and `st_distance`, `st_dwithin` and `st_contains` against a WKT or GeoJSON literal.
 - `ch('node/param')` reads a parameter's value, as in a parameter expression below: `mag * ch('size/value')`.
 - Colors are `[r, g, b]` from 0 to 1 in expressions. Constant color parameters, such as a layer's Fill color, are 0 to 255.
@@ -60,7 +61,7 @@ An expression updates when the playhead or the pointer moves, or when a paramete
 
 To make a parameter follow another one, right-click it and choose **Reference a parameter...**, or click the link button next to it, and pick a parameter of the same kind on another node. A referenced parameter shows a chip naming its source: click the chip to go to that node, or click × to break the reference and keep the current value. **Copy parameter** and **Paste relative reference** do the same from the context menu.
 
-References work for numbers, colors, toggles and text. They are how several layers share one color from a **Color** node. Every reference and `ch()` call draws a dashed edge on the canvas, and a parameter that others read lists them under "used by".
+References work for numbers, colors, toggles and text. They are how several layers share one color from a **Color** node. Every reference and `ch()` call draws a dashed edge on the canvas, and the output port of a parameter that others read lists them when you rest the pointer on it.
 
 ## In SQL
 

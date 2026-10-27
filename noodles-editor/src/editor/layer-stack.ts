@@ -14,6 +14,7 @@ import {
   flattenSubnets,
   isExpr,
   isRef,
+  type ParamValue,
   resolveRef,
   SUBNET,
   SUBNET_INPUT,
@@ -56,16 +57,16 @@ export function nodeOfKey(doc: Pick<EditorDoc, 'nodes'>, key: string): string | 
   return best
 }
 
+// The parameter paths a value reads: a `{ ref }`'s, or each `ch()` in an expression
+export function referencePaths(value: ParamValue): string[] {
+  if (isRef(value)) return [value.ref]
+  const text = isExpr(value) ? value.expr : typeof value === 'string' ? value : ''
+  return [...text.matchAll(CH)].map(m => m[2])
+}
+
 // The nodes whose parameters `node` references
 function referenced(doc: EditorDoc, node: DocNode): string[] {
-  const paths: string[] = []
-  for (const value of Object.values(node.params)) {
-    if (isRef(value)) paths.push(value.ref)
-    else {
-      const text = isExpr(value) ? value.expr : typeof value === 'string' ? value : ''
-      for (const m of text.matchAll(CH)) paths.push(m[2])
-    }
-  }
+  const paths = Object.values(node.params).flatMap(referencePaths)
   const ids: string[] = []
   for (const path of paths) {
     try {

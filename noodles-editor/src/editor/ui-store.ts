@@ -3,6 +3,7 @@
 
 import type { Edge as ReactFlowEdge } from '@xyflow/react'
 import { create } from 'zustand'
+import type { LinkDrag } from './param-links'
 
 export interface PendingInsertionIndex {
   nodeId: string
@@ -62,6 +63,9 @@ interface UIStoreState {
   // The node the graph outlines for a second after it was picked on the map
   pulsingNodeId: string | null
   setPulsingNodeId: (id: string | null) => void
+  // A parameter port or a node being dragged to link a parameter (param-links.ts)
+  linkDrag: LinkDrag | null
+  setLinkDrag: (drag: LinkDrag | null) => void
 }
 
 // docked: map in its own area of the workspace
@@ -112,6 +116,8 @@ export const useUIStore = create<UIStoreState>(set => ({
     set(state => ({ mapPickFocus: { nodeId, seq: (state.mapPickFocus?.seq ?? 0) + 1 } })),
   pulsingNodeId: null,
   setPulsingNodeId: id => set({ pulsingNodeId: id }),
+  linkDrag: null,
+  setLinkDrag: drag => set({ linkDrag: drag }),
 }))
 
 export const getUIStore = () => useUIStore.getState()

@@ -13,19 +13,25 @@ import {
   type ParamDef,
   type ParamValue,
   resolveRef,
+  outputKey as slotOfOutput,
 } from '@noodles.gl/planner'
 import cx from 'classnames'
-import { useEffect, useState } from 'react'
+import { type ReactNode, useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { inputComponents } from '../noodles/components/field-components'
 import type { Field } from '../noodles/fields'
+import { ChannelInput, isChannel } from './channel-input'
 import s from './doc-editor.module.css'
 import { type EngineState, useEngineState } from './doc-engine'
 import { clearTrack, pathTo, promote, removeKey, setKey, setParam } from './doc-ops'
 import { docStore, useEditor } from './doc-store'
 import { NodeFields } from './field-adapter'
+import { useParamLinkTarget } from './link-drag'
 import { ContextMenu, type MenuItem } from './menus'
+import { connections } from './param-links'
 import { pendingKeys, usePendingKeys } from './pending-keys'
+import { Port } from './port'
+import { isRampParam, RampPicker } from './ramp-picker'
 import { RefPicker, referenceable } from './ref-picker'
 
 /** Whether a parameter shows, given the values its `when` reads. */
@@ -79,7 +85,7 @@ function routesOf(def: ParamDef, key: string, engine: EngineState) {
   return out
 }
 
-const fmt = (v: unknown): string => {
+export const fmt = (v: unknown): string => {
   if (typeof v === 'number') return Number.isFinite(v) ? String(+v.toFixed(3)) : 'NaN'
   if (Array.isArray(v)) return v.join(', ')
   return v === undefined ? '' : String(v)
@@ -98,6 +104,7 @@ export function ParamRow({
   wired,
   label,
   onUnpromote,
+  inline,
 }: {
   node: DocNode
   def: ParamDef
@@ -106,6 +113,8 @@ export function ParamRow({
   /** A promoted parameter's label on its subnet. */
   label?: string
   onUnpromote?: () => void
+  /** A control drawn after the value, such as its units */
+  inline?: ReactNode
 }) {
   const { type } = field.constructor as typeof Field
   const Widget = inputComponents[type]
@@ -132,10 +141,22 @@ export function ParamRow({
   const changed = pendingValue !== undefined && !!track
   const keyValue = () => (changed ? pendingValue : Number(field.value))
   const wire = doc.edges.find(e => e.target === node.id && e.targetPort === `par:${def.name}`)
+  // What the wire carries, from the output it reads: an output computed in SQL, such as an
+  // Extent's, has no value here, rather than the parameter's default
+  const wiredValue =
+    wire &&
+    engine.slots.get(
+      slotOfOutput(
+        OPERATOR_INDEX.get(doc.nodes.find(n => n.id === wire.source)?.op ?? ''),
+        wire.source,
+        wire.sourcePort
+      )
+    )
   const debug = useEditor(st => st.debug)
   // What a change costs is the planner's business; debug mode shows it
   const routes = debug ? routesOf(def, key, engine) : []
   const numeric = KEYABLE.has(def.kind)
+  const linkTarget = useParamLinkTarget(node, def)
 
   // What this parameter reads, and what reads it
   const source = (() => {
@@ -150,16 +171,7 @@ export function ParamRow({
       return undefined
     }
   })()
-  const readers = [
-    ...new Set(
-      (engine.lowered?.references ?? [])
-        .filter(r => r.from === key)
-        .map(r => r.to.slice(0, r.to.lastIndexOf('.')))
-        .filter(id => id !== node.id)
-    ),
-  ]
-    .map(id => doc.nodes.find(n => n.id === id))
-    .filter((n): n is DocNode => !!n)
+  const links = useMemo(() => connections(doc, key), [doc, key])
   const goTo = (n: DocNode) => docStore().set({ network: n.parent, selection: [n.id] })
 
   const set = (v: ParamValue | undefined) =>
@@ -250,9 +262,13 @@ export function ParamRow({
   ]
 
   return (
-    // biome-ignore lint/a11y/noStaticElementInteractions: right-click opens the parameter's menu
+    // biome-ignore lint/a11y/noStaticElementInteractions: right-click opens the parameter's menu; a dragged port drops here
     <div
-      className={cx(s.paramRow, changed && s.paramChanged)}
+      className={cx(
+        s.paramRow,
+        linkTarget.accepts && s.paramRowLinkTarget,
+        changed && s.paramChanged
+      )}
       // A field label's tooltip opens when keyboard focus reaches this row's input
       data-field-row
       title={`${def.help ?? def.label}\n${key}`}
@@ -261,14 +277,23 @@ export function ParamRow({
         e.stopPropagation()
         setMenu({ x: e.clientX, y: e.clientY })
       }}
+      {...linkTarget.props}
     >
+      {referenceable(def) && (
+        <Port
+          side="in"
+          drag={{ kind: 'target', key }}
+          connections={links.reads}
+          hint="Drag onto an output or a layer to read it"
+        />
+      )}
       <div className={s.paramMain}>
         {wire ? (
           <div className={s.paramDriven}>
             <span className={s.paramLabel}>{label ?? def.label}</span>
             <span className={s.wired}>
-              ← {nameOf(doc.nodes.find(n => n.id === wire.source) ?? node)}
-              {value !== undefined ? ` = ${fmt(value)}` : ''}
+              ← {nameOf(doc.nodes.find(n => n.id === wire.source) ?? node)} › {wire.sourcePort}
+              {wiredValue !== undefined ? ` = ${fmt(wiredValue)}` : ''}
             </span>
           </div>
         ) : mode === 'ref' ? (
@@ -281,7 +306,7 @@ export function ParamRow({
                 title={`Reads ${isRef(raw) ? raw.ref : ''}. Click to go to it.`}
                 onClick={() => source && goTo(source.node)}
               >
-                ⛓ {source?.label ?? (isRef(raw) ? raw.ref : '')}
+                {source?.label ?? (isRef(raw) ? raw.ref : '')}
               </button>
               {value !== undefined && <span className={s.evaluated}>{fmt(value)}</span>}
               <button
@@ -304,6 +329,21 @@ export function ParamRow({
             />
             {value !== undefined && <span className={s.evaluated}>{fmt(value)}</span>}
           </div>
+        ) : isRampParam(def) ? (
+          <RampPicker
+            label={label ?? def.label}
+            def={def}
+            value={String(raw ?? def.default ?? '')}
+            onChange={v => set(v === def.default ? undefined : v)}
+          />
+        ) : isChannel(def) ? (
+          <ChannelInput
+            label={label ?? def.label}
+            def={def}
+            value={String(raw ?? def.default ?? '')}
+            // A channel set back to its default leaves the document, as defaults do
+            onCommit={t => set(t === def.default ? undefined : t)}
+          />
         ) : (
           Widget && (
             // A Noodles widget labels itself with its id: a host operator's input name, else the
@@ -317,19 +357,7 @@ export function ParamRow({
             />
           )
         )}
-        {referenceable(def) && !wired && mode === 'literal' && (
-          <button
-            type="button"
-            className={s.linkButton}
-            title="Reference another node's parameter"
-            onClick={e => {
-              const r = e.currentTarget.getBoundingClientRect()
-              setPicker({ x: r.left, y: r.bottom + 4 })
-            }}
-          >
-            ⛓
-          </button>
-        )}
+        {inline}
         {changed && (
           <span
             className={s.pendingValue}
@@ -338,45 +366,56 @@ export function ParamRow({
             {fmt(pendingValue)}
           </span>
         )}
-        {canKey || track ? (
-          <button
-            type="button"
-            className={cx(s.diamond, {
-              [s.diamondTrack]: !!track,
-              [s.diamondOn]: atKey && !changed,
-              [s.diamondChanged]: changed,
-            })}
-            title={
-              changed
-                ? `Changed to ${fmt(pendingValue)}: click to key it at the playhead`
-                : atKey
-                  ? 'Keyframe at the playhead (click to remove)'
-                  : 'Click to set a keyframe'
-            }
-            disabled={!canKey && !atKey}
-            onClick={() => {
-              docStore().edit(d => {
-                // A changed value keys over the keyframe at the playhead rather than removing it
-                if (atKey && !changed) removeKey(d, key, time)
-                else setKey(d, key, time, keyValue())
-              })
-              if (changed) pendingKeys().clear([key])
-            }}
-          />
-        ) : null}
+        {/* Link and keyframe buttons share a fixed gutter, so every control ends at the same edge */}
+        <span className={s.paramGutter}>
+          {referenceable(def) && !wired && mode === 'literal' && (
+            <button
+              type="button"
+              className={s.linkButton}
+              title="Reference another node's parameter"
+              onClick={e => {
+                const r = e.currentTarget.getBoundingClientRect()
+                setPicker({ x: r.left, y: r.bottom + 4 })
+              }}
+            >
+              ⛓
+            </button>
+          )}
+          {canKey || track ? (
+            <button
+              type="button"
+              className={cx(s.diamond, {
+                [s.diamondTrack]: !!track,
+                [s.diamondOn]: atKey && !changed,
+                [s.diamondChanged]: changed,
+              })}
+              title={
+                changed
+                  ? `Changed to ${fmt(pendingValue)}: click to key it at the playhead`
+                  : atKey
+                    ? 'Keyframe at the playhead (click to remove)'
+                    : 'Click to set a keyframe'
+              }
+              disabled={!canKey && !atKey}
+              onClick={() => {
+                docStore().edit(d => {
+                  // A changed value keys over the keyframe at the playhead rather than removing it
+                  if (atKey && !changed) removeKey(d, key, time)
+                  else setKey(d, key, time, keyValue())
+                })
+                if (changed) pendingKeys().clear([key])
+              }}
+            />
+          ) : null}
+        </span>
       </div>
-      {readers.length > 0 && (
-        <div className={s.readers}>
-          used by{' '}
-          {readers.map((n, i) => (
-            <span key={n.id}>
-              {i > 0 && ', '}
-              <button type="button" onClick={() => goTo(n)}>
-                {nameOf(n)}
-              </button>
-            </span>
-          ))}
-        </div>
+      {referenceable(def) && (
+        <Port
+          side="out"
+          drag={{ kind: 'source', key }}
+          connections={links.readBy}
+          hint="Drag onto a property or a layer to drive it"
+        />
       )}
       {picker && (
         <RefPicker
@@ -392,6 +431,7 @@ export function ParamRow({
           }}
         />
       )}
+      {linkTarget.picker}
       {routes.length > 0 && (
         <div className={s.routes}>
           {routes.map(r => (
