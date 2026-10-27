@@ -82,7 +82,7 @@
   "scripts": {
     "start": "vite",
     "start:local": "vite --config vite.config.local.js",
-    "build": "NODE_ENV=development vite build",
+    "build": "vite build",
     "serve": "vite preview",
     "test": "vitest",
     "lint": "biome lint ./src",

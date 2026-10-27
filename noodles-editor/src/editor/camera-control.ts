@@ -59,9 +59,20 @@ const deckOf = (doc: EditorDoc) =>
 
 export function cameraControlOf(
   doc: EditorDoc,
-  { isRendering, isPlaying, time = 0 }: { isRendering: boolean; isPlaying: boolean; time?: number }
+  {
+    isRendering,
+    isPlaying,
+    time = 0,
+    camera,
+  }: {
+    isRendering: boolean
+    isPlaying: boolean
+    time?: number
+    // The active camera, when the caller has already found it (`drivingCamera` at `time`)
+    camera?: string | null
+  }
 ): CameraControl {
-  const nodeId = drivingCamera(doc, time)
+  const nodeId = camera !== undefined ? camera : drivingCamera(doc, time)
   const off = (reason: string): CameraControl => ({ nodeId, enabled: false, reason })
   if (!nodeId) {
     const deck = deckOf(doc)
