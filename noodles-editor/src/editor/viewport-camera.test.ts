@@ -119,3 +119,27 @@ describe('the viewport store', () => {
     expect(viewportCamera()).toMatchObject({ lookThrough: false, viewport: here })
   })
 })
+
+describe('switching projects quickly', () => {
+  beforeEach(() => {
+    localStorage.removeItem('noodles-viewport')
+    useViewportCamera.setState({
+      project: undefined,
+      lookThrough: true,
+      lock: false,
+      viewport: undefined,
+    })
+  })
+
+  it('keeps the last view of a project left before its save was due', () => {
+    vi.useFakeTimers()
+    viewportCamera().open('examples:quakes')
+    viewportCamera().setLookThrough(false, here)
+    viewportCamera().open('examples:taxis')
+    viewportCamera().setViewport({ ...here, zoom: 3 })
+    vi.advanceTimersByTime(400)
+    viewportCamera().open('examples:quakes')
+    expect(viewportCamera().viewport).toEqual(here)
+    vi.useRealTimers()
+  })
+})

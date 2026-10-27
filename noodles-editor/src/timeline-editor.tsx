@@ -224,21 +224,24 @@ export default function TimelineEditor() {
   )
   const cameraHistoryRef = useRef(cameraGesture())
 
-  // The viewport and the camera view and lock switches are the editor's, per project
-  useEffect(() => viewportCamera().open(noodles.projectName), [noodles.projectName])
+  // The viewport and the camera view and lock switches are the editor's, per project: an example
+  // and a saved project can share a name, so the key says where it lives
+  const viewportKey = noodles.projectName && `${activeStorageType}:${noodles.projectName}`
+  useEffect(() => viewportCamera().open(viewportKey), [viewportKey])
   const viewport = useViewportCamera(st => st.viewport)
   const lookThrough = useViewportCamera(st => st.lookThrough)
   const lock = useViewportCamera(st => st.lock)
-  // A deck with views of its own (an OrbitView) keeps its own camera: the viewport is a map's
-  const singleView = !visualization.deckProps?.views
+  // The viewport is a map's: a deck whose camera has no longitude and latitude (an OrbitView's)
+  // keeps its own camera. A Map View wired into a deck is still a map.
   const activeCamera = cameraOf(visualization.deckProps?.viewState)
+  const geographic = activeCamera !== undefined
   const shownViewport =
-    singleView && !showsCamera({ lookThrough, lock, viewport }, isRendering) ? viewport : undefined
+    geographic && !showsCamera({ lookThrough, lock, viewport }, isRendering) ? viewport : undefined
   const navigation = isRendering ? 'none' : navigates({ lookThrough, lock }, cameraControl.enabled)
   // Nothing to move until the engine has drawn a camera: deck's controller asserts without one
   const canNavigate =
     !!(shownViewport ?? activeCamera) &&
-    (navigation === 'camera' || (navigation === 'viewport' && singleView))
+    (navigation === 'camera' || (navigation === 'viewport' && geographic))
   const cameraNode = doc.nodes.find(n => n.id === cameraControl.nodeId)
 
   // Starting playback or an export, or leaving camera view, can stop the map moving the camera
@@ -264,12 +267,12 @@ export default function TimelineEditor() {
         return
       }
       const camera = cameraOf(viewState)
-      if (navigation !== 'viewport' || !singleView || !camera) return
+      if (navigation !== 'viewport' || !geographic || !camera) return
       const v = viewportCamera()
       if (v.lookThrough) v.setLookThrough(false)
       v.setViewport(camera)
     },
-    [navigation, cameraControl.nodeId, singleView]
+    [navigation, cameraControl.nodeId, geographic]
   )
 
   const finishCameraGesture = useCallback(() => {
@@ -980,7 +983,7 @@ export default function TimelineEditor() {
         >
           {/* Outside the scaled render surface, so the label keeps its size */}
           {clickToEdit.label}
-          {!isRendering && singleView && (
+          {!isRendering && geographic && (
             <CameraToolbar
               control={cameraControl}
               camera={activeCamera}
@@ -1015,9 +1018,13 @@ function mapIdle(map: MapLibre | null): Promise<void> {
       resolve()
     }
     const timer = setTimeout(done, 3000)
-    // Two frames for React to hand the map its new camera
+    // Two frames for React to hand the map its new camera; a map already there and drawn has
+    // no idle left to send
     requestAnimationFrame(() =>
-      requestAnimationFrame(() => (map ? map.once('idle', done) : done()))
+      requestAnimationFrame(() => {
+        if (!map || (map.loaded() && !map.isMoving())) done()
+        else map.once('idle', done)
+      })
     )
   })
 }

@@ -59,7 +59,10 @@ interface Saved extends ViewportSwitches {
 
 interface ViewportState extends Saved {
   project?: string
-  /** Switch to a project's own viewport and switches. A project starts in camera view. */
+  /**
+   * Switch to a project's own viewport and switches, by a key naming where the project lives and
+   * its name. A project starts in camera view.
+   */
   open: (project: string | undefined) => void
   setLookThrough: (on: boolean, from?: Camera) => void
   setLock: (on: boolean) => void
@@ -77,28 +80,35 @@ function readAll(): Record<string, Saved> {
 }
 
 let saveTimer: ReturnType<typeof setTimeout> | undefined
+let pending: { project: string; saved: Saved } | undefined
 
-// Written a moment after the last change, so a drag doesn't write storage every frame
+function flush() {
+  clearTimeout(saveTimer)
+  if (!pending) return
+  const { project, saved } = pending
+  pending = undefined
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...readAll(), [project]: saved }))
+  } catch {
+    // Storage full or off: the viewport lasts for the session
+  }
+}
+
+// Written a moment after the last change, so a drag doesn't write storage every frame. Opening
+// another project writes it at once (`open`), so a quick switch keeps it.
 function save(state: ViewportState) {
   const { project, lookThrough, lock, viewport } = state
   if (!project) return
+  pending = { project, saved: { lookThrough, lock, viewport } }
   clearTimeout(saveTimer)
-  saveTimer = setTimeout(() => {
-    try {
-      localStorage.setItem(
-        STORAGE_KEY,
-        JSON.stringify({ ...readAll(), [project]: { lookThrough, lock, viewport } })
-      )
-    } catch {
-      // Storage full or off: the viewport lasts for the session
-    }
-  }, 300)
+  saveTimer = setTimeout(flush, 300)
 }
 
 export const useViewportCamera = create<ViewportState>((set, get) => ({
   ...DEFAULTS,
   open: project => {
     if (project === get().project) return
+    flush()
     set({ ...DEFAULTS, viewport: undefined, ...(project ? readAll()[project] : {}), project })
   },
   // Leaving camera view goes back to where the viewport was, or starts it at the camera

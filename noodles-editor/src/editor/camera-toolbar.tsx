@@ -4,14 +4,11 @@
 
 import cx from 'classnames'
 import { useEffect } from 'react'
+import { shouldBlockKeyboardShortcut } from '../noodles/utils/input-detection'
 import { analytics } from '../utils/analytics'
 import type { CameraControl } from './camera-control'
 import s from './camera-toolbar.module.css'
 import { type Camera, useViewportCamera, viewportCamera } from './viewport-camera'
-
-const typing = (t: EventTarget | null) =>
-  t instanceof HTMLElement &&
-  (t.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(t.tagName))
 
 export function toggleCameraView(camera: Camera | undefined) {
   const on = !viewportCamera().lookThrough
@@ -34,7 +31,9 @@ export function CameraToolbar({
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.code !== 'Numpad0' || typing(e.target) || e.metaKey || e.ctrlKey || e.altKey) return
+      if (e.code !== 'Numpad0' || e.metaKey || e.ctrlKey || e.altKey) return
+      // Not while typing or in a dialog, as the editor's other shortcuts
+      if (shouldBlockKeyboardShortcut(e)) return
       e.preventDefault()
       toggleCameraView(camera)
     }
