@@ -36,6 +36,12 @@ An edge into it ends at `"targetPort": "in"`; one out of it starts at `"sourcePo
 | `radiusScale` | `float` | `4` |  |
 | `radiusUnits` | `menu` | `"pixels"` | `pixels`, `meters` |
 | `fillColor` | `color` | `[255,140,0]` |  |
+| `stroked` | `toggle` | `false` |  |
+| `lineColor` | `color` | `[255,255,255]` |  |
+| `lineWidthScale` | `float` | `1` |  |
+| `lineWidthUnits` | `menu` | `"pixels"` | `pixels`, `meters` |
+| `billboard` | `toggle` | `false` |  |
+| `antialiasing` | `toggle` | `true` |  |
 | `opacity` | `float` | `1` |  |
 | `blend` | `menu` | `"normal"` | `normal`, `additive`, `subtractive` |
 | `extensions` | `field` | `[]` |  |

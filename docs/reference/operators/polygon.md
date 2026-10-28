@@ -44,7 +44,11 @@ An edge into it ends at `"targetPort": "in"`; one out of it starts at `"sourcePo
 | `lineWidthScale` | `float` | `1` |  |
 | `lineWidthUnits` | `menu` | `"pixels"` | `pixels`, `meters` |
 | `lineWidthMinPixels` | `float` | `1` |  |
+| `lineWidthMaxPixels` | `float` | `0` |  |
+| `lineJointRounded` | `toggle` | `false` |  |
+| `lineMiterLimit` | `float` | `4` |  |
 | `extruded` | `toggle` | `false` |  |
+| `wireframe` | `toggle` | `false` |  |
 | `elevationScale` | `float` | `1` |  |
 | `opacity` | `float` | `1` |  |
 | `blend` | `menu` | `"normal"` | `normal`, `additive`, `subtractive` |

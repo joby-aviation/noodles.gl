@@ -37,6 +37,7 @@ An edge into it ends at `"targetPort": "in"`; one out of it starts at `"sourcePo
 | `widthScale` | `float` | `1` |  |
 | `widthUnits` | `menu` | `"pixels"` | `pixels`, `meters`, `common` |
 | `widthMinPixels` | `float` | `0` |  |
+| `widthMaxPixels` | `float` | `0` |  |
 | `lineColor` | `color` | `[255,255,255]` |  |
 | `opacity` | `float` | `1` |  |
 | `blend` | `menu` | `"normal"` | `normal`, `additive`, `subtractive` |

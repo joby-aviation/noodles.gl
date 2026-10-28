@@ -36,8 +36,9 @@ export function compoundsOf(op: Pick<OpDef, 'params'>): Compounds {
   for (const p of op.params) {
     const m = /^(.+)Units$/.exec(p.name)
     if (!m || p.kind !== 'menu') continue
-    // `radiusUnits` measures `radiusScale`; `sizeUnits` measures `size`
-    const value = [`${m[1]}Scale`, m[1]].find(n => byName.get(n)?.kind === 'float')
+    // `sizeUnits` measures a text layer's `size`, and `radiusUnits` a scatterplot's
+    // `radiusScale`, its radius being a per-row channel
+    const value = [m[1], `${m[1]}Scale`].find(n => byName.get(n)?.kind === 'float')
     if (value) units.push({ value, units: p.name })
   }
 

@@ -34,8 +34,21 @@ An edge into it ends at `"targetPort": "in"`; one out of it starts at `"sourcePo
 | `color` | `expr` | `""` |  |
 | `ramp` | `menu` | `"viridis"` | 37 choices |
 | `radius` | `float` | `250` |  |
+| `radiusUnits` | `menu` | `"meters"` | `meters`, `pixels`, `common` |
 | `elevationScale` | `float` | `20` |  |
 | `columnColor` | `color` | `[255,170,60]` |  |
+| `diskResolution` | `int` | `12` |  |
+| `coverage` | `float` | `1` |  |
+| `offsetX` | `float` | `0` |  |
+| `offsetY` | `float` | `0` |  |
+| `extruded` | `toggle` | `true` |  |
+| `filled` | `toggle` | `true` |  |
+| `wireframe` | `toggle` | `false` |  |
+| `flatShading` | `toggle` | `false` |  |
+| `stroked` | `toggle` | `false` |  |
+| `lineColor` | `color` | `[255,255,255]` |  |
+| `lineWidthScale` | `float` | `1` |  |
+| `lineWidthUnits` | `menu` | `"meters"` | `meters`, `pixels` |
 | `opacity` | `float` | `1` |  |
 | `blend` | `menu` | `"normal"` | `normal`, `additive`, `subtractive` |
 | `extensions` | `field` | `[]` |  |

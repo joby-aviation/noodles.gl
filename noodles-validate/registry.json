@@ -230,6 +230,18 @@
             120
           ]
         },
+        "numSegments": {
+          "kind": "int",
+          "default": 50
+        },
+        "widthMinPixels": {
+          "kind": "float",
+          "default": 0
+        },
+        "widthMaxPixels": {
+          "kind": "float",
+          "default": 0
+        },
         "opacity": {
           "kind": "float",
           "default": 1
@@ -1216,6 +1228,15 @@
           "kind": "float",
           "default": 250
         },
+        "radiusUnits": {
+          "kind": "menu",
+          "default": "meters",
+          "options": [
+            "meters",
+            "pixels",
+            "common"
+          ]
+        },
         "elevationScale": {
           "kind": "float",
           "default": 20
@@ -1226,6 +1247,62 @@
             255,
             170,
             60
+          ]
+        },
+        "diskResolution": {
+          "kind": "int",
+          "default": 12
+        },
+        "coverage": {
+          "kind": "float",
+          "default": 1
+        },
+        "offsetX": {
+          "kind": "float",
+          "default": 0
+        },
+        "offsetY": {
+          "kind": "float",
+          "default": 0
+        },
+        "extruded": {
+          "kind": "toggle",
+          "default": true
+        },
+        "filled": {
+          "kind": "toggle",
+          "default": true
+        },
+        "wireframe": {
+          "kind": "toggle",
+          "default": false
+        },
+        "flatShading": {
+          "kind": "toggle",
+          "default": false
+        },
+        "stroked": {
+          "kind": "toggle",
+          "default": false
+        },
+        "lineColor": {
+          "kind": "color",
+          "default": [
+            255,
+            255,
+            255
+          ]
+        },
+        "lineWidthScale": {
+          "kind": "float",
+          "default": 1
+        },
+        "lineWidthUnits": {
+          "kind": "menu",
+          "default": "meters",
+          "options": [
+            "meters",
+            "pixels"
           ]
         },
         "opacity": {
@@ -2521,6 +2598,42 @@
             60
           ]
         },
+        "filled": {
+          "kind": "toggle",
+          "default": true
+        },
+        "wireframe": {
+          "kind": "toggle",
+          "default": false
+        },
+        "flatShading": {
+          "kind": "toggle",
+          "default": false
+        },
+        "stroked": {
+          "kind": "toggle",
+          "default": false
+        },
+        "lineColor": {
+          "kind": "color",
+          "default": [
+            255,
+            255,
+            255
+          ]
+        },
+        "lineWidthScale": {
+          "kind": "float",
+          "default": 1
+        },
+        "lineWidthUnits": {
+          "kind": "menu",
+          "default": "meters",
+          "options": [
+            "meters",
+            "pixels"
+          ]
+        },
         "opacity": {
           "kind": "float",
           "default": 1
@@ -2592,6 +2705,20 @@
           "kind": "float",
           "default": 0
         },
+        "colorScaleType": {
+          "kind": "menu",
+          "default": "quantize",
+          "options": [
+            "quantize",
+            "linear",
+            "quantile",
+            "ordinal"
+          ]
+        },
+        "colorDomain": {
+          "kind": "string",
+          "default": ""
+        },
         "colorRange": {
           "kind": "menu",
           "default": "",
@@ -2619,6 +2746,34 @@
           ]
         },
         "elevationScale": {
+          "kind": "float",
+          "default": 1
+        },
+        "elevationScaleType": {
+          "kind": "menu",
+          "default": "linear",
+          "options": [
+            "linear",
+            "quantile"
+          ]
+        },
+        "elevationRange": {
+          "kind": "string",
+          "default": "0, 1000"
+        },
+        "elevationDomain": {
+          "kind": "string",
+          "default": ""
+        },
+        "elevationUpperPercentile": {
+          "kind": "float",
+          "default": 100
+        },
+        "elevationLowerPercentile": {
+          "kind": "float",
+          "default": 0
+        },
+        "coverage": {
           "kind": "float",
           "default": 1
         },
@@ -2858,6 +3013,20 @@
           "kind": "float",
           "default": 0
         },
+        "colorScaleType": {
+          "kind": "menu",
+          "default": "quantize",
+          "options": [
+            "quantize",
+            "linear",
+            "quantile",
+            "ordinal"
+          ]
+        },
+        "colorDomain": {
+          "kind": "string",
+          "default": ""
+        },
         "colorRange": {
           "kind": "menu",
           "default": "",
@@ -2885,6 +3054,34 @@
           ]
         },
         "elevationScale": {
+          "kind": "float",
+          "default": 1
+        },
+        "elevationScaleType": {
+          "kind": "menu",
+          "default": "linear",
+          "options": [
+            "linear",
+            "quantile"
+          ]
+        },
+        "elevationRange": {
+          "kind": "string",
+          "default": "0, 1000"
+        },
+        "elevationDomain": {
+          "kind": "string",
+          "default": ""
+        },
+        "elevationUpperPercentile": {
+          "kind": "float",
+          "default": 100
+        },
+        "elevationLowerPercentile": {
+          "kind": "float",
+          "default": 0
+        },
+        "coverage": {
           "kind": "float",
           "default": 1
         },
@@ -3076,6 +3273,18 @@
         "sizeMinPixels": {
           "kind": "float",
           "default": 0
+        },
+        "sizeMaxPixels": {
+          "kind": "float",
+          "default": 0
+        },
+        "sizeBasis": {
+          "kind": "menu",
+          "default": "height",
+          "options": [
+            "height",
+            "width"
+          ]
         },
         "billboard": {
           "kind": "toggle",
@@ -3531,6 +3740,10 @@
           "kind": "float",
           "default": 0
         },
+        "widthMaxPixels": {
+          "kind": "float",
+          "default": 0
+        },
         "lineColor": {
           "kind": "color",
           "default": [
@@ -3936,6 +4149,10 @@
         "wireframe": {
           "kind": "toggle",
           "default": false
+        },
+        "texture": {
+          "kind": "url",
+          "default": ""
         },
         "modelColor": {
           "kind": "color",
@@ -4459,6 +4676,26 @@
             255
           ]
         },
+        "capRounded": {
+          "kind": "toggle",
+          "default": true
+        },
+        "jointRounded": {
+          "kind": "toggle",
+          "default": true
+        },
+        "miterLimit": {
+          "kind": "float",
+          "default": 4
+        },
+        "billboard": {
+          "kind": "toggle",
+          "default": false
+        },
+        "wrapLongitude": {
+          "kind": "toggle",
+          "default": false
+        },
         "opacity": {
           "kind": "float",
           "default": 1
@@ -4845,7 +5082,23 @@
           "kind": "float",
           "default": 1
         },
+        "lineWidthMaxPixels": {
+          "kind": "float",
+          "default": 0
+        },
+        "lineJointRounded": {
+          "kind": "toggle",
+          "default": false
+        },
+        "lineMiterLimit": {
+          "kind": "float",
+          "default": 4
+        },
         "extruded": {
+          "kind": "toggle",
+          "default": false
+        },
+        "wireframe": {
           "kind": "toggle",
           "default": false
         },
@@ -5260,6 +5513,38 @@
             0
           ]
         },
+        "stroked": {
+          "kind": "toggle",
+          "default": false
+        },
+        "lineColor": {
+          "kind": "color",
+          "default": [
+            255,
+            255,
+            255
+          ]
+        },
+        "lineWidthScale": {
+          "kind": "float",
+          "default": 1
+        },
+        "lineWidthUnits": {
+          "kind": "menu",
+          "default": "pixels",
+          "options": [
+            "pixels",
+            "meters"
+          ]
+        },
+        "billboard": {
+          "kind": "toggle",
+          "default": false
+        },
+        "antialiasing": {
+          "kind": "toggle",
+          "default": true
+        },
         "opacity": {
           "kind": "float",
           "default": 1
@@ -5444,6 +5729,10 @@
             "MIN",
             "MAX"
           ]
+        },
+        "colorDomain": {
+          "kind": "string",
+          "default": ""
         },
         "colorRange": {
           "kind": "menu",
@@ -5996,6 +6285,18 @@
             230
           ]
         },
+        "sizeScale": {
+          "kind": "float",
+          "default": 1
+        },
+        "sizeMinPixels": {
+          "kind": "float",
+          "default": 0
+        },
+        "sizeMaxPixels": {
+          "kind": "float",
+          "default": 0
+        },
         "offsetX": {
           "kind": "float",
           "default": 0
@@ -6038,6 +6339,22 @@
           "kind": "toggle",
           "default": true
         },
+        "lineHeight": {
+          "kind": "float",
+          "default": 1
+        },
+        "wordBreak": {
+          "kind": "menu",
+          "default": "break-word",
+          "options": [
+            "break-word",
+            "break-all"
+          ]
+        },
+        "maxWidth": {
+          "kind": "float",
+          "default": 0
+        },
         "outlineWidth": {
           "kind": "float",
           "default": 2
@@ -6061,6 +6378,14 @@
             255,
             255
           ]
+        },
+        "backgroundPadding": {
+          "kind": "float",
+          "default": 0
+        },
+        "backgroundBorderRadius": {
+          "kind": "float",
+          "default": 0
         },
         "opacity": {
           "kind": "float",
@@ -6514,6 +6839,22 @@
             128,
             93
           ]
+        },
+        "capRounded": {
+          "kind": "toggle",
+          "default": true
+        },
+        "jointRounded": {
+          "kind": "toggle",
+          "default": true
+        },
+        "miterLimit": {
+          "kind": "float",
+          "default": 4
+        },
+        "billboard": {
+          "kind": "toggle",
+          "default": false
         },
         "opacity": {
           "kind": "float",

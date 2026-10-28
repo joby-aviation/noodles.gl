@@ -41,6 +41,9 @@ An edge into it ends at `"targetPort": "in"`; one out of it starts at `"sourcePo
 | `greatCircle` | `toggle` | `false` |  |
 | `fromColor` | `color` | `[0,180,255]` |  |
 | `toColor` | `color` | `[255,60,120]` |  |
+| `numSegments` | `int` | `50` |  |
+| `widthMinPixels` | `float` | `0` |  |
+| `widthMaxPixels` | `float` | `0` |  |
 | `opacity` | `float` | `1` |  |
 | `blend` | `menu` | `"normal"` | `normal`, `additive`, `subtractive` |
 | `extensions` | `field` | `[]` |  |

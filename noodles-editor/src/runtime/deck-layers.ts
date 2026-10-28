@@ -361,6 +361,9 @@ function buildLayers(input: ProgramLayerInput, binary: Binary, pickable = false)
         widthUnits: p.lineWidthUnits === 'meters' ? 'meters' : 'pixels',
         widthScale: num(p.lineWidthScale, 1),
         widthMinPixels: num(p.lineWidthMinPixels, 1),
+        widthMaxPixels: maxPixels(p.lineWidthMaxPixels),
+        jointRounded: p.lineJointRounded === true,
+        miterLimit: num(p.lineMiterLimit, 4),
         getWidth: 1,
         ...(perRowColor
           ? {}
@@ -452,6 +455,45 @@ function colorRange(name: ResolvedProp | undefined): { colorRange?: number[][] }
 const widthUnits = (v: ResolvedProp | undefined) =>
   v === 'meters' || v === 'common' ? v : 'pixels'
 
+// A pixel cap where 0 means none, as deck's own default is the largest safe integer
+const maxPixels = (v: ResolvedProp | undefined) =>
+  num(v, 0) > 0 ? num(v, 0) : Number.MAX_SAFE_INTEGER
+
+// "min, max" as a domain or range, or undefined (deck fits it to the data) when empty
+const pair = (v: ResolvedProp | undefined): [number, number] | undefined => {
+  const parts = String(v ?? '')
+    .split(',')
+    .map(x => Number(x.trim()))
+  return parts.length === 2 && parts.every(Number.isFinite) ? [parts[0], parts[1]] : undefined
+}
+
+const units = (v: ResolvedProp | undefined, fallback: 'pixels' | 'meters' = 'pixels') =>
+  v === 'meters' || v === 'pixels' || v === 'common' ? v : fallback
+
+// A path's ends, joints and facing, shared by the path and trips layers
+const pathShape = (p: Record<string, ResolvedProp>) => ({
+  capRounded: p.capRounded !== false,
+  jointRounded: p.jointRounded !== false,
+  miterLimit: num(p.miterLimit, 4),
+  billboard: p.billboard === true,
+})
+
+// A column's fill, outline and shading, shared by the column and grid cell layers
+const columnShape = (
+  p: Record<string, ResolvedProp>,
+  has: (deckName: string) => boolean,
+  constant: (deckName: string, value: [number, number, number, number]) => object
+) => ({
+  filled: p.filled !== false,
+  stroked: p.stroked === true,
+  wireframe: p.wireframe === true,
+  flatShading: p.flatShading === true,
+  lineWidthUnits: units(p.lineWidthUnits, 'meters'),
+  lineWidthScale: num(p.lineWidthScale, 1),
+  getLineWidth: has('getLineWidth') ? undefined : 1,
+  ...constant('getLineColor', rgb(p.lineColor, [255, 255, 255])),
+})
+
 function buildLayer(
   input: ProgramLayerInput,
   binary: Binary,
@@ -465,9 +507,14 @@ function buildLayer(
   // changes (scatter to column, say) must start fresh rather than inherit the old layer's state.
   const common = { id: `${input.id}:${input.kind}`, opacity, pickable, parameters }
   // A constant color is an accessor too; its trigger is its value, so deck re-reads it only
-  // when the color actually changes.
-  const constant = (deckName: string, value: [number, number, number, number]) =>
-    has(deckName) ? {} : { [deckName]: value, updateTriggers: { [deckName]: value.join(',') } }
+  // when the color actually changes. Every constant shares one triggers object, so a layer
+  // with two (an arc's ends, a fill and an outline) keeps both rather than the last one spread.
+  const triggers: Record<string, string> = {}
+  const constant = (deckName: string, value: [number, number, number, number]) => {
+    if (has(deckName)) return {}
+    triggers[deckName] = value.join(',')
+    return { [deckName]: value, updateTriggers: triggers }
+  }
 
   switch (input.kind) {
     case 'scatter':
@@ -479,6 +526,13 @@ function buildLayer(
         radiusMinPixels: 0.5,
         getRadius: has('getRadius') ? undefined : 1,
         ...constant('getFillColor', rgb(p.fillColor, [255, 140, 0])),
+        billboard: p.billboard === true,
+        antialiasing: p.antialiasing !== false,
+        stroked: p.stroked === true,
+        lineWidthUnits: units(p.lineWidthUnits),
+        lineWidthScale: num(p.lineWidthScale, 1),
+        getLineWidth: has('getLineWidth') ? undefined : 1,
+        ...constant('getLineColor', rgb(p.lineColor, [255, 255, 255])),
       } as never)
     case 'arc':
       return new ArcLayer({
@@ -489,6 +543,9 @@ function buildLayer(
         getWidth: has('getWidth') ? undefined : 1,
         getHeight: num(p.height, 1),
         greatCircle: p.greatCircle === true,
+        numSegments: Math.max(2, Math.round(num(p.numSegments, 50))),
+        widthMinPixels: num(p.widthMinPixels, 0),
+        widthMaxPixels: maxPixels(p.widthMaxPixels),
         ...constant('getSourceColor', rgb(p.sourceColor, [0, 180, 255])),
         ...constant('getTargetColor', rgb(p.targetColor, [255, 60, 120])),
       } as never)
@@ -504,17 +561,22 @@ function buildLayer(
           extruded: p.extruded !== false,
           getElevation: has('getElevation') ? undefined : 1,
           ...constant('getFillColor', rgb(p.fillColor, [255, 170, 60])),
+          ...columnShape(p, has, constant),
         } as never)
       }
       return new ColumnLayer({
         ...common,
         data: binary as never,
         radius: num(p.radius, 100),
+        radiusUnits: units(p.radiusUnits, 'meters'),
         elevationScale: num(p.elevationScale, 1),
-        extruded: true,
-        diskResolution: 12,
+        extruded: p.extruded !== false,
+        diskResolution: Math.max(3, Math.round(num(p.diskResolution, 12))),
+        coverage: num(p.coverage, 1),
+        offset: [num(p.offsetX, 0), num(p.offsetY, 0)],
         getElevation: has('getElevation') ? undefined : 1,
         ...constant('getFillColor', rgb(p.fillColor, [255, 170, 60])),
+        ...columnShape(p, has, constant),
       } as never)
     case 'path':
       return new PathLayer({
@@ -525,8 +587,8 @@ function buildLayer(
         widthMinPixels: num(p.widthMinPixels, 1),
         widthUnits: widthUnits(p.widthUnits),
         getWidth: has('getWidth') ? undefined : 1,
-        jointRounded: true,
-        capRounded: true,
+        ...pathShape(p),
+        wrapLongitude: p.wrapLongitude === true,
         ...constant('getColor', rgb(p.color, [120, 200, 255])),
       } as never)
     case 'trips':
@@ -541,8 +603,7 @@ function buildLayer(
         widthMinPixels: num(p.widthMinPixels, 2),
         widthScale: num(p.widthScale, 1),
         widthUnits: widthUnits(p.widthUnits ?? 'meters'),
-        jointRounded: true,
-        capRounded: true,
+        ...pathShape(p),
         ...constant('getColor', rgb(p.color, [253, 128, 93])),
       } as never)
     case 'polygon':
@@ -554,6 +615,7 @@ function buildLayer(
         _normalize: false,
         filled: p.filled !== false,
         extruded: p.extruded === true,
+        wireframe: p.wireframe === true,
         elevationScale: num(p.elevationScale, 1),
         getElevation: has('getElevation') ? undefined : 1,
         ...constant('getFillColor', rgb(p.fillColor, [80, 160, 220])),
@@ -582,8 +644,16 @@ function buildLayer(
         elevationAggregation: String(p.elevationAggregation ?? 'SUM'),
         upperPercentile: num(p.upperPercentile, 100),
         lowerPercentile: num(p.lowerPercentile, 0),
+        colorScaleType: String(p.colorScaleType ?? 'quantize'),
+        ...(pair(p.colorDomain) ? { colorDomain: pair(p.colorDomain) } : {}),
         extruded: p.extruded === true,
         elevationScale: num(p.elevationScale, 1),
+        elevationScaleType: String(p.elevationScaleType ?? 'linear'),
+        elevationRange: pair(p.elevationRange) ?? [0, 1000],
+        ...(pair(p.elevationDomain) ? { elevationDomain: pair(p.elevationDomain) } : {}),
+        elevationUpperPercentile: num(p.elevationUpperPercentile, 100),
+        elevationLowerPercentile: num(p.elevationLowerPercentile, 0),
+        coverage: num(p.coverage, 1),
         // deck's GPU aggregator bins nothing from binary float32 attributes (its domain stays
         // empty); the CPU aggregator reads them directly.
         gpuAggregation: false,
@@ -618,6 +688,7 @@ function buildLayer(
         ...placement,
         mesh: model,
         wireframe: p.wireframe === true,
+        ...(p.texture ? { texture: String(p.texture) } : {}),
         loaders: [/\.ply(\?|$)/i.test(model) ? PLYLoader : OBJLoader],
       } as never)
     }
@@ -652,6 +723,15 @@ function buildLayer(
         background: p.background === true,
         getBackgroundColor: rgb(p.backgroundColor, [255, 255, 255]),
         fontSettings: { sdf: outline > 0 },
+        sizeScale: num(p.sizeScale, 1),
+        sizeMinPixels: num(p.sizeMinPixels, 0),
+        sizeMaxPixels: maxPixels(p.sizeMaxPixels),
+        backgroundPadding: [num(p.backgroundPadding, 0), num(p.backgroundPadding, 0)],
+        backgroundBorderRadius: num(p.backgroundBorderRadius, 0),
+        lineHeight: num(p.lineHeight, 1),
+        wordBreak: p.wordBreak === 'break-all' ? 'break-all' : 'break-word',
+        // 0 lets a label run on; deck's own "no limit" is -1
+        maxWidth: num(p.maxWidth, 0) > 0 ? num(p.maxWidth, 0) : -1,
       } as never)
     }
     case 'icon': {
@@ -672,6 +752,8 @@ function buildLayer(
         sizeScale: num(p.sizeScale, 1),
         sizeUnits: widthUnits(p.sizeUnits),
         sizeMinPixels: num(p.sizeMinPixels, 0),
+        sizeMaxPixels: maxPixels(p.sizeMaxPixels),
+        sizeBasis: p.sizeBasis === 'width' ? 'width' : 'height',
         billboard: p.billboard !== false,
         updateTriggers: { getColor: String(p.color) },
       } as never)
@@ -683,6 +765,7 @@ function buildLayer(
         widthScale: num(p.widthScale, 1),
         widthUnits: widthUnits(p.widthUnits),
         widthMinPixels: num(p.widthMinPixels, 0),
+        widthMaxPixels: maxPixels(p.widthMaxPixels),
         getWidth: has('getWidth') ? undefined : 1,
         ...constant('getColor', rgb(p.color, [255, 255, 255])),
       } as never)
@@ -702,6 +785,7 @@ function buildLayer(
         cellSizePixels: num(p.cellSizePixels, 100),
         cellMarginPixels: num(p.cellMarginPixels, 2),
         aggregation: String(p.aggregation ?? 'SUM'),
+        ...(pair(p.colorDomain) ? { colorDomain: pair(p.colorDomain) } : {}),
         // As for the grid and hexagon layers, the CPU aggregator reads binary attributes
         gpuAggregation: false,
         getWeight: has('getWeight') ? undefined : 1,

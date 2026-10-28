@@ -17,6 +17,7 @@ import {
   type DocEdge,
   type DocNode,
   type EditorDoc,
+  OPERATOR_INDEX,
   type ParamValue,
   parseExpr,
   type Timeline,
@@ -84,6 +85,9 @@ export const DEFAULTS: Record<string, Record<string, unknown>> = {
     getRadius: 20,
     radiusScale: 1,
     radiusUnits: 'pixels',
+    stroked: true,
+    getLineColor: '#fff',
+    getLineWidth: 0,
   },
   ArcLayerOp: {
     visible: true,
@@ -340,6 +344,10 @@ export const DEFAULTS: Record<string, Record<string, unknown>> = {
     getPosition: [0, 0, 0],
     getFillColor: '#000000ff',
     getElevation: 1000,
+    stroked: false,
+    getLineColor: '#000000',
+    getLineWidth: 1,
+    lineWidthUnits: 'meters',
   },
   GridCellLayerOp: {
     visible: true,
@@ -468,6 +476,94 @@ export const DEFAULTS: Record<string, Record<string, unknown>> = {
     captureDelay: 50,
     rendersDirectory: 'renders',
   },
+}
+
+// Style inputs a document parameter takes as they are, by Noodles layer: the input, its Noodles
+// default (schema 21) for a file that leaves it out, the parameter, and how its value converts
+type Carried = [input: string, fallback: unknown, param: string, as?: (v: unknown) => unknown]
+
+// deck's "no limit" is the largest safe integer; a parameter's is 0
+const noLimit = (v: unknown) => (typeof v === 'number' && v >= Number.MAX_SAFE_INTEGER ? 0 : v)
+// A [min, max] pair as the "min, max" text a parameter holds; none, deck fits it to the data
+const pairText = (v: unknown) =>
+  Array.isArray(v) && v.length === 2 && v.every(Number.isFinite) ? `${v[0]}, ${v[1]}` : ''
+const same = (name: string, fallback: unknown, as?: Carried[3]): Carried => [
+  name,
+  fallback,
+  name,
+  as,
+]
+
+const PATH_STYLE = (billboard: boolean, jointRounded: boolean): Carried[] => [
+  same('billboard', billboard),
+  same('capRounded', true),
+  same('jointRounded', jointRounded),
+  same('miterLimit', 4),
+]
+const BIN_STYLE: Carried[] = [
+  same('colorScaleType', 'quantize'),
+  same('colorDomain', null, pairText),
+  same('elevationScaleType', 'linear'),
+  same('elevationRange', [0, 1000], pairText),
+  same('elevationDomain', null, pairText),
+  same('elevationUpperPercentile', 100),
+  same('elevationLowerPercentile', 0),
+  same('coverage', 1),
+]
+const SHADING: Carried[] = [
+  same('filled', true),
+  same('wireframe', false),
+  same('flatShading', false),
+]
+
+export const CARRIED: Record<string, Carried[]> = {
+  ScatterplotLayerOp: [same('billboard', false), same('antialiasing', true)],
+  GreatCircleLayerOp: [
+    same('numSegments', 20),
+    same('widthMinPixels', 0),
+    same('widthMaxPixels', 100, noLimit),
+  ],
+  LineLayerOp: [same('widthMaxPixels', 100, noLimit)],
+  PathLayerOp: [...PATH_STYLE(true, false), same('wrapLongitude', false)],
+  TripsLayerOp: PATH_STYLE(false, true),
+  PolygonLayerOp: [
+    same('wireframe', false),
+    same('lineWidthMaxPixels', 100, noLimit),
+    same('lineJointRounded', false),
+    same('lineMiterLimit', 4),
+  ],
+  SolidPolygonLayerOp: [same('wireframe', false)],
+  ColumnLayerOp: [
+    same('diskResolution', 20),
+    same('coverage', 1),
+    same('lineWidthUnits', 'meters'),
+    ['offset', [0, 0], 'offsetX', v => (Array.isArray(v) ? v[0] : 0)],
+    ['offset', [0, 0], 'offsetY', v => (Array.isArray(v) ? v[1] : 0)],
+    ...SHADING,
+  ],
+  // A column's outline converts with its color and width (`outline`); a grid cell has neither
+  GridCellLayerOp: [...SHADING, same('stroked', false)],
+  TextLayerOp: [
+    same('sizeScale', 1),
+    same('sizeMinPixels', 0),
+    same('sizeMaxPixels', Number.MAX_SAFE_INTEGER, noLimit),
+    // One padding where Noodles took x and y
+    same('backgroundPadding', { x: 0, y: 0 }, v =>
+      typeof v === 'number'
+        ? v
+        : Math.max(Number((v as { x?: number })?.x ?? 0), Number((v as { y?: number })?.y ?? 0))
+    ),
+    same('backgroundBorderRadius', 0, v => (Array.isArray(v) ? Math.max(...v.map(Number)) : v)),
+    same('lineHeight', 1),
+    same('wordBreak', 'break-word'),
+    // deck wraps nothing at -1; the parameter at 0
+    same('maxWidth', -1, v => (typeof v === 'number' && v > 0 ? v : 0)),
+  ],
+  IconLayerOp: [same('sizeMaxPixels', 2048, noLimit), same('sizeBasis', 'height')],
+  HexagonLayerOp: BIN_STYLE,
+  GridLayerOp: BIN_STYLE,
+  ScreenGridLayerOp: [same('colorDomain', null, pairText)],
+  SimpleMeshLayerOp: [same('texture', null, v => (typeof v === 'string' ? v : undefined))],
 }
 
 /**
@@ -2237,7 +2333,9 @@ export function toEditorDoc(original: NoodlesProject): Migrated {
 
   const dropUnmapped = (layer: NoodlesNode, mapped: string[]) => {
     for (const k of Object.keys(layer.data?.inputs ?? {})) {
-      if (!mapped.includes(k) && !LAYER_IGNORED.has(k)) warnings.push(`${layer.id}: dropped '${k}'`)
+      const carried = CARRIED[layer.type]?.some(([input]) => input === k)
+      if (!mapped.includes(k) && !carried && !LAYER_IGNORED.has(k))
+        warnings.push(`${layer.id}: dropped '${k}'`)
     }
   }
 
@@ -2819,6 +2917,22 @@ export function toEditorDoc(original: NoodlesProject): Migrated {
     }
     const push = (op: string) =>
       nodes.push({ id: layer.id, op, name: segment(layer.id), ...position(layer), params })
+    // An outline of one color and width as Outline color and width; the inputs it read, which a
+    // per-row color or width (not converted yet) leaves out
+    const outline = (stroked: boolean, units: string): string[] => {
+      const width = v('getLineWidth')
+      const color = v('getLineColor')
+      if (width.kind === 'row' || color.kind === 'row') return []
+      const w = width.kind === 'const' ? num(width.value, 0) : 0
+      params.stroked = stroked && w > 0
+      if (params.stroked) {
+        params.lineWidthScale = w
+        params.lineWidthUnits = units
+        const c = colorInput(colorChannel(color), layer.id, 'getLineColor')
+        if (c.color) params.lineColor = c.color
+      }
+      return ['stroked', 'getLineColor', 'getLineWidth']
+    }
     if (i.visible === false) warnings.push(`${layer.id}: hidden layer converted as visible`)
 
     switch (layer.type) {
@@ -2841,6 +2955,7 @@ export function toEditorDoc(original: NoodlesProject): Migrated {
           throw new MigrationError(`${layer.id}: getRadius from a color is not a radius`)
         }
         params.radiusUnits = String(i.radiusUnits)
+        const stroke = outline(i.stroked !== false, 'meters')
         nodes.push({
           id: layer.id,
           op: 'scatter',
@@ -2856,6 +2971,7 @@ export function toEditorDoc(original: NoodlesProject): Migrated {
           'getRadius',
           'radiusScale',
           'radiusUnits',
+          ...stroke,
         ])
         break
       }
@@ -3140,9 +3256,8 @@ export function toEditorDoc(original: NoodlesProject): Migrated {
         if (layer.type === 'ColumnLayerOp') {
           if (fill.color) params.columnColor = fill.color
           params.radius = num(i.radius, 1000)
-          if (String(i.radiusUnits) !== 'meters')
-            warnings.push(`${layer.id}: radius in ${i.radiusUnits} is read as metres`)
-          if (i.extruded === false) warnings.push(`${layer.id}: flat columns are drawn extruded`)
+          if (String(i.radiusUnits) !== 'meters') params.radiusUnits = String(i.radiusUnits)
+          if (i.extruded === false) params.extruded = false
           push('column')
         } else {
           if (fill.color) params.cellColor = fill.color
@@ -3164,6 +3279,7 @@ export function toEditorDoc(original: NoodlesProject): Migrated {
           'cellSize',
           'coverage',
           'diskResolution',
+          ...(i.stroked === true ? outline(true, String(i.lineWidthUnits ?? 'meters')) : []),
         ])
         break
       }
@@ -3437,8 +3553,28 @@ export function toEditorDoc(original: NoodlesProject): Migrated {
         throw new MigrationError(`${layer.id}: ${layer.type} is not converted yet`)
     }
     used.add(layer.id)
+    carryStyle(layer)
     wireExtensions(layer.id, [layer.id])
     edge(layer.id, 'out', target.node, target.port, target.index)
+  }
+
+  /** A layer's style inputs (CARRIED) as its node's parameters, leaving out the defaults. */
+  const carryStyle = (layer: NoodlesNode) => {
+    const node = nodes.find(n => n.id === layer.id)
+    const defs = node && OPERATOR_INDEX.get(node.op)?.params
+    if (!node || !defs) return
+    for (const [input, fallback, param, as] of CARRIED[layer.type] ?? []) {
+      if (incomingOne(layer.id, input)) {
+        warnings.push(`${layer.id}: a wired ${input} is not converted`)
+        continue
+      }
+      const raw = layer.data?.inputs?.[input] ?? fallback
+      const value = as ? as(raw) : raw
+      const def = defs.find(d => d.name === param)
+      if (value === undefined || value === null || !def) continue
+      if (JSON.stringify(value) === JSON.stringify(def.default)) continue
+      node.params[param] = value as ParamValue
+    }
   }
 
   /**

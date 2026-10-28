@@ -334,3 +334,127 @@ describe('DeckLayerBuilder other row layers', () => {
     expect(all.some(p => p[0] === 255 && p[1] === 0 && p[2] === 0 && p[3] === 255)).toBe(true)
   }, 60_000)
 })
+
+describe('DeckLayerBuilder style props', () => {
+  const rows = (n: number, attributes: [string, Float32Array, number][] = []) => ({
+    rows: n,
+    attributes: new Map(attributes.map(([name, values, width]) => [name, { data: values, width }])),
+    strings: new Map(),
+    evalMs: 0,
+    code: '',
+  })
+  const P = new Float32Array([0, 0, 1, 1])
+  const build = (kind: string, props: Record<string, unknown>, bindings = [['position', 'P']]) => {
+    const layers =
+      new DeckLayerBuilder()
+        .build([
+          {
+            id: 'it',
+            kind: kind as never,
+            data: rows(2, [['P', P, 2]]),
+            bindings: bindings.map(([channel, attribute]) => ({ channel, attribute })),
+            props: props as never,
+          },
+        ])
+        .get('it') ?? []
+    return layers.map(l => l.props as unknown as Record<string, unknown>)
+  }
+
+  it('passes outlines, facing and antialiasing to a scatterplot', () => {
+    const [p] = build('scatter', {
+      stroked: true,
+      lineColor: [10, 20, 30],
+      lineWidthScale: 3,
+      lineWidthUnits: 'meters',
+      billboard: true,
+      antialiasing: false,
+    })
+    expect(p).toMatchObject({
+      stroked: true,
+      getLineColor: [10, 20, 30, 255],
+      getLineWidth: 1,
+      lineWidthScale: 3,
+      lineWidthUnits: 'meters',
+      billboard: true,
+      antialiasing: false,
+    })
+  })
+
+  it('keeps a trigger for every constant color, not only the last', () => {
+    const [p] = build('scatter', { fillColor: [1, 2, 3], lineColor: [4, 5, 6] })
+    expect(p.updateTriggers).toMatchObject({ getFillColor: '1,2,3,255', getLineColor: '4,5,6,255' })
+  })
+
+  it('reads 0 as no pixel limit, and a pair of numbers as a domain', () => {
+    expect(build('line', { widthMaxPixels: 0 })[0].widthMaxPixels).toBe(Number.MAX_SAFE_INTEGER)
+    expect(build('line', { widthMaxPixels: 8 })[0].widthMaxPixels).toBe(8)
+    const [hex] = build('hexagon', { colorDomain: '0, 50', elevationRange: '10, 20' })
+    expect(hex).toMatchObject({ colorDomain: [0, 50], elevationRange: [10, 20] })
+    expect(build('hexagon', { colorDomain: '' })[0].colorDomain).not.toEqual([0, 50])
+  })
+
+  it('shapes path ends and joints, and columns', () => {
+    const [path] = build('path', {
+      capRounded: false,
+      jointRounded: false,
+      miterLimit: 2,
+      wrapLongitude: true,
+    })
+    expect(path).toMatchObject({
+      capRounded: false,
+      jointRounded: false,
+      miterLimit: 2,
+      wrapLongitude: true,
+    })
+    const [column] = build('column', {
+      radiusUnits: 'pixels',
+      diskResolution: 6,
+      offsetX: 0.5,
+      extruded: false,
+      stroked: true,
+      lineColor: [0, 0, 0],
+      wireframe: true,
+    })
+    expect(column).toMatchObject({
+      radiusUnits: 'pixels',
+      diskResolution: 6,
+      offset: [0.5, 0],
+      extruded: false,
+      stroked: true,
+      getLineColor: [0, 0, 0, 255],
+      wireframe: true,
+    })
+  })
+
+  it('wraps and pads text, and caps an icon', () => {
+    const texts = (kind: string, props: Record<string, unknown>) =>
+      new DeckLayerBuilder()
+        .build([
+          {
+            id: 't',
+            kind: kind as never,
+            data: {
+              ...rows(1, [['P', new Float32Array([0, 0]), 2]]),
+              strings: new Map([['T', ['hi']]]),
+            },
+            bindings: [
+              { channel: 'position', attribute: 'P' },
+              { channel: kind === 'text' ? 'text' : 'icon', attribute: 'T' },
+            ],
+            props: props as never,
+          },
+        ])
+        .get('t')?.[0]?.props as unknown as Record<string, unknown>
+    expect(
+      texts('text', { maxWidth: 0, backgroundPadding: 4, wordBreak: 'break-all' })
+    ).toMatchObject({
+      maxWidth: -1,
+      backgroundPadding: [4, 4],
+      wordBreak: 'break-all',
+    })
+    expect(texts('icon', { sizeMaxPixels: 64, sizeBasis: 'width' })).toMatchObject({
+      sizeMaxPixels: 64,
+      sizeBasis: 'width',
+    })
+  })
+})

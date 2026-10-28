@@ -18,6 +18,7 @@ describe('compoundsOf', () => {
   it('pairs a scale with its units, and a size with its units', () => {
     expect(compoundsOf(op('scatter')).units).toEqual([
       { value: 'radiusScale', units: 'radiusUnits' },
+      { value: 'lineWidthScale', units: 'lineWidthUnits' },
     ])
     expect(compoundsOf(op('text')).units).toEqual([{ value: 'size', units: 'sizeUnits' }])
   })
@@ -48,7 +49,7 @@ describe('compoundsOf', () => {
 
   it('absorbs the units menus, solid colors and the ramp into their controls', () => {
     const { absorbed } = compoundsOf(op('scatter'))
-    expect([...absorbed].sort()).toEqual(['fillColor', 'radiusUnits', 'ramp'])
+    expect([...absorbed].sort()).toEqual(['fillColor', 'lineWidthUnits', 'radiusUnits', 'ramp'])
   })
 })
 
@@ -86,7 +87,7 @@ describe('compoundsFor', () => {
 
   it('keeps referenced or expression-driven units on their own row', () => {
     const linked = compoundsFor(op('scatter'), { radiusUnits: { ref: 'other/radiusUnits' } })
-    expect(linked.units).toEqual([])
+    expect(linked.units.map(u => u.units)).not.toContain('radiusUnits')
     expect(linked.absorbed.has('radiusUnits')).toBe(false)
     expect(compoundsFor(op('scatter'), { radiusUnits: 'meters' }).absorbed.has('radiusUnits')).toBe(
       true

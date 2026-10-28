@@ -322,6 +322,109 @@ describe('the small Noodles values, as planner and deck operators', () => {
     ])
   })
 
+  it('converts a scatterplot outline of one color and width, facing and antialiasing', () => {
+    const { doc, warnings } = toEditorDoc(
+      deck(
+        [
+          op('/rows', 'DuckDbOp', { query: 'SELECT 1.0 AS lng, 2.0 AS lat' }),
+          op('/where', 'AccessorOp', { expression: '[d.lng, d.lat]' }),
+          op('/points', 'ScatterplotLayerOp', {
+            getLineWidth: 2,
+            getLineColor: '#ff0000',
+            billboard: true,
+            antialiasing: false,
+          }),
+        ],
+        [
+          wire('/rows', 'data', '/points', 'data'),
+          wire('/where', 'accessor', '/points', 'getPosition'),
+          wire('/points', 'layer', '/deck', 'layers'),
+        ]
+      )
+    )
+    expect(doc.nodes.find(n => n.id === '/points')?.params).toMatchObject({
+      stroked: true,
+      lineWidthScale: 2,
+      // deck's own unit, which Noodles never set
+      lineWidthUnits: 'meters',
+      lineColor: [255, 0, 0],
+      billboard: true,
+      antialiasing: false,
+    })
+    expect(warnings.filter(w => w.includes('dropped'))).toEqual([])
+  })
+
+  it('keeps warning about a per-row outline width, which a later change converts', () => {
+    const { warnings } = toEditorDoc(
+      deck(
+        [
+          op('/rows', 'DuckDbOp', { query: 'SELECT 1.0 AS lng, 2.0 AS lat' }),
+          op('/where', 'AccessorOp', { expression: '[d.lng, d.lat]' }),
+          op('/width', 'AccessorOp', { expression: 'd.lng' }),
+          op('/points', 'ScatterplotLayerOp', { getLineWidth: 1 }),
+        ],
+        [
+          wire('/rows', 'data', '/points', 'data'),
+          wire('/where', 'accessor', '/points', 'getPosition'),
+          wire('/width', 'accessor', '/points', 'getLineWidth'),
+          wire('/points', 'layer', '/deck', 'layers'),
+        ]
+      )
+    )
+    expect(warnings).toContain("/points: dropped 'getLineWidth'")
+  })
+
+  it('carries a hexagon layer’s scales, and leaves defaults out of the document', () => {
+    const { doc } = toEditorDoc(
+      deck(
+        [
+          op('/rows', 'DuckDbOp', { query: 'SELECT 1.0 AS lng, 2.0 AS lat' }),
+          op('/where', 'AccessorOp', { expression: '[d.lng, d.lat]' }),
+          op('/bins', 'HexagonLayerOp', {
+            colorDomain: [0, 10],
+            elevationRange: [0, 5000],
+            colorScaleType: 'quantile',
+            coverage: 1,
+          }),
+        ],
+        [
+          wire('/rows', 'data', '/bins', 'data'),
+          wire('/where', 'accessor', '/bins', 'getPosition'),
+          wire('/bins', 'layer', '/deck', 'layers'),
+        ]
+      )
+    )
+    const params = doc.nodes.find(n => n.id === '/bins')?.params
+    expect(params).toMatchObject({
+      colorDomain: '0, 10',
+      elevationRange: '0, 5000',
+      colorScaleType: 'quantile',
+    })
+    expect(params).not.toHaveProperty('coverage')
+  })
+
+  it('gives a path Noodles’ defaults where they differ from the planner’s', () => {
+    const { doc } = toEditorDoc(
+      deck(
+        [
+          op('/rows', 'DuckDbOp', { query: 'SELECT [[0.0, 0.0], [1.0, 1.0]] AS path' }),
+          op('/where', 'AccessorOp', { expression: 'd.path' }),
+          op('/lines', 'PathLayerOp'),
+        ],
+        [
+          wire('/rows', 'data', '/lines', 'data'),
+          wire('/where', 'accessor', '/lines', 'getPath'),
+          wire('/lines', 'layer', '/deck', 'layers'),
+        ]
+      )
+    )
+    // Noodles' path faced the camera and had square joints
+    expect(doc.nodes.find(n => n.id === '/lines')?.params).toMatchObject({
+      billboard: true,
+      jointRounded: false,
+    })
+  })
+
   it('converts LayerProps into props on the planner layer it wraps', () => {
     const { doc } = toEditorDoc(
       deck(
