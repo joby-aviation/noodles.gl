@@ -105,7 +105,8 @@ describe('TableEditor cell keyframes', () => {
     docStore().set({ time: 3 })
     engine.slots.set('table.rows.1.count', 20)
     render(<Pane />)
-    fireEvent.click(screen.getByText('20'))
+    // A click selects the cell; a double click edits it
+    fireEvent.doubleClick(screen.getByText('20').closest('[role="gridcell"]') as HTMLElement)
     const input = screen.getByRole('spinbutton')
     fireEvent.change(input, { target: { value: '45' } })
     fireEvent.keyDown(input, { key: 'Enter' })

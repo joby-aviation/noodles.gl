@@ -25,12 +25,15 @@ export function TableCellKeyframe({
   rowIndex,
   column,
   value,
+  disabled,
   children,
 }: {
   keys: CellKeys
   rowIndex: number
   column: string
   value: unknown
+  // While the cell is being edited: the diamond shows but does not toggle
+  disabled?: boolean
   children: ReactNode
 }) {
   if (!keyframeable(value)) return children
@@ -43,6 +46,7 @@ export function TableCellKeyframe({
         <button
           type="button"
           aria-label={keyed ? 'Remove keyframe' : 'Add keyframe'}
+          disabled={disabled}
           title={keyed ? 'Keyframe at the playhead (click to remove)' : 'Click to set a keyframe'}
           className={cx(paneStyles.diamond, {
             [paneStyles.diamondTrack]: animated,

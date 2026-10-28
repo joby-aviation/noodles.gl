@@ -35,6 +35,7 @@ import { TimelineProvider } from '../timeline/timeline-context'
 import { useTimelineStore } from '../timeline/timeline-store'
 import { analytics } from '../utils/analytics'
 import type { Visualization } from '../visualizations'
+import { CanvasPaste } from './canvas-paste'
 import { bindEngine, settleEngine, useEngineState, visCommitted } from './doc-engine'
 import { canPaste, copySelection, DocNetwork, pasteClipboard } from './doc-network'
 import { setParam } from './doc-ops'
@@ -399,6 +400,7 @@ export function useDocNoodles(): Visualization {
               pendingFile={pendingImportFile}
               onPendingFileHandled={() => setPendingImportFile(null)}
             />
+            <CanvasPaste />
           </DocNetwork>
           {files.dialogs}
           <CreateFromSQLDialog

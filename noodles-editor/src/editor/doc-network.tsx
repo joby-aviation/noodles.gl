@@ -110,23 +110,41 @@ export function copySelection(): boolean {
   return true
 }
 
-export async function pasteClipboard(): Promise<void> {
-  let clip = clipboard
-  try {
-    const text = await navigator.clipboard?.readText()
-    const parsed = text ? JSON.parse(text) : undefined
-    if (parsed?.type === CLIP_TYPE) clip = { nodes: parsed.nodes, edges: parsed.edges }
-  } catch {
-    // Not ours, or no permission: the in-page copy stands.
-  }
-  if (!clip?.nodes.length) return
+function pasteClip(clip: Clip | undefined): boolean {
+  if (!clip?.nodes.length) return false
   const store = docStore()
   let pasted: string[] = []
-  const data = clip
   store.edit(d => {
-    pasted = pasteNodes(d, data, store.get().network)
+    pasted = pasteNodes(d, clip, store.get().network)
   })
   store.set({ selection: pasted })
+  return true
+}
+
+// Nodes copied as JSON, in this tab or another. False for any other text.
+function clipOf(text: string | undefined): Clip | undefined {
+  try {
+    const parsed = text ? JSON.parse(text) : undefined
+    return parsed?.type === CLIP_TYPE ? { nodes: parsed.nodes, edges: parsed.edges } : undefined
+  } catch {
+    return undefined
+  }
+}
+
+/** Paste nodes copied as JSON text. False when the text is something else. */
+export const pasteText = (text: string | undefined): boolean => pasteClip(clipOf(text))
+
+/** Paste what was last copied in this tab. */
+export const pasteInPage = (): boolean => pasteClip(clipboard)
+
+export async function pasteClipboard(): Promise<void> {
+  let text: string | undefined
+  try {
+    text = await navigator.clipboard?.readText()
+  } catch {
+    // No permission: the in-page copy stands.
+  }
+  if (!pasteText(text)) pasteInPage()
 }
 
 export const canPaste = () => !!clipboard?.nodes.length
@@ -431,8 +449,8 @@ export function DocNetwork({ children }: { children?: ReactNode }) {
     } else if (meta && e.key.toLowerCase() === 'c') {
       if (copySelection()) e.preventDefault()
     } else if (meta && e.key.toLowerCase() === 'v') {
-      e.preventDefault()
-      void pasteClipboard()
+      // The paste event that follows does it (CanvasPaste): it carries the clipboard's text
+      // and HTML, so a table copied from a spreadsheet can be pasted too
     } else if (meta && e.key.toLowerCase() === 'd') {
       e.preventDefault()
       if (copySelection()) void pasteClipboard()
