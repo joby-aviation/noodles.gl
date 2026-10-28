@@ -234,6 +234,12 @@
   cursor: pointer;
 }
 
+/* Always open: no chevron, its text where a foldable section's sits */
+.sectionHeaderFixed {
+  padding-left: 26px;
+  cursor: default;
+}
+
 .sectionHeader i {
   font-size: 9px;
 }

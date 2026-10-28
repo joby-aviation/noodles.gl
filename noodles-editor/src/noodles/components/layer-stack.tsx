@@ -118,17 +118,26 @@ export function LayerStack() {
     )
   }
 
-  const section = (key: Section, label: string, ids: string[]) => {
+  // `fixed` keeps a section open with no toggle: the scene, where the camera and the output
+  // settings are, should always be a click away
+  const section = (key: Section, label: string, ids: string[], fixed = false) => {
     const shown = ids.filter(matches)
     if (shown.length === 0) return null
-    const expanded = Boolean(q) || open.has(key)
+    const expanded = fixed || Boolean(q) || open.has(key)
     return (
       <div className={s.section}>
-        <button type="button" className={s.sectionHeader} onClick={() => toggle(key)}>
-          <i className={cx('pi', expanded ? 'pi-chevron-down' : 'pi-chevron-right')} />
-          {label}
-          <span className={s.count}>{shown.length}</span>
-        </button>
+        {fixed ? (
+          <div className={cx(s.sectionHeader, s.sectionHeaderFixed)}>
+            {label}
+            <span className={s.count}>{shown.length}</span>
+          </div>
+        ) : (
+          <button type="button" className={s.sectionHeader} onClick={() => toggle(key)}>
+            <i className={cx('pi', expanded ? 'pi-chevron-down' : 'pi-chevron-right')} />
+            {label}
+            <span className={s.count}>{shown.length}</span>
+          </button>
+        )}
         {expanded && shown.map(id => row(id, 1))}
       </div>
     )
@@ -265,7 +274,7 @@ export function LayerStack() {
           )
         })}
 
-        {section('scene', 'Scene', stack.scene)}
+        {section('scene', 'Scene', stack.scene, true)}
         {section('unused', 'Not drawn', stack.unused)}
       </div>
     </div>
