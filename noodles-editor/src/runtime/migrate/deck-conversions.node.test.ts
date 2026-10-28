@@ -322,6 +322,31 @@ describe('the small Noodles values, as planner and deck operators', () => {
     ])
   })
 
+  it('keeps a Number wired into a carried style input, and refuses any other wire', () => {
+    const path = (wired: NoodlesNode, field: string) =>
+      deck(
+        [
+          op('/rows', 'DuckDbOp', { query: 'SELECT [[0.0, 0.0], [1.0, 1.0]] AS path' }),
+          op('/where', 'AccessorOp', { expression: 'd.path' }),
+          wired,
+          op('/lines', 'PathLayerOp', { jointRounded: false }),
+        ],
+        [
+          wire('/rows', 'data', '/lines', 'data'),
+          wire('/where', 'accessor', '/lines', 'getPath'),
+          wire(wired.id, 'val', '/lines', field),
+          wire('/lines', 'layer', '/deck', 'layers'),
+        ]
+      )
+    const { doc } = toEditorDoc(path(op('/miter', 'NumberOp', { val: 6 }), 'miterLimit'))
+    expect(doc.edges).toContainEqual(
+      expect.objectContaining({ source: '/miter', target: '/lines', targetPort: 'par:miterLimit' })
+    )
+    expect(() => toEditorDoc(path(op('/flag', 'NumberOp', { val: 1 }), 'billboard'))).toThrow(
+      /a wired billboard is not converted/
+    )
+  })
+
   it('converts a scatterplot outline of one color and width, facing and antialiasing', () => {
     const { doc, warnings } = toEditorDoc(
       deck(

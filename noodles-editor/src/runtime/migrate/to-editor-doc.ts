@@ -3592,13 +3592,18 @@ export function toEditorDoc(original: NoodlesProject): Migrated {
     const defs = node && OPERATOR_INDEX.get(node.op)?.params
     if (!node || !defs) return
     for (const [input, fallback, param, as] of CARRIED[layer.type] ?? []) {
+      const def = defs.find(d => d.name === param)
       if (incomingOne(layer.id, input)) {
-        warnings.push(`${layer.id}: a wired ${input} is not converted`)
-        continue
+        // A wired number keeps its Number or curve, or the value it folds to; a wire into
+        // anything else, or into a value the conversion reshapes, has no equivalent
+        if (!as && (def?.kind === 'float' || def?.kind === 'int')) {
+          wiredNumber(layer.id, input, layer.id, param)
+          continue
+        }
+        throw new MigrationError(`${layer.id}: a wired ${input} is not converted`)
       }
       const raw = layer.data?.inputs?.[input] ?? fallback
       const value = as ? as(raw) : raw
-      const def = defs.find(d => d.name === param)
       if (value === undefined || value === null || !def) continue
       if (JSON.stringify(value) === JSON.stringify(def.default)) continue
       node.params[param] = value as ParamValue
