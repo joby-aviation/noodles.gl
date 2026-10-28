@@ -55,3 +55,42 @@ it('applies the deck’s own style changes once the base style is fetched', asyn
   const layers = styleOf(engine).layers as { paint: Record<string, unknown> }[]
   expect(layers[0].paint['fill-color']).toBe('#f00')
 })
+
+it('says when the style for its changes fails to load, and tries again later', async () => {
+  let up = false
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async () =>
+      up
+        ? ({ ok: true, json: async () => base } as unknown as Response)
+        : ({ ok: false, statusText: 'Bad Gateway' } as unknown as Response)
+    )
+  )
+  const engine = new Engine(duck)
+  const overrides = {
+    layers: [{ layerId: 'water', paintOverrides: { 'fill-color': '#f00' } }],
+    global: {},
+  }
+  await engine.setDoc(
+    doc({ mapStyle: 'https://example.com/flaky.json', styleOverrides: JSON.stringify(overrides) })
+  )
+  await engine.settle()
+  // Drawing is what fetches the style
+  engine.vis()
+  await vi.waitFor(() =>
+    expect(engine.errors()).toEqual([
+      {
+        nodeId: 'map',
+        message: 'Style changes not applied: Failed to fetch map style: Bad Gateway',
+      },
+    ])
+  )
+  // The network is back, and the retry delay has passed
+  up = true
+  const now = Date.now()
+  vi.spyOn(Date, 'now').mockReturnValue(now + 6000)
+  engine.vis()
+  await vi.waitFor(() => expect(typeof styleOf(engine)).toBe('object'))
+  expect(engine.errors()).toEqual([])
+  vi.restoreAllMocks()
+})

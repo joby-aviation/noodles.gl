@@ -93,9 +93,12 @@ export function splitOutStyle(
   if (!node) return undefined
   const base = baseStyleOf(node, group)
   const changes = parseStyleChanges(node.params[group.changes]) ?? { layers: [], global: {} }
-  const style = addNode(doc, 'map-style', node.x - 320, node.y + 200)
-  style.params = { overrides: changes as unknown as ParamValue }
-  if (base !== undefined) style.params.baseStyle = base as unknown as ParamValue
+  // In the deck's own network, and with no base style when the deck draws no basemap
+  const style = addNode(doc, 'map-style', node.x - 320, node.y + 200, node.parent)
+  style.params = {
+    overrides: changes as unknown as ParamValue,
+    baseStyle: (base ?? '') as unknown as ParamValue,
+  }
   connect(doc, style.id, 'mapStyle', nodeId, `par:${group.url}`)
   setParam(doc, nodeId, group.changes, undefined)
   return style.id

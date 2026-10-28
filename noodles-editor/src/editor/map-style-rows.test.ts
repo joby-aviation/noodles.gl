@@ -82,6 +82,16 @@ describe('the map style control', () => {
     expect(deck(d).params.styleOverrides).toBeUndefined()
   })
 
+  it('splits a style out inside the deck’s subnet, and keeps no basemap as none', () => {
+    const d = doc({ basemap: 'none' })
+    d.nodes.push({ id: 'group', op: 'subnet', x: 0, y: 0, params: {} })
+    deck(d).parent = 'group'
+    const id = splitOutStyle(d, 'map', group)
+    const style = d.nodes.find(n => n.id === id)
+    expect(style?.parent).toBe('group')
+    expect(style?.params.baseStyle).toBe('')
+  })
+
   it('reads empty or unparsable changes as none', () => {
     expect(parseStyleChanges('')).toBeUndefined()
     expect(parseStyleChanges('{not json')).toBeUndefined()
