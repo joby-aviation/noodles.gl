@@ -136,7 +136,9 @@ The deck node controls the basemap and the camera:
 
 ### Editing Styles
 
-Click the sliders beside the style's name to open the style editor on the deck's own style. It hides layers and changes their colors, and can scale every label and line width at once. The changes are kept on the deck, listed as **Changes**; click × to drop them.
+Click the sliders beside the style's name to open the style editor on the deck's own style. Its layers are on the left, each with its eye and colors; pick one there, or click the map on the right, to edit its properties in the middle. Every paint and layout property the layer's type takes is listed, the ones the style sets first: numbers with a slider in their units, colors, menus, toggles and lists, and JSON for expressions over feature data. **z** beside a property makes it change with the zoom: edit its stops (a zoom and the value there) and the curve between them (linear, exponential, bezier or step). A bezier curve's handles are on the chart between each pair of stops; MapLibre eases every segment with the one `cubic-bezier`, so dragging any handle reshapes them all; In, Out and In-out set the usual easings. **+ Stop** adds a stop at the map's zoom. ↺ puts back the style's own value.
+
+**Whole style** scales every label and line width at once, zoom ramps included. The changes are kept on the deck, listed as **Changes**; click × to drop them.
 
 To share a style between decks or projects, right-click **Map style** and choose **Drive with › Map Style**. It moves the style and its changes into a **Map Style** node (`map-style`) wired into the deck. Anything else that makes style JSON, such as a Code node, can be wired into the row's port the same way; a wired style takes the place of the deck's own, and **Disconnect input** on the same menu takes it off.
 

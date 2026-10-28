@@ -5,7 +5,7 @@
 // a dropped URL; right-click Drive with, Map Style moves the style and its changes into a Map
 // Style node wired into the deck, so other decks and projects can share it.
 
-import type { DocNode, EditorDoc } from '@noodles.gl/planner'
+import { type DocNode, type EditorDoc, OPERATOR_INDEX } from '@noodles.gl/planner'
 import { useState } from 'react'
 import { BasemapGallery } from '../noodles/components/basemap-gallery'
 import { MapStyleConfiguratorDialog } from '../noodles/components/map-style-configurator'
@@ -14,6 +14,7 @@ import { analytics } from '../utils/analytics'
 import type { StyleConfiguratorData } from '../utils/map-style-utils'
 import type { StyleGroup } from './compound-params'
 import s from './doc-editor.module.css'
+import { useEngineState } from './doc-engine'
 import { setParam } from './doc-ops'
 import { docStore } from './doc-store'
 import type { NodeFields } from './field-adapter'
@@ -49,6 +50,20 @@ export function MapStyleRows({
     analytics.track('map_style_changed', { via })
   }
   const label = styleLabel(node, group)
+  // The style editor's preview opens where the deck's camera is now, keyframes included
+  const slots = useEngineState().slots
+  const camera = (name: string) =>
+    Number(
+      slots.get(`${node.id}.${name}`) ??
+        node.params[name] ??
+        OPERATOR_INDEX.get(node.op)?.params.find(p => p.name === name)?.default
+    )
+  const view = {
+    longitude: camera('longitude'),
+    latitude: camera('latitude'),
+    zoom: camera('zoom'),
+  }
+  const initialView = Object.values(view).every(Number.isFinite) ? view : undefined
   const picker = (
     <span className={s.styleActions}>
       <button
@@ -120,6 +135,7 @@ export function MapStyleRows({
           open={editor}
           onOpenChange={setEditor}
           baseStyle={baseStyleOf(node, group)}
+          initialView={initialView}
           overrides={changes}
           onOverridesChange={next =>
             edit(
