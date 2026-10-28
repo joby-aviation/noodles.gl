@@ -43,18 +43,18 @@ export function compoundsOf(op: Pick<OpDef, 'params'>): Compounds {
   }
 
   const colors: ColorGroup[] = []
-  const solids = op.params.filter(p => p.kind === 'color' && p.folder === 'Style')
+  const solids = op.params.filter(p => p.kind === 'color')
   const taken = new Set<string>()
   const ramp = op.params.find(p => p.name === 'ramp' && p.kind === 'menu')
   for (const p of op.params) {
     // `color`, `sourceColor`, `lineColorChannel`; not `colorWeight`, which is a number
     if (!isChannel(p) || !/color(Channel)?$/i.test(p.name)) continue
-    // The help names what an empty channel uses ("Empty uses the constant Outline color.");
-    // without one, the layer's first Style color nobody else claimed
+    // The help names what an empty channel uses ("Empty uses the constant Outline color."), in
+    // any folder; without one, the layer's first Style color nobody else claimed
     const named = /Empty uses (?:the constant )?([^.]+)\./.exec(p.help ?? '')?.[1]?.toLowerCase()
     const solid =
       solids.find(c => named && c.label.toLowerCase() === named && !taken.has(c.name)) ??
-      (named ? undefined : solids.find(c => !taken.has(c.name)))
+      (named ? undefined : solids.find(c => c.folder === 'Style' && !taken.has(c.name)))
     if (solid) taken.add(solid.name)
     colors.push({ channel: p.name, solid: solid?.name, ramp: ramp?.name })
   }

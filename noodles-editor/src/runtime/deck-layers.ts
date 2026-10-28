@@ -71,6 +71,8 @@ interface TextRow {
   color?: number[]
   size?: number
   angle?: number
+  borderColor?: number[]
+  borderWidth?: number
 }
 
 type Binary = {
@@ -191,6 +193,8 @@ function toBinary(input: ProgramLayerInput): Binary {
       put('getPosition', pos('position'), 3)
       put('getFillColor', colors(attr(input, 'color'), n), 4, true)
       put('getRadius', scalar('radius'), 1)
+      put('getLineColor', colors(attr(input, 'lineColor'), n), 4, true)
+      put('getLineWidth', scalar('lineWidth'), 1)
       return { length: n, attributes: at }
     case 'arc':
       put('getSourcePosition', pos('sourcePosition'), 3)
@@ -198,19 +202,22 @@ function toBinary(input: ProgramLayerInput): Binary {
       put('getSourceColor', colors(attr(input, 'sourceColor'), n), 4, true)
       put('getTargetColor', colors(attr(input, 'targetColor'), n), 4, true)
       put('getWidth', scalar('width'), 1)
+      put('getTilt', scalar('tilt'), 1)
       return { length: n, attributes: at }
     case 'column':
       put('getPosition', pos('position'), 3)
       put('getElevation', scalar('elevation'), 1)
       put('getFillColor', colors(attr(input, 'color'), n), 4, true)
+      put('getLineColor', colors(attr(input, 'lineColor'), n), 4, true)
+      put('getLineWidth', scalar('lineWidth'), 1)
       return { length: n, attributes: at }
     case 'path':
     case 'trips': {
       const starts = d.starts ?? new Uint32Array([0])
       put('getPath', pos('position'), 3)
       put('getColor', colors(attr(input, 'color'), n), 4, true)
-      if (input.kind === 'path') put('getWidth', scalar('width'), 1)
-      else put('getTimestamps', scalar('timestamp'), 1)
+      put('getWidth', scalar('width'), 1)
+      if (input.kind === 'trips') put('getTimestamps', scalar('timestamp'), 1)
       return { length: starts.length, startIndices: starts, attributes: at }
     }
     case 'polygon': {
@@ -221,6 +228,7 @@ function toBinary(input: ProgramLayerInput): Binary {
       put('getFillColor', colors(attr(input, 'color'), n), 4, true)
       put('getElevation', scalar('elevation'), 1)
       const lineColor = colors(attr(input, 'lineColor'), n)
+      const lineWidth = scalar('lineWidth')
       const tri = p ? triangulate(p, 3, n, starts, rings) : undefined
       if (tri) at.indices = tri.indices
       return {
@@ -235,6 +243,7 @@ function toBinary(input: ProgramLayerInput): Binary {
               attributes: {
                 getPath: { value: p, size: 3 },
                 ...(lineColor ? { getColor: { value: lineColor, size: 4, normalized: true } } : {}),
+                ...(lineWidth ? { getWidth: { value: lineWidth, size: 1 } } : {}),
               },
             }
           : undefined,
@@ -297,6 +306,8 @@ function toBinary(input: ProgramLayerInput): Binary {
       const color = colors(attr(input, 'color'), n)
       const size = scalar('size')
       const angle = scalar('angle')
+      const borderColor = colors(attr(input, 'borderColor'), n)
+      const borderWidth = scalar('borderWidth')
       const texts = Array.from(
         { length: count },
         (_, i): TextRow => ({
@@ -311,6 +322,10 @@ function toBinary(input: ProgramLayerInput): Binary {
           ...(color ? { color: Array.from(color.subarray(i * 4, i * 4 + 4)) } : {}),
           ...(size ? { size: size[i] } : {}),
           ...(angle ? { angle: angle[i] } : {}),
+          ...(borderColor
+            ? { borderColor: Array.from(borderColor.subarray(i * 4, i * 4 + 4)) }
+            : {}),
+          ...(borderWidth ? { borderWidth: borderWidth[i] } : {}),
         })
       )
       return { length: count, attributes: {}, texts }
@@ -364,7 +379,7 @@ function buildLayers(input: ProgramLayerInput, binary: Binary, pickable = false)
         widthMaxPixels: maxPixels(p.lineWidthMaxPixels),
         jointRounded: p.lineJointRounded === true,
         miterLimit: num(p.lineMiterLimit, 4),
-        getWidth: 1,
+        getWidth: 'getWidth' in binary.outline.attributes ? undefined : 1,
         ...(perRowColor
           ? {}
           : {
@@ -542,6 +557,7 @@ function buildLayer(
         widthUnits: widthUnits(p.widthUnits),
         getWidth: has('getWidth') ? undefined : 1,
         getHeight: num(p.height, 1),
+        getTilt: has('getTilt') ? undefined : num(p.tilt, 0),
         greatCircle: p.greatCircle === true,
         numSegments: Math.max(2, Math.round(num(p.numSegments, 50))),
         widthMinPixels: num(p.widthMinPixels, 0),
@@ -603,6 +619,7 @@ function buildLayer(
         widthMinPixels: num(p.widthMinPixels, 2),
         widthScale: num(p.widthScale, 1),
         widthUnits: widthUnits(p.widthUnits ?? 'meters'),
+        getWidth: has('getWidth') ? undefined : 1,
         ...pathShape(p),
         ...constant('getColor', rgb(p.color, [253, 128, 93])),
       } as never)
@@ -696,6 +713,7 @@ function buildLayer(
       const size = num(p.size, 12)
       const color = rgb(p.color, [230, 230, 230])
       const outline = num(p.outlineWidth, 2)
+      const border = rgb(p.borderColor, [0, 0, 0])
       return new TextLayer({
         ...common,
         data: binary.texts ?? [],
@@ -715,6 +733,8 @@ function buildLayer(
           getSize: String(p.size),
           getAngle: String(p.angle),
           getPixelOffset: `${p.offsetX},${p.offsetY}`,
+          getBorderColor: String(p.borderColor),
+          getBorderWidth: String(p.borderWidth),
         },
         fontFamily: String(p.fontFamily ?? 'ui-monospace, SF Mono, Menlo, monospace'),
         fontWeight: num(p.fontWeight, 400),
@@ -722,6 +742,8 @@ function buildLayer(
         outlineColor: [...rgb(p.outlineColor, [8, 9, 13]).slice(0, 3), 220],
         background: p.background === true,
         getBackgroundColor: rgb(p.backgroundColor, [255, 255, 255]),
+        getBorderColor: (d: TextRow) => d.borderColor ?? border,
+        getBorderWidth: (d: TextRow) => d.borderWidth ?? num(p.borderWidth, 0),
         fontSettings: { sdf: outline > 0 },
         sizeScale: num(p.sizeScale, 1),
         sizeMinPixels: num(p.sizeMinPixels, 0),

@@ -35,6 +35,7 @@ An edge into it ends at `"targetPort": "in"`; one out of it starts at `"sourcePo
 | `order` | `column` | `"index"` |  |
 | `color` | `expr` | `""` |  |
 | `lineColorChannel` | `expr` | `""` |  |
+| `lineWidth` | `expr` | `""` |  |
 | `elevation` | `expr` | `""` |  |
 | `ramp` | `menu` | `"viridis"` | 37 choices |
 | `filled` | `toggle` | `true` |  |

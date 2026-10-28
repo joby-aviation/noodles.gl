@@ -2706,7 +2706,11 @@ export function toEditorDoc(original: NoodlesProject): Migrated {
     }
     const fill = colorInput(colorChannel(v('getFillColor')), layer.id, 'getFillColor')
     const line = colorInput(colorChannel(v('getLineColor')), layer.id, 'getLineColor')
-    const lineWidth = constant(v('getLineWidth'), 'getLineWidth') * num(i.lineWidthScale, 1)
+    // A per-row width is the polygons' outline width and the lines' width, times the scale
+    const widthValue = v('getLineWidth')
+    const rowWidth = widthValue.kind === 'row' ? widthValue.expr : undefined
+    const lineWidth =
+      (rowWidth ? 1 : constant(widthValue, 'getLineWidth')) * num(i.lineWidthScale, 1)
     // Each layer draws its own kind of each feature's geometry and skips the rest
     const geo = { position: 'geom' }
 
@@ -2723,6 +2727,7 @@ export function toEditorDoc(original: NoodlesProject): Migrated {
         ...(line.color ? { lineColor: line.color } : {}),
         filled: i.filled !== false,
         stroked: i.stroked !== false,
+        ...(rowWidth ? { lineWidth: rowWidth } : {}),
         lineWidthScale: lineWidth,
         lineWidthUnits: String(i.lineWidthUnits),
         lineWidthMinPixels: num(i.lineWidthMinPixels, 0),
@@ -2742,6 +2747,7 @@ export function toEditorDoc(original: NoodlesProject): Migrated {
         ...geo,
         color: line.channel ?? '',
         ...(line.color ? { lineColor: line.color } : {}),
+        ...(rowWidth ? { width: rowWidth } : {}),
         widthScale: lineWidth,
         widthUnits: String(i.lineWidthUnits),
         widthMinPixels: num(i.lineWidthMinPixels, 0),
@@ -2917,18 +2923,18 @@ export function toEditorDoc(original: NoodlesProject): Migrated {
     }
     const push = (op: string) =>
       nodes.push({ id: layer.id, op, name: segment(layer.id), ...position(layer), params })
-    // An outline of one color and width as Outline color and width; the inputs it read, which a
-    // per-row color or width (not converted yet) leaves out
+    // An outline as its color and width: a constant as Outline color and Outline width scale, a
+    // per-row one as the Outline color and Outline width channels. Returns the inputs it read.
     const outline = (stroked: boolean, units: string): string[] => {
       const width = v('getLineWidth')
-      const color = v('getLineColor')
-      if (width.kind === 'row' || color.kind === 'row') return []
-      const w = width.kind === 'const' ? num(width.value, 0) : 0
+      const w = width.kind === 'const' ? num(width.value, 0) : width.kind === 'row' ? 1 : 0
       params.stroked = stroked && w > 0
       if (params.stroked) {
+        if (width.kind === 'row') params.lineWidth = width.expr
         params.lineWidthScale = w
         params.lineWidthUnits = units
-        const c = colorInput(colorChannel(color), layer.id, 'getLineColor')
+        const c = colorInput(colorChannel(v('getLineColor')), layer.id, 'getLineColor')
+        if (c.channel) params.lineColorChannel = c.channel
         if (c.color) params.lineColor = c.color
       }
       return ['stroked', 'getLineColor', 'getLineWidth']
@@ -2999,6 +3005,12 @@ export function toEditorDoc(original: NoodlesProject): Migrated {
         if (height.kind !== 'const')
           throw new MigrationError(`${layer.id}: a per-row arc height is not converted`)
         params.height = num(height.value, 1)
+        const tilt = v('getTilt')
+        if (tilt.kind === 'row') params.tiltBy = tilt.expr
+        else {
+          const angle = constantOf(tilt, layer.id, 'getTilt')
+          if (angle !== 0) params.tilt = angle
+        }
         nodes.push({ id: layer.id, op: 'arc', name: segment(layer.id), ...position(layer), params })
         dropUnmapped(layer, [
           'opacity',
@@ -3010,6 +3022,7 @@ export function toEditorDoc(original: NoodlesProject): Migrated {
           'getWidth',
           'widthUnits',
           'getHeight',
+          'getTilt',
         ])
         break
       }
@@ -3095,6 +3108,15 @@ export function toEditorDoc(original: NoodlesProject): Migrated {
         params.background = i.background === true
         const background = colorInput(v('getBackgroundColor'), layer.id, 'getBackgroundColor')
         if (background.color) params.backgroundColor = background.color
+        // The background's border, when it has a width
+        const borderWidth = v('getBorderWidth')
+        if (borderWidth.kind === 'row') params.borderWidthBy = borderWidth.expr
+        else params.borderWidth = constantOf(borderWidth, layer.id, 'getBorderWidth')
+        if (borderWidth.kind === 'row' || params.borderWidth !== 0) {
+          const border = colorInput(colorChannel(v('getBorderColor')), layer.id, 'getBorderColor')
+          if (border.channel) params.borderColorChannel = border.channel
+          if (border.color) params.borderColor = border.color
+        } else delete params.borderWidth
         push('text')
         dropUnmapped(layer, [
           'opacity',
@@ -3116,6 +3138,8 @@ export function toEditorDoc(original: NoodlesProject): Migrated {
           'outlineColor',
           'background',
           'getBackgroundColor',
+          'getBorderColor',
+          'getBorderWidth',
         ])
         break
       }
@@ -3212,8 +3236,11 @@ export function toEditorDoc(original: NoodlesProject): Migrated {
           const line = colorInput(colorChannel(lineValue), layer.id, 'getLineColor')
           params.lineColorChannel = line.channel ?? ''
           if (line.color) params.lineColor = line.color
+          const width = v('getLineWidth')
+          if (width.kind === 'row') params.lineWidth = width.expr
           params.lineWidthScale =
-            constantOf(v('getLineWidth'), layer.id, 'getLineWidth') * num(i.lineWidthScale, 1)
+            (width.kind === 'row' ? 1 : constantOf(width, layer.id, 'getLineWidth')) *
+            num(i.lineWidthScale, 1)
           params.lineWidthUnits = String(i.lineWidthUnits)
           params.lineWidthMinPixels = num(i.lineWidthMinPixels, 0)
         }
@@ -3388,9 +3415,10 @@ export function toEditorDoc(original: NoodlesProject): Migrated {
         params.color = color.channel ?? ''
         if (color.color) params.lineColor = color.color
         const width = v('getWidth')
-        if (width.kind !== 'const')
-          throw new MigrationError(`${layer.id}: a per-row trail width is not converted`)
-        params.widthScale = num(width.value, 8) * num(i.widthScale, 20)
+        if (width.kind === 'color')
+          throw new MigrationError(`${layer.id}: getWidth from a color is not a width`)
+        if (width.kind === 'row') params.width = width.expr
+        params.widthScale = (width.kind === 'row' ? 1 : num(width.value, 8)) * num(i.widthScale, 20)
         params.widthUnits = String(i.widthUnits)
         params.widthMinPixels = num(i.widthMinPixels, 2)
         params.trailLength = num(i.trailLength, 120)

@@ -354,24 +354,77 @@ describe('the small Noodles values, as planner and deck operators', () => {
     expect(warnings.filter(w => w.includes('dropped'))).toEqual([])
   })
 
-  it('keeps warning about a per-row outline width, which a later change converts', () => {
-    const { warnings } = toEditorDoc(
+  it('converts a per-row outline width and color into the outline channels', () => {
+    const { doc, warnings } = toEditorDoc(
       deck(
         [
           op('/rows', 'DuckDbOp', { query: 'SELECT 1.0 AS lng, 2.0 AS lat' }),
           op('/where', 'AccessorOp', { expression: '[d.lng, d.lat]' }),
-          op('/width', 'AccessorOp', { expression: 'd.lng' }),
+          op('/width', 'AccessorOp', { expression: 'd.lng * 3' }),
+          op('/tint', 'AccessorOp', { expression: '[d.lng * 255, 0, 0]' }),
           op('/points', 'ScatterplotLayerOp', { getLineWidth: 1 }),
         ],
         [
           wire('/rows', 'data', '/points', 'data'),
           wire('/where', 'accessor', '/points', 'getPosition'),
           wire('/width', 'accessor', '/points', 'getLineWidth'),
+          wire('/tint', 'accessor', '/points', 'getLineColor'),
           wire('/points', 'layer', '/deck', 'layers'),
         ]
       )
     )
-    expect(warnings).toContain("/points: dropped 'getLineWidth'")
+    const params = doc.nodes.find(n => n.id === '/points')?.params
+    expect(params).toMatchObject({ stroked: true, lineWidthScale: 1 })
+    expect(params?.lineWidth).toEqual(expect.any(String))
+    expect(params?.lineColorChannel).toEqual(expect.any(String))
+    expect(warnings).toEqual([])
+    expect(lowerDocument(doc).errors).toEqual([])
+  })
+
+  it('converts a per-row trail width, an arc tilt and a label border', () => {
+    const { doc, warnings } = toEditorDoc(
+      deck(
+        [
+          op('/rows', 'DuckDbOp', {
+            query:
+              'SELECT [[0.0, 0.0], [1.0, 1.0]] AS path, [0.0, 1.0] AS ts, 1.0 AS lng, 2.0 AS lat, 4.0 AS w',
+          }),
+          op('/path', 'AccessorOp', { expression: 'd.path' }),
+          op('/times', 'AccessorOp', { expression: 'd.ts' }),
+          op('/width', 'AccessorOp', { expression: 'd.w' }),
+          op('/trips', 'TripsLayerOp', { widthScale: 2 }),
+          op('/from', 'AccessorOp', { expression: '[d.lng, d.lat]' }),
+          op('/arcs', 'ArcLayerOp', { getTilt: 30 }),
+          op('/names', 'AccessorOp', { expression: 'd.lng' }),
+          op('/labels', 'TextLayerOp', {
+            background: true,
+            getBorderWidth: 2,
+            getBorderColor: '#00ff00ff',
+          }),
+        ],
+        [
+          wire('/rows', 'data', '/trips', 'data'),
+          wire('/path', 'accessor', '/trips', 'getPath'),
+          wire('/times', 'accessor', '/trips', 'getTimestamps'),
+          wire('/width', 'accessor', '/trips', 'getWidth'),
+          wire('/trips', 'layer', '/deck', 'layers'),
+          wire('/rows', 'data', '/arcs', 'data'),
+          wire('/from', 'accessor', '/arcs', 'getSourcePosition'),
+          wire('/from', 'accessor', '/arcs', 'getTargetPosition'),
+          wire('/arcs', 'layer', '/deck', 'layers'),
+          wire('/rows', 'data', '/labels', 'data'),
+          wire('/from', 'accessor', '/labels', 'getPosition'),
+          wire('/names', 'accessor', '/labels', 'getText'),
+          wire('/labels', 'layer', '/deck', 'layers'),
+        ]
+      )
+    )
+    const params = (id: string) => doc.nodes.find(n => n.id === id)?.params
+    expect(params('/trips')).toMatchObject({ widthScale: 2 })
+    expect(params('/trips')?.width).toEqual(expect.any(String))
+    expect(params('/arcs')).toMatchObject({ tilt: 30 })
+    expect(params('/labels')).toMatchObject({ borderWidth: 2, borderColor: [0, 255, 0] })
+    expect(warnings.filter(w => w.includes('dropped'))).toEqual([])
   })
 
   it('carries a hexagon layer’s scales, and leaves defaults out of the document', () => {

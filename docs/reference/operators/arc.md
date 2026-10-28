@@ -34,10 +34,12 @@ An edge into it ends at `"targetPort": "in"`; one out of it starts at `"sourcePo
 | `sourceColor` | `expr` | `""` |  |
 | `targetColor` | `expr` | `""` |  |
 | `width` | `expr` | `""` |  |
+| `tiltBy` | `expr` | `""` |  |
 | `ramp` | `menu` | `"viridis"` | 37 choices |
 | `widthScale` | `float` | `1.5` |  |
 | `widthUnits` | `menu` | `"pixels"` | `pixels`, `meters`, `common` |
 | `height` | `float` | `1` |  |
+| `tilt` | `float` | `0` |  |
 | `greatCircle` | `toggle` | `false` |  |
 | `fromColor` | `color` | `[0,180,255]` |  |
 | `toColor` | `color` | `[255,60,120]` |  |

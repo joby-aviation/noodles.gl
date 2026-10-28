@@ -458,3 +458,88 @@ describe('DeckLayerBuilder style props', () => {
     })
   })
 })
+
+describe('DeckLayerBuilder per-row channels', () => {
+  const W = new Float32Array([2, 5])
+  const C = new Float32Array([1, 0, 0, 0, 1, 0])
+  // Two rows with a position, a width-like number `W` and a color `C`, bound to the channels given
+  const build = (kind: string, channels: Record<string, string>, props = {}) =>
+    (
+      new DeckLayerBuilder()
+        .build([
+          {
+            id: 'it',
+            kind: kind as never,
+            data: {
+              rows: 2,
+              attributes: new Map([
+                ['P', { data: new Float32Array([0, 0, 1, 1]), width: 2 }],
+                ['W', { data: W, width: 1 }],
+                ['C', { data: C, width: 3 }],
+              ]),
+              strings: new Map([['T', ['a', 'b']]]),
+              evalMs: 0,
+              code: '',
+            },
+            bindings: Object.entries({ position: 'P', ...channels }).map(
+              ([channel, attribute]) => ({
+                channel,
+                attribute,
+              })
+            ),
+            props: props as never,
+          },
+        ])
+        .get('it') ?? []
+    ).map(l => l.props as unknown as Record<string, unknown>)
+  const attributes = (p: Record<string, unknown>) =>
+    (p.data as { attributes: Record<string, { value: ArrayLike<number> }> }).attributes
+
+  it('draws a scatterplot and a column outline per row', () => {
+    for (const kind of ['scatter', 'column']) {
+      const [p] = build(kind, { lineColor: 'C', lineWidth: 'W' }, { stroked: true })
+      expect(Array.from(attributes(p).getLineWidth.value)).toEqual([2, 5])
+      expect(Array.from(attributes(p).getLineColor.value)).toEqual([255, 0, 0, 255, 0, 255, 0, 255])
+      expect(p.getLineWidth).toBeUndefined()
+      // No constant outline color for deck to draw instead
+      expect(p.updateTriggers).not.toHaveProperty('getLineColor')
+    }
+  })
+
+  it('draws a trail width and an arc tilt per row, and a constant tilt without one', () => {
+    const [trips] = build('trips', { width: 'W' })
+    expect(Array.from(attributes(trips).getWidth.value)).toEqual([2, 5])
+    expect(trips.getWidth).toBeUndefined()
+    expect(build('trips', {})[0].getWidth).toBe(1)
+    const [arc] = build('arc', { sourcePosition: 'P', targetPosition: 'P', tilt: 'W' }, { tilt: 9 })
+    expect(Array.from(attributes(arc).getTilt.value)).toEqual([2, 5])
+    expect(arc.getTilt).toBeUndefined()
+    expect(build('arc', { sourcePosition: 'P', targetPosition: 'P' }, { tilt: 9 })[0].getTilt).toBe(
+      9
+    )
+  })
+
+  it('draws a polygon outline width per vertex of its rings', () => {
+    const [, outline] = build('polygon', { lineWidth: 'W' }, { stroked: true })
+    expect(Array.from(attributes(outline).getWidth.value)).toEqual([2, 5])
+    expect(outline.getWidth).toBeUndefined()
+    expect(build('polygon', {}, { stroked: true })[1].getWidth).toBe(1)
+  })
+
+  it('gives each label its own border, or the constant one', () => {
+    const [text] = build(
+      'text',
+      { text: 'T', borderColor: 'C' },
+      { background: true, borderWidth: 3, borderColor: [0, 0, 255] }
+    )
+    const rows = text.data as { borderColor?: number[]; borderWidth?: number }[]
+    const color = text.getBorderColor as (d: unknown) => number[]
+    const width = text.getBorderWidth as (d: unknown) => number
+    expect(color(rows[1])).toEqual([0, 255, 0, 255])
+    expect(width(rows[1])).toBe(3)
+    const [by] = build('text', { text: 'T', borderWidth: 'W' }, { borderColor: [0, 0, 255] })
+    const byRows = by.data as unknown[]
+    expect((by.getBorderWidth as (d: unknown) => number)(byRows[1])).toBe(5)
+    expect((by.getBorderColor as (d: unknown) => number[])(byRows[1])).toEqual([0, 0, 255, 255])
+  })
+})
