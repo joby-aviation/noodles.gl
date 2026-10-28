@@ -470,8 +470,13 @@ export function inferSchema(data: unknown[]): TableSchema {
 // Get default value for a column type
 export function getDefaultValue(schema: ColumnSchema): unknown {
   switch (schema.type) {
-    case 'number':
-      return schema.options?.min ?? 0
+    case 'number': {
+      const minimum = schema.options?.min
+      const maximum = schema.options?.max
+      if (minimum !== undefined) return minimum
+      if (maximum !== undefined && maximum < 0) return maximum
+      return 0
+    }
     case 'string':
       return ''
     case 'boolean':
