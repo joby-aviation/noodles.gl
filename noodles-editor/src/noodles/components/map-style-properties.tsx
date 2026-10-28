@@ -528,10 +528,11 @@ const CHART_H = 44
 const BEZIER_H = 84
 const BEZIER_PAD = 14
 
-const PRESETS: { label: string; value: Bezier }[] = [
-  { label: 'Ease in', value: [0.42, 0, 1, 1] },
-  { label: 'Ease out', value: [0, 0, 0.58, 1] },
-  { label: 'Ease in-out', value: EASE },
+// Short labels, so the presets and the curve's numbers share one line
+const PRESETS: { label: string; title: string; value: Bezier }[] = [
+  { label: 'In', title: 'Ease in', value: [0.42, 0, 1, 1] },
+  { label: 'Out', title: 'Ease out', value: [0, 0, 0.58, 1] },
+  { label: 'In-out', title: 'Ease in and out', value: EASE },
 ]
 
 /**
@@ -667,13 +668,17 @@ function RampChart({
             <button
               key={preset.label}
               type="button"
+              title={preset.title}
               className={cx(p.preset, preset.value.join() === b.join() && p.presetOn)}
               onClick={() => onBezier(preset.value)}
             >
               {preset.label}
             </button>
           ))}
-          <span className={p.bezierValues}>{b.join(', ')}</span>
+          {/* Two decimals each, so dragging a handle doesn't change the row's width */}
+          <span className={p.bezierValues} title={b.join(', ')}>
+            {b.map(n => n.toFixed(2)).join(', ')}
+          </span>
         </div>
       )}
       <svg
