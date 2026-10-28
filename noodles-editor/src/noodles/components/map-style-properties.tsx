@@ -466,18 +466,13 @@ function RampEditor({
           </span>
         )}
       </div>
-      {ramp.curve === 'bezier' && (
-        <BezierEditor
-          value={ramp.bezier ?? EASE}
-          onChange={bezier => onChange({ ...ramp, bezier })}
-        />
-      )}
       <RampChart
         stops={stops}
         curve={ramp.curve}
         base={ramp.base}
         bezier={ramp.bezier}
         zoom={zoom}
+        onBezier={bezier => onChange({ ...ramp, bezier })}
       />
       {stops.map(([z, v], i) => (
         // biome-ignore lint/suspicious/noArrayIndexKey: stops are edited in place; a zoom can repeat while typed
@@ -529,69 +524,9 @@ function RampEditor({
 
 const CHART_W = 240
 const CHART_H = 44
-
-/** A number ramp's curve over zoom 0–22, with the preview's zoom marked; colors as a gradient. */
-function RampChart({
-  stops,
-  curve,
-  base,
-  bezier,
-  zoom,
-}: {
-  stops: [number, unknown][]
-  curve: Curve
-  base: number
-  bezier?: Bezier
-  zoom: number
-}) {
-  const x = (z: number) => (Math.min(22, Math.max(0, z)) / 22) * CHART_W
-  if (stops.every(([, v]) => typeof v === 'string')) {
-    return (
-      <div
-        className={p.gradient}
-        style={{
-          background: `linear-gradient(to right, ${stops
-            .map(([z, v]) => `${v} ${((x(z) / CHART_W) * 100).toFixed(1)}%`)
-            .join(', ')})`,
-        }}
-      />
-    )
-  }
-  if (!stops.every(([, v]) => typeof v === 'number')) return null
-  const values = stops.map(([, v]) => v as number)
-  const lo = Math.min(0, ...values)
-  const hi = Math.max(...values, lo + 1e-6)
-  const y = (v: number) => CHART_H - 4 - ((v - lo) / (hi - lo)) * (CHART_H - 8)
-  // Sampled, so an exponential curve bends as MapLibre draws it
-  const at = (z: number): number => {
-    if (z <= stops[0][0]) return values[0]
-    for (let i = 1; i < stops.length; i++) {
-      const [z0, z1] = [stops[i - 1][0], stops[i][0]]
-      if (z > z1) continue
-      if (curve === 'step') return values[i - 1]
-      return (
-        values[i - 1] +
-        (values[i] - values[i - 1]) * curveFactor({ curve, base, bezier }, z - z0, z1 - z0)
-      )
-    }
-    return values[values.length - 1]
-  }
-  const points = Array.from({ length: 89 }, (_, i) => i / 4).map(z => `${x(z)},${y(at(z))}`)
-  return (
-    <svg
-      className={p.chart}
-      viewBox={`0 0 ${CHART_W} ${CHART_H}`}
-      role="img"
-      aria-label="Value by zoom"
-    >
-      <line className={p.chartZoom} x1={x(zoom)} x2={x(zoom)} y1={0} y2={CHART_H} />
-      <polyline className={p.chartLine} points={points.join(' ')} />
-      {stops.map(([z, v]) => (
-        <circle key={z} className={p.chartStop} cx={x(z)} cy={y(v as number)} r={2.5} />
-      ))}
-    </svg>
-  )
-}
+// Taller while a bezier's handles are on it, with room for a curve that overshoots
+const BEZIER_H = 84
+const BEZIER_PAD = 14
 
 const PRESETS: { label: string; value: Bezier }[] = [
   { label: 'Ease in', value: [0.42, 0, 1, 1] },
@@ -599,72 +534,201 @@ const PRESETS: { label: string; value: Bezier }[] = [
   { label: 'Ease in-out', value: EASE },
 ]
 
-const BOX = 96
-// Room above and below the square, for a curve that overshoots
-const PAD = 16
-
 /**
- * A cubic bezier's two control points, dragged in a unit square as MapTiler's curve editor: the
- * curve goes from the lower stop (bottom left) to the upper one (top right) between each pair.
+ * A ramp over zoom 0–22 with the preview's zoom marked: numbers as their curve, colors as a
+ * gradient. A bezier ramp shows its control handles between every pair of stops, as a curve
+ * editor's tangents. MapLibre's `cubic-bezier` is one easing for every segment, so dragging
+ * any handle reshapes them all. A color ramp's segments each rise from one stop to the next.
  */
-function BezierEditor({ value, onChange }: { value: Bezier; onChange: (value: Bezier) => void }) {
-  const [x1, y1, x2, y2] = value
-  const px = (x: number) => x * BOX
-  const py = (y: number) => PAD + (1 - y) * BOX
-  const drag = (handle: 0 | 1) => (e: ReactPointerEvent<SVGCircleElement>) => {
-    const svg = e.currentTarget.ownerSVGElement
-    if (!svg) return
-    e.currentTarget.setPointerCapture(e.pointerId)
-    const move = (ev: PointerEvent) => {
-      const r = svg.getBoundingClientRect()
-      const scale = r.width / BOX
-      // x stays in 0–1 so the curve is a function of the zoom; y may overshoot
-      const x = Math.min(1, Math.max(0, (ev.clientX - r.left) / scale / BOX))
-      const y = Math.min(1.5, Math.max(-0.5, 1 - ((ev.clientY - r.top) / scale - PAD) / BOX))
-      const round = (n: number) => Math.round(n * 100) / 100
-      const next = [...value] as Bezier
-      next[handle * 2] = round(x)
-      next[handle * 2 + 1] = round(y)
-      onChange(next)
+function RampChart({
+  stops,
+  curve,
+  base,
+  bezier,
+  zoom,
+  onBezier,
+}: {
+  stops: [number, unknown][]
+  curve: Curve
+  base: number
+  bezier?: Bezier
+  zoom: number
+  onBezier: (bezier: Bezier) => void
+}) {
+  // Drawn at its own width in pixels, so handles and stops keep their size as the pane grows
+  // A callback ref: switching curves can draw a different element to measure
+  const [el, setEl] = useState<HTMLDivElement | null>(null)
+  const [width, setWidth] = useState(CHART_W)
+  useEffect(() => {
+    if (!el) return
+    const observer = new ResizeObserver(([entry]) => setWidth(entry.contentRect.width || CHART_W))
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [el])
+  // The zooms the stops span, a zoom either side: stops close together still spread out
+  const zMin = Math.max(0, stops[0][0] - 1)
+  const zMax = Math.min(24, stops[stops.length - 1][0] + 1)
+  const x = (z: number) => ((Math.min(zMax, Math.max(zMin, z)) - zMin) / (zMax - zMin || 1)) * width
+  const numbers = stops.every(([, v]) => typeof v === 'number')
+  const colors = stops.every(([, v]) => typeof v === 'string')
+  const gradient = colors && (
+    <div
+      className={p.gradient}
+      style={{
+        background: `linear-gradient(to right, ${stops
+          .map(([z, v]) => `${v} ${((x(z) / width) * 100).toFixed(1)}%`)
+          .join(', ')})`,
+      }}
+    />
+  )
+  const isBezier = curve === 'bezier'
+  if (!numbers && !(colors && isBezier)) return <div ref={setEl}>{gradient}</div>
+
+  const b = bezier ?? EASE
+  const h = isBezier ? BEZIER_H : CHART_H
+  const pad = isBezier ? BEZIER_PAD : 4
+  // Numbers on their own scale; colors as each segment's blend from 0 to 1
+  const values = numbers ? stops.map(([, v]) => v as number) : undefined
+  const lo = values ? Math.min(0, ...values) : 0
+  const hi = values ? Math.max(...values, lo + 1e-6) : 1
+  const y = (v: number) => h - pad - ((v - lo) / (hi - lo)) * (h - pad * 2)
+  const ends = (i: number): [number, number] => (values ? [values[i - 1], values[i]] : [0, 1])
+  const at = (z: number): number => {
+    if (z <= stops[0][0]) return ends(1)[0]
+    for (let i = 1; i < stops.length; i++) {
+      const [z0, z1] = [stops[i - 1][0], stops[i][0]]
+      if (z > z1) continue
+      const [v0, v1] = ends(i)
+      if (curve === 'step') return v0
+      return v0 + (v1 - v0) * curveFactor({ curve, base, bezier }, z - z0, z1 - z0)
     }
-    const up = () => {
-      window.removeEventListener('pointermove', move)
-      window.removeEventListener('pointerup', up)
-    }
-    window.addEventListener('pointermove', move)
-    window.addEventListener('pointerup', up)
+    return ends(stops.length - 1)[1]
   }
+  // Sampled, so an exponential or bezier curve bends as MapLibre draws it; a color ramp's
+  // segments are drawn apart, each from 0 to 1
+  const line = values
+    ? Array.from({ length: 121 }, (_, i) => zMin + ((zMax - zMin) * i) / 120)
+        .map(z => `${x(z)},${y(at(z))}`)
+        .join(' ')
+    : undefined
+  const segments = stops.slice(1).map((_, k) => {
+    const i = k + 1
+    const [z0, z1] = [stops[i - 1][0], stops[i][0]]
+    const [v0, v1] = ends(i)
+    const [X0, X1, Y0, Y1] = [x(z0), x(z1), y(v0), y(v1)]
+    return {
+      key: `${z0}-${z1}`,
+      box: [X0, X1, Y0, Y1] as const,
+      handles: [
+        [X0 + b[0] * (X1 - X0), Y0 + b[1] * (Y1 - Y0)],
+        [X0 + b[2] * (X1 - X0), Y0 + b[3] * (Y1 - Y0)],
+      ] as const,
+      path: values
+        ? undefined
+        : Array.from({ length: 33 }, (_, t) => t / 32)
+            .map(t => `${X0 + t * (X1 - X0)},${y(curveFactor({ curve, base, bezier }, t, 1))}`)
+            .join(' '),
+    }
+  })
+
+  // A handle dragged within its segment: the point's place in that segment is the curve's
+  const drag =
+    (box: readonly [number, number, number, number], handle: 0 | 1) =>
+    (e: ReactPointerEvent<SVGCircleElement>) => {
+      const svg = e.currentTarget.ownerSVGElement
+      const toChart = svg?.getScreenCTM()?.inverse()
+      if (!svg || !toChart) return
+      e.preventDefault()
+      const [X0, X1, Y0, Y1] = box
+      const move = (ev: PointerEvent) => {
+        const pt = new DOMPoint(ev.clientX, ev.clientY).matrixTransform(toChart)
+        const round = (n: number) => Math.round(n * 100) / 100
+        const next = [...b] as Bezier
+        // x stays in 0–1 so the curve is a function of the zoom; y may overshoot
+        next[handle * 2] = round(Math.min(1, Math.max(0, (pt.x - X0) / (X1 - X0 || 1))))
+        // A flat segment can't say how far up a handle is; the others keep it
+        if (Math.abs(Y1 - Y0) > 1)
+          next[handle * 2 + 1] = round(Math.min(1.5, Math.max(-0.5, (pt.y - Y0) / (Y1 - Y0))))
+        onBezier(next)
+      }
+      const up = () => {
+        window.removeEventListener('pointermove', move)
+        window.removeEventListener('pointerup', up)
+      }
+      window.addEventListener('pointermove', move)
+      window.addEventListener('pointerup', up)
+    }
+
   return (
-    <div className={p.bezier}>
+    <div ref={setEl} className={p.chartWrap}>
+      {isBezier && (
+        <div className={p.presets}>
+          {PRESETS.map(preset => (
+            <button
+              key={preset.label}
+              type="button"
+              className={cx(p.preset, preset.value.join() === b.join() && p.presetOn)}
+              onClick={() => onBezier(preset.value)}
+            >
+              {preset.label}
+            </button>
+          ))}
+          <span className={p.bezierValues}>{b.join(', ')}</span>
+        </div>
+      )}
       <svg
-        className={p.bezierBox}
-        viewBox={`0 0 ${BOX} ${BOX + PAD * 2}`}
+        className={cx(p.chart, isBezier && p.chartBezier)}
+        width={width}
+        height={h}
+        viewBox={`0 0 ${width} ${h}`}
         role="img"
-        aria-label={`Bezier curve ${value.join(', ')}`}
+        aria-label="Value by zoom"
       >
-        <rect className={p.bezierSquare} x={0} y={PAD} width={BOX} height={BOX} />
-        <line className={p.bezierArm} x1={px(0)} y1={py(0)} x2={px(x1)} y2={py(y1)} />
-        <line className={p.bezierArm} x1={px(1)} y1={py(1)} x2={px(x2)} y2={py(y2)} />
-        <path
-          className={p.chartLine}
-          d={`M ${px(0)} ${py(0)} C ${px(x1)} ${py(y1)}, ${px(x2)} ${py(y2)}, ${px(1)} ${py(1)}`}
-        />
-        <circle className={p.bezierHandle} cx={px(x1)} cy={py(y1)} r={5} onPointerDown={drag(0)} />
-        <circle className={p.bezierHandle} cx={px(x2)} cy={py(y2)} r={5} onPointerDown={drag(1)} />
-      </svg>
-      <div className={p.bezierSide}>
-        {PRESETS.map(preset => (
-          <button
-            key={preset.label}
-            type="button"
-            className={cx(p.preset, preset.value.join() === value.join() && p.presetOn)}
-            onClick={() => onChange(preset.value)}
-          >
-            {preset.label}
-          </button>
+        {zoom >= zMin && zoom <= zMax && (
+          <line className={p.chartZoom} x1={x(zoom)} x2={x(zoom)} y1={0} y2={h} />
+        )}
+        {line && <polyline className={p.chartLine} points={line} />}
+        {segments.map(
+          seg => seg.path && <polyline key={seg.key} className={p.chartLine} points={seg.path} />
+        )}
+        {isBezier &&
+          segments.map(seg => {
+            const [X0, X1, Y0, Y1] = seg.box
+            const [[ax, ay], [bx, by]] = seg.handles
+            return (
+              <g key={`h-${seg.key}`}>
+                <line className={p.bezierArm} x1={X0} y1={Y0} x2={ax} y2={ay} />
+                <line className={p.bezierArm} x1={X1} y1={Y1} x2={bx} y2={by} />
+                <circle
+                  className={p.bezierHandle}
+                  cx={ax}
+                  cy={ay}
+                  r={3.5}
+                  aria-label="Bezier handle leaving the stop"
+                  onPointerDown={drag(seg.box, 0)}
+                />
+                <circle
+                  className={p.bezierHandle}
+                  cx={bx}
+                  cy={by}
+                  r={3.5}
+                  aria-label="Bezier handle entering the stop"
+                  onPointerDown={drag(seg.box, 1)}
+                />
+              </g>
+            )
+          })}
+        {stops.map(([z], i) => (
+          <circle
+            key={z}
+            className={p.chartStop}
+            cx={x(z)}
+            cy={values ? y(values[i]) : y(i === 0 ? 0 : 1)}
+            r={2.5}
+          />
         ))}
-        <span className={p.bezierValues}>{value.join(', ')}</span>
-      </div>
+      </svg>
+      {gradient}
     </div>
   )
 }

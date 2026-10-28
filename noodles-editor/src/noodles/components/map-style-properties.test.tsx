@@ -86,6 +86,49 @@ describe('the layer inspector', () => {
     ])
   })
 
+  it('draws a bezier’s handles between every pair of stops, and dragging one reshapes the curve', () => {
+    const onChange = vi.fn()
+    const bezierRoad = {
+      ...road,
+      paint: {
+        'line-width': [
+          'interpolate',
+          ['cubic-bezier', 0.42, 0, 0.58, 1],
+          ['zoom'],
+          5,
+          1,
+          9,
+          3,
+          12,
+          4,
+        ],
+      },
+    }
+    render(
+      <LayerInspector
+        layer={bezierRoad}
+        layerOverride={undefined}
+        spec={spec}
+        zoom={8}
+        onChange={onChange}
+      />
+    )
+    const handles = screen.getAllByLabelText(/Bezier handle/)
+    // Two segments, two handles each
+    expect(handles).toHaveLength(4)
+    expect(document.querySelector('[class*=bezierBox]')).toBeNull()
+    const leaving = handles[0]
+    const at = leaving.getBoundingClientRect()
+    leaving.dispatchEvent(
+      new PointerEvent('pointerdown', { bubbles: true, clientX: at.x, clientY: at.y })
+    )
+    window.dispatchEvent(new PointerEvent('pointermove', { clientX: at.x - 1000, clientY: at.y }))
+    window.dispatchEvent(new PointerEvent('pointerup', {}))
+    const [, , value] = onChange.mock.lastCall as [string, string, unknown[]]
+    // Dragged to the segment's start: x1 is 0; the other handle stays
+    expect(value[1]).toEqual(['cubic-bezier', 0, expect.any(Number), 0.58, 1])
+  })
+
   it('makes a constant follow the zoom, and puts a changed value back', () => {
     const onChange = inspect({ layerId: 'roads', paintOverrides: { 'line-opacity': 0.5 } })
     fireEvent.click(screen.getByLabelText('opacity: by zoom'))
