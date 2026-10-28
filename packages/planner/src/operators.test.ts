@@ -460,3 +460,21 @@ describe('bypass', () => {
     expect(lowered.graph.nodes.some((n) => n.id === 'keep')).toBe(false);
   });
 });
+
+describe('layer style props restored from Noodles', () => {
+  it('binds number props and reads toggles and menus structurally', () => {
+    const props = layerOf(scatterDoc({ stroked: true, lineWidthScale: 3, lineWidthUnits: 'meters', billboard: true })).props!;
+    expect(props.stroked).toBe(true);
+    expect(props.billboard).toBe(true);
+    expect(props.lineWidthUnits).toBe('meters');
+    // A slider is routed, never recompiled
+    expect(props.lineWidthScale).toMatch(/^\{\{.*\}\}$/);
+    expect(props.lineColor).toHaveLength(3);
+  });
+
+  it('leaves Noodles defaults in place when a parameter is unset', () => {
+    const props = layerOf(scatterDoc()).props!;
+    expect(props.stroked).toBe(false);
+    expect(props.antialiasing).toBe(true);
+  });
+});
