@@ -398,13 +398,11 @@ describe('DeckLayerBuilder style props', () => {
       capRounded: false,
       jointRounded: false,
       miterLimit: 2,
-      wrapLongitude: true,
     })
     expect(path).toMatchObject({
       capRounded: false,
       jointRounded: false,
       miterLimit: 2,
-      wrapLongitude: true,
     })
     const [column] = build('column', {
       radiusUnits: 'pixels',
@@ -456,5 +454,55 @@ describe('DeckLayerBuilder style props', () => {
       sizeMaxPixels: 64,
       sizeBasis: 'width',
     })
+  })
+})
+
+describe('DeckLayerBuilder longitude wrapping', () => {
+  // One path from 179° east across the antimeridian to 179° west, red turning blue
+  const crossing = (props: Record<string, unknown>) =>
+    new DeckLayerBuilder()
+      .build([
+        {
+          id: 'route',
+          kind: 'path',
+          data: {
+            rows: 2,
+            starts: new Uint32Array([0]),
+            attributes: new Map([
+              ['P', { data: new Float32Array([179, 0, -179, 2]), width: 2 }],
+              ['C', { data: new Float32Array([1, 0, 0, 0, 0, 1]), width: 3 }],
+            ]),
+            strings: new Map(),
+            evalMs: 0,
+            code: '',
+          },
+          bindings: [
+            { channel: 'position', attribute: 'P' },
+            { channel: 'color', attribute: 'C' },
+          ],
+          props: props as never,
+        },
+      ])
+      .get('route')?.[0]?.props.data as unknown as {
+      length: number
+      startIndices: Uint32Array
+      attributes: Record<string, { value: ArrayLike<number> }>
+    }
+
+  it('cuts a path at ±180° when wrapping, meeting the edge halfway in every attribute', () => {
+    const data = crossing({ wrapLongitude: true })
+    expect(data.length).toBe(2)
+    expect(Array.from(data.startIndices)).toEqual([0, 2])
+    expect(Array.from(data.attributes.getPath.value)).toEqual([
+      179, 0, 0, 180, 1, 0, -180, 1, 0, -179, 2, 0,
+    ])
+    // The color where it crosses is halfway from red to blue, on both sides
+    expect(Array.from(data.attributes.getColor.value).slice(4, 12)).toEqual([
+      127, 0, 127, 255, 127, 0, 127, 255,
+    ])
+  })
+
+  it('draws the path whole when not wrapping', () => {
+    expect(crossing({}).length).toBe(1)
   })
 })
