@@ -61,6 +61,31 @@ describe('the layer inspector', () => {
     expect(ramp.slice(3)).toEqual([5, 1, 8, 1 + (3 * 3) / 7, 12, 4])
   })
 
+  it('refuses a stop zoom another stop has', () => {
+    const onChange = inspect()
+    const box = screen
+      .getAllByLabelText('Stop zoom')
+      .find(e => (e as HTMLInputElement).value === '5')
+    fireEvent.change(box as HTMLElement, { target: { value: '12' } })
+    fireEvent.blur(box as HTMLElement)
+    expect(onChange).not.toHaveBeenCalled()
+    expect((box as HTMLInputElement).value).toBe('5')
+  })
+
+  it('switches a ramp to a bezier curve, eased in and out to start', () => {
+    const onChange = inspect()
+    fireEvent.change(screen.getByLabelText('Curve'), { target: { value: 'bezier' } })
+    expect(onChange).toHaveBeenLastCalledWith('paint', 'line-width', [
+      'interpolate',
+      ['cubic-bezier', 0.42, 0, 0.58, 1],
+      ['zoom'],
+      5,
+      1,
+      12,
+      4,
+    ])
+  })
+
   it('makes a constant follow the zoom, and puts a changed value back', () => {
     const onChange = inspect({ layerId: 'roads', paintOverrides: { 'line-opacity': 0.5 } })
     fireEvent.click(screen.getByLabelText('opacity: by zoom'))

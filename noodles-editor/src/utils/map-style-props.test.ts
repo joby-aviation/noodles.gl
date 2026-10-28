@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  bezierAt,
   loadStyleSpec,
   propLabel,
   rampAt,
@@ -141,6 +142,45 @@ describe('zoom ramps', () => {
       8,
     ])
     expect(scaleNumbers(3, 2)).toBe(6)
+  })
+})
+
+describe('review fixes and bezier ramps', () => {
+  it('reads a value at a zoom as MapLibre does: exponential, color, step thresholds', async () => {
+    const spec = await loadStyleSpec()
+    const width = spec.props('line').find(p => p.name === 'line-width')!
+    const color = spec.props('line').find(p => p.name === 'line-color')!
+    const exp = ['interpolate', ['exponential', 2], ['zoom'], 0, 0, 2, 3]
+    // 3 × (2^1 − 1) / (2^2 − 1)
+    expect(spec.valueAt(width, exp, 1)).toBeCloseTo(1)
+    expect(rampAt(zoomRampOf(exp, ops)!, 1)).toBeCloseTo(1)
+    const step = ['step', ['zoom'], 1, 10, 4]
+    expect(spec.valueAt(width, step, 10)).toBe(4)
+    expect(rampAt(zoomRampOf(step, ops)!, 10)).toBe(4)
+    const blend = ['interpolate', ['linear'], ['zoom'], 0, '#000000', 10, '#ffffff']
+    expect(spec.valueAt(color, blend, 5)).toMatch(/^rgba\(12[78]/)
+  })
+
+  it('wraps list values in literal, and reads them back as stops', () => {
+    const expr = rampExpression(rampFrom(['Open Sans Regular'], false))
+    expect(expr).toEqual([
+      'step',
+      ['zoom'],
+      ['literal', ['Open Sans Regular']],
+      16,
+      ['literal', ['Open Sans Regular']],
+    ])
+    expect(zoomRampOf(expr, ops)?.stops[0]).toEqual([0, ['Open Sans Regular']])
+  })
+
+  it('reads and writes a cubic bezier curve, eased between stops', () => {
+    const expr = ['interpolate', ['cubic-bezier', 0.42, 0, 0.58, 1], ['zoom'], 0, 0, 10, 10]
+    const ramp = zoomRampOf(expr, ops)!
+    expect(ramp).toMatchObject({ curve: 'bezier', bezier: [0.42, 0, 0.58, 1] })
+    expect(rampExpression(ramp)).toEqual(expr)
+    expect(bezierAt([0.42, 0, 0.58, 1], 0.5)).toBeCloseTo(0.5)
+    expect(bezierAt([0.42, 0, 1, 1], 0.5)).toBeLessThan(0.5)
+    expect(rampAt(ramp, 2)).toBeLessThan(2)
   })
 })
 

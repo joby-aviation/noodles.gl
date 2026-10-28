@@ -5,13 +5,15 @@
 // back to the style's own value.
 
 import cx from 'classnames'
-import { useEffect, useState } from 'react'
+import { type PointerEvent as ReactPointerEvent, useEffect, useState } from 'react'
 import {
+  type Bezier,
   type Curve,
+  curveFactor,
+  EASE,
   isExpression,
   type PropSpec,
   propLabel,
-  rampAt,
   rampExpression,
   rampFrom,
   type StyleSpec,
@@ -56,7 +58,7 @@ export function LayerInspector({
       layerType={layer.type}
       styleValue={styleOf(prop)}
       changed={changedOf(prop)}
-      operators={spec.operators}
+      spec={spec}
       zoom={zoom}
       onChange={value => onChange(prop.group, prop.name, value)}
     />
@@ -100,7 +102,7 @@ function PropertyRow({
   layerType,
   styleValue,
   changed,
-  operators,
+  spec,
   zoom,
   onChange,
 }: {
@@ -108,10 +110,11 @@ function PropertyRow({
   layerType: string
   styleValue: unknown
   changed: unknown
-  operators: Set<string>
+  spec: StyleSpec
   zoom: number
   onChange: (value: unknown) => void
 }) {
+  const { operators } = spec
   const value = changed ?? styleValue ?? prop.default
   const ramp = zoomRampOf(value, operators)
   const expression = !ramp && (isExpression(value, operators) || isFunction(value))
@@ -133,8 +136,11 @@ function PropertyRow({
               title={ramp ? 'Make it one value at every zoom' : 'Make it change with the zoom'}
               aria-label={ramp ? `${label}: one value` : `${label}: by zoom`}
               onClick={() =>
+                // The value the map shows at its zoom now, so nothing jumps
                 onChange(
-                  ramp ? rampAt(ramp, zoom) : rampExpression(rampFrom(value, prop.interpolated))
+                  ramp
+                    ? spec.valueAt(prop, value, zoom)
+                    : rampExpression(rampFrom(value, prop.interpolated))
                 )
               }
             >
@@ -159,6 +165,7 @@ function PropertyRow({
           prop={prop}
           ramp={ramp}
           zoom={zoom}
+          valueAt={z => spec.valueAt(prop, value, z)}
           onChange={next => onChange(rampExpression(next))}
         />
       ) : expression ? (
@@ -285,12 +292,15 @@ function NumberBox({
   min,
   max,
   label,
+  accept,
   onChange,
 }: {
   value: number
   min?: number
   max?: number
   label?: string
+  // A number refused here goes back to the value
+  accept?: (value: number) => boolean
   onChange: (value: number) => void
 }) {
   const [draft, setDraft] = useState(String(value))
@@ -302,7 +312,7 @@ function NumberBox({
       max ?? Number.POSITIVE_INFINITY,
       Math.max(min ?? Number.NEGATIVE_INFINITY, n)
     )
-    if (clamped !== value) onChange(clamped)
+    if (clamped !== value && (accept?.(clamped) ?? true)) onChange(clamped)
     else setDraft(String(value))
   }
   return (
@@ -399,6 +409,7 @@ function JsonEditor({ value, onChange }: { value: unknown; onChange: (value: unk
 const CURVES: { value: Curve; label: string }[] = [
   { value: 'linear', label: 'Linear' },
   { value: 'exponential', label: 'Exponential' },
+  { value: 'bezier', label: 'Bezier' },
   { value: 'step', label: 'Step' },
 ]
 
@@ -407,11 +418,14 @@ function RampEditor({
   prop,
   ramp,
   zoom,
+  valueAt,
   onChange,
 }: {
   prop: PropSpec
   ramp: ZoomRamp
   zoom: number
+  // The ramp's value at a zoom, as MapLibre computes it
+  valueAt: (zoom: number) => unknown
   onChange: (ramp: ZoomRamp) => void
 }) {
   const stops = [...ramp.stops].sort((a, b) => a[0] - b[0])
@@ -425,7 +439,14 @@ function RampEditor({
           className={p.select}
           value={ramp.curve}
           aria-label="Curve"
-          onChange={e => onChange({ ...ramp, curve: e.target.value as Curve })}
+          onChange={e => {
+            const curve = e.target.value as Curve
+            onChange({
+              ...ramp,
+              curve,
+              ...(curve === 'bezier' ? { bezier: ramp.bezier ?? EASE } : {}),
+            })
+          }}
         >
           {CURVES.filter(c => prop.interpolated || c.value === 'step').map(c => (
             <option key={c.value} value={c.value}>
@@ -445,7 +466,19 @@ function RampEditor({
           </span>
         )}
       </div>
-      <RampChart stops={stops} curve={ramp.curve} base={ramp.base} zoom={zoom} />
+      {ramp.curve === 'bezier' && (
+        <BezierEditor
+          value={ramp.bezier ?? EASE}
+          onChange={bezier => onChange({ ...ramp, bezier })}
+        />
+      )}
+      <RampChart
+        stops={stops}
+        curve={ramp.curve}
+        base={ramp.base}
+        bezier={ramp.bezier}
+        zoom={zoom}
+      />
       {stops.map(([z, v], i) => (
         // biome-ignore lint/suspicious/noArrayIndexKey: stops are edited in place; a zoom can repeat while typed
         <div key={i} className={p.stop}>
@@ -461,6 +494,8 @@ function RampEditor({
                 min={0}
                 max={24}
                 label="Stop zoom"
+                // Stops go up the zoom one at a time: two at one zoom is no ramp MapLibre reads
+                accept={nz => !stops.some(([oz], j) => j !== i && oz === nz)}
                 onChange={nz => setStop(i, [nz, v])}
               />
             )}
@@ -484,7 +519,7 @@ function RampEditor({
         type="button"
         className={p.addStop}
         disabled={stops.some(([z]) => z === here)}
-        onClick={() => onChange({ ...ramp, stops: [...stops, [here, rampAt(ramp, here)]] })}
+        onClick={() => onChange({ ...ramp, stops: [...stops, [here, valueAt(here)]] })}
       >
         + Stop at zoom {here}
       </button>
@@ -500,11 +535,13 @@ function RampChart({
   stops,
   curve,
   base,
+  bezier,
   zoom,
 }: {
   stops: [number, unknown][]
   curve: Curve
   base: number
+  bezier?: Bezier
   zoom: number
 }) {
   const x = (z: number) => (Math.min(22, Math.max(0, z)) / 22) * CHART_W
@@ -532,12 +569,10 @@ function RampChart({
       const [z0, z1] = [stops[i - 1][0], stops[i][0]]
       if (z > z1) continue
       if (curve === 'step') return values[i - 1]
-      const t = (z - z0) / (z1 - z0 || 1)
-      const f =
-        curve === 'exponential' && base !== 1
-          ? (base ** (t * (z1 - z0)) - 1) / (base ** (z1 - z0) - 1)
-          : t
-      return values[i - 1] + (values[i] - values[i - 1]) * f
+      return (
+        values[i - 1] +
+        (values[i] - values[i - 1]) * curveFactor({ curve, base, bezier }, z - z0, z1 - z0)
+      )
     }
     return values[values.length - 1]
   }
@@ -555,5 +590,81 @@ function RampChart({
         <circle key={z} className={p.chartStop} cx={x(z)} cy={y(v as number)} r={2.5} />
       ))}
     </svg>
+  )
+}
+
+const PRESETS: { label: string; value: Bezier }[] = [
+  { label: 'Ease in', value: [0.42, 0, 1, 1] },
+  { label: 'Ease out', value: [0, 0, 0.58, 1] },
+  { label: 'Ease in-out', value: EASE },
+]
+
+const BOX = 96
+// Room above and below the square, for a curve that overshoots
+const PAD = 16
+
+/**
+ * A cubic bezier's two control points, dragged in a unit square as MapTiler's curve editor: the
+ * curve goes from the lower stop (bottom left) to the upper one (top right) between each pair.
+ */
+function BezierEditor({ value, onChange }: { value: Bezier; onChange: (value: Bezier) => void }) {
+  const [x1, y1, x2, y2] = value
+  const px = (x: number) => x * BOX
+  const py = (y: number) => PAD + (1 - y) * BOX
+  const drag = (handle: 0 | 1) => (e: ReactPointerEvent<SVGCircleElement>) => {
+    const svg = e.currentTarget.ownerSVGElement
+    if (!svg) return
+    e.currentTarget.setPointerCapture(e.pointerId)
+    const move = (ev: PointerEvent) => {
+      const r = svg.getBoundingClientRect()
+      const scale = r.width / BOX
+      // x stays in 0–1 so the curve is a function of the zoom; y may overshoot
+      const x = Math.min(1, Math.max(0, (ev.clientX - r.left) / scale / BOX))
+      const y = Math.min(1.5, Math.max(-0.5, 1 - ((ev.clientY - r.top) / scale - PAD) / BOX))
+      const round = (n: number) => Math.round(n * 100) / 100
+      const next = [...value] as Bezier
+      next[handle * 2] = round(x)
+      next[handle * 2 + 1] = round(y)
+      onChange(next)
+    }
+    const up = () => {
+      window.removeEventListener('pointermove', move)
+      window.removeEventListener('pointerup', up)
+    }
+    window.addEventListener('pointermove', move)
+    window.addEventListener('pointerup', up)
+  }
+  return (
+    <div className={p.bezier}>
+      <svg
+        className={p.bezierBox}
+        viewBox={`0 0 ${BOX} ${BOX + PAD * 2}`}
+        role="img"
+        aria-label={`Bezier curve ${value.join(', ')}`}
+      >
+        <rect className={p.bezierSquare} x={0} y={PAD} width={BOX} height={BOX} />
+        <line className={p.bezierArm} x1={px(0)} y1={py(0)} x2={px(x1)} y2={py(y1)} />
+        <line className={p.bezierArm} x1={px(1)} y1={py(1)} x2={px(x2)} y2={py(y2)} />
+        <path
+          className={p.chartLine}
+          d={`M ${px(0)} ${py(0)} C ${px(x1)} ${py(y1)}, ${px(x2)} ${py(y2)}, ${px(1)} ${py(1)}`}
+        />
+        <circle className={p.bezierHandle} cx={px(x1)} cy={py(y1)} r={5} onPointerDown={drag(0)} />
+        <circle className={p.bezierHandle} cx={px(x2)} cy={py(y2)} r={5} onPointerDown={drag(1)} />
+      </svg>
+      <div className={p.bezierSide}>
+        {PRESETS.map(preset => (
+          <button
+            key={preset.label}
+            type="button"
+            className={cx(p.preset, preset.value.join() === value.join() && p.presetOn)}
+            onClick={() => onChange(preset.value)}
+          >
+            {preset.label}
+          </button>
+        ))}
+        <span className={p.bezierValues}>{value.join(', ')}</span>
+      </div>
+    </div>
   )
 }

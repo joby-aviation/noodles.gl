@@ -131,6 +131,7 @@ export function MapStyleConfiguratorDialog({
   debugUI('MapStyleConfiguratorDialog render open=%s', open)
   const [styleJson, setStyleJson] = useState<MaplibreStyle | null>(null)
   const [spec, setSpec] = useState<StyleSpec>()
+  const [specError, setSpecError] = useState<string>()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [overrides, setOverrides] = useState<StyleConfiguratorData>(
@@ -149,7 +150,11 @@ export function MapStyleConfiguratorDialog({
     mergedStyle ?? (typeof baseStyle === 'string' ? baseStyle : null) ?? CARTO_DARK
 
   useEffect(() => {
-    if (open) loadStyleSpec().then(setSpec, () => undefined)
+    if (!open) return
+    setSpecError(undefined)
+    loadStyleSpec().then(setSpec, (err: Error) =>
+      setSpecError(`The style spec didn't load, so layer properties can't be shown: ${err.message}`)
+    )
   }, [open])
 
   // Fetch style when dialog opens or baseStyle changes
@@ -236,16 +241,18 @@ export function MapStyleConfiguratorDialog({
   )
   const groupedLayers = styleJson ? groupLayersByCategory(layers) : null
   const selectedLayer = styleJson?.layers.find(l => l.id === selected)
-  // Count only entries with meaningful changes (ignore no-op visibility resets)
+  // Layers whose changes do something: visibility counts when it differs from the base
+  // style's own (an older style editor wrote `visible` over layers that already were)
+  const baseVisibility = (id: string) =>
+    styleJson?.layers.find(l => l.id === id)?.layout?.['visibility'] ?? 'visible'
   const totalOverrides =
-    overrides.layers?.filter(o => {
-      const hasHiddenLayer = o.layoutOverrides?.['visibility'] === 'none'
-      const hasPaintOverride = o.paintOverrides && Object.keys(o.paintOverrides).length > 0
-      const hasOtherLayout =
-        o.layoutOverrides &&
-        Object.entries(o.layoutOverrides).some(([k, v]) => !(k === 'visibility' && v === 'visible'))
-      return hasHiddenLayer || hasPaintOverride || hasOtherLayout
-    }).length ?? 0
+    overrides.layers?.filter(
+      o =>
+        Object.keys(o.paintOverrides ?? {}).length > 0 ||
+        Object.entries(o.layoutOverrides ?? {}).some(
+          ([k, v]) => k !== 'visibility' || v !== baseVisibility(o.layerId)
+        )
+    ).length ?? 0
 
   const global = (
     <div className={configuratorStyles.globalSection}>
@@ -322,7 +329,10 @@ export function MapStyleConfiguratorDialog({
               type="button"
               className={configuratorStyles.resetButton}
               onClick={handleReset}
-              disabled={totalOverrides === 0 && Object.keys(overrides.global ?? {}).length === 0}
+              disabled={
+                (overrides.layers?.length ?? 0) === 0 &&
+                Object.keys(overrides.global ?? {}).length === 0
+              }
             >
               Reset all
             </button>
@@ -436,6 +446,8 @@ export function MapStyleConfiguratorDialog({
                     analytics.track('map_style_property_changed', { group })
                   }}
                 />
+              ) : selectedLayer && specError ? (
+                <div className={configuratorStyles.error}>{specError}</div>
               ) : styleJson ? (
                 global
               ) : null}
