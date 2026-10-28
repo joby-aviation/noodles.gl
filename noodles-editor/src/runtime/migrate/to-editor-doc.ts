@@ -284,6 +284,8 @@ export const DEFAULTS: Record<string, Record<string, unknown>> = {
     getColor: '#f0f0f0ff',
     background: false,
     getBackgroundColor: '#ffffffff',
+    getBorderColor: '#000000ff',
+    getBorderWidth: 0,
     outlineWidth: 0,
     outlineColor: '#000000ff',
     getAngle: 0,

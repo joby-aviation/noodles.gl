@@ -452,6 +452,29 @@ describe('the small Noodles values, as planner and deck operators', () => {
     expect(warnings.filter(w => w.includes('dropped'))).toEqual([])
   })
 
+  it('converts a label border whose color was left at Noodles’ black', () => {
+    const { doc } = toEditorDoc(
+      deck(
+        [
+          op('/rows', 'DuckDbOp', { query: "SELECT 1.0 AS lng, 2.0 AS lat, 'a' AS name" }),
+          op('/where', 'AccessorOp', { expression: '[d.lng, d.lat]' }),
+          op('/names', 'AccessorOp', { expression: 'd.name' }),
+          op('/labels', 'TextLayerOp', { background: true, getBorderWidth: 2 }),
+        ],
+        [
+          wire('/rows', 'data', '/labels', 'data'),
+          wire('/where', 'accessor', '/labels', 'getPosition'),
+          wire('/names', 'accessor', '/labels', 'getText'),
+          wire('/labels', 'layer', '/deck', 'layers'),
+        ]
+      )
+    )
+    expect(doc.nodes.find(n => n.id === '/labels')?.params).toMatchObject({
+      borderWidth: 2,
+      borderColor: [0, 0, 0],
+    })
+  })
+
   it('carries a hexagon layer’s scales, and leaves defaults out of the document', () => {
     const { doc } = toEditorDoc(
       deck(
