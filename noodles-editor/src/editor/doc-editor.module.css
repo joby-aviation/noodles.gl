@@ -92,6 +92,16 @@
   opacity: 0.6;
 }
 
+.menu .menuParent {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.menu .menuParentOpen {
+  background: var(--color-accent-muted, #2b3550);
+}
+
 .panel {
   padding: 8px;
   font-size: 12px;

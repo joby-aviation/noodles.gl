@@ -124,6 +124,8 @@ export interface MenuItem {
   disabled?: boolean
   separator?: boolean
   heading?: string
+  // A submenu, opened beside the item on hover or click
+  items?: MenuItem[]
 }
 
 export function ContextMenu({
@@ -138,9 +140,12 @@ export function ContextMenu({
   onClose: () => void
 }) {
   const ref = useRef<HTMLDivElement>(null)
+  const [sub, setSub] = useState<{ at: number; top: number; right: number }>()
   useEffect(() => {
     const onDown = (e: PointerEvent) => {
-      if (!ref.current?.contains(e.target as Node)) onClose()
+      // A submenu is a menu of its own, drawn beside this one
+      const menu = (e.target as Element).closest?.(`.${s.menu}`)
+      if (!ref.current?.contains(e.target as Node) && !menu) onClose()
     }
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose()
@@ -170,11 +175,33 @@ export function ContextMenu({
               {it.heading}
             </div>
           )
+        if (it.items) {
+          const open = (el: HTMLElement) => {
+            const r = el.getBoundingClientRect()
+            setSub({ at: i, top: r.top - 4, right: r.right })
+          }
+          return (
+            <button
+              type="button"
+              key={key}
+              className={cx(s.menuParent, sub?.at === i && s.menuParentOpen)}
+              disabled={it.disabled}
+              aria-haspopup="menu"
+              aria-expanded={sub?.at === i}
+              onMouseEnter={e => open(e.currentTarget)}
+              onClick={e => open(e.currentTarget)}
+            >
+              <span>{it.label}</span>
+              <span aria-hidden>▸</span>
+            </button>
+          )
+        }
         return (
           <button
             type="button"
             key={key}
             disabled={it.disabled}
+            onMouseEnter={() => setSub(undefined)}
             onClick={() => {
               it.onClick?.()
               onClose()
@@ -184,6 +211,15 @@ export function ContextMenu({
           </button>
         )
       })}
+      {sub && items[sub.at]?.items && (
+        <ContextMenu
+          // Beside the item, or on the other side when the window ends first
+          x={sub.right + 200 > window.innerWidth ? sub.right - 400 : sub.right - 2}
+          y={sub.top}
+          items={items[sub.at].items ?? []}
+          onClose={onClose}
+        />
+      )}
     </div>
   )
 }

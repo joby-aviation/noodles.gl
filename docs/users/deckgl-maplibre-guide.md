@@ -130,7 +130,7 @@ A Path, Trips or Polygon layer whose Position reads a list of positions or a geo
 
 The deck node controls the basemap and the camera:
 
-- **Map style**: the basemap. Click the style's name to pick from the basemap gallery, with styles from CARTO, OpenFreeMap and others. **URL or JSON** takes any MapLibre style URL, or style JSON pasted in.
+- **Map style**: the basemap. Click the style's name to pick from the basemap gallery, with styles from CARTO, OpenFreeMap and others. To use any other MapLibre style, paste its URL or style JSON into the gallery's search, or drop a URL on the row.
 - **Camera**: Longitude, Latitude, Zoom, Pitch and Bearing
 - **Projection**: Mercator or Globe
 
@@ -138,7 +138,9 @@ The deck node controls the basemap and the camera:
 
 Click the sliders beside the style's name to open the style editor on the deck's own style. It hides layers and changes their colors, and can scale every label and line width at once. The changes are kept on the deck, listed as **Changes**; click × to drop them.
 
-To share a style between decks or projects, click **Split out** (the arrow beside the sliders). It moves the style and its changes into a **Map Style** node (`map-style`) wired into the deck's URL. Anything else that makes style JSON, such as a Code node, can be wired into the URL the same way; a wired style takes the place of the deck's own.
+To share a style between decks or projects, right-click **Map style** and choose **Drive with › Map Style**. It moves the style and its changes into a **Map Style** node (`map-style`) wired into the deck. Anything else that makes style JSON, such as a Code node, can be wired into the row's port the same way; a wired style takes the place of the deck's own, and **Disconnect input** on the same menu takes it off.
+
+The same menu drives other properties: a number can be driven by a new **Number**, **Time**, **Math** or **Expression** node, which starts from the property's value.
 
 **Common providers:** [MapTiler](https://www.maptiler.com/), [Mapbox](https://www.mapbox.com/), [CARTO](https://carto.com/basemaps/), [OpenMapTiles](https://openmaptiles.org/), [Stadia Maps](https://stadiamaps.com/)
 

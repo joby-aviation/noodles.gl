@@ -3,7 +3,7 @@ import { beforeAll, describe, expect, it } from 'vitest'
 import { registerDeckOperators } from '../runtime/deck-ops'
 import { parseStyleChanges } from '../runtime/map-style'
 import { compoundsOf } from './compound-params'
-import { baseStyleOf, chooseStyle, splitOutStyle, styleLabel } from './map-style-rows'
+import { baseStyleOf, chooseStyle, splitOutStyle, styleLabel } from './map-style-ops'
 
 const group = { basemap: 'basemap', url: 'mapStyle', changes: 'styleOverrides' }
 const changes = {
