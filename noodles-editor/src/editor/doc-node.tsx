@@ -22,6 +22,7 @@ import s from './doc-network.module.css'
 import { isListParam, setParam } from './doc-ops'
 import { docStore, useEditor } from './doc-store'
 import { colorToFieldHex, fieldHexToColor } from './field-adapter'
+import { useNodeLinkTarget } from './link-drag'
 import { pillHeight } from './multi-port'
 import { MultiPortHandle } from './multi-port-handle'
 import { shownValue, summaryOf } from './node-summary'
@@ -208,6 +209,8 @@ export function DocNodeComponent({ id, selected }: NodeProps) {
   const engine = useEngineState()
   const debug = useEditor(st => st.debug)
   const connection = useConnection()
+  // A property's port dropped on the node: a picker of what on it fits, as a layer stack row's
+  const linkTarget = useNodeLinkTarget(id, { spring: false })
   const wired = useMemo(
     () => new Set(edges.filter(e => e.target === id).map(e => e.targetPort)),
     [edges, id]
@@ -268,8 +271,11 @@ export function DocNodeComponent({ id, selected }: NodeProps) {
         [s.nodeError]: !!error,
         [s.bypassed]: node.flags?.bypass,
         [s.displayed]: node.flags?.display,
+        [s.linkTarget]: linkTarget.accepts,
       })}
+      {...linkTarget.props}
     >
+      {linkTarget.picker}
       <div className={cx(s.header, header)}>
         <span className={s.name}>{nameOf(node)}</span>
         <span className={s.type}>{op.label}</span>
