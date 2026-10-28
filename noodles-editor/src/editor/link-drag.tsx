@@ -192,7 +192,11 @@ export function startPortDrag(e: ReactPointerEvent, drag: LinkDrag, side: 'in' |
       docStore().edit(d => {
         made = apply(d)
       }, 'link:graph')
-      if (made) analytics.track('param_linked', { via: 'graph', kind: undefined, from: drag.kind })
+      if (made)
+        analytics.track('param_linked', {
+          via: 'graph',
+          from: drag.kind === 'target' || drag.key.includes('>') ? 'output' : 'param',
+        })
     }
     setTimeout(() => getUIStore().setLinkDrag(null), 0)
   }
