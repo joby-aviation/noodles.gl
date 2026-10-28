@@ -79,6 +79,25 @@ describe('rerunOnKeyChange', () => {
     expect(marked()).toEqual([])
   })
 
+  it('re-runs when the last project key is cleared', () => {
+    getKeysStore().setProjectKeys(undefined, '/projects/a')
+    getKeysStore().setProjectKey('overpass', 'https://example.com/api')
+    vi.advanceTimersByTime(KEY_RERUN_DELAY_MS)
+    vi.mocked(ops[1].markDirty).mockClear()
+
+    getKeysStore().removeProjectKey('overpass')
+    vi.advanceTimersByTime(KEY_RERUN_DELAY_MS)
+    expect(marked()).toEqual([ops[1]])
+  })
+
+  it('still re-runs after saving to a new place mid-edit', () => {
+    getKeysStore().setProjectKeys(undefined, '/projects/a')
+    getKeysStore().setBrowserKey('mapbox', 'pk.mine')
+    getKeysStore().copyKeyOverridesTo('/projects/b')
+    vi.advanceTimersByTime(KEY_RERUN_DELAY_MS)
+    expect(marked()).toEqual([ops[0]])
+  })
+
   it('holds locked operators', () => {
     ops[1].locked.next(true)
     vi.mocked(ops[1].markDirty).mockClear()

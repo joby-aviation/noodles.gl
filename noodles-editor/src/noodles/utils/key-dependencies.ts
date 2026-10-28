@@ -14,18 +14,6 @@ function activeKeys(): KeysConfig {
   return Object.fromEntries(KEY_TYPES.map(key => [key, getKey(key)]))
 }
 
-// Loading a project replaces its keys before its operators are built, and those
-// operators run with the new keys anyway
-function isProjectLoad(
-  state: ReturnType<typeof getKeysStore>,
-  prev: ReturnType<typeof getKeysStore>
-): boolean {
-  if (state.projectId !== prev.projectId) return true
-  // Only a load sets the project keys and the saved ones together. An edit leaves the
-  // saved ones behind.
-  return state.projectKeys !== prev.projectKeys && state.projectKeys === state.savedProjectKeys
-}
-
 // Runs operators again when the key they read changes, e.g. when the user adds a missing
 // key or chooses their own over the project's. Locked operators keep their output, and
 // catch up when they're unlocked.
@@ -53,7 +41,9 @@ export function rerunOnKeyChange(
   const unsubscribe = useKeysStore.subscribe((state, prev) => {
     clearTimeout(timer)
     timer = undefined
-    if (isProjectLoad(state, prev)) {
+    // Loading a project replaces its keys before its operators are built, and those
+    // operators run with the new keys anyway
+    if (state.projectKeyLoads !== prev.projectKeyLoads) {
       applied = activeKeys()
       return
     }

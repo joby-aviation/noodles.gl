@@ -116,6 +116,8 @@ interface KeysState {
   projectId: string | undefined
   // Counts edits to the project keys, so the editor can mark the project unsaved
   projectKeyEdits: number
+  // Counts project keys loaded from a file, so a change can be told apart from an edit
+  projectKeyLoads: number
   // AI keys the loaded project file contained, which were dropped rather than used
   ignoredProjectKeys: KeyType[]
   // Fingerprints of keys a service rejected in this session
@@ -162,6 +164,7 @@ export const useKeysStore = create<KeysStore>()(
       savedProjectKeys: undefined,
       projectId: undefined,
       projectKeyEdits: 0,
+      projectKeyLoads: 0,
       ignoredProjectKeys: [],
       rejectedKeys: {},
 
@@ -217,6 +220,7 @@ export const useKeysStore = create<KeysStore>()(
           projectKeys,
           savedProjectKeys: projectKeys,
           projectId,
+          projectKeyLoads: get().projectKeyLoads + 1,
           ignoredProjectKeys: AI_KEY_TYPES.filter(key => keys?.[key]),
         })
       },
