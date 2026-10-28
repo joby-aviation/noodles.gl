@@ -359,6 +359,18 @@ export const useKeysStore = create<KeysStore>()(
 // Non-React access
 export const getKeysStore = () => useKeysStore.getState()
 
+// Settings changed in another tab write the same localStorage entry. Reading it back keeps
+// this tab's keys and choices in step, and leaves the open project's keys as they are.
+export function syncKeysAcrossTabs(): () => void {
+  const onStorage = (event: StorageEvent) => {
+    if (event.key === useKeysStore.persist.getOptions().name) {
+      void useKeysStore.persist.rehydrate()
+    }
+  }
+  window.addEventListener('storage', onStorage)
+  return () => window.removeEventListener('storage', onStorage)
+}
+
 // Choices are stored per route, so an example and a saved project with the same name
 // keep separate ones
 export function keysProjectId(routePrefix: string, name: string): string {

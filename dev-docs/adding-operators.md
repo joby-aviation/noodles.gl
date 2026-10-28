@@ -31,6 +31,8 @@ export class CustomOperator extends Operator<CustomOperator> {
 }
 ```
 
+An operator whose `execute()` reads an API key with `getKeysStore().getKey()` lists those keys in `static usesKeys = ['mapbox'] as const`, so it runs again when the user changes the key.
+
 ### Registration (Critical!)
 
 After creating the operator class, you must register it in two places:
