@@ -34,6 +34,7 @@ An edge into it ends at `"targetPort": "in"`; one out of it starts at `"sourcePo
 | `pathId` | `column` | `"row"` |  |
 | `order` | `column` | `"index"` |  |
 | `color` | `expr` | `""` |  |
+| `width` | `expr` | `""` |  |
 | `ramp` | `menu` | `"viridis"` | 37 choices |
 | `currentTime` | `float` | `0` |  |
 | `trailLength` | `float` | `180` |  |

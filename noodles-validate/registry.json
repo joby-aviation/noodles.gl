@@ -150,6 +150,10 @@
           "kind": "expr",
           "default": ""
         },
+        "tiltBy": {
+          "kind": "expr",
+          "default": ""
+        },
         "ramp": {
           "kind": "menu",
           "default": "viridis",
@@ -209,6 +213,10 @@
         "height": {
           "kind": "float",
           "default": 1
+        },
+        "tilt": {
+          "kind": "float",
+          "default": 0
         },
         "greatCircle": {
           "kind": "toggle",
@@ -1175,9 +1183,17 @@
         },
         "elevation": {
           "kind": "expr",
-          "default": "n"
+          "default": ""
         },
         "color": {
+          "kind": "expr",
+          "default": ""
+        },
+        "lineColorChannel": {
+          "kind": "expr",
+          "default": ""
+        },
+        "lineWidth": {
           "kind": "expr",
           "default": ""
         },
@@ -2528,6 +2544,14 @@
           "default": ""
         },
         "color": {
+          "kind": "expr",
+          "default": ""
+        },
+        "lineColorChannel": {
+          "kind": "expr",
+          "default": ""
+        },
+        "lineWidth": {
           "kind": "expr",
           "default": ""
         },
@@ -4995,6 +5019,10 @@
           "kind": "expr",
           "default": ""
         },
+        "lineWidth": {
+          "kind": "expr",
+          "default": ""
+        },
         "elevation": {
           "kind": "expr",
           "default": ""
@@ -5447,6 +5475,14 @@
           "default": ""
         },
         "radius": {
+          "kind": "expr",
+          "default": ""
+        },
+        "lineColorChannel": {
+          "kind": "expr",
+          "default": ""
+        },
+        "lineWidth": {
           "kind": "expr",
           "default": ""
         },
@@ -6221,6 +6257,14 @@
           "kind": "expr",
           "default": ""
         },
+        "borderColorChannel": {
+          "kind": "expr",
+          "default": ""
+        },
+        "borderWidthBy": {
+          "kind": "expr",
+          "default": ""
+        },
         "ramp": {
           "kind": "menu",
           "default": "viridis",
@@ -6380,6 +6424,18 @@
           ]
         },
         "backgroundPadding": {
+          "kind": "float",
+          "default": 0
+        },
+        "borderColor": {
+          "kind": "color",
+          "default": [
+            0,
+            0,
+            0
+          ]
+        },
+        "borderWidth": {
           "kind": "float",
           "default": 0
         },
@@ -6758,6 +6814,10 @@
           "default": "index"
         },
         "color": {
+          "kind": "expr",
+          "default": ""
+        },
+        "width": {
           "kind": "expr",
           "default": ""
         },

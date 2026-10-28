@@ -30,8 +30,10 @@ An edge into it ends at `"targetPort": "in"`; one out of it starts at `"sourcePo
 | Parameter | Kind | Default | Choices |
 |-----------|------|---------|---------|
 | `position` | `expr` | `"P"` |  |
-| `elevation` | `expr` | `"n"` |  |
+| `elevation` | `expr` | `""` |  |
 | `color` | `expr` | `""` |  |
+| `lineColorChannel` | `expr` | `""` |  |
+| `lineWidth` | `expr` | `""` |  |
 | `ramp` | `menu` | `"viridis"` | 37 choices |
 | `radius` | `float` | `250` |  |
 | `radiusUnits` | `menu` | `"meters"` | `meters`, `pixels`, `common` |

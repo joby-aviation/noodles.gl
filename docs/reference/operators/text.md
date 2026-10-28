@@ -33,6 +33,8 @@ An edge into it ends at `"targetPort": "in"`; one out of it starts at `"sourcePo
 | `text` | `column` | `"name"` |  |
 | `color` | `expr` | `""` |  |
 | `sizeBy` | `expr` | `""` |  |
+| `borderColorChannel` | `expr` | `""` |  |
+| `borderWidthBy` | `expr` | `""` |  |
 | `ramp` | `menu` | `"viridis"` | 37 choices |
 | `size` | `float` | `12` |  |
 | `sizeUnits` | `menu` | `"pixels"` | `pixels`, `meters`, `common` |
@@ -56,6 +58,8 @@ An edge into it ends at `"targetPort": "in"`; one out of it starts at `"sourcePo
 | `background` | `toggle` | `false` |  |
 | `backgroundColor` | `color` | `[255,255,255]` |  |
 | `backgroundPadding` | `float` | `0` |  |
+| `borderColor` | `color` | `[0,0,0]` |  |
+| `borderWidth` | `float` | `0` |  |
 | `backgroundBorderRadius` | `float` | `0` |  |
 | `opacity` | `float` | `1` |  |
 | `blend` | `menu` | `"normal"` | `normal`, `additive`, `subtractive` |
