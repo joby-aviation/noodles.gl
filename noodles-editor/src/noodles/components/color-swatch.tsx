@@ -9,6 +9,11 @@ import s from '../noodles.module.css'
 const UNSET_COLOR = '#00000000'
 const UNSET_PICKER_COLOR = '#000000ff'
 
+// Inside a modal dialog, which makes everything outside it inert (no pointer events, no focus),
+// the picker must be part of the dialog to take clicks
+const portalHost = (swatch: Element | null) =>
+  (swatch?.closest('[role="dialog"]') as HTMLElement | null) ?? document.body
+
 interface ColorSwatchProps {
   // Color value as hex string (e.g., "#ff0000" or "#ff0000ff") or color array [r, g, b, a].
   // null or undefined means no color is set (optional ColorFields default to it).
@@ -155,6 +160,15 @@ export function ColorSwatch({
       left = Math.max(margin, viewportWidth - pickerWidth - margin)
     }
 
+    // A transformed host (a dialog mid-animation) places fixed children from its own corner
+    const host = portalHost(swatchRef.current)
+    if (host !== document.body) {
+      const cs = getComputedStyle(host)
+      if (cs.transform !== 'none' || cs.filter !== 'none' || cs.perspective !== 'none') {
+        const at = host.getBoundingClientRect()
+        return { top: top - at.top, left: left - at.left }
+      }
+    }
     return { top, left }
   }, [])
 
@@ -222,7 +236,7 @@ export function ColorSwatch({
               />
             </div>
           </div>,
-          document.body
+          portalHost(swatchRef.current)
         )}
     </>
   )

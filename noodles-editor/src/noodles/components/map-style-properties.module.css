@@ -1,0 +1,287 @@
+.inspector {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  font-size: 0.8rem;
+}
+
+.inspectorHead {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.typeBadge {
+  flex-shrink: 0;
+  font-size: 0.65rem;
+  padding: 1px 6px;
+  border-radius: 3px;
+  background-color: rgba(255, 255, 255, 0.08);
+  color: var(--color-text-secondary);
+}
+
+.layerName {
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.layerSource {
+  color: var(--color-text-secondary);
+  font-size: 0.72rem;
+}
+
+.group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.groupTitle {
+  font-size: 0.68rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--color-text-secondary);
+  margin: 0.5rem 0 0.25rem;
+}
+
+.more {
+  margin-top: 0.5rem;
+}
+
+.more summary {
+  cursor: pointer;
+  color: var(--color-text-secondary);
+  font-size: 0.75rem;
+  padding: 0.25rem 0;
+}
+
+.prop {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding: 0.35rem 0.5rem;
+  border-left: 2px solid transparent;
+  border-radius: 3px;
+}
+
+.prop:hover {
+  background-color: rgba(255, 255, 255, 0.03);
+}
+
+/* Changed from the style's own value */
+.propChanged {
+  border-left-color: #3b82f6;
+}
+
+.propHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  min-height: 20px;
+}
+
+.propLabel {
+  color: var(--color-text-primary);
+  text-transform: capitalize;
+  cursor: help;
+}
+
+.units {
+  margin-left: 0.35rem;
+  color: var(--color-text-secondary);
+  font-size: 0.68rem;
+  text-transform: none;
+}
+
+.propActions {
+  display: flex;
+  gap: 2px;
+}
+
+.iconButton {
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 3px;
+  background: none;
+  color: var(--color-text-secondary);
+  font: inherit;
+  font-size: 0.72rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.iconButton:hover:not(:disabled) {
+  border-color: rgba(255, 255, 255, 0.35);
+  color: var(--color-text-primary);
+}
+
+.iconButton:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+.iconButtonOn {
+  border-color: #3b82f6;
+  color: #93c5fd;
+}
+
+.number {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.slider {
+  flex: 1;
+  min-width: 0;
+  padding: 0;
+  /* A global reset takes the native track away */
+  appearance: auto;
+  accent-color: #3b82f6;
+}
+
+.numberBox,
+.text,
+.select,
+.json {
+  padding: 0.25rem 0.4rem;
+  font: inherit;
+  font-size: 0.78rem;
+  color: var(--color-text-primary);
+  background-color: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+}
+
+.numberBox {
+  width: 4.5rem;
+  flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.text {
+  flex: 1;
+  min-width: 0;
+}
+
+.numberBox:focus,
+.text:focus,
+.select:focus,
+.json:focus {
+  outline: none;
+  border-color: #3b82f6;
+}
+
+.colorInput {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.checkbox {
+  align-self: flex-start;
+}
+
+.json {
+  width: 100%;
+  box-sizing: border-box;
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 0.72rem;
+  resize: vertical;
+}
+
+.jsonError {
+  border-color: rgba(239, 68, 68, 0.7);
+}
+
+.ramp {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  padding: 0.4rem;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 4px;
+}
+
+.rampHead {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.base {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  color: var(--color-text-secondary);
+}
+
+.chart {
+  width: 100%;
+  height: 44px;
+}
+
+.chartLine {
+  fill: none;
+  stroke: #93c5fd;
+  stroke-width: 1.5;
+}
+
+.chartStop {
+  fill: #3b82f6;
+}
+
+.chartZoom {
+  stroke: rgba(255, 255, 255, 0.25);
+  stroke-dasharray: 2 2;
+}
+
+.gradient {
+  height: 12px;
+  border-radius: 3px;
+}
+
+.stop {
+  display: grid;
+  grid-template-columns: 4.5rem minmax(0, 1fr) 20px;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.stopBelow {
+  color: var(--color-text-secondary);
+  font-size: 0.72rem;
+}
+
+.stopValue {
+  min-width: 0;
+}
+
+.addStop {
+  align-self: flex-start;
+  padding: 0.2rem 0.5rem;
+  font: inherit;
+  font-size: 0.72rem;
+  color: var(--color-text-secondary);
+  background: none;
+  border: 1px dashed rgba(255, 255, 255, 0.2);
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.addStop:hover:not(:disabled) {
+  color: var(--color-text-primary);
+  border-color: rgba(255, 255, 255, 0.4);
+}
+
+.addStop:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
