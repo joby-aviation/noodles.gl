@@ -41,6 +41,7 @@ An edge into it ends at `"targetPort": "layers"`; a parameter is set in `params`
 | `pitch` | `float` | `0` |  |
 | `bearing` | `float` | `0` |  |
 | `mapStyle` | `url` | `""` |  |
+| `styleOverrides` | `text` | `""` |  |
 | `projection` | `menu` | `"mercator"` | `mercator`, `globe` |
 | `display` | `menu` | `"fixed"` | `fixed`, `responsive` |
 | `width` | `int` | `1920` |  |

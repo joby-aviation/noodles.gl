@@ -25,6 +25,7 @@ import {
   targetCaps,
 } from '@noodles.gl/planner'
 import { DeckLayerBuilder } from './deck-layers'
+import { parseStyleChanges, styleWithChanges } from './map-style'
 import { flatRow, isFeatureCollection } from './plain-rows'
 import {
   type NodeSql,
@@ -143,6 +144,17 @@ export function localRuntime(sql: SqlEngine): RuntimeLike {
   return new ProgramRuntime(sql, { caps: targetCaps('deck-webgl2', undefined) })
 }
 
+// A deck's own style with its Style changes applied, or why it couldn't be
+interface ChangedStyle {
+  key: string
+  deck: string
+  style?: Record<string, unknown>
+  error?: string
+  failedAt?: number
+}
+
+const STYLE_RETRY_MS = 5000
+
 export class Engine {
   readonly runtime: RuntimeLike
   private readonly builder: DeckLayerBuilder
@@ -196,9 +208,12 @@ export class Engine {
     return this.options.host?.runner.output(nodeId, port)
   }
 
-  /** Host operators that failed on the last run. */
+  /** Host operators that failed on the last run, and Style changes whose style didn't load. */
   errors(): { nodeId: string; message: string }[] {
-    return this.hostErrors
+    const style = this.changedStyle
+    return style?.error
+      ? [...this.hostErrors, { nodeId: style.deck, message: style.error }]
+      : this.hostErrors
   }
 
   /**
@@ -301,7 +316,8 @@ export class Engine {
     const configured = wiredStyle
       ? host?.runner.output(wiredStyle.source, wiredStyle.sourcePort)
       : undefined
-    const mapStyle = (configured ?? (deck ? styleOf(deck) : undefined)) as
+    if (configured !== undefined || !deck) this.changedStyle = undefined
+    const mapStyle = (configured ?? (deck ? this.styleWithChanges(deck) : undefined)) as
       | string
       | Record<string, unknown>
       | undefined
@@ -653,6 +669,42 @@ export class Engine {
     }
   }
 
+  // The deck's own style with its Style changes, once fetched: the base style draws until then.
+  // A fetch that failed says so on the deck and is tried again a few seconds later.
+  private changedStyle?: ChangedStyle
+
+  private styleWithChanges(deck: DocNode): string | Record<string, unknown> | undefined {
+    const base = styleOf(deck)
+    const changes = parseStyleChanges(deck.params.styleOverrides)
+    if (!base || !changes) {
+      this.changedStyle = undefined
+      return base
+    }
+    const key = `${typeof base === 'string' ? base : JSON.stringify(base)}\n${JSON.stringify(changes)}`
+    const last = this.changedStyle?.key === key ? this.changedStyle : undefined
+    const retry = last?.failedAt !== undefined && Date.now() - last.failedAt > STYLE_RETRY_MS
+    if (!last || retry) {
+      const pending: ChangedStyle = { key, deck: deck.id, error: last?.error }
+      this.changedStyle = pending
+      styleWithChanges(base, changes)
+        .then(style => {
+          if (this.changedStyle !== pending) return
+          pending.style = style
+          pending.error = undefined
+          this.emit()
+        })
+        .catch((err: Error) => {
+          if (this.changedStyle !== pending) return
+          pending.error = `Style changes not applied: ${err.message}`
+          pending.failedAt = Date.now()
+          this.emit()
+          // Drawing again is what tries again
+          setTimeout(() => this.changedStyle === pending && this.emit(), STYLE_RETRY_MS + 50)
+        })
+    }
+    return this.changedStyle?.style ?? base
+  }
+
   private emit(report?: UpdateReport): void {
     if (this.listeners.size === 0) return
     const vis = this.vis()
@@ -660,9 +712,27 @@ export class Engine {
   }
 }
 
-function styleOf(deck: DocNode): string | undefined {
-  const url = String(deck.params.mapStyle ?? '')
-  if (url) return url
+// A deck's map style: a style URL, style JSON pasted in (or a raster basemap from the gallery),
+// or a named basemap. JSON parses once per text, so the map keeps one style object and doesn't
+// re-diff it every frame.
+const parsedStyles = new Map<string, Record<string, unknown> | undefined>()
+
+function styleOf(deck: DocNode): string | Record<string, unknown> | undefined {
+  const text = String(deck.params.mapStyle ?? '').trim()
+  if (text.startsWith('{')) {
+    if (!parsedStyles.has(text)) {
+      let style: Record<string, unknown> | undefined
+      try {
+        style = JSON.parse(text)
+      } catch {
+        style = undefined
+      }
+      if (parsedStyles.size > 16) parsedStyles.clear()
+      parsedStyles.set(text, style)
+    }
+    return parsedStyles.get(text)
+  }
+  if (text) return text
   const named = String(deck.params.basemap ?? 'dark-matter')
   return named in BASEMAPS ? BASEMAPS[named] : named
 }

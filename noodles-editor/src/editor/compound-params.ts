@@ -1,8 +1,9 @@
 // Parameters the Properties panel shows as one control, as Kepler's layer panel does, while the
-// document keeps them apart: a value and its units (`radiusScale` with `radiusUnits`), and a
+// document keeps them apart: a value and its units (`radiusScale` with `radiusUnits`), a
 // layer's color, which is a solid color, an attribute, a ramp over a numeric column or a row
-// expression. They stay separate parameters because the planner routes them differently: units
-// are a deck prop, a channel is per-row data. Nothing here changes the document format.
+// expression, and a deck's map style. They stay separate parameters because the planner routes
+// them differently: units are a deck prop, a channel is per-row data. Nothing here changes the
+// document format.
 
 import type { OpDef, ParamDef, ParamValue } from '@noodles.gl/planner'
 
@@ -21,9 +22,17 @@ export interface ColorGroup {
   ramp?: string
 }
 
+// A deck's map style: a named basemap, a URL or style JSON, and the style editor's changes
+export interface StyleGroup {
+  basemap: string
+  url: string
+  changes: string
+}
+
 export interface Compounds {
   units: UnitsPair[]
   colors: ColorGroup[]
+  style?: StyleGroup
   // Parameters drawn inside another one's control rather than on a row of their own
   absorbed: Set<string>
 }
@@ -59,11 +68,19 @@ export function compoundsOf(op: Pick<OpDef, 'params'>): Compounds {
     colors.push({ channel: p.name, solid: solid?.name, ramp: ramp?.name })
   }
 
+  const has = (name: string, kind: string) => byName.get(name)?.kind === kind
+  const style =
+    has('basemap', 'menu') && has('mapStyle', 'url') && has('styleOverrides', 'text')
+      ? { basemap: 'basemap', url: 'mapStyle', changes: 'styleOverrides' }
+      : undefined
+
   const absorbed = new Set<string>([
     ...units.map(u => u.units),
     ...colors.flatMap(c => [c.solid, c.ramp].filter((n): n is string => n !== undefined)),
+    // The URL row is the map style control's own; the rest are inside it
+    ...(style ? [style.basemap, style.changes] : []),
   ])
-  return { units, colors, absorbed }
+  return { units, colors, style, absorbed }
 }
 
 // A name an expression can use as written. A column like `total-cost` would read as
@@ -96,10 +113,11 @@ export function compoundsFor(
   const absorbed = new Set<string>([
     ...units.map(u => u.units),
     ...all.colors.map(c => c.solid).filter((n): n is string => n !== undefined),
+    ...(all.style ? [all.style.basemap, all.style.changes] : []),
   ])
   // Shown in the Ramp control, or read by nothing: either way not a row of its own
   if (ramp && (rampIn || users.length === 0)) absorbed.add(ramp)
-  return { units, colors: all.colors, absorbed, rampIn }
+  return { units, colors: all.colors, style: all.style, absorbed, rampIn }
 }
 
 export type ColorMode = 'solid' | 'attribute' | 'ramp' | 'expression'

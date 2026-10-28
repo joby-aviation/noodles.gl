@@ -16,15 +16,17 @@ import {
   outputKey as slotOfOutput,
 } from '@noodles.gl/planner'
 import cx from 'classnames'
-import { type ReactNode, useEffect, useMemo, useState } from 'react'
+import { type DragEvent, type ReactNode, useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { inputComponents } from '../noodles/components/field-components'
 import type { Field } from '../noodles/fields'
+import { analytics } from '../utils/analytics'
 import { ChannelInput, isChannel } from './channel-input'
 import s from './doc-editor.module.css'
 import { type EngineState, useEngineState } from './doc-engine'
 import { clearTrack, pathTo, promote, removeKey, setKey, setParam } from './doc-ops'
 import { docStore, useEditor } from './doc-store'
+import { disconnectInput, driversFor, driveWith } from './drivers'
 import { NodeFields } from './field-adapter'
 import { useParamLinkTarget } from './link-drag'
 import { ContextMenu, type MenuItem } from './menus'
@@ -105,6 +107,7 @@ export function ParamRow({
   label,
   onUnpromote,
   inline,
+  control,
 }: {
   node: DocNode
   def: ParamDef
@@ -115,6 +118,8 @@ export function ParamRow({
   onUnpromote?: () => void
   /** A control drawn after the value, such as its units */
   inline?: ReactNode
+  /** Drawn instead of the parameter's widget while it holds a value, such as a style picker */
+  control?: ReactNode
 }) {
   const { type } = field.constructor as typeof Field
   const Widget = inputComponents[type]
@@ -176,8 +181,40 @@ export function ParamRow({
 
   const set = (v: ParamValue | undefined) =>
     docStore().edit(d => setParam(d, node.id, def.name, v, docStore().get().time), `p:${key}`)
+  // The value it has now, which a node made to drive it starts from
+  const current = wiredValue ?? value ?? raw ?? def.default
+  const drivers = driversFor(doc, node, def)
   const items: MenuItem[] = [
     { heading: `${label ?? def.label} · ${key}` },
+    ...(drivers.length > 0
+      ? [
+          {
+            label: 'Drive with',
+            items: drivers.map(driver => ({
+              label: driver.label,
+              onClick: () => {
+                docStore().edit(d => {
+                  const at = d.nodes.find(n => n.id === node.id)
+                  if (at) driveWith(d, at, def, driver, current)
+                })
+                analytics.track('property_driven', { driver: driver.op })
+              },
+            })),
+          },
+        ]
+      : []),
+    ...(wire
+      ? [
+          {
+            label: 'Disconnect input',
+            onClick: () =>
+              docStore().edit(d => {
+                const at = d.nodes.find(n => n.id === node.id)
+                if (at) disconnectInput(d, at, def, current)
+              }),
+          },
+        ]
+      : []),
     ...(numeric
       ? [
           mode === 'expr'
@@ -261,6 +298,18 @@ export function ParamRow({
       : []),
   ]
 
+  // A URL, or style JSON, dragged in from outside the editor (a browser tab, a file's text) sets
+  // a URL parameter, as typing it would
+  const textDrop = def.kind === 'url' && !wire
+  const droppedText = (e: DragEvent) =>
+    (
+      e.dataTransfer.getData('text/uri-list').split('\n')[0] || e.dataTransfer.getData('text/plain')
+    ).trim()
+  const fromOutside = (e: DragEvent) =>
+    textDrop &&
+    !linkTarget.dragging &&
+    ['text/uri-list', 'text/plain'].some(t => e.dataTransfer.types.includes(t))
+
   return (
     // biome-ignore lint/a11y/noStaticElementInteractions: right-click opens the parameter's menu; a dragged port drops here
     <div
@@ -278,6 +327,19 @@ export function ParamRow({
         setMenu({ x: e.clientX, y: e.clientY })
       }}
       {...linkTarget.props}
+      onDragOver={e => {
+        if (fromOutside(e)) {
+          e.preventDefault()
+          e.dataTransfer.dropEffect = 'copy'
+        } else linkTarget.props.onDragOver(e)
+      }}
+      onDrop={e => {
+        if (!fromOutside(e)) return linkTarget.props.onDrop(e)
+        e.preventDefault()
+        e.stopPropagation()
+        const text = droppedText(e)
+        if (text) set(text)
+      }}
     >
       {referenceable(def) && (
         <Port
@@ -293,7 +355,11 @@ export function ParamRow({
             <span className={s.paramLabel}>{label ?? def.label}</span>
             <span className={s.wired}>
               ← {nameOf(doc.nodes.find(n => n.id === wire.source) ?? node)} › {wire.sourcePort}
-              {wiredValue !== undefined ? ` = ${fmt(wiredValue)}` : ''}
+              {/* A style or a view is too big to show inline; going to its node shows it */}
+              {wiredValue !== undefined &&
+              (typeof wiredValue !== 'object' || Array.isArray(wiredValue))
+                ? ` = ${fmt(wiredValue)}`
+                : ''}
             </span>
           </div>
         ) : mode === 'ref' ? (
@@ -328,6 +394,11 @@ export function ParamRow({
               onCommit={t => set(mode === 'expr' ? { expr: t } : { ref: t })}
             />
             {value !== undefined && <span className={s.evaluated}>{fmt(value)}</span>}
+          </div>
+        ) : control ? (
+          <div className={s.paramDriven}>
+            <span className={s.paramLabel}>{label ?? def.label}</span>
+            {control}
           </div>
         ) : isRampParam(def) ? (
           <RampPicker
