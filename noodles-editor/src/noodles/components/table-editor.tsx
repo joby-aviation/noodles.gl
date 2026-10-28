@@ -9,6 +9,7 @@ import {
   type RowData,
   useReactTable,
 } from '@tanstack/react-table'
+import { useVirtualizer } from '@tanstack/react-virtual'
 import cx from 'classnames'
 import { AutoComplete } from 'primereact/autocomplete'
 import { Button } from 'primereact/button'
@@ -71,6 +72,9 @@ import {
   TableImportDialog,
   type TableImportRequest,
 } from './table-import-dialog'
+
+const TABLE_ROW_HEIGHT = 36
+const TABLE_HEADER_HEIGHT = 36
 
 declare module '@tanstack/react-table' {
   interface TableMeta<TData extends RowData> {
@@ -351,9 +355,25 @@ function ColorCellEditor({ value, onChange, onComplete, onCancel }: CellEditorPr
   )
 }
 
-function Point2DCellEditor({ value, onChange, onComplete, onCancel, column }: CellEditorProps) {
+function parseBufferedVectorComponent(input: HTMLInputElement | null, fallback: number): number {
+  if (!input) return fallback
+  if (input.value.trim() === '') return 0
+  const parsed = Number.parseFloat(input.value)
+  return Number.isNaN(parsed) ? fallback : parsed
+}
+
+function Point2DCellEditor({
+  value,
+  onChange,
+  onComplete,
+  onCancel,
+  column,
+  registerCommit,
+}: CellEditorProps) {
   const [lng, lat] = (value as [number, number]) || [0, 0]
   const latestRef = useRef([lng, lat] as [number, number])
+  const lngInputRef = useRef<HTMLInputElement>(null)
+  const latInputRef = useRef<HTMLInputElement>(null)
   const [geocodingOpen, setGeocodingOpen] = useState(false)
 
   const updateLng = (newValue: number) => {
@@ -400,10 +420,23 @@ function Point2DCellEditor({ value, onChange, onComplete, onCancel, column }: Ce
     onComplete()
   }
 
+  useLayoutEffect(() => {
+    registerCommit?.(() => {
+      const bufferedValue: [number, number] = [
+        parseBufferedVectorComponent(lngInputRef.current, latestRef.current[0]),
+        parseBufferedVectorComponent(latInputRef.current, latestRef.current[1]),
+      ]
+      latestRef.current = bufferedValue
+      onChange(bufferedValue)
+      onComplete()
+    })
+  })
+
   return (
     <fieldset className={s.point2dEditor} onBlur={handleBlur} aria-label={`Edit ${column.name}`}>
       <DraggableNumberInput
         value={latestRef.current[0]}
+        inputRef={lngInputRef}
         onChange={updateLng}
         onBlur={event => {
           if (event.currentTarget.value === '') updateLng(0)
@@ -419,6 +452,7 @@ function Point2DCellEditor({ value, onChange, onComplete, onCancel, column }: Ce
       />
       <DraggableNumberInput
         value={latestRef.current[1]}
+        inputRef={latInputRef}
         onChange={updateLat}
         onBlur={event => {
           if (event.currentTarget.value === '') updateLat(0)
@@ -458,9 +492,19 @@ function Point2DCellEditor({ value, onChange, onComplete, onCancel, column }: Ce
   )
 }
 
-function Vec3CellEditor({ value, onChange, onComplete, onCancel, column }: CellEditorProps) {
+function Vec3CellEditor({
+  value,
+  onChange,
+  onComplete,
+  onCancel,
+  column,
+  registerCommit,
+}: CellEditorProps) {
   const [x, y, z] = (value as [number, number, number]) || [0, 0, 0]
   const latestRef = useRef([x, y, z] as [number, number, number])
+  const xInputRef = useRef<HTMLInputElement>(null)
+  const yInputRef = useRef<HTMLInputElement>(null)
+  const zInputRef = useRef<HTMLInputElement>(null)
 
   const updateX = (newValue: number) => {
     const newVal: [number, number, number] = [newValue, latestRef.current[1], latestRef.current[2]]
@@ -507,10 +551,24 @@ function Vec3CellEditor({ value, onChange, onComplete, onCancel, column }: CellE
   const channelNames =
     column.type === 'point3d' ? ['Longitude', 'Latitude', 'Altitude'] : ['X', 'Y', 'Z']
 
+  useLayoutEffect(() => {
+    registerCommit?.(() => {
+      const bufferedValue: [number, number, number] = [
+        parseBufferedVectorComponent(xInputRef.current, latestRef.current[0]),
+        parseBufferedVectorComponent(yInputRef.current, latestRef.current[1]),
+        parseBufferedVectorComponent(zInputRef.current, latestRef.current[2]),
+      ]
+      latestRef.current = bufferedValue
+      onChange(bufferedValue)
+      onComplete()
+    })
+  })
+
   return (
     <fieldset className={s.vec3Editor} onBlur={handleBlur} aria-label={`Edit ${column.name}`}>
       <DraggableNumberInput
         value={latestRef.current[0]}
+        inputRef={xInputRef}
         onChange={updateX}
         onBlur={event => {
           if (event.currentTarget.value === '') updateX(0)
@@ -526,6 +584,7 @@ function Vec3CellEditor({ value, onChange, onComplete, onCancel, column }: CellE
       />
       <DraggableNumberInput
         value={latestRef.current[1]}
+        inputRef={yInputRef}
         onChange={updateY}
         onBlur={event => {
           if (event.currentTarget.value === '') updateY(0)
@@ -540,6 +599,7 @@ function Vec3CellEditor({ value, onChange, onComplete, onCancel, column }: CellE
       />
       <DraggableNumberInput
         value={latestRef.current[2]}
+        inputRef={zInputRef}
         onChange={updateZ}
         onBlur={event => {
           if (event.currentTarget.value === '') updateZ(0)
@@ -908,6 +968,17 @@ function EditableCell({ getValue, row, column, table }: EditableCellProps) {
     },
     [columnIndex, coordinate, meta, row.index]
   )
+  const handleCompleteRef = useRef(handleComplete)
+  handleCompleteRef.current = handleComplete
+
+  useLayoutEffect(
+    () => () => {
+      // Resize and virtualizer measurement changes can remove an edited row without
+      // producing a scroll event. Commit while the cell still owns its buffered value.
+      if (isEditingRef.current) (editorCommitRef.current ?? handleCompleteRef.current)()
+    },
+    []
+  )
 
   const handleCancel = () => {
     if (!isEditingRef.current) return
@@ -1199,6 +1270,10 @@ function getAuxiliaryGridCellAccessibilityProps(columnIndex: number) {
   }
 }
 
+function getVirtualSpacerAccessibilityProps() {
+  return { role: 'presentation' as const }
+}
+
 function getDataColumnId(index: number): string {
   return `${DATA_COLUMN_ID_PREFIX}${index}`
 }
@@ -1362,6 +1437,13 @@ export function TableEditor({
     | undefined
   >(undefined)
   const tableWrapperRef = useRef<HTMLDivElement>(null)
+  const tableGridRef = useRef<HTMLTableElement>(null)
+  const gridFocusWithinRef = useRef(false)
+  const pendingKeyboardEditRef = useRef<{
+    coordinate: TableCellCoordinate
+    seed?: string
+  }>()
+  const scrollToGridRowRef = useRef<((rowIndex: number) => void) | null>(null)
   const activeEdit = useActiveEdit()
   const previousDataRef = useRef(data)
   const previousSchemaRef = useRef(schema)
@@ -1389,6 +1471,7 @@ export function TableEditor({
     finishEditing,
     cancelEditing,
     moveActiveCell,
+    focusActiveCell,
     beginPointerSelection,
     extendPointerSelection,
   } = useTableGridNavigation({
@@ -1396,6 +1479,7 @@ export function TableEditor({
     columnCount: schema.columns.length,
     tableDataRef,
     tableWrapperRef,
+    scrollToRowRef: scrollToGridRowRef,
     activeEdit,
   })
   const overlayTargetRef = useRef<TablePreviewTarget>()
@@ -2312,9 +2396,84 @@ export function TableEditor({
   })
 
   const tableRows = table.getRowModel().rows
+  const virtualizeRows = tableRows.length > 200
+  const rowVirtualizer = useVirtualizer({
+    count: virtualizeRows ? tableRows.length : 0,
+    getScrollElement: () => tableWrapperRef.current,
+    estimateSize: () => TABLE_ROW_HEIGHT,
+    scrollMargin: TABLE_HEADER_HEIGHT,
+    overscan: 10,
+  })
+  const virtualRows = rowVirtualizer.getVirtualItems()
+  const renderedRowIndexes = virtualizeRows
+    ? virtualRows.map(virtualRow => virtualRow.index)
+    : tableRows.map((_, rowIndex) => rowIndex)
+  const renderedRowRange = `${renderedRowIndexes[0] ?? ''}:${renderedRowIndexes.at(-1) ?? ''}`
+  const firstRenderedRow = renderedRowIndexes[0]
+  const lastRenderedRow = renderedRowIndexes.at(-1)
+  const isRowRendered = useCallback(
+    (row: number) =>
+      firstRenderedRow !== undefined && lastRenderedRow !== undefined
+        ? row >= firstRenderedRow && row <= lastRenderedRow
+        : false,
+    [firstRenderedRow, lastRenderedRow]
+  )
+  const activeCellIsRendered = activeCell !== null && isRowRendered(activeCell.row)
+  useLayoutEffect(() => {
+    if (renderedRowRange === ':') return
+    const pendingEdit = pendingKeyboardEditRef.current
+    if (
+      pendingEdit &&
+      isRowRendered(pendingEdit.coordinate.row) &&
+      coordinatesEqual(activeCell, pendingEdit.coordinate)
+    ) {
+      pendingKeyboardEditRef.current = undefined
+      beginEditing(pendingEdit.coordinate, pendingEdit.seed)
+      return
+    }
+    if (!activeCellIsRendered && gridFocusWithinRef.current) {
+      tableGridRef.current?.focus({ preventScroll: true })
+      return
+    }
+    focusActiveCell()
+  }, [
+    activeCell,
+    activeCellIsRendered,
+    beginEditing,
+    focusActiveCell,
+    isRowRendered,
+    renderedRowRange,
+  ])
+  const virtualPaddingTop =
+    virtualizeRows && virtualRows.length > 0
+      ? Math.max(0, (virtualRows[0]?.start ?? 0) - TABLE_HEADER_HEIGHT)
+      : 0
+  const virtualPaddingBottom =
+    virtualizeRows && virtualRows.length > 0
+      ? Math.max(
+          0,
+          rowVirtualizer.getTotalSize() -
+            ((virtualRows[virtualRows.length - 1]?.end ?? 0) - TABLE_HEADER_HEIGHT)
+        )
+      : 0
+  scrollToGridRowRef.current = virtualizeRows
+    ? rowIndex => rowVirtualizer.scrollToIndex(rowIndex, { align: 'auto' })
+    : null
+
+  const beginKeyboardEditing = useCallback(
+    (coordinate: TableCellCoordinate, seed?: string) => {
+      if (!virtualizeRows || isRowRendered(coordinate.row)) {
+        beginEditing(coordinate, seed)
+        return
+      }
+      pendingKeyboardEditRef.current = { coordinate, seed }
+      scrollToGridRowRef.current?.(coordinate.row)
+    },
+    [beginEditing, isRowRendered, virtualizeRows]
+  )
 
   const handleCellKeyDown = useCallback(
-    (event: React.KeyboardEvent<HTMLTableCellElement>, coordinate: TableCellCoordinate) => {
+    (event: React.KeyboardEvent<HTMLElement>, coordinate: TableCellCoordinate) => {
       if (coordinatesEqual(editingCell, coordinate)) return
       const target = activeCell ?? coordinate
       switch (event.key) {
@@ -2345,7 +2504,7 @@ export function TableEditor({
         case 'Enter':
         case 'F2':
           event.preventDefault()
-          beginEditing(target)
+          beginKeyboardEditing(target)
           return
         case 'Escape':
           event.preventDefault()
@@ -2373,13 +2532,13 @@ export function TableEditor({
         default:
           if (event.key.length === 1 && !event.ctrlKey && !event.metaKey && !event.altKey) {
             event.preventDefault()
-            beginEditing(target, event.key)
+            beginKeyboardEditing(target, event.key)
           }
       }
     },
     [
       activeCell,
-      beginEditing,
+      beginKeyboardEditing,
       clearSelection,
       editingCell,
       moveActiveCell,
@@ -2518,9 +2677,25 @@ export function TableEditor({
             }}
           >
             <table
+              ref={tableGridRef}
               {...getGridAccessibilityProps(tableData.length + 1, schema.columns.length + 2)}
               className={cx(s.table, 'nokey')}
               data-table-editor-grid="true"
+              tabIndex={activeCellIsRendered ? -1 : 0}
+              onFocusCapture={() => {
+                gridFocusWithinRef.current = true
+              }}
+              onBlurCapture={event => {
+                const nextTarget = event.relatedTarget
+                if (!(nextTarget instanceof Node && event.currentTarget.contains(nextTarget))) {
+                  gridFocusWithinRef.current = false
+                }
+              }}
+              onKeyDown={event => {
+                if (event.target === event.currentTarget && activeCell) {
+                  handleCellKeyDown(event, activeCell)
+                }
+              }}
               onCopy={handleGridCopy}
               onPaste={handleGridPaste}
             >
@@ -2568,7 +2743,18 @@ export function TableEditor({
                 ))}
               </thead>
               <tbody>
-                {tableRows.map(row => {
+                {virtualPaddingTop > 0 && (
+                  <tr {...getVirtualSpacerAccessibilityProps()}>
+                    <td
+                      {...getVirtualSpacerAccessibilityProps()}
+                      colSpan={columns.length}
+                      style={{ height: virtualPaddingTop, padding: 0 }}
+                    />
+                  </tr>
+                )}
+                {renderedRowIndexes.map(rowIndex => {
+                  const row = tableRows[rowIndex]
+                  if (!row) return null
                   return (
                     <tr key={row.id} className={s.row} aria-rowindex={row.index + 2}>
                       {row.getVisibleCells().map(cell => {
@@ -2656,6 +2842,15 @@ export function TableEditor({
                     </tr>
                   )
                 })}
+                {virtualPaddingBottom > 0 && (
+                  <tr {...getVirtualSpacerAccessibilityProps()}>
+                    <td
+                      {...getVirtualSpacerAccessibilityProps()}
+                      colSpan={columns.length}
+                      style={{ height: virtualPaddingBottom, padding: 0 }}
+                    />
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>
