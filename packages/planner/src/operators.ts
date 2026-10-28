@@ -89,6 +89,11 @@ export interface LowerCtx {
   input(port: string): string;
   maybeInput(port: string): string | undefined;
   inputs(port: string): string[];
+  /**
+   * The operator type of every node wired into a port, in order, `inputs` or not: what
+   * `inputs` leaves out (a number, a host operator's value) is still here.
+   */
+  sourceOps(port: string): string[];
   /** Structural reads. An expression or reference in a structural parameter is an error. */
   str(param: string): string;
   num(param: string): number;
@@ -1676,15 +1681,21 @@ export const OPERATORS: OpDef[] = [
   // --- structure ------------------------------------------------------------
   {
     type: 'switch', label: 'Switch', category: 'structure',
-    description: 'Pass one of several layers through, chosen by index. A change re-plans, and the memo keeps every layer it is not showing, so switching back costs at most that layer\'s query.',
-    inputs: [{ name: 'in', type: 'layer', label: 'layers', multi: true }],
-    outputs: [out('layer')],
+    description: 'Pass one of several tables or layers through, chosen by index. A change re-plans, and the memo keeps every input it is not showing, so switching back costs at most that input\'s query. For numbers, cameras and other values, use Switch Value.',
+    inputs: [{ name: 'in', type: 'any', label: 'inputs', multi: true }],
+    outputs: [out('any')],
     params: [{ name: 'index', label: 'Index', kind: 'int', default: 0, min: 0, max: 16, step: 1, bind: 'structural' }],
     lower(ctx) {
-      const layers = ctx.inputs('in');
-      if (layers.length === 0) ctx.error('Switch needs a layer');
-      const i = Math.max(0, Math.min(layers.length - 1, Math.floor(ctx.num('index') || 0)));
-      return { nodes: [], outputs: { out: layers[i] } };
+      // A number or a host operator's value isn't a table or a layer: it doesn't lower to one
+      const values = ctx.sourceOps('in').filter((op) => !OPERATOR_INDEX.get(op)?.lower);
+      if (values.length > 0) {
+        const names = [...new Set(values.map((op) => OPERATOR_INDEX.get(op)?.label ?? op))].join(', ');
+        ctx.error(`Switch passes tables and layers; ${names} is a value: wire it into a Switch Value instead`);
+      }
+      const inputs = ctx.inputs('in');
+      if (inputs.length === 0) ctx.error('Switch needs a table or a layer');
+      const i = Math.max(0, Math.min(inputs.length - 1, Math.floor(ctx.num('index') || 0)));
+      return { nodes: [], outputs: { out: inputs[i] } };
     },
   },
   {

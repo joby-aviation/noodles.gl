@@ -462,6 +462,12 @@ export function lowerDocument(doc: EditorDoc, options: LowerOptions = {}): Lower
         }
         return ir;
       },
+      sourceOps(port) {
+        return edges
+          .filter((x) => x.target === id && x.targetPort === port)
+          .sort((a, b) => (a.index ?? 0) - (b.index ?? 0))
+          .map((e) => byId.get(e.source)?.op ?? '');
+      },
       inputs(port) {
         return edges
           .filter((x) => x.target === id && x.targetPort === port)

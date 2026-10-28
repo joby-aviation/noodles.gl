@@ -268,6 +268,42 @@ describe('switch', () => {
     expect(bins.kind).toBe('hexagon')
     expect(bins.props?.radius).toMatch(/^\{\{.*\}\}$/)
   })
+
+  const twoTables = (extra: EditorDoc['nodes'] = [], extraEdges: EditorDoc['edges'] = []): EditorDoc => ({
+    version: 1,
+    name: 'switch',
+    nodes: [
+      { id: 'small', op: 'sql', x: 0, y: 0, params: { query: 'SELECT 1.0 AS x, 2.0 AS y' } },
+      { id: 'big', op: 'sql', x: 0, y: 0, params: { query: 'SELECT 3.0 AS x, 4.0 AS y' } },
+      { id: 'pick', op: 'switch', x: 0, y: 0, params: { index: 1 } },
+      { id: 'dots', op: 'scatter', x: 0, y: 0, params: { position: '[x, y]' } },
+      { id: 'map', op: 'deck', x: 0, y: 0, params: {} },
+      ...extra,
+    ],
+    edges: [
+      { id: 'e1', source: 'small', sourcePort: 'out', target: 'pick', targetPort: 'in', index: 0 },
+      { id: 'e2', source: 'big', sourcePort: 'out', target: 'pick', targetPort: 'in', index: 1 },
+      { id: 'e3', source: 'pick', sourcePort: 'out', target: 'dots', targetPort: 'in' },
+      { id: 'e4', source: 'dots', sourcePort: 'out', target: 'map', targetPort: 'layers' },
+      ...extraEdges,
+    ],
+  })
+
+  it('passes a table as well as a layer', () => {
+    const lowered = lowerDocument(twoTables())
+    expect(lowered.errors).toEqual([])
+    expect(lowered.outputs.pick.out).toBe('big')
+  })
+
+  it('says to use a Switch Value for a number, rather than dropping it', () => {
+    const lowered = lowerDocument(
+      twoTables(
+        [{ id: 'n', op: 'number', x: 0, y: 0, params: { value: 3 } }],
+        [{ id: 'e5', source: 'n', sourcePort: 'out', target: 'pick', targetPort: 'in', index: 2 }]
+      )
+    )
+    expect(lowered.errors.map((e) => e.message).join()).toMatch(/Number is a value: wire it into a Switch Value/)
+  })
 })
 
 describe('the catalog', () => {

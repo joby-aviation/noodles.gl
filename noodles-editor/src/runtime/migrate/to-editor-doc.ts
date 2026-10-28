@@ -1451,6 +1451,22 @@ export function toEditorDoc(original: NoodlesProject): Migrated {
       edge(up, sourcePort.get(up) ?? 'out', id, 'in')
       wiredNumber(id, 'currentTime', id, 'time')
       indexNames.set(id, VERTEX_COMPONENTS)
+    } else if (n.type === 'SwitchOp') {
+      // A switch between tables: the planner's Switch, each table converted in its order
+      if (incomingOne(id, 'index'))
+        throw new MigrationError(`${id}: a wired Switch index is not converted`)
+      if (i.blend === true) warnings.push(`${id}: blending between tables is not converted`)
+      nodes.push({
+        id,
+        op: 'switch',
+        name: segment(id),
+        ...position(n),
+        params: { index: Math.floor(num(i.index, 0)) },
+      })
+      incoming(id, 'values').forEach((e, k) => {
+        const up = source(e.source, false, handleField(e.sourceHandle))
+        edge(up, sourcePort.get(up) ?? 'out', id, 'in', k)
+      })
     } else if (n.type === 'CodeOp' && codeNode(n)) {
       // Rows JavaScript makes, run by the engine and planned over like any table
     } else if (TABLE_OPS.has(n.type)) {

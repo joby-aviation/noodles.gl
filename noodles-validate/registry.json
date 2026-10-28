@@ -6070,16 +6070,16 @@
       "name": "Switch",
       "type": "switch",
       "category": "structure",
-      "description": "Pass one of several layers through, chosen by index. A change re-plans, and the memo keeps every layer it is not showing, so switching back costs at most that layer's query.",
+      "description": "Pass one of several tables or layers through, chosen by index. A change re-plans, and the memo keeps every input it is not showing, so switching back costs at most that input's query. For numbers, cameras and other values, use Switch Value.",
       "inputs": {
         "in": {
-          "type": "layer",
+          "type": "any",
           "multi": true
         }
       },
       "outputs": {
         "out": {
-          "type": "layer"
+          "type": "any"
         }
       },
       "params": {
