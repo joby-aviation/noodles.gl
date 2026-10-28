@@ -1,6 +1,6 @@
 import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
-import { type EditorDoc, lowerDocument } from '@noodles.gl/planner'
+import { type EditorDoc, lowerDocument, OPERATOR_INDEX } from '@noodles.gl/planner'
 import { describe, expect, it } from 'vitest'
 import { registerDeckOperators } from '../runtime/deck-ops'
 import {
@@ -16,6 +16,7 @@ import {
   validConnection,
 } from './doc-ops'
 import { DocStore } from './doc-store'
+import { driveWith } from './drivers'
 import { isEditorDoc, loadDoc } from './load-doc'
 
 const doc = (): EditorDoc => ({
@@ -146,6 +147,53 @@ describe('document operations', () => {
     })
     expect(lowerDocument(d).errors).toEqual([])
     expect(renameNode(d, 'src', 'size')).toBe(false)
+  })
+})
+
+describe('deleting what drives a parameter', () => {
+  // A deck whose pitch a Number drives, the Number driven by Time, as the menu makes them
+  const driven = () => {
+    const d: EditorDoc = {
+      version: 1,
+      name: 'drive',
+      nodes: [{ id: 'map', op: 'deck', x: 600, y: 0, params: {} }],
+      edges: [],
+    }
+    const number = addNode(d, 'number', 0, 0)
+    number.params.value = 30
+    return { d, number }
+  }
+  const pitchDef = () => OPERATOR_INDEX.get('number')?.params.find(p => p.name === 'value')
+
+  it('a wired Number driven by Time: deleting Time, then the Number, leaves a document that lowers', () => {
+    const { d, number } = driven()
+    expect(connect(d, number.id, 'out', 'map', 'par:pitch')).toBeDefined()
+    const def = pitchDef()
+    if (!def) throw new Error('no value')
+    const time = driveWith(d, number, def, { op: 'time', label: 'Time' }, 30)
+    expect(time).toBeDefined()
+    removeNodes(d, [time as string])
+    expect(lowerDocument(d).errors).toEqual([])
+    removeNodes(d, [number.id])
+    expect(d.edges).toEqual([])
+    expect(lowerDocument(d).errors).toEqual([])
+  })
+
+  it('a reference to a deleted Number keeps the value it read, rather than pointing at nothing', () => {
+    const { d, number } = driven()
+    setParam(d, 'map', 'pitch', { ref: `${number.name}/value` })
+    setParam(d, 'map', 'bearing', { ref: `${number.name}/value` })
+    removeNodes(d, [number.id])
+    expect(d.nodes[0].params).toMatchObject({ pitch: 30, bearing: 30 })
+    expect(lowerDocument(d).errors).toEqual([])
+  })
+
+  it('a reference to a deleted parameter that is itself driven goes back to its default', () => {
+    const { d, number } = driven()
+    number.params.value = { expr: 'T * 2' }
+    setParam(d, 'map', 'pitch', { ref: `${number.name}/value` })
+    removeNodes(d, [number.id])
+    expect(d.nodes[0].params.pitch).toBeUndefined()
   })
 })
 

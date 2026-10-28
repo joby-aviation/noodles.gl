@@ -155,6 +155,21 @@ interface ChangedStyle {
 
 const STYLE_RETRY_MS = 5000
 
+const CAMERA = ['longitude', 'latitude', 'zoom', 'pitch', 'bearing']
+
+/**
+ * A view without the camera values that didn't evaluate: a reference to a deleted node reads
+ * NaN, and MapLibre throws on a NaN pitch, taking the editor down with the map. The parameter's
+ * error says what is wrong; the map keeps drawing meanwhile.
+ */
+export function finiteCamera(view: Record<string, unknown>): Record<string, unknown> {
+  const out = { ...view }
+  for (const k of CAMERA) {
+    if (k in out && !(typeof out[k] === 'number' && Number.isFinite(out[k]))) delete out[k]
+  }
+  return out
+}
+
 export class Engine {
   readonly runtime: RuntimeLike
   private readonly builder: DeckLayerBuilder
@@ -310,7 +325,7 @@ export class Engine {
     // A deck with its own views and no map (an OrbitView, say) keeps the view's own camera:
     // the deck node's longitude and latitude mean nothing to it.
     const geographic = !!(deck && styleOf(deck)) || into('views').length === 0
-    const view = { ...(geographic ? this.runtime.view() : {}), ...(hostView ?? {}) }
+    const view = finiteCamera({ ...(geographic ? this.runtime.view() : {}), ...(hostView ?? {}) })
     // A style wired into the deck (a configured one, an object) wins over its URL
     const wiredStyle = into('par:mapStyle')[0]
     const configured = wiredStyle
