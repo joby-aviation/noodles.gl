@@ -1451,7 +1451,8 @@ export const OPERATORS: OpDef[] = [
       { name: 'zoom', label: 'Zoom', kind: 'float', default: 1.5, min: 0, max: 22, step: 0.05, bind: 'prop', folder: 'Camera', port: true },
       { name: 'pitch', label: 'Pitch', kind: 'float', default: 0, min: 0, max: 85, step: 0.5, bind: 'prop', folder: 'Camera', port: true },
       { name: 'bearing', label: 'Bearing', kind: 'float', default: 0, min: -180, max: 180, step: 0.5, bind: 'prop', folder: 'Camera', port: true },
-      { name: 'mapStyle', label: 'Map style URL', kind: 'url', default: '', help: 'A MapLibre style. Overrides Basemap when set; a style wired in (from a style configurator) overrides both.', port: true, portType: 'value' },
+      { name: 'mapStyle', label: 'Map style URL', kind: 'url', default: '', help: 'A MapLibre style URL, or style JSON. Overrides Basemap when set; a style wired in (a Map Style node, a Code node returning style JSON) overrides both.', port: true, portType: 'value' },
+      { name: 'styleOverrides', label: 'Style changes', kind: 'text', default: '', help: 'Changes made in the style editor (layers hidden or recolored), as JSON, applied to the style above. A wired style ignores them.' },
       { name: 'projection', label: 'Projection', kind: 'menu', default: 'mercator', options: [{ value: 'mercator', label: 'Mercator' }, { value: 'globe', label: 'Globe' }] },
       // Video export. Read by the renderer, never lowered.
       { name: 'display', label: 'Display', kind: 'menu', default: 'fixed', options: [{ value: 'fixed', label: 'Fixed size' }, { value: 'responsive', label: 'Responsive' }], folder: 'Export' },

@@ -23,6 +23,7 @@ import { headerOf } from './doc-node'
 import { renameNode, unpromote } from './doc-ops'
 import { docStore, useEditor } from './doc-store'
 import { useOutputLinkTarget } from './link-drag'
+import { MapStyleRows } from './map-style-rows'
 import { PANE_EDITORS, PaneEditorFor } from './pane-editors'
 import { connections, outputKey, valueOutputs } from './param-links'
 import { fmt, ParamRow, shown, useNodeFields } from './param-row'
@@ -222,6 +223,16 @@ function NodeParams({ node, doc, multi }: { node: DocNode; doc: EditorDoc; multi
                       p => (p.folder ?? 'Parameters') === f && !compounds.absorbed.has(p.name)
                     )
                     .map(def => {
+                      if (compounds.style?.url === def.name)
+                        return (
+                          <MapStyleRows
+                            key={def.name}
+                            node={node}
+                            group={compounds.style}
+                            fields={fields}
+                            wired={wired}
+                          />
+                        )
                       const color = compounds.colors.find(c => c.channel === def.name)
                       if (color)
                         return (

@@ -17,7 +17,7 @@ import {
   toSql,
 } from '@noodles.gl/planner'
 import * as d3 from 'd3'
-import { applyStyleOverrides } from '../utils/map-style-utils'
+import { styleWithChanges } from './map-style'
 import { registerValueOperators } from './value-ops'
 
 export interface DeckOp {
@@ -266,21 +266,6 @@ function flatBounds(b: unknown): number[] {
 }
 
 const ramps = d3 as unknown as Record<string, ((t: number) => string) | undefined>
-
-// Base styles by URL, fetched once: an override edit should not refetch the style
-const styles = new Map<string, Promise<Record<string, unknown>>>()
-function fetchStyle(url: string): Promise<Record<string, unknown>> {
-  let style = styles.get(url)
-  if (!style) {
-    style = fetch(url).then(r => {
-      if (!r.ok) throw new Error(`Failed to fetch map style: ${r.statusText}`)
-      return r.json()
-    })
-    styles.set(url, style)
-    style.catch(() => styles.delete(url))
-  }
-  return style
-}
 
 // SQL for the west, east, south and north of a position over a relation's rows: a geometry
 // column, a vector stored as components, or an expression such as `[lng, lat]`
@@ -1019,10 +1004,8 @@ export const DECK_OPS: DeckOp[] = [
     build: async p => {
       const base = p.baseStyle
       if (!base) return ''
-      const style =
-        typeof base === 'string' ? await fetchStyle(base) : (base as Record<string, unknown>)
       const overrides = (p.overrides ?? { layers: [], global: {} }) as never
-      return applyStyleOverrides(style as never, overrides)
+      return styleWithChanges(base as string | Record<string, unknown>, overrides)
     },
   },
 

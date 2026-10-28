@@ -1494,6 +1494,10 @@
           "default": "",
           "portType": "value"
         },
+        "styleOverrides": {
+          "kind": "text",
+          "default": ""
+        },
         "projection": {
           "kind": "menu",
           "default": "mercator",

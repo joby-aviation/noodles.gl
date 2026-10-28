@@ -121,6 +121,7 @@ Opening a saved project by its URL (`/projects/:name`, which is where Recent pro
 | `param_linked` | `via, kind, from` | link-drag.tsx: a parameter linked by dragging, port to port (`port`) or through a node (`node`); `kind` is the target's parameter kind; `from` is `param` for a reference or `output` for a wire from a value output |
 | `color_mode_changed` | `mode, operatorType` | compound-rows.tsx: a layer's Color switched to `solid`, `attribute`, `ramp` or `expression` |
 | `map_interacted` | `kind` | editor-analytics.ts (from timeline-editor.tsx) |
+| `map_style_changed` | `via` | map-style-rows.tsx: the deck's map style, from the gallery, the style editor, a reset of its changes, or split out into a Map Style node (`gallery`, `editor`, `reset`, `split`) |
 | `camera_view_toggled` | `on, via` | camera-toolbar.tsx: the map looks through the active camera (`on`) or shows the viewport, from the toolbar or Numpad 0 (`via`) |
 | `camera_lock_toggled` | `on, view` | camera-toolbar.tsx: the lock pins the view it is in (`view`: `viewport` stays through playhead moves, `camera` moves with the map) |
 | `camera_keyed` | `params` | camera-toolbar.tsx: the Key button keyed the camera's unkeyed changes; `params` is how many |

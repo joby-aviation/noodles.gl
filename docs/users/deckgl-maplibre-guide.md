@@ -130,14 +130,15 @@ A Path, Trips or Polygon layer whose Position reads a list of positions or a geo
 
 The deck node controls the basemap and the camera:
 
-- **Basemap**: Dark Matter, Positron, Voyager or None
-- **Map style URL** (`mapStyle`): Any MapLibre style specification URL, overriding Basemap
+- **Map style**: the basemap. Click the style's name to pick from the basemap gallery, with styles from CARTO, OpenFreeMap and others. **URL or JSON** takes any MapLibre style URL, or style JSON pasted in.
 - **Camera**: Longitude, Latitude, Zoom, Pitch and Bearing
 - **Projection**: Mercator or Globe
 
-### Editing Hosted Styles
+### Editing Styles
 
-To change a hosted style from [MapTiler](https://www.maptiler.com/), Mapbox or another provider, add a **Map Style** node (`map-style`), set its Base Style URL, and click **Edit style**. The style editor hides layers and changes their colors, and can scale every label and line width at once. Wire the Map Style node into the deck's map style to use it.
+Click the sliders beside the style's name to open the style editor on the deck's own style. It hides layers and changes their colors, and can scale every label and line width at once. The changes are kept on the deck, listed as **Changes**; click × to drop them.
+
+To share a style between decks or projects, click **Split out** (the arrow beside the sliders). It moves the style and its changes into a **Map Style** node (`map-style`) wired into the deck's URL. Anything else that makes style JSON, such as a Code node, can be wired into the URL the same way; a wired style takes the place of the deck's own.
 
 **Common providers:** [MapTiler](https://www.maptiler.com/), [Mapbox](https://www.mapbox.com/), [CARTO](https://carto.com/basemaps/), [OpenMapTiles](https://openmaptiles.org/), [Stadia Maps](https://stadiamaps.com/)
 

@@ -25,6 +25,7 @@ import {
   targetCaps,
 } from '@noodles.gl/planner'
 import { DeckLayerBuilder } from './deck-layers'
+import { parseStyleChanges, styleWithChanges } from './map-style'
 import { flatRow, isFeatureCollection } from './plain-rows'
 import {
   type NodeSql,
@@ -301,7 +302,7 @@ export class Engine {
     const configured = wiredStyle
       ? host?.runner.output(wiredStyle.source, wiredStyle.sourcePort)
       : undefined
-    const mapStyle = (configured ?? (deck ? styleOf(deck) : undefined)) as
+    const mapStyle = (configured ?? (deck ? this.styleWithChanges(deck) : undefined)) as
       | string
       | Record<string, unknown>
       | undefined
@@ -653,6 +654,28 @@ export class Engine {
     }
   }
 
+  // The deck's own style with its Style changes, once fetched: the base style draws until then
+  private changedStyle?: { key: string; style?: Record<string, unknown> }
+
+  private styleWithChanges(deck: DocNode): string | Record<string, unknown> | undefined {
+    const base = styleOf(deck)
+    const changes = parseStyleChanges(deck.params.styleOverrides)
+    if (!base || !changes) return base
+    const key = `${typeof base === 'string' ? base : JSON.stringify(base)}\n${JSON.stringify(changes)}`
+    if (this.changedStyle?.key !== key) {
+      const pending = { key } as { key: string; style?: Record<string, unknown> }
+      this.changedStyle = pending
+      styleWithChanges(base, changes)
+        .then(style => {
+          if (this.changedStyle !== pending) return
+          pending.style = style
+          this.emit()
+        })
+        .catch(() => undefined)
+    }
+    return this.changedStyle.style ?? base
+  }
+
   private emit(report?: UpdateReport): void {
     if (this.listeners.size === 0) return
     const vis = this.vis()
@@ -660,9 +683,27 @@ export class Engine {
   }
 }
 
-function styleOf(deck: DocNode): string | undefined {
-  const url = String(deck.params.mapStyle ?? '')
-  if (url) return url
+// A deck's map style: a style URL, style JSON pasted in (or a raster basemap from the gallery),
+// or a named basemap. JSON parses once per text, so the map keeps one style object and doesn't
+// re-diff it every frame.
+const parsedStyles = new Map<string, Record<string, unknown> | undefined>()
+
+function styleOf(deck: DocNode): string | Record<string, unknown> | undefined {
+  const text = String(deck.params.mapStyle ?? '').trim()
+  if (text.startsWith('{')) {
+    if (!parsedStyles.has(text)) {
+      let style: Record<string, unknown> | undefined
+      try {
+        style = JSON.parse(text)
+      } catch {
+        style = undefined
+      }
+      if (parsedStyles.size > 16) parsedStyles.clear()
+      parsedStyles.set(text, style)
+    }
+    return parsedStyles.get(text)
+  }
+  if (text) return text
   const named = String(deck.params.basemap ?? 'dark-matter')
   return named in BASEMAPS ? BASEMAPS[named] : named
 }
