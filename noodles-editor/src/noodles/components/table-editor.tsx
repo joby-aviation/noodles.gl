@@ -1,20 +1,32 @@
+import * as ContextMenu from '@radix-ui/react-context-menu'
+import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
 import {
+  type CellContext,
   type ColumnDef,
   createColumnHelper,
   flexRender,
   getCoreRowModel,
+  type RowData,
   useReactTable,
 } from '@tanstack/react-table'
-import * as ContextMenu from '@radix-ui/react-context-menu'
-import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
 import cx from 'classnames'
 import { AutoComplete } from 'primereact/autocomplete'
 import { Button } from 'primereact/button'
 import { InputSwitch } from 'primereact/inputswitch'
 import { InputText } from 'primereact/inputtext'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { analytics } from '../../utils/analytics'
 import type { TableEditorOp } from '../operators'
+import {
+  type AnchoredTablePastePlan,
+  inferTableData,
+  normalizeTableColumnNames,
+  type ParsedTableDataClipboard,
+  parseTableClipboard,
+  planAnchoredTablePaste,
+  serializeTableRangeClipboard,
+  TABLE_RANGE_CLIPBOARD_MIME,
+} from '../table-data-clipboard'
 import type { ColumnSchema, ColumnType, DateTimeValue, TableSchema } from '../table-schema'
 import {
   getDefaultValue,
@@ -27,35 +39,94 @@ import {
   createSchemaOverlayPreview,
   type ParsedSchemaClipboard,
   parseSchemaClipboard,
+  type SchemaOverlayPreview,
   serializeColumnClipboard,
   serializeSchemaClipboard,
-  type SchemaOverlayPreview,
 } from '../table-schema-clipboard'
 import { getTimezoneOptions } from '../utils/timezone-utils'
 import { ColorSwatch } from './color-swatch'
-import { DraggableNumberInput } from './draggable-number-input'
+import { DraggableNumberInput, type InitialNumberDrag } from './draggable-number-input'
 import { GeocodingDialog } from './geocoding-dialog'
 import { type SchemaChangeMetadata, SchemaEditorDialog } from './schema-editor-dialog'
 import { TableCellKeyframe } from './table-cell-keyframe'
 import {
+  type ActiveEdit,
+  coordinateInRect,
+  coordinatesEqual,
+  type EditAdvance,
+  getSelectionRect,
+  type TableCellCoordinate,
+  type TableSelectionRect,
+  useActiveEdit,
+  useTableGridNavigation,
+} from './use-table-grid-navigation'
+import {
   ClipboardPasteDialog,
-  SchemaOverlayDialog,
   type SchemaOverlayDecisions,
+  SchemaOverlayDialog,
 } from './schema-overlay-dialog'
 import s from './table-editor.module.css'
+import {
+  createTableImportRequest as createTableImportDialogRequest,
+  TableImportDialog,
+  type TableImportRequest,
+} from './table-import-dialog'
+
+declare module '@tanstack/react-table' {
+  interface TableMeta<TData extends RowData> {
+    updateData?: (
+      rowIndex: number,
+      columnIndex: number,
+      value: unknown,
+      columnName?: string
+    ) => void
+    deleteRow?: (rowIndex: number) => void
+    schema?: TableSchema
+    activeEdit?: ActiveEdit
+    columnIndexById?: ReadonlyMap<string, number>
+    editingCell?: TableCellCoordinate | null
+    editingSeed?: string
+    initialNumberDrag?: InitialNumberDrag
+    finishEditing?: (coordinate: TableCellCoordinate, advance?: EditAdvance) => void
+    cancelEditing?: (coordinate: TableCellCoordinate) => void
+    opId?: string
+  }
+}
 
 // Cell editor components for each column type
 
 interface CellEditorProps {
   value: unknown
   onChange: (value: unknown) => void
-  onComplete: () => void
+  onComplete: (advance?: EditAdvance) => void
+  onCancel: () => void
   column: ColumnSchema
+  initialNumberDrag?: InitialNumberDrag
+  editingSeed?: string
+  registerCommit?: (commit: () => void) => void
 }
 
-function NumberCellEditor({ value, onChange, onComplete, column }: CellEditorProps) {
-  const initialValueRef = useRef(value as number)
+/** `-`, `+`, and `.` start a number but cannot be parsed into one yet. */
+const PARTIAL_NUMBER_SEED = /^(?:[+-]\.?|\.)$/
+
+function NumberCellEditor({
+  value,
+  onChange,
+  onComplete,
+  onCancel,
+  column,
+  initialNumberDrag,
+  editingSeed,
+  registerCommit,
+}: CellEditorProps) {
   const defaultValue = typeof column.defaultValue === 'number' ? column.defaultValue : 0
+  // Hold an unparseable first character until a digit completes it, so typing `-` or `.`
+  // to start an edit keeps the sign or decimal point instead of reusing the old value.
+  const seedPrefixRef = useRef(
+    editingSeed !== undefined && PARTIAL_NUMBER_SEED.test(editingSeed) ? editingSeed : undefined
+  )
+  const seededEmpty = seedPrefixRef.current !== undefined
+  const inputRef = useRef<HTMLInputElement>(null)
 
   const applyConstraints = (newValue: number) => {
     let constrainedValue = newValue
@@ -70,31 +141,44 @@ function NumberCellEditor({ value, onChange, onComplete, column }: CellEditorPro
   }
 
   const handleNumberChange = (newValue: number) => {
+    const prefix = seedPrefixRef.current
+    if (prefix !== undefined) return
     onChange(applyConstraints(newValue))
   }
 
-  const parseAndCommit = (inputValue: string) => {
-    const parsed = Number.parseFloat(inputValue)
+  const parseAndCommit = (inputValue: string, advance?: EditAdvance) => {
+    const prefix = seedPrefixRef.current
+    const parsed = Number.parseFloat(`${prefix ?? ''}${inputValue}`)
+    seedPrefixRef.current = undefined
     handleNumberChange(Number.isNaN(parsed) ? defaultValue : parsed)
-    onComplete()
+    onComplete(advance)
   }
+
+  useLayoutEffect(() => {
+    registerCommit?.(() => parseAndCommit(inputRef.current?.value ?? ''))
+  })
 
   return (
     <DraggableNumberInput
       value={typeof value === 'number' ? value : defaultValue}
+      initialText={seededEmpty ? '' : undefined}
+      inputRef={inputRef}
       onChange={handleNumberChange}
       onBlur={event => parseAndCommit(event.currentTarget.value)}
       onDragEnd={onComplete}
       onKeyDown={e => {
         e.stopPropagation()
         if (e.key === 'Enter') {
-          parseAndCommit(e.currentTarget.value)
+          parseAndCommit(e.currentTarget.value, 'next-row')
+        }
+        // Parse the displayed text before advancing, so clearing the field and pressing
+        // Tab commits the column default instead of the value the editor opened with
+        if (e.key === 'Tab') {
+          e.preventDefault()
+          parseAndCommit(e.currentTarget.value, e.shiftKey ? 'previous-column' : 'next-column')
         }
         if (e.key === 'Escape') {
-          // Revert to initial value captured at mount
-          onChange(initialValueRef.current)
-          // Give the onChange time to propagate before completing
-          requestAnimationFrame(() => onComplete())
+          onCancel()
         }
       }}
       min={column.options?.min}
@@ -106,25 +190,22 @@ function NumberCellEditor({ value, onChange, onComplete, column }: CellEditorPro
       className={cx('p-inputtext', s.cellEditor)}
       wrapperClassName={s.numberInputWrapper}
       formatDisplayValue={String}
+      initialDrag={initialNumberDrag}
       aria-label={`Edit ${column.name}`}
     />
   )
 }
 
-function StringCellEditor({ value, onChange, onComplete }: CellEditorProps) {
+function StringCellEditor({ value, onChange, onComplete, onCancel }: CellEditorProps) {
   return (
     <InputText
       value={value as string}
       onChange={e => onChange(e.target.value)}
-      onBlur={onComplete}
+      onBlur={() => onComplete()}
       onKeyDown={e => {
         e.stopPropagation()
-        if (e.key === 'Enter') {
-          onComplete()
-        }
-        if (e.key === 'Escape') {
-          onComplete()
-        }
+        if (e.key === 'Enter') onComplete('next-row')
+        if (e.key === 'Escape') onCancel()
       }}
       autoFocus
       className={s.cellEditor}
@@ -132,10 +213,17 @@ function StringCellEditor({ value, onChange, onComplete }: CellEditorProps) {
   )
 }
 
-function StringLiteralCellEditor({ value, onChange, onComplete, column }: CellEditorProps) {
+function StringLiteralCellEditor({
+  value,
+  onChange,
+  onComplete,
+  onCancel,
+  column,
+  editingSeed,
+}: CellEditorProps) {
   const selectRef = useRef<HTMLSelectElement>(null)
   const currentValue = String(value ?? '')
-  const [localValue, setLocalValue] = useState(currentValue)
+  const [localValue, setLocalValue] = useState(editingSeed ?? currentValue)
   const [suggestionsOpen, setSuggestionsOpen] = useState(false)
   const configuredValues = column.options?.values ?? []
   const freeform = column.options?.freeform ?? false
@@ -149,7 +237,13 @@ function StringLiteralCellEditor({ value, onChange, onComplete, column }: CellEd
 
   if (!freeform && configuredValues.length === 0) {
     return (
-      <StringCellEditor value={value} onChange={onChange} onComplete={onComplete} column={column} />
+      <StringCellEditor
+        value={value}
+        onChange={onChange}
+        onComplete={onComplete}
+        onCancel={onCancel}
+        column={column}
+      />
     )
   }
 
@@ -162,12 +256,11 @@ function StringLiteralCellEditor({ value, onChange, onComplete, column }: CellEd
           onChange(e.currentTarget.value)
           onComplete()
         }}
-        onBlur={onComplete}
+        onBlur={() => onComplete()}
         onKeyDown={e => {
           e.stopPropagation()
-          if (e.key === 'Enter' || e.key === 'Escape') {
-            onComplete()
-          }
+          if (e.key === 'Enter') onComplete('next-row')
+          if (e.key === 'Escape') onCancel()
         }}
         aria-label={`Edit ${column.name}`}
         className={cx('p-inputtext', s.cellEditor)}
@@ -201,9 +294,8 @@ function StringLiteralCellEditor({ value, onChange, onComplete, column }: CellEd
         }}
         onKeyDown={e => {
           e.stopPropagation()
-          if (e.key === 'Enter' || e.key === 'Escape') {
-            onComplete()
-          }
+          if (e.key === 'Enter') onComplete('next-row')
+          if (e.key === 'Escape') onCancel()
         }}
         autoFocus
         className={s.cellEditor}
@@ -244,25 +336,23 @@ function BooleanCellEditor({ value, onChange, onComplete }: CellEditorProps) {
   )
 }
 
-function ColorCellEditor({ value, onChange, onComplete }: CellEditorProps) {
+function ColorCellEditor({ value, onChange, onComplete, onCancel }: CellEditorProps) {
   return (
-    // biome-ignore lint/a11y/noStaticElementInteractions: catches blur and key events bubbling from the color picker
-    <div
-      onBlur={onComplete}
+    <fieldset
+      className={s.cellEditorGroup}
+      onBlur={() => onComplete()}
       onKeyDown={e => {
-        if (e.key === 'Enter' || e.key === 'Escape') {
-          onComplete()
-        }
+        if (e.key === 'Enter') onComplete('next-row')
+        if (e.key === 'Escape') onCancel()
       }}
     >
-      <ColorSwatch color={(value as string) || '#000000'} onChange={onChange} />
-    </div>
+      <ColorSwatch value={(value as string) || '#000000'} onChange={color => onChange(color)} />
+    </fieldset>
   )
 }
 
-function Point2DCellEditor({ value, onChange, onComplete, column }: CellEditorProps) {
+function Point2DCellEditor({ value, onChange, onComplete, onCancel, column }: CellEditorProps) {
   const [lng, lat] = (value as [number, number]) || [0, 0]
-  const initialValueRef = useRef([lng, lat] as [number, number])
   const latestRef = useRef([lng, lat] as [number, number])
   const [geocodingOpen, setGeocodingOpen] = useState(false)
 
@@ -285,11 +375,10 @@ function Point2DCellEditor({ value, onChange, onComplete, column }: CellEditorPr
     e.stopPropagation()
     if (e.key === 'Enter') {
       if (e.currentTarget.value === '') updateValue(0)
-      onComplete()
+      onComplete('next-row')
     }
     if (e.key === 'Escape') {
-      onChange(initialValueRef.current)
-      requestAnimationFrame(() => onComplete())
+      onCancel()
     }
   }
 
@@ -369,9 +458,8 @@ function Point2DCellEditor({ value, onChange, onComplete, column }: CellEditorPr
   )
 }
 
-function Vec3CellEditor({ value, onChange, onComplete, column }: CellEditorProps) {
+function Vec3CellEditor({ value, onChange, onComplete, onCancel, column }: CellEditorProps) {
   const [x, y, z] = (value as [number, number, number]) || [0, 0, 0]
-  const initialValueRef = useRef([x, y, z] as [number, number, number])
   const latestRef = useRef([x, y, z] as [number, number, number])
 
   const updateX = (newValue: number) => {
@@ -399,11 +487,10 @@ function Vec3CellEditor({ value, onChange, onComplete, column }: CellEditorProps
     e.stopPropagation()
     if (e.key === 'Enter') {
       if (e.currentTarget.value === '') updateValue(0)
-      onComplete()
+      onComplete('next-row')
     }
     if (e.key === 'Escape') {
-      onChange(initialValueRef.current)
-      requestAnimationFrame(() => onComplete())
+      onCancel()
     }
   }
 
@@ -469,18 +556,17 @@ function Vec3CellEditor({ value, onChange, onComplete, column }: CellEditorProps
   )
 }
 
-function DateCellEditor({ value, onChange, onComplete }: CellEditorProps) {
+function DateCellEditor({ value, onChange, onComplete, onCancel }: CellEditorProps) {
   return (
     <InputText
       type="date"
       value={value as string}
       onChange={e => onChange(e.target.value)}
-      onBlur={onComplete}
+      onBlur={() => onComplete()}
       onKeyDown={e => {
         e.stopPropagation()
-        if (e.key === 'Enter' || e.key === 'Escape') {
-          onComplete()
-        }
+        if (e.key === 'Enter') onComplete('next-row')
+        if (e.key === 'Escape') onCancel()
       }}
       autoFocus
       className={s.cellEditor}
@@ -488,7 +574,13 @@ function DateCellEditor({ value, onChange, onComplete }: CellEditorProps) {
   )
 }
 
-function DateTimeCellEditor({ value, onChange, onComplete, column }: CellEditorProps) {
+function DateTimeCellEditor({
+  value,
+  onChange,
+  onComplete,
+  onCancel,
+  column: _column,
+}: CellEditorProps) {
   const timezoneOptions = useState(() => getTimezoneOptions())[0]
 
   // Extract datetime and timezone from DateTimeValue
@@ -501,7 +593,7 @@ function DateTimeCellEditor({ value, onChange, onComplete, column }: CellEditorP
   const [timezoneInputValue, setTimezoneInputValue] = useState<string>(dateTimeValue.timezone)
   const [pendingTimezone, setPendingTimezone] = useState<string>(dateTimeValue.timezone)
   const [datetimeValue, setDatetimeValue] = useState<string>(dateTimeValue.datetime)
-  const containerRef = useRef<HTMLDivElement>(null)
+  const containerRef = useRef<HTMLFieldSetElement>(null)
 
   // Apply pending timezone change to cell value
   const applyTimezoneChange = () => {
@@ -530,7 +622,7 @@ function DateTimeCellEditor({ value, onChange, onComplete, column }: CellEditorP
   }
 
   // Handle blur - check if focus is moving to AutoComplete panel
-  const handleBlur = (e: React.FocusEvent) => {
+  const handleBlur = () => {
     // Use setTimeout to allow new focus target to be set
     setTimeout(() => {
       const activeElement = document.activeElement
@@ -538,7 +630,7 @@ function DateTimeCellEditor({ value, onChange, onComplete, column }: CellEditorP
 
       // Check if focus moved to AutoComplete dropdown panel
       const isInAutocompletePanel = activeElement?.closest('.p-autocomplete-panel')
-      const isInContainer = container && container.contains(activeElement)
+      const isInContainer = container?.contains(activeElement)
 
       // Only complete if focus truly left (not in container and not in dropdown panel)
       if (!isInContainer && !isInAutocompletePanel) {
@@ -549,8 +641,7 @@ function DateTimeCellEditor({ value, onChange, onComplete, column }: CellEditorP
   }
 
   return (
-    // biome-ignore lint/a11y/noStaticElementInteractions: catches blur bubbling from the date and timezone inputs
-    <div ref={containerRef} className={s.dateTimeCellEditor} onBlur={handleBlur}>
+    <fieldset ref={containerRef} className={s.dateTimeCellEditor} onBlur={handleBlur}>
       <InputText
         type="datetime-local"
         step={0.001}
@@ -558,9 +649,8 @@ function DateTimeCellEditor({ value, onChange, onComplete, column }: CellEditorP
         onChange={e => handleDatetimeChange(e.target.value)}
         onKeyDown={e => {
           e.stopPropagation()
-          if (e.key === 'Enter' || e.key === 'Escape') {
-            onComplete()
-          }
+          if (e.key === 'Enter') onComplete('next-row')
+          if (e.key === 'Escape') onCancel()
         }}
         autoFocus
         className={s.cellEditor}
@@ -594,8 +684,10 @@ function DateTimeCellEditor({ value, onChange, onComplete, column }: CellEditorP
         className={s.timezoneDropdown}
         panelClassName={s.timezonePanel}
         itemTemplate={item => (
-          // biome-ignore lint/a11y/noStaticElementInteractions: records a mouse pick before blur; onSelect handles the keyboard
           <div
+            role="option"
+            aria-selected={item === pendingTimezone}
+            tabIndex={-1}
             onMouseDown={() => {
               setPendingTimezone(item)
             }}
@@ -604,7 +696,7 @@ function DateTimeCellEditor({ value, onChange, onComplete, column }: CellEditorP
           </div>
         )}
       />
-    </div>
+    </fieldset>
   )
 }
 
@@ -676,7 +768,7 @@ function renderDateCell(value: unknown): string {
   return ''
 }
 
-function renderDateTimeCell(value: unknown, column: ColumnSchema): string {
+function renderDateTimeCell(value: unknown): string {
   // Only handle DateTimeValue format
   if (value && typeof value === 'object' && 'datetime' in value && 'timezone' in value) {
     const dateTimeValue = value as DateTimeValue
@@ -691,6 +783,43 @@ function renderDateTimeCell(value: unknown, column: ColumnSchema): string {
 
 function renderStringCell(value: unknown): string {
   return String(value ?? '')
+}
+
+function StringLiteralCell({
+  value,
+  column,
+  onChange,
+}: {
+  value: unknown
+  column: ColumnSchema
+  onChange: (value: string) => void
+}) {
+  const currentValue = String(value ?? '')
+  const configuredValues = column.options?.values ?? []
+  const values = configuredValues.includes(currentValue)
+    ? configuredValues
+    : [currentValue, ...configuredValues]
+
+  return (
+    <div className={cx(s.cell, s.stringLiteralCell)}>
+      <select
+        value={currentValue}
+        onChange={event => onChange(event.currentTarget.value)}
+        onPointerDown={event => event.stopPropagation()}
+        onClick={event => event.stopPropagation()}
+        onDoubleClick={event => event.stopPropagation()}
+        onKeyDown={event => event.stopPropagation()}
+        className={cx('nodrag', s.stringLiteralSelect)}
+        aria-label={`Choose ${column.name}`}
+      >
+        {values.map(option => (
+          <option key={option} value={option}>
+            {option}
+          </option>
+        ))}
+      </select>
+    </div>
+  )
 }
 
 // Get cell renderer for column type
@@ -717,61 +846,38 @@ function getCellRenderer(type: ColumnType) {
   }
 }
 
-// Tracks the cell currently in edit mode so row mutations can commit it first.
-// Without this, clicking "Add Row" or a delete button while a cell is mid-edit
-// can drop the pending value.
-interface ActiveEdit {
-  set: (commit: () => void) => void
-  clear: () => void
-  flush: () => void
-}
-
-function useActiveEdit(): ActiveEdit {
-  const commitRef = useRef<(() => void) | null>(null)
-
-  return useMemo(
-    () => ({
-      set: commit => {
-        commitRef.current = commit
-      },
-      clear: () => {
-        commitRef.current = null
-      },
-      flush: () => {
-        const commit = commitRef.current
-        commitRef.current = null
-        commit?.()
-      },
-    }),
-    []
-  )
+function cloneCellValue(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(cloneCellValue)
+  if (value instanceof Date) return new Date(value.getTime())
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(
+      Object.entries(value as Record<string, unknown>).map(([key, item]) => [
+        key,
+        cloneCellValue(item),
+      ])
+    )
+  }
+  return value
 }
 
 // Editable cell component
-interface EditableCellProps {
-  getValue: () => unknown
-  row: { index: number }
-  column: { id: string }
-  table: {
-    options: {
-      meta?: {
-        updateData: (rowIndex: number, columnId: string, value: unknown) => void
-        deleteRow: (rowIndex: number) => void
-        schema: TableSchema
-        activeEdit: ActiveEdit
-        opId?: string
-      }
-    }
-  }
-}
+type EditableCellProps = CellContext<Record<string, unknown>, unknown>
 
 function EditableCell({ getValue, row, column, table }: EditableCellProps) {
   const currentValue = getValue()
-  const [isEditing, setIsEditing] = useState(false)
   const [value, setValue] = useState(currentValue)
   const valueRef = useRef(currentValue)
   const prevValueRef = useRef(currentValue)
   const isEditingRef = useRef(false)
+  const editorCommitRef = useRef<(() => void) | null>(null)
+  const editingColumnNameRef = useRef<string>()
+  const meta = table.options.meta
+  const columnIndex = meta?.columnIndexById?.get(column.id)
+  const coordinate = useMemo(
+    () => (columnIndex === undefined ? null : { row: row.index, column: columnIndex }),
+    [columnIndex, row.index]
+  )
+  const isEditing = coordinate !== null && coordinatesEqual(meta?.editingCell, coordinate)
 
   // Sync state with current value when not editing
   if (!isEditing && currentValue !== prevValueRef.current) {
@@ -780,7 +886,71 @@ function EditableCell({ getValue, row, column, table }: EditableCellProps) {
     prevValueRef.current = currentValue
   }
 
-  const colSchema = table.options.meta?.schema.columns.find(col => col.name === column.id)
+  const colSchema = columnIndex === undefined ? undefined : meta?.schema?.columns[columnIndex]
+
+  const handleChange = (newValue: unknown) => {
+    setValue(newValue)
+    valueRef.current = newValue
+  }
+
+  const handleComplete = useCallback(
+    (advance?: EditAdvance) => {
+      // Guard against committing twice when a flush is followed by the blur it caused
+      if (!isEditingRef.current) return
+      isEditingRef.current = false
+      editorCommitRef.current = null
+      meta?.activeEdit?.clear()
+      if (columnIndex !== undefined) {
+        meta?.updateData?.(row.index, columnIndex, valueRef.current, editingColumnNameRef.current)
+      }
+      editingColumnNameRef.current = undefined
+      if (coordinate) meta?.finishEditing?.(coordinate, advance)
+    },
+    [columnIndex, coordinate, meta, row.index]
+  )
+
+  const handleCancel = () => {
+    if (!isEditingRef.current) return
+    isEditingRef.current = false
+    editorCommitRef.current = null
+    editingColumnNameRef.current = undefined
+    valueRef.current = currentValue
+    setValue(currentValue)
+    meta?.activeEdit?.clear()
+    if (coordinate) meta?.cancelEditing?.(coordinate)
+  }
+  useLayoutEffect(() => {
+    if (!isEditing || !colSchema) {
+      isEditingRef.current = false
+      return
+    }
+
+    // An external schema update can re-render this cell before TableEditor gets to
+    // flush the active edit. Keep the user's buffered value and the commit
+    // callback from the render where editing began instead of re-seeding from
+    // the incoming props.
+    if (isEditingRef.current) return
+
+    let seededValue = currentValue
+    if (meta?.editingSeed !== undefined) {
+      if (colSchema.type === 'string' || colSchema.type === 'stringLiteral') {
+        seededValue = meta.editingSeed
+      } else if (colSchema.type === 'number') {
+        const parsedSeed = Number(meta.editingSeed)
+        if (Number.isFinite(parsedSeed)) {
+          const minimum = colSchema.options?.min ?? Number.NEGATIVE_INFINITY
+          const maximum = colSchema.options?.max ?? Number.POSITIVE_INFINITY
+          seededValue = Math.min(maximum, Math.max(minimum, parsedSeed))
+        }
+      }
+    }
+    valueRef.current = seededValue
+    setValue(seededValue)
+    isEditingRef.current = true
+    editingColumnNameRef.current = colSchema.name
+    meta?.activeEdit?.set(() => (editorCommitRef.current ?? handleComplete)())
+  }, [colSchema, currentValue, handleComplete, isEditing, meta?.activeEdit, meta?.editingSeed])
+
   if (!colSchema) {
     return <div className={s.cell}>{String(currentValue)}</div>
   }
@@ -788,43 +958,31 @@ function EditableCell({ getValue, row, column, table }: EditableCellProps) {
   const EditorComponent = getCellEditor(colSchema.type)
   const renderer = getCellRenderer(colSchema.type)
 
-  const activeEdit = table.options.meta?.activeEdit
+  const renderedValue = (renderer as (value: unknown) => React.ReactNode)(currentValue)
 
-  const handleChange = (newValue: unknown) => {
-    setValue(newValue)
-    valueRef.current = newValue
-  }
-
-  const handleComplete = () => {
-    // Guard against committing twice when a flush is followed by the blur it caused
-    if (!isEditingRef.current) return
-    isEditingRef.current = false
-    setIsEditing(false)
-    activeEdit?.clear()
-    table.options.meta?.updateData(row.index, column.id, valueRef.current)
-  }
-
-  const startEditing = () => {
-    // Commit any other cell still in edit mode before taking over
-    activeEdit?.flush()
-    isEditingRef.current = true
-    setIsEditing(true)
-    activeEdit?.set(handleComplete)
-  }
-
-  const renderedValue =
-    colSchema.type === 'dateTime'
-      ? (renderer as (value: unknown, column: ColumnSchema) => React.ReactNode)(
-          currentValue,
-          colSchema
-        )
-      : (renderer as (value: unknown) => React.ReactNode)(currentValue)
-
+  // Number and compound editors must see Tab so they can parse the current control
+  // and move through controls inside the cell before the cell edit completes.
+  const editorHandlesTab = ['number', 'point2d', 'point3d', 'vec2', 'vec3', 'dateTime'].includes(
+    colSchema.type
+  )
   const opId = table.options.meta?.opId
 
   if (isEditing) {
     const editorCell = (
-      <div className={cx(s.cell, s.editing)}>
+      <div
+        className={cx(s.cell, s.editing)}
+        onKeyDownCapture={event => {
+          if (event.key === 'Escape') {
+            event.preventDefault()
+            event.stopPropagation()
+            handleCancel()
+          } else if (event.key === 'Tab' && !editorHandlesTab) {
+            event.preventDefault()
+            event.stopPropagation()
+            handleComplete(event.shiftKey ? 'previous-column' : 'next-column')
+          }
+        }}
+      >
         <span className={s.editingPlaceholder} aria-hidden="true">
           {renderedValue}
         </span>
@@ -833,7 +991,13 @@ function EditableCell({ getValue, row, column, table }: EditableCellProps) {
             value={value}
             onChange={handleChange}
             onComplete={handleComplete}
+            onCancel={handleCancel}
             column={colSchema}
+            initialNumberDrag={meta?.initialNumberDrag}
+            editingSeed={meta?.editingSeed}
+            registerCommit={commit => {
+              editorCommitRef.current = commit
+            }}
           />
         </div>
       </div>
@@ -844,7 +1008,7 @@ function EditableCell({ getValue, row, column, table }: EditableCellProps) {
       <TableCellKeyframe
         opId={opId}
         rowIndex={row.index}
-        column={column.id}
+        column={colSchema.name}
         value={currentValue}
         disabled
       >
@@ -853,16 +1017,28 @@ function EditableCell({ getValue, row, column, table }: EditableCellProps) {
     )
   }
 
-  const cellButton = (
-    <button type="button" className={cx(s.cell, s.cellButton)} onClick={startEditing}>
-      {renderedValue}
-    </button>
-  )
-  if (!opId) return cellButton
+  const cellContent =
+    colSchema.type === 'stringLiteral' && (colSchema.options?.values?.length ?? 0) > 0 ? (
+      <StringLiteralCell
+        value={currentValue}
+        column={colSchema}
+        onChange={newValue => {
+          if (columnIndex !== undefined) meta?.updateData?.(row.index, columnIndex, newValue)
+        }}
+      />
+    ) : (
+      <div className={s.cell}>{renderedValue}</div>
+    )
+  if (!opId) return cellContent
 
   return (
-    <TableCellKeyframe opId={opId} rowIndex={row.index} column={column.id} value={currentValue}>
-      {cellButton}
+    <TableCellKeyframe
+      opId={opId}
+      rowIndex={row.index}
+      column={colSchema.name}
+      value={currentValue}
+    >
+      {cellContent}
     </TableCellKeyframe>
   )
 }
@@ -878,12 +1054,18 @@ function SchemaDropdownMenu({
   label,
   actions,
   compact = false,
+  open: controlledOpen,
+  onOpenChange,
 }: {
   label: string
   actions: SchemaAction[]
   compact?: boolean
+  open?: boolean
+  onOpenChange?: (open: boolean) => void
 }) {
-  const [open, setOpen] = useState(false)
+  const [internalOpen, setInternalOpen] = useState(false)
+  const open = controlledOpen ?? internalOpen
+  const setOpen = onOpenChange ?? setInternalOpen
 
   return (
     <DropdownMenu.Root open={open} onOpenChange={setOpen} modal={false}>
@@ -947,23 +1129,79 @@ function SchemaContextMenu({
   )
 }
 
-function ColumnHeader({ name, actions }: { name: string; actions: SchemaAction[] }) {
+function ColumnHeader({
+  name,
+  actions,
+  menuOpen,
+  onMenuOpenChange,
+}: {
+  name: string
+  actions: SchemaAction[]
+  menuOpen: boolean
+  onMenuOpenChange: (open: boolean) => void
+}) {
   return (
     <SchemaContextMenu actions={actions}>
       <div className={s.columnHeader}>
         <span>{name}</span>
-        <SchemaDropdownMenu label={`Column actions for ${name}`} actions={actions} compact />
+        <SchemaDropdownMenu
+          label={`Column actions for ${name}`}
+          actions={actions}
+          compact
+          open={menuOpen}
+          onOpenChange={onMenuOpenChange}
+        />
       </div>
     </SchemaContextMenu>
   )
 }
 
 interface ClipboardTextApi {
+  read?: () => Promise<ClipboardItem[]>
   readText: () => Promise<string>
   writeText: (text: string) => Promise<void>
+  write?: (data: ClipboardItem[]) => Promise<void>
+}
+
+interface TableClipboardInput {
+  plainText: string
+  html: string
+  richText: string
 }
 
 type SchemaActionSource = 'table_menu' | 'column_menu' | 'schema_editor'
+
+const ROW_NUMBER_COLUMN_ID = '__noodles_row_number'
+const ROW_ACTIONS_COLUMN_ID = '__noodles_row_actions'
+const DATA_COLUMN_ID_PREFIX = '__noodles_data_'
+
+function getGridAccessibilityProps(rowCount: number, columnCount: number) {
+  return {
+    role: 'grid' as const,
+    'aria-rowcount': rowCount,
+    'aria-colcount': columnCount,
+    'aria-multiselectable': true,
+  }
+}
+
+function getGridCellAccessibilityProps(columnIndex: number, selected: boolean) {
+  return {
+    role: 'gridcell' as const,
+    'aria-colindex': columnIndex + 2,
+    'aria-selected': selected,
+  }
+}
+
+function getAuxiliaryGridCellAccessibilityProps(columnIndex: number) {
+  return {
+    role: 'gridcell' as const,
+    'aria-colindex': columnIndex + 1,
+  }
+}
+
+function getDataColumnId(index: number): string {
+  return `${DATA_COLUMN_ID_PREFIX}${index}`
+}
 
 async function writeClipboardText(
   text: string,
@@ -985,6 +1223,78 @@ async function writeClipboardText(
   if (!copied) throw new Error('Clipboard access is unavailable')
 }
 
+function isNativeClipboardTarget(target: EventTarget | null): boolean {
+  return (
+    target instanceof HTMLElement &&
+    (target.matches('input, textarea, select, [contenteditable="true"]') ||
+      target.closest('input, textarea, select, [contenteditable="true"]') !== null)
+  )
+}
+
+type SerializedTableRange = ReturnType<typeof serializeTableRangeClipboard>
+
+async function writeTableRangeClipboard(
+  serialized: SerializedTableRange,
+  clipboard: ClipboardTextApi | undefined
+): Promise<void> {
+  if (clipboard?.write && typeof ClipboardItem !== 'undefined') {
+    try {
+      await clipboard.write([
+        new ClipboardItem({
+          'text/plain': new Blob([serialized.plainText], { type: 'text/plain' }),
+          'text/html': new Blob([serialized.html], { type: 'text/html' }),
+          [TABLE_RANGE_CLIPBOARD_MIME]: new Blob([serialized.richText], {
+            type: TABLE_RANGE_CLIPBOARD_MIME,
+          }),
+        }),
+      ])
+      return
+    } catch {
+      // Safari and some permission policies reject custom clipboard MIME types.
+      // Retry the interoperable formats together before falling back to TSV.
+      try {
+        await clipboard.write([
+          new ClipboardItem({
+            'text/plain': new Blob([serialized.plainText], { type: 'text/plain' }),
+            'text/html': new Blob([serialized.html], { type: 'text/html' }),
+          }),
+        ])
+        return
+      } catch {
+        // Some permission policies reject ClipboardItem entirely.
+      }
+    }
+  }
+  await writeClipboardText(serialized.plainText, clipboard)
+}
+
+async function readTableClipboard(
+  clipboard: ClipboardTextApi | undefined
+): Promise<TableClipboardInput> {
+  if (clipboard?.read) {
+    try {
+      const items = await clipboard.read()
+      const input: TableClipboardInput = { plainText: '', html: '', richText: '' }
+      for (const item of items) {
+        if (!input.richText && item.types.includes(TABLE_RANGE_CLIPBOARD_MIME)) {
+          input.richText = await (await item.getType(TABLE_RANGE_CLIPBOARD_MIME)).text()
+        }
+        if (!input.html && item.types.includes('text/html')) {
+          input.html = await (await item.getType('text/html')).text()
+        }
+        if (!input.plainText && item.types.includes('text/plain')) {
+          input.plainText = await (await item.getType('text/plain')).text()
+        }
+      }
+      if (input.plainText || input.html || input.richText) return input
+    } catch {
+      // Fall through to readText for browsers that expose read() but deny rich formats.
+    }
+  }
+  if (!clipboard?.readText) throw new Error('Clipboard read is unavailable')
+  return { plainText: await clipboard.readText(), html: '', richText: '' }
+}
+
 function getDuplicateColumnName(name: string, columns: ColumnSchema[]): string {
   const existingNames = new Set(columns.map(column => column.name))
   const baseName = (name || 'column').replace(/-\d+$/, '')
@@ -995,12 +1305,26 @@ function getDuplicateColumnName(name: string, columns: ColumnSchema[]): string {
 
 // Main table component
 
+export interface TableDataPastePreviewRequest {
+  request: TableImportRequest
+  anchor: TableCellCoordinate
+  schema: TableSchema
+  data: unknown[]
+  reasons: string[]
+}
+
+interface TablePreviewTarget {
+  schema: TableSchema
+  data: unknown[]
+}
+
 interface TableEditorProps {
   op: TableEditorOp
   data: unknown[]
   schema: TableSchema
   onDataChange: (data: unknown[], description?: string) => void
   onSchemaChange: (schema: TableSchema, data?: unknown[]) => void
+  onDataPastePreview?: (request: TableDataPastePreviewRequest) => void
   /** Injectable for deterministic tests and non-browser hosts. */
   clipboard?: ClipboardTextApi
 }
@@ -1011,6 +1335,7 @@ export function TableEditor({
   schema,
   onDataChange,
   onSchemaChange,
+  onDataPastePreview,
   clipboard: clipboardOverride,
 }: TableEditorProps) {
   const [tableData, setTableData] = useState(() => validateTableData(data, schema))
@@ -1020,26 +1345,86 @@ export function TableEditor({
   const [overlayPreview, setOverlayPreview] = useState<SchemaOverlayPreview>()
   const [overlayError, setOverlayError] = useState<string>()
   const [pasteCatcherOpen, setPasteCatcherOpen] = useState(false)
+  const [dataPasteCatcherOpen, setDataPasteCatcherOpen] = useState(false)
   const [clipboardMessage, setClipboardMessage] = useState('')
+  const [openActionMenu, setOpenActionMenu] = useState<string | null>(null)
+  const [dataImportOpen, setDataImportOpen] = useState(false)
+  const [dataImportRequest, setDataImportRequest] = useState<TableImportRequest>()
+  const [dataImportError, setDataImportError] = useState<string>()
   const overlaySourceRef = useRef<SchemaActionSource>('table_menu')
+  const dataPasteAnalyticsRef = useRef<
+    | {
+        actionSource: 'keyboard' | 'cell_menu' | 'table_menu' | 'empty_state'
+        format: string
+        rowCount: number
+        columnCount: number
+      }
+    | undefined
+  >(undefined)
+  const tableWrapperRef = useRef<HTMLDivElement>(null)
   const activeEdit = useActiveEdit()
   const previousDataRef = useRef(data)
   const previousSchemaRef = useRef(schema)
+  const schemaRef = useRef(schema)
+  schemaRef.current = schema
+
+  const setActionMenuOpen = useCallback((label: string, open: boolean) => {
+    setOpenActionMenu(current => (open ? label : current === label ? null : current))
+  }, [])
 
   // Mirrors tableData so a flushed cell edit and the row mutation that triggered
   // it can both run in one tick without the second reading stale state
   const tableDataRef = useRef(tableData)
   tableDataRef.current = tableData
+  const {
+    activeCell,
+    selection,
+    editingCell,
+    editingSeed,
+    initialNumberDrag,
+    selectCell,
+    selectRange,
+    beginEditing,
+    startNumberDrag,
+    finishEditing,
+    cancelEditing,
+    moveActiveCell,
+    beginPointerSelection,
+    extendPointerSelection,
+  } = useTableGridNavigation({
+    rowCount: tableData.length,
+    columnCount: schema.columns.length,
+    tableDataRef,
+    tableWrapperRef,
+    activeEdit,
+  })
+  const overlayTargetRef = useRef<TablePreviewTarget>()
+  const dataImportTargetRef = useRef<TablePreviewTarget>()
+
+  const capturePreviewTarget = useCallback(
+    (): TablePreviewTarget => ({ schema, data: tableDataRef.current }),
+    [schema]
+  )
+  const isPreviewTargetCurrent = useCallback(
+    (target?: TablePreviewTarget) =>
+      target?.schema === schema && target.data === tableDataRef.current,
+    [schema]
+  )
 
   // Latest callback for the prop-sync effect, which should only re-run when data or schema change
   const onDataChangeRef = useRef(onDataChange)
   onDataChangeRef.current = onDataChange
 
-  const commitData = (newData: unknown[], description: string) => {
-    tableDataRef.current = newData
-    setTableData(newData)
-    onDataChange(newData, description)
-  }
+  const selectionRect = getSelectionRect(selection)
+
+  const commitData = useCallback(
+    (newData: unknown[], description: string) => {
+      tableDataRef.current = newData
+      setTableData(newData)
+      onDataChange(newData, description)
+    },
+    [onDataChange]
+  )
 
   useEffect(() => {
     const dataChanged = previousDataRef.current !== data
@@ -1077,7 +1462,14 @@ export function TableEditor({
   useEffect(() => {
     if (!overlayOpen || !overlayPayload) return
     setOverlayPreview(createSchemaOverlayPreview(schema, tableData, overlayPayload))
-  }, [overlayOpen, overlayPayload, schema, tableData])
+    overlayTargetRef.current = capturePreviewTarget()
+  }, [capturePreviewTarget, overlayOpen, overlayPayload, schema, tableData])
+
+  useEffect(() => {
+    const target = dataImportTargetRef.current
+    if (!dataImportOpen || (target?.schema === schema && target.data === tableData)) return
+    setDataImportError('The table changed while this preview was open. Close it and paste again.')
+  }, [dataImportOpen, schema, tableData])
 
   const addRow = () => {
     activeEdit.flush()
@@ -1134,8 +1526,9 @@ export function TableEditor({
       setOverlayError(undefined)
       setOverlayPayload(parsed.payload)
       setOverlayPreview(createSchemaOverlayPreview(schema, tableDataRef.current, parsed.payload))
+      overlayTargetRef.current = capturePreviewTarget()
     },
-    [schema]
+    [capturePreviewTarget, schema]
   )
 
   const pasteSchemaOverlay = useCallback(
@@ -1240,6 +1633,12 @@ export function TableEditor({
     (decisions: SchemaOverlayDecisions) => {
       if (!overlayPreview) return
       activeEdit.flush()
+      if (!isPreviewTargetCurrent(overlayTargetRef.current)) {
+        setOverlayError(
+          'The table changed while this preview was open. Review the refreshed preview.'
+        )
+        return
+      }
       const appliedColumns = overlayPreview.columns.filter(
         column => (decisions[column.incomingIndex] ?? column.defaultDecision) === 'apply'
       )
@@ -1279,7 +1678,7 @@ export function TableEditor({
         setOverlayError('The selected schema changes could not be applied.')
       }
     },
-    [activeEdit, onSchemaChange, overlayPayload, overlayPreview]
+    [activeEdit, isPreviewTargetCurrent, onSchemaChange, overlayPayload, overlayPreview]
   )
 
   const openSchemaEditor = useCallback(() => {
@@ -1287,8 +1686,438 @@ export function TableEditor({
     setSchemaEditorOpen(true)
   }, [activeEdit])
 
+  const clearRange = useCallback(
+    (rect: TableSelectionRect) => {
+      activeEdit.flush()
+      const nextData = tableDataRef.current.map((rawRow, rowIndex) => {
+        if (rowIndex < rect.firstRow || rowIndex > rect.lastRow) return rawRow
+        const nextRow = { ...(rawRow as Record<string, unknown>) }
+        for (let columnIndex = rect.firstColumn; columnIndex <= rect.lastColumn; columnIndex += 1) {
+          const column = schema.columns[columnIndex]
+          if (column) nextRow[column.name] = column.defaultValue ?? getDefaultValue(column)
+        }
+        return nextRow
+      })
+      commitData(nextData, 'Clear table selection')
+    },
+    [activeEdit, commitData, schema.columns]
+  )
+
+  const clearSelection = useCallback(() => {
+    const rect = getSelectionRect(selection)
+    if (rect) clearRange(rect)
+  }, [clearRange, selection])
+
+  const serializeRange = useCallback(
+    (rect: TableSelectionRect, includeColumnNames = false) => {
+      const columns = schema.columns.slice(rect.firstColumn, rect.lastColumn + 1)
+      const rows = tableDataRef.current.slice(rect.firstRow, rect.lastRow + 1).map(rawRow => {
+        const row = rawRow as Record<string, unknown>
+        return columns.map(column => row[column.name])
+      })
+      return serializeTableRangeClipboard(columns, rows, { includeColumnNames })
+    },
+    [schema.columns]
+  )
+
+  const copyRange = useCallback(
+    async (
+      rect: TableSelectionRect,
+      includeColumnNames: boolean,
+      actionSource: 'cell_menu' | 'column_menu' | 'table_menu' | 'keyboard'
+    ) => {
+      const serialized = serializeRange(rect, includeColumnNames)
+      const rowCount = rect.lastRow - rect.firstRow + 1
+      const columnCount = rect.lastColumn - rect.firstColumn + 1
+      try {
+        const clipboard = clipboardOverride ?? globalThis.navigator?.clipboard
+        await writeTableRangeClipboard(serialized, clipboard)
+        analytics.track('table_data_copied', {
+          actionSource,
+          format: 'table-range',
+          rowCount,
+          columnCount,
+          success: true,
+        })
+        setClipboardMessage(`${rowCount} × ${columnCount} table range copied`)
+      } catch {
+        analytics.track('table_data_copied', {
+          actionSource,
+          format: 'table-range',
+          rowCount,
+          columnCount,
+          success: false,
+        })
+        setClipboardMessage('Could not copy the selected table range')
+      }
+    },
+    [clipboardOverride, serializeRange]
+  )
+
+  const handleGridCopy = useCallback(
+    (event: React.ClipboardEvent<HTMLTableElement>) => {
+      if (isNativeClipboardTarget(event.target)) {
+        event.stopPropagation()
+        return
+      }
+      const rect = getSelectionRect(selection)
+      if (!rect || !event.clipboardData) return
+      const serialized = serializeRange(rect)
+      event.preventDefault()
+      event.stopPropagation()
+      event.clipboardData.setData('text/plain', serialized.plainText)
+      event.clipboardData.setData('text/html', serialized.html)
+      try {
+        event.clipboardData.setData(TABLE_RANGE_CLIPBOARD_MIME, serialized.richText)
+      } catch {
+        // Custom MIME types are best-effort; TSV and HTML remain interoperable.
+      }
+      analytics.track('table_data_copied', {
+        actionSource: 'keyboard',
+        format: 'table-range',
+        rowCount: rect.lastRow - rect.firstRow + 1,
+        columnCount: rect.lastColumn - rect.firstColumn + 1,
+        success: true,
+      })
+    },
+    [selection, serializeRange]
+  )
+
+  const createBlankImportRequest = useCallback(
+    (parsed: ParsedTableDataClipboard): TableImportRequest =>
+      createTableImportDialogRequest(parsed, 'blank'),
+    []
+  )
+
+  const createOverflowImportRequest = useCallback(
+    (
+      parsed: ParsedTableDataClipboard,
+      plan: AnchoredTablePastePlan,
+      reasons: string[]
+    ): TableImportRequest => ({
+      mode: 'overflow',
+      format: parsed.format,
+      defaultFirstRowContainsHeaders: false,
+      firstRowContainsHeadersEditable: !(parsed.columns?.length || parsed.columnNames?.length),
+      editableColumnStart: schema.columns.length,
+      reasons,
+      createPreview: firstRowContainsHeaders => {
+        const hasExplicitMetadata = Boolean(parsed.columns?.length || parsed.columnNames?.length)
+        const sourceRows =
+          firstRowContainsHeaders && !hasExplicitMetadata
+            ? plan.sourceRows.slice(1)
+            : plan.sourceRows
+        const inferred = inferTableData(plan.sourceRows, {
+          firstRowContainsHeaders,
+          columnNames: parsed.columnNames,
+          columns: parsed.columns,
+        })
+        const replanned = planAnchoredTablePaste(
+          schema,
+          tableDataRef.current,
+          sourceRows,
+          plan.anchor
+        )
+        const inBoundsSourceColumns = Math.max(0, schema.columns.length - plan.anchor.column)
+        const incomingOverflow = inferred.schema.columns.slice(inBoundsSourceColumns)
+        const normalizedNames = normalizeTableColumnNames([
+          ...schema.columns.map(column => column.name),
+          ...incomingOverflow.map(column => column.name),
+        ])
+        const existingIds = new Set(
+          schema.columns.flatMap(column => (column.id ? [column.id] : []))
+        )
+        const overflowColumns = incomingOverflow.map((column, index) => {
+          const id = column.id && !existingIds.has(column.id) ? column.id : undefined
+          if (id) existingIds.add(id)
+          return {
+            ...column,
+            ...(id ? { id } : { id: undefined }),
+            name: normalizedNames[schema.columns.length + index],
+          }
+        })
+        const mergedSchema: TableSchema = {
+          columns: [...schema.columns, ...overflowColumns],
+        }
+        const mergedData = replanned.data.map(rawRow => {
+          const row = { ...(rawRow as Record<string, unknown>) }
+          for (const column of overflowColumns) {
+            row[column.name] = cloneCellValue(column.defaultValue ?? getDefaultValue(column))
+          }
+          return row
+        })
+
+        for (const [sourceRowIndex, sourceRow] of sourceRows.entries()) {
+          const target = mergedData[plan.anchor.row + sourceRowIndex]
+          if (!target) continue
+          for (const [sourceColumnIndex, value] of sourceRow.entries()) {
+            const targetColumnIndex = plan.anchor.column + sourceColumnIndex
+            const column = mergedSchema.columns[targetColumnIndex]
+            if (!column) continue
+            target[column.name] = cloneCellValue(value)
+          }
+        }
+
+        return {
+          format: parsed.format,
+          schema: mergedSchema,
+          data: mergedData,
+          sourceRows,
+          sourceOrigin: plan.anchor,
+        }
+      },
+    }),
+    [schema]
+  )
+
+  const openDataImportPreview = useCallback(
+    (
+      request: TableImportRequest,
+      anchor: TableCellCoordinate,
+      reasons: string[],
+      analyticsDetails: typeof dataPasteAnalyticsRef.current
+    ) => {
+      dataPasteAnalyticsRef.current = analyticsDetails
+      const previewRequest: TableDataPastePreviewRequest = {
+        request,
+        anchor,
+        schema,
+        data: tableDataRef.current,
+        reasons,
+      }
+      if (onDataPastePreview) {
+        onDataPastePreview(previewRequest)
+        return
+      }
+      dataImportTargetRef.current = capturePreviewTarget()
+      setDataImportError(undefined)
+      setDataImportRequest(request)
+      setDataImportOpen(true)
+    },
+    [capturePreviewTarget, onDataPastePreview, schema]
+  )
+
+  const applyParsedTablePaste = useCallback(
+    (
+      parsed: ParsedTableDataClipboard,
+      anchor: TableCellCoordinate,
+      actionSource: 'keyboard' | 'cell_menu' | 'table_menu' | 'empty_state'
+    ) => {
+      activeEdit.flush()
+      const rowCount = parsed.rows.length
+      const columnCount = parsed.rows.reduce((maximum, row) => Math.max(maximum, row.length), 0)
+      const analyticsDetails = {
+        actionSource,
+        format: parsed.format,
+        rowCount,
+        columnCount,
+      }
+
+      if (schema.columns.length === 0) {
+        openDataImportPreview(
+          createBlankImportRequest(parsed),
+          anchor,
+          ['A schema must be created for the pasted data.'],
+          analyticsDetails
+        )
+        return
+      }
+
+      const plan = planAnchoredTablePaste(schema, tableDataRef.current, parsed.rows, anchor)
+      if (plan.needsPreview) {
+        const reasons = []
+        if (plan.overflowColumnCount > 0) {
+          reasons.push(
+            `${plan.overflowColumnCount} pasted column${plan.overflowColumnCount === 1 ? ' extends' : 's extend'} beyond the table.`
+          )
+        }
+        if (plan.counts.reset > 0) {
+          reasons.push(
+            `${plan.counts.reset} value${plan.counts.reset === 1 ? '' : 's'} cannot be converted without resetting.`
+          )
+        }
+        openDataImportPreview(
+          createOverflowImportRequest(parsed, plan, reasons),
+          anchor,
+          reasons,
+          analyticsDetails
+        )
+        return
+      }
+
+      commitData(plan.data, 'Paste table data')
+      const lastRow = Math.min(plan.data.length - 1, anchor.row + Math.max(0, plan.rowCount - 1))
+      const lastColumn = Math.min(
+        schema.columns.length - 1,
+        anchor.column + Math.max(0, plan.columnCount - 1)
+      )
+      selectRange(anchor, { row: lastRow, column: lastColumn })
+      analytics.track('table_data_pasted', { ...analyticsDetails, success: true })
+    },
+    [
+      activeEdit,
+      commitData,
+      createBlankImportRequest,
+      createOverflowImportRequest,
+      openDataImportPreview,
+      schema,
+      selectRange,
+    ]
+  )
+
+  const routeTableClipboard = useCallback(
+    (
+      input: TableClipboardInput,
+      actionSource: 'keyboard' | 'cell_menu' | 'table_menu' | 'empty_state',
+      anchor: TableCellCoordinate
+    ) => {
+      const parsed = parseTableClipboard(input, {
+        allowScalar: schema.columns.length > 0,
+        // An explicit table paste of unquoted multiline text means a one-column range
+        allowSingleColumnRows: true,
+        allowSingleRowCsv: true,
+      })
+      if (parsed.kind === 'table') {
+        applyParsedTablePaste(parsed, anchor, actionSource)
+        return
+      }
+      if (parsed.kind === 'schema') {
+        overlaySourceRef.current = actionSource === 'cell_menu' ? 'column_menu' : 'table_menu'
+        showOverlayPreview(input.plainText)
+        return
+      }
+      setClipboardMessage(
+        parsed.kind === 'graph'
+          ? 'Graph nodes cannot be pasted into a selected table range'
+          : 'The clipboard does not contain table data'
+      )
+      analytics.track('table_data_pasted', {
+        actionSource,
+        format: parsed.kind,
+        rowCount: 0,
+        columnCount: 0,
+        success: false,
+      })
+    },
+    [applyParsedTablePaste, schema.columns.length, showOverlayPreview]
+  )
+
+  const pasteTableDataFromClipboard = useCallback(
+    async (
+      actionSource: 'cell_menu' | 'table_menu' | 'empty_state',
+      anchor = activeCell ?? { row: 0, column: 0 }
+    ) => {
+      activeEdit.flush()
+      const targetSchema = schemaRef.current
+      const targetData = tableDataRef.current
+      try {
+        const clipboard = clipboardOverride ?? globalThis.navigator?.clipboard
+        const input = await readTableClipboard(clipboard)
+        if (schemaRef.current !== targetSchema || tableDataRef.current !== targetData) {
+          setClipboardMessage('The table changed while the clipboard was being read. Paste again.')
+          analytics.track('table_data_pasted', {
+            actionSource,
+            format: 'stale',
+            rowCount: 0,
+            columnCount: 0,
+            success: false,
+          })
+          return
+        }
+        routeTableClipboard(input, actionSource, anchor)
+      } catch {
+        dataPasteAnalyticsRef.current = {
+          actionSource,
+          format: 'unavailable',
+          rowCount: 0,
+          columnCount: 0,
+        }
+        setDataPasteCatcherOpen(true)
+      }
+    },
+    [activeCell, activeEdit, clipboardOverride, routeTableClipboard]
+  )
+
+  const handleGridPaste = useCallback(
+    (event: React.ClipboardEvent<HTMLTableElement>) => {
+      if (isNativeClipboardTarget(event.target)) {
+        event.stopPropagation()
+        return
+      }
+      if (!activeCell) return
+      event.preventDefault()
+      event.stopPropagation()
+      const rect = getSelectionRect(selection)
+      routeTableClipboard(
+        {
+          plainText: event.clipboardData.getData('text/plain'),
+          html: event.clipboardData.getData('text/html'),
+          richText: event.clipboardData.getData(TABLE_RANGE_CLIPBOARD_MIME),
+        },
+        'keyboard',
+        rect ? { row: rect.firstRow, column: rect.firstColumn } : activeCell
+      )
+    },
+    [activeCell, routeTableClipboard, selection]
+  )
+
+  const getCellActions = useCallback(
+    (coordinate: TableCellCoordinate): SchemaAction[] => {
+      const currentRect = getSelectionRect(selection)
+      const rect = coordinateInRect(coordinate, currentRect)
+        ? (currentRect as TableSelectionRect)
+        : {
+            firstRow: coordinate.row,
+            lastRow: coordinate.row,
+            firstColumn: coordinate.column,
+            lastColumn: coordinate.column,
+          }
+      const anchor = { row: rect.firstRow, column: rect.firstColumn }
+      return [
+        {
+          label: 'Copy',
+          icon: 'pi-copy',
+          onSelect: () => void copyRange(rect, false, 'cell_menu'),
+        },
+        {
+          label: 'Copy with Column Names',
+          icon: 'pi-copy',
+          onSelect: () => void copyRange(rect, true, 'cell_menu'),
+        },
+        {
+          label: 'Paste',
+          icon: 'pi-download',
+          onSelect: () => void pasteTableDataFromClipboard('cell_menu', anchor),
+        },
+        {
+          label: 'Clear Selection',
+          icon: 'pi-eraser',
+          onSelect: () => clearRange(rect),
+        },
+      ]
+    },
+    [clearRange, copyRange, pasteTableDataFromClipboard, selection]
+  )
+
   const getColumnActions = useCallback(
     (column: ColumnSchema, index: number): SchemaAction[] => [
+      {
+        label: 'Copy Column Values',
+        icon: 'pi-copy',
+        onSelect: () => {
+          if (tableDataRef.current.length === 0) return
+          void copyRange(
+            {
+              firstRow: 0,
+              lastRow: tableDataRef.current.length - 1,
+              firstColumn: index,
+              lastColumn: index,
+            },
+            false,
+            'column_menu'
+          )
+        },
+      },
       { label: 'Edit Column', icon: 'pi-pencil', onSelect: openSchemaEditor },
       {
         label: 'Copy Column Schema',
@@ -1330,11 +2159,39 @@ export function TableEditor({
           }),
       },
     ],
-    [copyColumn, handleSchemaChange, openSchemaEditor, pasteSchemaOverlay, schema]
+    [copyColumn, copyRange, handleSchemaChange, openSchemaEditor, pasteSchemaOverlay, schema]
   )
 
   const tableSchemaActions = useMemo<SchemaAction[]>(
     () => [
+      {
+        label: 'Copy All Data',
+        icon: 'pi-copy',
+        onSelect: () => {
+          if (tableDataRef.current.length === 0 || schema.columns.length === 0) return
+          void copyRange(
+            {
+              firstRow: 0,
+              lastRow: tableDataRef.current.length - 1,
+              firstColumn: 0,
+              lastColumn: schema.columns.length - 1,
+            },
+            true,
+            'table_menu'
+          )
+        },
+      },
+      {
+        label: 'Paste Data',
+        icon: 'pi-download',
+        onSelect: () => {
+          const rect = getSelectionRect(selection)
+          const anchor = rect
+            ? { row: rect.firstRow, column: rect.firstColumn }
+            : (activeCell ?? { row: 0, column: 0 })
+          void pasteTableDataFromClipboard('table_menu', anchor)
+        },
+      },
       { label: 'Edit Schema', icon: 'pi-pencil', onSelect: openSchemaEditor },
       {
         label: 'Copy Schema',
@@ -1347,34 +2204,56 @@ export function TableEditor({
         onSelect: () => void pasteSchemaOverlay('table_menu'),
       },
     ],
-    [copySchema, openSchemaEditor, pasteSchemaOverlay, schema]
+    [
+      activeCell,
+      copyRange,
+      copySchema,
+      openSchemaEditor,
+      pasteSchemaOverlay,
+      pasteTableDataFromClipboard,
+      schema,
+      selection,
+    ]
   )
 
   const columnHelper = createColumnHelper<Record<string, unknown>>()
+  const columnIndexById = new Map(
+    schema.columns.map((_, columnIndex) => [getDataColumnId(columnIndex), columnIndex])
+  )
 
   // Add row number column and action column
   const columns: ColumnDef<Record<string, unknown>>[] = [
     columnHelper.display({
-      id: '_rowNumber',
+      id: ROW_NUMBER_COLUMN_ID,
       header: '#',
       cell: props => <div className={s.rowNumber}>{props.row.index + 1}</div>,
       size: 50,
     }),
-    ...schema.columns.map(colSchema =>
-      columnHelper.accessor(colSchema.name, {
+    ...schema.columns.map((colSchema, columnIndex) =>
+      columnHelper.accessor(row => row[colSchema.name], {
+        id: getDataColumnId(columnIndex),
         header: () => (
           <ColumnHeader
             name={colSchema.name}
             actions={getColumnActions(colSchema, schema.columns.indexOf(colSchema))}
+            menuOpen={openActionMenu === `Column actions for ${colSchema.name}`}
+            onMenuOpenChange={open =>
+              setActionMenuOpen(`Column actions for ${colSchema.name}`, open)
+            }
           />
         ),
         cell: EditableCell,
       })
     ),
     columnHelper.display({
-      id: '_actions',
+      id: ROW_ACTIONS_COLUMN_ID,
       header: () => (
-        <SchemaDropdownMenu label="Table schema actions" actions={tableSchemaActions} />
+        <SchemaDropdownMenu
+          label="Table actions"
+          actions={tableSchemaActions}
+          open={openActionMenu === 'Table actions'}
+          onOpenChange={open => setActionMenuOpen('Table actions', open)}
+        />
       ),
       cell: props => (
         <Button
@@ -1383,7 +2262,7 @@ export function TableEditor({
           // Suppress the editor blur so unmounting it doesn't reflow the row and
           // move this button out from under the pointer before mouseup lands
           onMouseDown={e => e.preventDefault()}
-          onClick={() => props.table.options.meta?.deleteRow(props.row.index)}
+          onClick={() => props.table.options.meta?.deleteRow?.(props.row.index)}
           tooltip="Delete row"
           aria-label="Delete row"
         />
@@ -1392,24 +2271,28 @@ export function TableEditor({
     }),
   ]
 
-  const table = useReactTable({
-    data: tableData,
+  const table = useReactTable<Record<string, unknown>>({
+    data: tableData as Array<Record<string, unknown>>,
     columns,
     getCoreRowModel: getCoreRowModel(),
     meta: {
-      updateData: (rowIndex: number, columnId: string, value: unknown) => {
+      updateData: (rowIndex: number, columnIndex: number, value: unknown, columnName?: string) => {
+        const columnSchema = schema.columns[columnIndex]
+        if (!columnSchema) return
+        const targetName = columnName ?? columnSchema.name
         // Only update if value actually changed
         const currentData = tableDataRef.current
-        const currentValue = currentData[rowIndex]?.[columnId]
+        const currentRow = currentData[rowIndex] as Record<string, unknown> | undefined
+        const currentValue = currentRow?.[targetName]
         if (currentValue === value) {
           return
         }
         const newData = [...currentData]
         newData[rowIndex] = {
-          ...newData[rowIndex],
-          [columnId]: value,
+          ...(newData[rowIndex] as Record<string, unknown>),
+          [targetName]: value,
         }
-        commitData(newData, `Edit cell ${columnId}`)
+        commitData(newData, `Edit cell ${targetName}`)
       },
       deleteRow: (rowIndex: number) => {
         activeEdit.flush()
@@ -1419,8 +2302,92 @@ export function TableEditor({
       schema,
       activeEdit,
       opId: op?.id,
+      columnIndexById,
+      editingCell,
+      editingSeed,
+      initialNumberDrag,
+      finishEditing,
+      cancelEditing,
     },
   })
+
+  const tableRows = table.getRowModel().rows
+
+  const handleCellKeyDown = useCallback(
+    (event: React.KeyboardEvent<HTMLTableCellElement>, coordinate: TableCellCoordinate) => {
+      if (coordinatesEqual(editingCell, coordinate)) return
+      const target = activeCell ?? coordinate
+      switch (event.key) {
+        case 'ArrowUp':
+          event.preventDefault()
+          moveActiveCell(
+            event.ctrlKey || event.metaKey ? -tableDataRef.current.length : -1,
+            0,
+            event.shiftKey
+          )
+          return
+        case 'ArrowDown':
+          event.preventDefault()
+          moveActiveCell(
+            event.ctrlKey || event.metaKey ? tableDataRef.current.length : 1,
+            0,
+            event.shiftKey
+          )
+          return
+        case 'ArrowLeft':
+          event.preventDefault()
+          moveActiveCell(0, -1, event.shiftKey)
+          return
+        case 'ArrowRight':
+          event.preventDefault()
+          moveActiveCell(0, 1, event.shiftKey)
+          return
+        case 'Enter':
+        case 'F2':
+          event.preventDefault()
+          beginEditing(target)
+          return
+        case 'Escape':
+          event.preventDefault()
+          selectCell(target)
+          return
+        case 'Backspace':
+        case 'Delete':
+          event.preventDefault()
+          clearSelection()
+          return
+        case 'Tab':
+          {
+            const cellCount = tableDataRef.current.length * schema.columns.length
+            const linearIndex = target.row * schema.columns.length + target.column
+            const nextIndex = linearIndex + (event.shiftKey ? -1 : 1)
+            if (nextIndex < 0 || nextIndex >= cellCount) return
+            event.preventDefault()
+            const next = {
+              row: Math.floor(nextIndex / schema.columns.length),
+              column: nextIndex % schema.columns.length,
+            }
+            selectRange(next, next)
+          }
+          return
+        default:
+          if (event.key.length === 1 && !event.ctrlKey && !event.metaKey && !event.altKey) {
+            event.preventDefault()
+            beginEditing(target, event.key)
+          }
+      }
+    },
+    [
+      activeCell,
+      beginEditing,
+      clearSelection,
+      editingCell,
+      moveActiveCell,
+      schema.columns.length,
+      selectCell,
+      selectRange,
+    ]
+  )
 
   const schemaDialogs = (
     <>
@@ -1448,6 +2415,51 @@ export function TableEditor({
         onOpenChange={setPasteCatcherOpen}
         onPasteText={showOverlayPreview}
       />
+      <ClipboardPasteDialog
+        open={dataPasteCatcherOpen}
+        onOpenChange={setDataPasteCatcherOpen}
+        onPasteText={text => {
+          const rect = getSelectionRect(selection)
+          routeTableClipboard(
+            { plainText: text, html: '', richText: '' },
+            dataPasteAnalyticsRef.current?.actionSource ?? 'table_menu',
+            rect
+              ? { row: rect.firstRow, column: rect.firstColumn }
+              : (activeCell ?? { row: 0, column: 0 })
+          )
+        }}
+        title="Paste Table Data"
+        description="Clipboard access is unavailable. Press Cmd+V or Ctrl+V in the field below."
+        ariaLabel="Paste table data"
+        placeholder="Paste table data here"
+      />
+      <TableImportDialog
+        open={dataImportOpen}
+        request={dataImportRequest}
+        error={dataImportError}
+        onOpenChange={setDataImportOpen}
+        onConfirm={result => {
+          activeEdit.flush()
+          if (!isPreviewTargetCurrent(dataImportTargetRef.current)) {
+            setDataImportError(
+              'The table changed while this preview was open. Close it and paste again.'
+            )
+            return
+          }
+          tableDataRef.current = result.data
+          setTableData(result.data)
+          onSchemaChange(result.schema, result.data)
+          const details = dataPasteAnalyticsRef.current
+          analytics.track('table_data_pasted', {
+            actionSource: details?.actionSource ?? 'table_menu',
+            format: details?.format ?? result.format,
+            rowCount: details?.rowCount ?? result.data.length,
+            columnCount: details?.columnCount ?? result.schema.columns.length,
+            success: true,
+          })
+          setDataImportOpen(false)
+        }}
+      />
       <span className={s.visuallyHidden} role="status" aria-live="polite">
         {clipboardMessage}
       </span>
@@ -1461,14 +2473,31 @@ export function TableEditor({
           <div className={s.emptyState}>
             <p>No data. Add rows to get started.</p>
             <div className={s.emptyActions}>
-              <Button label="Add Row" icon="pi pi-plus" onClick={addRow} />
+              <Button
+                label="Paste Data"
+                icon="pi pi-download"
+                onClick={() =>
+                  void pasteTableDataFromClipboard('empty_state', { row: 0, column: 0 })
+                }
+              />
+              <Button
+                label="Add Row"
+                icon="pi pi-plus"
+                className="p-button-text"
+                onClick={addRow}
+              />
               <Button
                 label="Edit Schema"
                 icon="pi pi-pencil"
                 className="p-button-text"
                 onClick={openSchemaEditor}
               />
-              <SchemaDropdownMenu label="Table schema actions" actions={tableSchemaActions} />
+              <SchemaDropdownMenu
+                label="Table actions"
+                actions={tableSchemaActions}
+                open={openActionMenu === 'Table actions'}
+                onOpenChange={open => setActionMenuOpen('Table actions', open)}
+              />
             </div>
           </div>
         </SchemaContextMenu>
@@ -1481,31 +2510,152 @@ export function TableEditor({
     <>
       <SchemaContextMenu actions={tableSchemaActions}>
         <div className={s.tableContainer}>
-          <div className={s.tableWrapper}>
-            <table className={s.table}>
+          <div
+            ref={tableWrapperRef}
+            className={s.tableWrapper}
+            onScrollCapture={() => {
+              if (editingCell) activeEdit.flush()
+            }}
+          >
+            <table
+              {...getGridAccessibilityProps(tableData.length + 1, schema.columns.length + 2)}
+              className={cx(s.table, 'nokey')}
+              data-table-editor-grid="true"
+              onCopy={handleGridCopy}
+              onPaste={handleGridPaste}
+            >
               <thead>
                 {table.getHeaderGroups().map(headerGroup => (
                   <tr key={headerGroup.id}>
-                    {headerGroup.headers.map(header => (
-                      <th key={header.id} className={s.header}>
-                        {header.isPlaceholder
-                          ? null
-                          : flexRender(header.column.columnDef.header, header.getContext())}
-                      </th>
-                    ))}
+                    {headerGroup.headers.map((header, visibleColumnIndex) => {
+                      const columnIndex = columnIndexById.get(header.column.id)
+                      const isCorner = header.column.id === ROW_NUMBER_COLUMN_ID
+                      const isSelected =
+                        columnIndex !== undefined &&
+                        selectionRect?.firstColumn === columnIndex &&
+                        selectionRect.lastColumn === columnIndex &&
+                        selectionRect.firstRow === 0 &&
+                        selectionRect.lastRow === tableData.length - 1
+                      return (
+                        <th
+                          key={header.id}
+                          className={cx(s.header, isSelected && s.selectedHeader)}
+                          scope="col"
+                          aria-colindex={visibleColumnIndex + 1}
+                          aria-selected={isSelected || undefined}
+                          onClick={event => {
+                            if ((event.target as HTMLElement).closest('button')) return
+                            if (isCorner) {
+                              selectRange(
+                                { row: 0, column: 0 },
+                                { row: tableData.length - 1, column: schema.columns.length - 1 }
+                              )
+                            } else if (columnIndex !== undefined) {
+                              selectRange(
+                                { row: 0, column: columnIndex },
+                                { row: tableData.length - 1, column: columnIndex }
+                              )
+                            }
+                          }}
+                        >
+                          {header.isPlaceholder
+                            ? null
+                            : flexRender(header.column.columnDef.header, header.getContext())}
+                        </th>
+                      )
+                    })}
                   </tr>
                 ))}
               </thead>
               <tbody>
-                {table.getRowModel().rows.map(row => (
-                  <tr key={row.id} className={s.row}>
-                    {row.getVisibleCells().map(cell => (
-                      <td key={cell.id} className={s.cellContainer}>
-                        {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                      </td>
-                    ))}
-                  </tr>
-                ))}
+                {tableRows.map(row => {
+                  return (
+                    <tr key={row.id} className={s.row} aria-rowindex={row.index + 2}>
+                      {row.getVisibleCells().map(cell => {
+                        const columnIndex = columnIndexById.get(cell.column.id)
+                        if (columnIndex === undefined) {
+                          if (cell.column.id === ROW_NUMBER_COLUMN_ID) {
+                            const rowSelected =
+                              selectionRect?.firstRow === row.index &&
+                              selectionRect.lastRow === row.index &&
+                              selectionRect.firstColumn === 0 &&
+                              selectionRect.lastColumn === schema.columns.length - 1
+                            return (
+                              <th
+                                key={cell.id}
+                                className={cx(
+                                  s.cellContainer,
+                                  s.rowHeader,
+                                  rowSelected && s.selectedHeader
+                                )}
+                                scope="row"
+                                aria-colindex={1}
+                                aria-selected={rowSelected || undefined}
+                                onClick={() =>
+                                  selectRange(
+                                    { row: row.index, column: 0 },
+                                    { row: row.index, column: schema.columns.length - 1 }
+                                  )
+                                }
+                              >
+                                {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                              </th>
+                            )
+                          }
+                          return (
+                            <td
+                              {...getAuxiliaryGridCellAccessibilityProps(schema.columns.length + 1)}
+                              key={cell.id}
+                              className={s.cellContainer}
+                            >
+                              {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                            </td>
+                          )
+                        }
+
+                        const coordinate = { row: row.index, column: columnIndex }
+                        const isActive = coordinatesEqual(activeCell, coordinate)
+                        const isSelected = coordinateInRect(coordinate, selectionRect)
+                        return (
+                          <SchemaContextMenu key={cell.id} actions={getCellActions(coordinate)}>
+                            <td
+                              {...getGridCellAccessibilityProps(columnIndex, isSelected)}
+                              className={cx(
+                                s.cellContainer,
+                                isSelected && s.selectedCell,
+                                isActive && s.activeCell
+                              )}
+                              tabIndex={
+                                isActive && !coordinatesEqual(editingCell, coordinate) ? 0 : -1
+                              }
+                              data-grid-row={row.index}
+                              data-grid-column={columnIndex}
+                              onContextMenuCapture={() => {
+                                if (!isSelected) selectCell(coordinate)
+                              }}
+                              onPointerDown={event => {
+                                if (event.button !== 0) return
+                                if (
+                                  schema.columns[columnIndex]?.type === 'number' &&
+                                  startNumberDrag(event, coordinate)
+                                ) {
+                                  return
+                                }
+                                beginPointerSelection(coordinate, event.shiftKey)
+                              }}
+                              onPointerEnter={() => extendPointerSelection(coordinate)}
+                              onClick={event => selectCell(coordinate, event.shiftKey)}
+                              onDoubleClick={() => beginEditing(coordinate)}
+                              onKeyDown={event => handleCellKeyDown(event, coordinate)}
+                            >
+                              {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                            </td>
+                          </SchemaContextMenu>
+                        )
+                      })}
+                    </tr>
+                  )
+                })}
               </tbody>
             </table>
           </div>
