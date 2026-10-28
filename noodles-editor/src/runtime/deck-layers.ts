@@ -509,6 +509,69 @@ const columnShape = (
   ...constant('getLineColor', rgb(p.lineColor, [255, 255, 255])),
 })
 
+// Paths cut where they cross the antimeridian, once per binary. deck's own wrapLongitude needs
+// its path normalization, which `_pathType` skips and binary per-vertex attributes can't take.
+const wrapped = new WeakMap<Binary, Binary>()
+
+type Column = { value: ArrayLike<number>; size: number }
+
+/**
+ * A path binary with each path cut where a segment crosses ±180° longitude: the first part
+ * ends on the edge it leaves by, the next starts on the opposite one. The point where it
+ * crosses is interpolated in every per-vertex attribute (color, width), so nothing jumps.
+ */
+function wrapLongitudes(binary: Binary): Binary {
+  const known = wrapped.get(binary)
+  if (known) return known
+  const path = binary.attributes.getPath as Column | undefined
+  const starts = binary.startIndices
+  if (!path || !starts) return binary
+  const names = Object.keys(binary.attributes)
+  const columns = names.map(k => binary.attributes[k] as Column & { normalized?: boolean })
+  const at = names.indexOf('getPath')
+  const out: number[][] = names.map(() => [])
+  const cut: number[] = []
+  const P = path.value
+  const vertices = P.length / 3
+  let count = 0
+  // Vertex i, or the point a fraction t of the way from i to j, with its longitude replaced
+  const push = (i: number, j = i, t = 0, lng?: number) => {
+    columns.forEach(({ value, size }, k) => {
+      for (let c = 0; c < size; c++) {
+        const a = value[i * size + c]
+        out[k].push(a + (value[j * size + c] - a) * t)
+      }
+    })
+    if (lng !== undefined) out[at][count * 3] = lng
+    count++
+  }
+  for (let p = 0; p < starts.length; p++) {
+    const end = p + 1 < starts.length ? starts[p + 1] : vertices
+    cut.push(count)
+    for (let i = starts[p]; i < end; i++) {
+      const a = P[(i - 1) * 3]
+      const b = P[i * 3]
+      if (i > starts[p] && Math.abs(b - a) > 180) {
+        // Leaving by the east edge when coming from the east half
+        const edge = a > 0 ? 180 : -180
+        const t = (edge - a) / (b + 2 * edge - a)
+        push(i - 1, i, t, edge)
+        cut.push(count)
+        push(i - 1, i, t, -edge)
+      }
+      push(i)
+    }
+  }
+  const attributes: Record<string, unknown> = {}
+  columns.forEach((column, k) => {
+    const Typed = column.value.constructor as new (values: number[]) => ArrayLike<number>
+    attributes[names[k]] = { ...column, value: new Typed(out[k]) }
+  })
+  const result = { ...binary, length: cut.length, startIndices: Uint32Array.from(cut), attributes }
+  wrapped.set(binary, result)
+  return result
+}
+
 function buildLayer(
   input: ProgramLayerInput,
   binary: Binary,
@@ -597,14 +660,13 @@ function buildLayer(
     case 'path':
       return new PathLayer({
         ...common,
-        data: binary as never,
+        data: (p.wrapLongitude === true ? wrapLongitudes(binary) : binary) as never,
         _pathType: 'open',
         widthScale: num(p.widthScale, 1),
         widthMinPixels: num(p.widthMinPixels, 1),
         widthUnits: widthUnits(p.widthUnits),
         getWidth: has('getWidth') ? undefined : 1,
         ...pathShape(p),
-        wrapLongitude: p.wrapLongitude === true,
         ...constant('getColor', rgb(p.color, [120, 200, 255])),
       } as never)
     case 'trips':

@@ -322,6 +322,31 @@ describe('the small Noodles values, as planner and deck operators', () => {
     ])
   })
 
+  it('keeps a Number wired into a carried style input, and refuses any other wire', () => {
+    const path = (wired: NoodlesNode, field: string) =>
+      deck(
+        [
+          op('/rows', 'DuckDbOp', { query: 'SELECT [[0.0, 0.0], [1.0, 1.0]] AS path' }),
+          op('/where', 'AccessorOp', { expression: 'd.path' }),
+          wired,
+          op('/lines', 'PathLayerOp', { jointRounded: false }),
+        ],
+        [
+          wire('/rows', 'data', '/lines', 'data'),
+          wire('/where', 'accessor', '/lines', 'getPath'),
+          wire(wired.id, 'val', '/lines', field),
+          wire('/lines', 'layer', '/deck', 'layers'),
+        ]
+      )
+    const { doc } = toEditorDoc(path(op('/miter', 'NumberOp', { val: 6 }), 'miterLimit'))
+    expect(doc.edges).toContainEqual(
+      expect.objectContaining({ source: '/miter', target: '/lines', targetPort: 'par:miterLimit' })
+    )
+    expect(() => toEditorDoc(path(op('/flag', 'NumberOp', { val: 1 }), 'billboard'))).toThrow(
+      /a wired billboard is not converted/
+    )
+  })
+
   it('converts a scatterplot outline of one color and width, facing and antialiasing', () => {
     const { doc, warnings } = toEditorDoc(
       deck(
@@ -425,6 +450,29 @@ describe('the small Noodles values, as planner and deck operators', () => {
     expect(params('/arcs')).toMatchObject({ tilt: 30 })
     expect(params('/labels')).toMatchObject({ borderWidth: 2, borderColor: [0, 255, 0] })
     expect(warnings.filter(w => w.includes('dropped'))).toEqual([])
+  })
+
+  it('converts a label border whose color was left at Noodles’ black', () => {
+    const { doc } = toEditorDoc(
+      deck(
+        [
+          op('/rows', 'DuckDbOp', { query: "SELECT 1.0 AS lng, 2.0 AS lat, 'a' AS name" }),
+          op('/where', 'AccessorOp', { expression: '[d.lng, d.lat]' }),
+          op('/names', 'AccessorOp', { expression: 'd.name' }),
+          op('/labels', 'TextLayerOp', { background: true, getBorderWidth: 2 }),
+        ],
+        [
+          wire('/rows', 'data', '/labels', 'data'),
+          wire('/where', 'accessor', '/labels', 'getPosition'),
+          wire('/names', 'accessor', '/labels', 'getText'),
+          wire('/labels', 'layer', '/deck', 'layers'),
+        ]
+      )
+    )
+    expect(doc.nodes.find(n => n.id === '/labels')?.params).toMatchObject({
+      borderWidth: 2,
+      borderColor: [0, 0, 0],
+    })
   })
 
   it('carries a hexagon layer’s scales, and leaves defaults out of the document', () => {
