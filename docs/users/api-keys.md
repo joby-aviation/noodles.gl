@@ -15,6 +15,8 @@ When you open a project whose Mapbox, Google Maps or Cesium Ion key differs from
 
 Operators that use a key, such as Geocoder, Directions, Overpass and Tile3DLayer, run again with the new key once you stop typing it or switch to another key. Locked operators keep their output until you unlock them. Browser keys and choices made in another tab apply in this one too.
 
+When a service rejects a key, the error says which one it was, e.g. "Google rejected the project's Google Maps key (REQUEST_DENIED)", so you know whether to fix the project's key or your own.
+
 AI provider keys (Anthropic and OpenRouter) are the exception: they come only from the browser or the environment, never from a project file. See [AI keys stay out of project files](#ai-keys-stay-out-of-project-files).
 
 ## Supported Keys

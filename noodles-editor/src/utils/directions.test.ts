@@ -1,7 +1,13 @@
 import { Temporal } from 'temporal-polyfill'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { getKeysStore, useKeysStore } from '../noodles/keys-store'
-import { DRIVING_TRAFFIC, getDirections, resolveOriginDepartureTime } from './directions'
+import {
+  DRIVING,
+  DRIVING_TRAFFIC,
+  getDirections,
+  resolveOriginDepartureTime,
+  TRANSIT,
+} from './directions'
 
 vi.mock('./geocoding', () => ({
   loadGoogleMapsAPI: vi.fn().mockResolvedValue(undefined),
@@ -211,6 +217,20 @@ describe('Google traffic-aware directions', () => {
     ).rejects.toThrow(/Google Maps API key not configured/)
   })
 
+  it('names the key Google failed with', async () => {
+    computeRoutes.mockRejectedValue(new Error('API keys with referer restrictions cannot be used'))
+
+    await expect(
+      getDirections({
+        origin: NYC,
+        destination: { lat: 40.7228, lng: -73.996 },
+        mode: DRIVING_TRAFFIC,
+      })
+    ).rejects.toThrow(
+      'Google traffic directions failed using your browser Google Maps key: API keys with referer restrictions cannot be used'
+    )
+  })
+
   it('reports incomplete routes', async () => {
     computeRoutes.mockResolvedValue({ routes: [] })
 
@@ -221,5 +241,47 @@ describe('Google traffic-aware directions', () => {
         mode: DRIVING_TRAFFIC,
       })
     ).rejects.toThrow(/Google returned no complete route/)
+  })
+})
+
+describe('directions key rejections', () => {
+  const destination = { lat: 40.7228, lng: -73.996 }
+
+  beforeEach(() => {
+    useKeysStore.setState({ browserKeys: {}, projectKeys: undefined, keyOverrides: {} })
+    getKeysStore().setProjectKeys({ mapbox: 'pk.project', googleMaps: 'project-google-key' }, '/a')
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it('names the Mapbox token Mapbox rejected', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: false,
+        status: 401,
+        statusText: 'Unauthorized',
+        json: () => Promise.resolve({ message: 'Not Authorized - Invalid Token' }),
+      })
+    )
+
+    await expect(getDirections({ origin: NYC, destination, mode: DRIVING })).rejects.toThrow(
+      "Mapbox rejected the project's Mapbox token (401 Not Authorized - Invalid Token)"
+    )
+  })
+
+  it('names the Google Maps key Google rejected', async () => {
+    class DirectionsService {
+      route(_request: unknown, callback: (result: null, status: string) => void) {
+        callback(null, 'REQUEST_DENIED')
+      }
+    }
+    vi.stubGlobal('google', { maps: { DirectionsService, TravelMode: { TRANSIT: 'TRANSIT' } } })
+
+    await expect(getDirections({ origin: NYC, destination, mode: TRANSIT })).rejects.toThrow(
+      "Google rejected the project's Google Maps key (REQUEST_DENIED)"
+    )
   })
 })
