@@ -1183,7 +1183,7 @@
         },
         "elevation": {
           "kind": "expr",
-          "default": "n"
+          "default": ""
         },
         "color": {
           "kind": "expr",

@@ -1199,7 +1199,7 @@ export const OPERATORS: OpDef[] = [
     inputs: [table()], outputs: [out('layer')],
     params: [
       channel('position', 'Position', 'P'),
-      channel('elevation', 'Elevation', 'n'),
+      channel('elevation', 'Elevation', '', 'Per-row height. Empty: every column is 1 × Elevation scale tall.'),
       channel('color', 'Color', ''),
       channel('lineColorChannel', 'Outline color', '', 'Per-row outline color in 0–1. Empty uses the constant Outline color.'),
       channel('lineWidth', 'Outline width', '', 'Per-row outline width, times Outline width scale. Empty is 1.'),
