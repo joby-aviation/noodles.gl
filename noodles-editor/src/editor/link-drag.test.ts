@@ -30,13 +30,16 @@ describe('a property port dropped on the node graph', () => {
       { kind: 'source', key: 'tilt.value' },
       handle('map', 'par:pitch', 'target')
     )
-    expect(apply?.(d)).toBe(true)
+    expect(apply?.apply(d)).toBe(true)
+    expect(apply?.target).toBe('map.pitch')
     expect(d.nodes.find(n => n.id === 'map')?.params.pitch).toEqual({ ref: 'tilt/value' })
   })
 
   it('wires an output row into a parameter handle, and a property’s input to a node’s output', () => {
     const d = doc()
-    graphDrop(d, { kind: 'source', key: 'tilt>out' }, handle('map', 'par:pitch', 'target'))?.(d)
+    graphDrop(d, { kind: 'source', key: 'tilt>out' }, handle('map', 'par:pitch', 'target'))?.apply(
+      d
+    )
     expect(d.edges).toContainEqual(
       expect.objectContaining({
         source: 'tilt',
@@ -46,7 +49,7 @@ describe('a property port dropped on the node graph', () => {
       })
     )
     const e = doc()
-    graphDrop(e, { kind: 'target', key: 'map.bearing' }, handle('tilt', 'out', 'source'))?.(e)
+    graphDrop(e, { kind: 'target', key: 'map.bearing' }, handle('tilt', 'out', 'source'))?.apply(e)
     expect(e.edges).toContainEqual(
       expect.objectContaining({ source: 'tilt', target: 'map', targetPort: 'par:bearing' })
     )

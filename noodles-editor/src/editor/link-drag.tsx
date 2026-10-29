@@ -83,7 +83,7 @@ export function graphDrop(
   doc: EditorDoc,
   drag: LinkDrag,
   handle: Element | null | undefined
-): ((d: EditorDoc) => boolean) | undefined {
+): { target: string; apply: (d: EditorDoc) => boolean } | undefined {
   const nodeId = handle?.getAttribute('data-nodeid')
   const port = handle?.getAttribute('data-handleid')
   // ref-in and ref-out draw references, not ports
@@ -92,18 +92,22 @@ export function graphDrop(
   if (drag.kind === 'source' && isInput) {
     if (port.startsWith('par:')) {
       const target = `${nodeId}.${port.slice(4)}`
-      return canLink(doc, drag.key, target) ? d => linkParam(d, drag.key, target) : undefined
+      return canLink(doc, drag.key, target)
+        ? { target, apply: d => linkParam(d, drag.key, target) }
+        : undefined
     }
     const at = drag.key.indexOf('>')
     if (at < 0) return undefined
     const [from, out] = [drag.key.slice(0, at), drag.key.slice(at + 1)]
     return validConnection(doc, from, out, nodeId, port)
-      ? d => !!connect(d, from, out, nodeId, port)
+      ? { target: `${nodeId}.${port}`, apply: d => !!connect(d, from, out, nodeId, port) }
       : undefined
   }
   if (drag.kind === 'target' && !isInput) {
     const source = outputKey(nodeId, port)
-    return canLink(doc, source, drag.key) ? d => linkParam(d, source, drag.key) : undefined
+    return canLink(doc, source, drag.key)
+      ? { target: drag.key, apply: d => linkParam(d, source, drag.key) }
+      : undefined
   }
   return undefined
 }
@@ -186,15 +190,16 @@ export function startPortDrag(e: ReactPointerEvent, drag: LinkDrag, side: 'in' |
   // node graph handle is no row: the drop on it links here.
   const up = (ev: PointerEvent) => {
     stop()
-    const apply = line && graphDrop(docStore().get().doc, drag, handleAt(ev.clientX, ev.clientY))
-    if (apply) {
+    const drop = line && graphDrop(docStore().get().doc, drag, handleAt(ev.clientX, ev.clientY))
+    if (drop) {
       let made = false
       docStore().edit(d => {
-        made = apply(d)
+        made = drop.apply(d)
       }, 'link:graph')
       if (made)
         analytics.track('param_linked', {
           via: 'graph',
+          kind: paramDef(docStore().get().doc, drop.target)?.kind,
           from: drag.kind === 'target' || drag.key.includes('>') ? 'output' : 'param',
         })
     }

@@ -1,7 +1,8 @@
 import { type EditorDoc, OPERATOR_INDEX } from '@noodles.gl/planner'
-import { cleanup, fireEvent, render } from '@testing-library/react'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { startGraphLink } from './doc-network'
+import { act, cleanup, fireEvent, render, waitFor } from '@testing-library/react'
+import { ReactFlowProvider } from '@xyflow/react'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { DocNetwork, startGraphLink } from './doc-network'
 import { docStore } from './doc-store'
 import { NodeFields } from './field-adapter'
 import { ParamRow } from './param-row'
@@ -55,5 +56,32 @@ describe('a wire dragged from the node graph onto Properties', () => {
     expect(getUIStore().linkDrag).toBeNull()
     startGraphLink(null, { nodeId: 'map', handleId: 'par:zoom', handleType: 'target' })
     expect(getUIStore().linkDrag).toEqual({ kind: 'target', key: 'map.zoom' })
+  })
+})
+
+describe('a Properties port dragged over the node graph', () => {
+  it('reveals the parameter handles it can drive, and no others', { timeout: 30_000 }, async () => {
+    vi.useRealTimers()
+    const { container } = render(
+      <ReactFlowProvider>
+        <div style={{ width: 1200, height: 600 }}>
+          <DocNetwork />
+        </div>
+      </ReactFlowProvider>
+    )
+    const pitch = () =>
+      container.querySelector('.react-flow__handle[data-nodeid="map"][data-handleid="par:pitch"]')
+    await waitFor(
+      () => expect(container.querySelector('.react-flow__node[data-id="map"]')).toBeTruthy(),
+      {
+        timeout: 10_000,
+      }
+    )
+    expect(pitch()).toBeNull()
+    act(() => getUIStore().setLinkDrag({ kind: 'source', key: 'tilt.value' }))
+    await waitFor(() => expect(pitch()).toBeTruthy())
+    // The drag over, the handle goes again
+    act(() => getUIStore().setLinkDrag(null))
+    await waitFor(() => expect(pitch()).toBeNull())
   })
 })
