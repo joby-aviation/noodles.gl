@@ -263,7 +263,8 @@ function renderPicker(picker: Picker | undefined, close: () => void): ReactNode 
 }
 
 // A drop on a node: a picker of what fits, even when one thing does, so the link it makes is
-// the one chosen
+// the one chosen; unless one thing fits the drag's shape exactly (a View State's camera onto a
+// deck's view state), which it links
 function choose(
   e: { clientX: number; clientY: number },
   node: DocNode,
@@ -272,6 +273,9 @@ function choose(
   onPick: (key: string) => void,
   setPicker: (p: Picker) => void
 ) {
+  // The one exact fit (a View State onto a deck's view state) needs no choosing
+  const exact = items.filter(i => i.exact)
+  if (exact.length === 1) return onPick(exact[0].key)
   setPicker({ x: e.clientX, y: e.clientY, node, def: items[0].def, items, placeholder, onPick })
 }
 

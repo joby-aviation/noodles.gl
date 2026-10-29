@@ -16,6 +16,8 @@ import {
   type PortType,
   resolveRef,
   setKeyframe,
+  shapesFit,
+  type ValueShape,
 } from '@noodles.gl/planner'
 import { DECK_OP_INDEX } from '../runtime/deck-ops'
 
@@ -72,6 +74,20 @@ export function portType(
   return (side === 'in' ? def.inputs : def.outputs).find(p => p.name === port)?.type
 }
 
+/** What one kind of value a port carries (a View State's camera), or undefined for any value. */
+export function portShape(
+  doc: EditorDoc,
+  nodeId: string,
+  port: string,
+  side: 'in' | 'out'
+): ValueShape | undefined {
+  const def = OPERATOR_INDEX.get(doc.nodes.find(n => n.id === nodeId)?.op ?? '')
+  if (!def) return undefined
+  if (side === 'in' && port.startsWith('par:'))
+    return def.params.find(p => p.name === port.slice(4))?.portShape
+  return (side === 'in' ? def.inputs : def.outputs).find(p => p.name === port)?.shape
+}
+
 /** A deck operator's list parameter, which takes several wires in order: a Switch Value's values. */
 export const isListParam = (op: string, param: string): boolean =>
   !!DECK_OP_INDEX.get(op)?.lists?.includes(param)
@@ -93,6 +109,11 @@ export function validConnection(
   const from = portType(doc, source, sourcePort, 'out')
   const to = portType(doc, target, targetPort, 'in')
   if (!from || !to || !canConnect(from as PortType, to)) return false
+  // A camera into a camera, a map style into a map style: a View State never feeds a map style
+  if (
+    !shapesFit(portShape(doc, source, sourcePort, 'out'), portShape(doc, target, targetPort, 'in'))
+  )
+    return false
   // No cycles.
   const downstream = new Set<string>([target])
   let grew = true

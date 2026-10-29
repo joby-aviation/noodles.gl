@@ -178,7 +178,7 @@ const viewOp = (
     category: 'output',
     description,
     inputs: [],
-    outputs: [{ name: 'view', type: 'value' }],
+    outputs: [{ name: 'view', type: 'value', shape: 'view' }],
     params: [...viewBase(noodles), ...params, field(noodles, 'viewState', viewState, true)],
   },
   build: build ?? ((p, id) => ({ type: deckType, id, ...p })),
@@ -200,7 +200,7 @@ const widgetOp = (
     category: 'output',
     description,
     inputs: [],
-    outputs: [{ name: 'widget', type: 'value' }],
+    outputs: [{ name: 'widget', type: 'value', shape: 'widget' }],
     params: [menu('placement', placement, PLACEMENTS), ...params, text('viewId', '')],
   },
   build: (p, id) => {
@@ -224,7 +224,7 @@ const extensionOp = (
     category: 'output',
     description,
     inputs: [],
-    outputs: [{ name: 'extension', type: 'value' }],
+    outputs: [{ name: 'extension', type: 'value', shape: 'extension' }],
     params,
   },
   build,
@@ -347,7 +347,7 @@ export const DECK_OPS: DeckOp[] = [
         'The camera that fits rows into the render surface: wire its view state into the deck, or its longitude, latitude and zoom into a View State. The bounds are computed in DuckDB.',
       inputs: [],
       outputs: [
-        { name: 'viewState', type: 'value' },
+        { name: 'viewState', type: 'value', shape: 'viewState' },
         { name: 'longitude', type: 'number' },
         { name: 'latitude', type: 'number' },
         { name: 'zoom', type: 'number' },
@@ -504,7 +504,7 @@ export const DECK_OPS: DeckOp[] = [
       description:
         'A camera: longitude, latitude, zoom, pitch and bearing, which numbers can drive.',
       inputs: [],
-      outputs: [{ name: 'viewState', type: 'value' }],
+      outputs: [{ name: 'viewState', type: 'value', shape: 'viewState' }],
       params: [
         num('longitude', -74.006, { min: -180, max: 180, step: 0.001 }),
         num('latitude', 40.7128, { min: -90, max: 90, step: 0.001 }),
@@ -600,7 +600,7 @@ export const DECK_OPS: DeckOp[] = [
       category: 'output',
       description: 'Display a bitmap image as a screen-space overlay',
       inputs: [],
-      outputs: [{ name: 'widget', type: 'value' }],
+      outputs: [{ name: 'widget', type: 'value', shape: 'widget' }],
       params: [
         url('image'),
         menu('placement', 'top-right', [...PLACEMENTS, 'fill']),
@@ -627,7 +627,7 @@ export const DECK_OPS: DeckOp[] = [
       category: 'output',
       description: 'Display a color scale legend overlay on the visualization',
       inputs: [],
-      outputs: [{ name: 'widget', type: 'value' }],
+      outputs: [{ name: 'widget', type: 'value', shape: 'widget' }],
       params: [
         text('colorScheme', 'viridis'),
         text('label', ''),
@@ -992,7 +992,7 @@ export const DECK_OPS: DeckOp[] = [
       description:
         "A basemap style with your changes: layers hidden or recolored, from the style editor. Wire it into the deck's map style.",
       inputs: [],
-      outputs: [{ name: 'mapStyle', type: 'value' }],
+      outputs: [{ name: 'mapStyle', type: 'value', shape: 'mapStyle' }],
       params: [
         url(
           'baseStyle',
