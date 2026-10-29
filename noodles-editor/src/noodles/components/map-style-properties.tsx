@@ -5,7 +5,7 @@
 // back to the style's own value.
 
 import cx from 'classnames'
-import { type PointerEvent as ReactPointerEvent, useEffect, useState } from 'react'
+import { type PointerEvent as ReactPointerEvent, useEffect, useRef, useState } from 'react'
 import {
   type Bezier,
   type Curve,
@@ -177,6 +177,9 @@ function PropertyRow({
   )
 }
 
+// A CSS color MapLibre can read, once typed in full
+const isColor = (text: string) => typeof CSS !== 'undefined' && CSS.supports('color', text.trim())
+
 // A legacy function over a feature property: `{ property, stops }`
 const isFunction = (v: unknown) => !!v && typeof v === 'object' && !Array.isArray(v)
 
@@ -201,7 +204,7 @@ export function ValueInput({
       return typeof value === 'string' || value === undefined ? (
         <span className={p.colorInput}>
           <ColorSwatch value={(value as string) ?? '#000000'} onChange={onChange} />
-          <TextInput value={(value as string) ?? ''} onChange={onChange} />
+          <TextInput value={(value as string) ?? ''} onChange={onChange} live={isColor} />
         </span>
       ) : (
         <JsonEditor value={value} onChange={onChange} />
@@ -304,8 +307,22 @@ function NumberBox({
   onChange: (value: number) => void
 }) {
   const [draft, setDraft] = useState(String(value))
-  useEffect(() => setDraft(String(+value.toFixed(4))), [value])
+  // Typed into, the box keeps its text: the value it set comes back as a number, which would
+  // turn `1.` into `1` under the cursor
+  const editing = useRef(false)
+  useEffect(() => {
+    if (!editing.current) setDraft(String(+value.toFixed(4)))
+  }, [value])
+  // A whole number typed applies as it is typed, so the map follows; out of range waits for blur
+  const type = (text: string) => {
+    setDraft(text)
+    const n = Number(text)
+    if (text.trim() === '' || !Number.isFinite(n) || n === value) return
+    if ((min !== undefined && n < min) || (max !== undefined && n > max)) return
+    if (accept?.(n) ?? true) onChange(n)
+  }
   const commit = () => {
+    editing.current = false
     const n = Number(draft)
     if (draft.trim() === '' || !Number.isFinite(n)) return setDraft(String(value))
     const clamped = Math.min(
@@ -322,7 +339,10 @@ function NumberBox({
       aria-label={label}
       className={p.numberBox}
       value={draft}
-      onChange={e => setDraft(e.target.value)}
+      onFocus={() => {
+        editing.current = true
+      }}
+      onChange={e => type(e.target.value)}
       onBlur={commit}
       onKeyDown={e => {
         if (e.key === 'Enter') e.currentTarget.blur()
@@ -331,16 +351,37 @@ function NumberBox({
   )
 }
 
-function TextInput({ value, onChange }: { value: string; onChange: (value: string) => void }) {
+function TextInput({
+  value,
+  onChange,
+  live,
+}: {
+  value: string
+  onChange: (value: string) => void
+  // Text this accepts applies as it is typed (a color that parses); the rest on blur
+  live?: (text: string) => boolean
+}) {
   const [draft, setDraft] = useState(value)
-  useEffect(() => setDraft(value), [value])
+  const editing = useRef(false)
+  useEffect(() => {
+    if (!editing.current) setDraft(value)
+  }, [value])
   return (
     <input
       type="text"
       className={p.text}
       value={draft}
-      onChange={e => setDraft(e.target.value)}
-      onBlur={() => draft !== value && onChange(draft)}
+      onFocus={() => {
+        editing.current = true
+      }}
+      onChange={e => {
+        setDraft(e.target.value)
+        if (live?.(e.target.value) && e.target.value !== value) onChange(e.target.value)
+      }}
+      onBlur={() => {
+        editing.current = false
+        if (draft !== value) onChange(draft)
+      }}
       onKeyDown={e => {
         if (e.key === 'Enter') e.currentTarget.blur()
       }}

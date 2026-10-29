@@ -140,6 +140,8 @@ Click the sliders beside the style's name to open the style editor on the deck's
 
 **Whole style** scales every label and line width at once, zoom ramps included. The changes are kept on the deck, listed as **Changes**; click × to drop them.
 
+Edits redraw the editor's own map as you make them, and reach the project's map when the editor closes, as one undo step: restyling the main map on every move of a color picker is slow. Turn on **Live update** in the editor's header to see them on the project's map as you go; the choice is remembered.
+
 To share a style between decks or projects, right-click **Map style** and choose **Drive with › Map Style**. It moves the style and its changes into a **Map Style** node (`map-style`) wired into the deck. Anything else that makes style JSON, such as a Code node, can be wired into the row's port the same way; a wired style takes the place of the deck's own, and **Disconnect input** on the same menu takes it off.
 
 The same menu drives other properties: a number can be driven by a new **Number**, **Time**, **Math** or **Expression** node, which starts from the property's value.

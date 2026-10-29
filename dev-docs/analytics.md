@@ -122,6 +122,7 @@ Opening a saved project by its URL (`/projects/:name`, which is where Recent pro
 | `color_mode_changed` | `mode, operatorType` | compound-rows.tsx: a layer's Color switched to `solid`, `attribute`, `ramp` or `expression` |
 | `map_interacted` | `kind` | editor-analytics.ts (from timeline-editor.tsx) |
 | `map_style_changed` | `via` | map-style-rows.tsx: the deck's map style, from the gallery, the style editor, or a reset of its changes (`gallery`, `editor`, `reset`) |
+| `map_style_configurator_live` | `on` | map-style-configurator.tsx: the style editor's Live update turned on or off |
 | `map_style_property_changed` | `group` | map-style-configurator.tsx: a layer property changed in the style editor's inspector (`paint` or `layout`) |
 | `property_driven` | `driver` | param-row.tsx: right-click Drive with made a node to drive a property; `driver` is its operator (`number`, `time`, `math`, `expression`, `map-style`) |
 | `camera_view_toggled` | `on, via` | camera-toolbar.tsx: the map looks through the active camera (`on`) or shows the viewport, from the toolbar or Numpad 0 (`via`) |

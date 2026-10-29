@@ -129,6 +129,30 @@ describe('the layer inspector', () => {
     expect(value[1]).toEqual(['cubic-bezier', 0, expect.any(Number), 0.58, 1])
   })
 
+  it('applies a color and a number as they are typed, once they read as one', () => {
+    const onChange = inspect()
+    const color = screen.getByDisplayValue('#888888')
+    fireEvent.focus(color)
+    fireEvent.change(color, { target: { value: 'rgb(255, 0' } })
+    expect(onChange).not.toHaveBeenCalled()
+    fireEvent.change(color, { target: { value: 'rgb(255, 0, 0)' } })
+    expect(onChange).toHaveBeenLastCalledWith('paint', 'line-color', 'rgb(255, 0, 0)')
+    // Still typing: the box keeps what was typed
+    expect((color as HTMLInputElement).value).toBe('rgb(255, 0, 0)')
+    const stop = screen.getAllByRole('textbox').find(e => (e as HTMLInputElement).value === '4')
+    fireEvent.focus(stop as HTMLElement)
+    fireEvent.change(stop as HTMLElement, { target: { value: '7' } })
+    expect(onChange).toHaveBeenLastCalledWith('paint', 'line-width', [
+      'interpolate',
+      ['linear'],
+      ['zoom'],
+      5,
+      1,
+      12,
+      7,
+    ])
+  })
+
   it('makes a constant follow the zoom, and puts a changed value back', () => {
     const onChange = inspect({ layerId: 'roads', paintOverrides: { 'line-opacity': 0.5 } })
     fireEvent.click(screen.getByLabelText('opacity: by zoom'))
