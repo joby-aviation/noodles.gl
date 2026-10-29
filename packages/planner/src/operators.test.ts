@@ -295,6 +295,20 @@ describe('switch', () => {
     expect(lowered.outputs.pick.out).toBe('big')
   })
 
+  it('refuses a number output whose operator lowers, rather than shifting the choices', () => {
+    // An Extent lowers, but its min and max are numbers: dropping one would make index 1 the big table
+    const lowered = lowerDocument(
+      twoTables(
+        [{ id: 'range', op: 'extent', x: 0, y: 0, params: { input: 'x' } }],
+        [
+          { id: 'e5', source: 'small', sourcePort: 'out', target: 'range', targetPort: 'in' },
+          { id: 'e6', source: 'range', sourcePort: 'min', target: 'pick', targetPort: 'in', index: 1 },
+        ]
+      )
+    )
+    expect(lowered.errors.map((e) => e.message).join()).toMatch(/Extent is a value: wire it into a Switch Value/)
+  })
+
   it('says to use a Switch Value for a number, rather than dropping it', () => {
     const lowered = lowerDocument(
       twoTables(

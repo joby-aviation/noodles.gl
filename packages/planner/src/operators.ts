@@ -90,10 +90,10 @@ export interface LowerCtx {
   maybeInput(port: string): string | undefined;
   inputs(port: string): string[];
   /**
-   * The operator type of every node wired into a port, in order, `inputs` or not: what
-   * `inputs` leaves out (a number, a host operator's value) is still here.
+   * What is wired into a port, in order, `inputs` or not: each source's operator and the type
+   * of the output it reads. What `inputs` leaves out (a number, a host operator's value) is here.
    */
-  sourceOps(port: string): string[];
+  sources(port: string): { op: string; type: PortType | undefined }[];
   /** Structural reads. An expression or reference in a structural parameter is an error. */
   str(param: string): string;
   num(param: string): number;
@@ -1686,10 +1686,11 @@ export const OPERATORS: OpDef[] = [
     outputs: [out('any')],
     params: [{ name: 'index', label: 'Index', kind: 'int', default: 0, min: 0, max: 16, step: 1, bind: 'structural' }],
     lower(ctx) {
-      // A number or a host operator's value isn't a table or a layer: it doesn't lower to one
-      const values = ctx.sourceOps('in').filter((op) => !OPERATOR_INDEX.get(op)?.lower);
+      // A number (an Extent's min) or a value (a camera) isn't a table or a layer, whatever its
+      // operator: the output's own type says so. A host operator's table passes.
+      const values = ctx.sources('in').filter((s) => s.type === 'number' || s.type === 'value');
       if (values.length > 0) {
-        const names = [...new Set(values.map((op) => OPERATOR_INDEX.get(op)?.label ?? op))].join(', ');
+        const names = [...new Set(values.map((s) => OPERATOR_INDEX.get(s.op)?.label ?? s.op))].join(', ');
         ctx.error(`Switch passes tables and layers; ${names} is a value: wire it into a Switch Value instead`);
       }
       const inputs = ctx.inputs('in');

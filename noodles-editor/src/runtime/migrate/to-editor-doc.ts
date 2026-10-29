@@ -1455,7 +1455,9 @@ export function toEditorDoc(original: NoodlesProject): Migrated {
       // A switch between tables: the planner's Switch, each table converted in its order
       if (incomingOne(id, 'index'))
         throw new MigrationError(`${id}: a wired Switch index is not converted`)
-      if (i.blend === true) warnings.push(`${id}: blending between tables is not converted`)
+      // Rows don't blend: a switch blending tables has no equivalent
+      if (i.blend === true)
+        throw new MigrationError(`${id}: blending between tables is not converted`)
       nodes.push({
         id,
         op: 'switch',

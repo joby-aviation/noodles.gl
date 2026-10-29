@@ -195,6 +195,26 @@ describe('values', () => {
     expect(warnings).toEqual([])
   })
 
+  it('refuses a switch blending tables, which rows can’t do', () => {
+    const project = deck(
+      [
+        op('/small', 'DuckDbOp', { query: 'SELECT 1.0 AS lng, 2.0 AS lat' }),
+        op('/big', 'DuckDbOp', { query: 'SELECT 3.0 AS lng, 4.0 AS lat' }),
+        op('/pick', 'SwitchOp', { index: 0.5, blend: true }),
+        op('/where', 'AccessorOp', { expression: '[d.lng, d.lat]' }),
+        op('/points', 'ScatterplotLayerOp'),
+      ],
+      [
+        wire('/small', 'data', '/pick', 'values'),
+        wire('/big', 'data', '/pick', 'values'),
+        wire('/pick', 'value', '/points', 'data'),
+        wire('/where', 'accessor', '/points', 'getPosition'),
+        wire('/points', 'layer', '/deck', 'layers'),
+      ]
+    )
+    expect(() => toEditorDoc(project)).toThrow(/blending between tables is not converted/)
+  })
+
   it('converts a camera SwitchOp feeding another as two Switch Values', () => {
     const { doc } = toEditorDoc(
       deck(
