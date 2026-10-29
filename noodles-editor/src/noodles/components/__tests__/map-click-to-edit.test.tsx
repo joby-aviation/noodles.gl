@@ -3,9 +3,9 @@
 import type { PickingInfo } from '@deck.gl/core'
 import { act, cleanup, fireEvent, render } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { analytics } from '../../../utils/analytics'
 import { docStore } from '../../../editor/doc-store'
 import { useUIStore } from '../../../editor/ui-store'
+import { analytics } from '../../../utils/analytics'
 import { useMapClickToEdit } from '../map-click-to-edit'
 
 vi.mock('../../../utils/analytics', () => ({
@@ -24,9 +24,7 @@ function Harness({ enabled }: { enabled: boolean }) {
       data-testid="surface"
       style={{ position: 'relative', width: 500, height: 300 }}
       {...api.surfaceHandlers}
-    >
-      {api.label}
-    </div>
+    />
   )
 }
 
@@ -151,25 +149,18 @@ describe('useMapClickToEdit', () => {
     act(() => api.onClick(pick('/group/arcs:arc')))
     api.onHover(pick('/group/arcs:arc'), pointerAt(10, 10))
     expect(selectedIds()).toEqual(['/scatter'])
-    expect(document.querySelector('[aria-hidden="true"]')).toHaveProperty('hidden', true)
     expect(api.getCursor({ isDragging: false, isHovering: true })).toBe('grab')
   })
 
-  it('shows the label and a pointer cursor over a feature a node drew', () => {
+  it('shows a pointer cursor over a feature a node drew, and no label', () => {
     render(<Harness enabled />)
-    const label = document.querySelector<HTMLElement>('[aria-hidden="true"]')!
-    expect(label.hidden).toBe(true)
-
     const surface = document.querySelector('[data-testid="surface"]')!.getBoundingClientRect()
     api.onHover(pick('/scatter:scatter'), pointerAt(surface.left + 100, surface.top + 40))
-    expect(label.hidden).toBe(false)
-    expect(label.textContent).toBe('Click to edit')
-    expect(label.style.transform).toBe('translate(114px, 54px)')
+    expect(document.body.textContent).not.toContain('Click to edit')
     expect(api.getCursor({ isDragging: false, isHovering: true })).toBe('pointer')
     expect(api.getCursor({ isDragging: true, isHovering: true })).toBe('grabbing')
 
     api.onHover(pick('custom-layer'), pointerAt(surface.left + 100, surface.top + 40))
-    expect(label.hidden).toBe(true)
     expect(api.getCursor({ isDragging: false, isHovering: true })).toBe('grab')
   })
 })
