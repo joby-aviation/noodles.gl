@@ -188,6 +188,34 @@ describe('deleting what drives a parameter', () => {
     expect(lowerDocument(d).errors).toEqual([])
   })
 
+  it('a reference to a value a wire or keyframes drive goes back to its default, not a stale value', () => {
+    const wired = driven()
+    const def = pitchDef()
+    if (!def) throw new Error('no value')
+    driveWith(wired.d, wired.number, def, { op: 'time', label: 'Time' }, 30)
+    setParam(wired.d, 'map', 'pitch', { ref: `${wired.number.name}/value` })
+    // The Number first: Time still drives its value, so 30 isn't what pitch read
+    removeNodes(wired.d, [wired.number.id])
+    expect(wired.d.nodes.find(n => n.id === 'map')?.params.pitch).toBeUndefined()
+    const keyed = driven()
+    setKey(keyed.d, `${keyed.number.id}.value`, 0, 10)
+    setKey(keyed.d, `${keyed.number.id}.value`, 2, 50)
+    setParam(keyed.d, 'map', 'pitch', { ref: `${keyed.number.name}/value` })
+    removeNodes(keyed.d, [keyed.number.id])
+    expect(keyed.d.nodes[0].params.pitch).toBeUndefined()
+  })
+
+  it('leaves a reference to a node whose id the deleted one’s starts', () => {
+    const { d } = driven()
+    d.nodes.push(
+      { id: 'a', op: 'number', name: 'a', x: 0, y: 0, params: { value: 1 } },
+      { id: 'a.b', op: 'number', name: 'ab', x: 0, y: 0, params: { value: 7 } }
+    )
+    setParam(d, 'map', 'pitch', { ref: 'ab/value' })
+    removeNodes(d, ['a'])
+    expect(d.nodes.find(n => n.id === 'map')?.params.pitch).toEqual({ ref: 'ab/value' })
+  })
+
   it('a reference to a deleted parameter that is itself driven goes back to its default', () => {
     const { d, number } = driven()
     number.params.value = { expr: 'T * 2' }

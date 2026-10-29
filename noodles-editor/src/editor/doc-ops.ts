@@ -209,11 +209,19 @@ export function removeNodes(doc: EditorDoc, ids: string[]): void {
 
 /**
  * A parameter referencing a node about to go keeps the value it read: a deck's pitch reading a
- * Number stays at that number, rather than pointing at nothing (which reads NaN). A value that
- * is itself a reference or an expression can't be carried over, so the parameter goes back to
- * its default.
+ * Number stays at that number, rather than pointing at nothing (which reads NaN). A value the
+ * document doesn't hold as it is (a reference, an expression, one a wire or keyframes drive)
+ * can't be carried over, so the parameter goes back to its default.
  */
 function keepReadValues(doc: EditorDoc, drop: Set<string>): void {
+  // The node a key names: the longest id it starts with, since an id may hold dots (`a.b`)
+  const nodeOf = (key: string) => {
+    let best: DocNode | undefined
+    for (const n of doc.nodes) {
+      if (key.startsWith(`${n.id}.`) && (!best || n.id.length > best.id.length)) best = n
+    }
+    return best
+  }
   for (const node of doc.nodes) {
     if (drop.has(node.id)) continue
     for (const [param, value] of Object.entries(node.params)) {
@@ -224,13 +232,16 @@ function keepReadValues(doc: EditorDoc, drop: Set<string>): void {
       } catch {
         continue
       }
-      const source = doc.nodes.find(n => drop.has(n.id) && key.startsWith(`${n.id}.`))
-      if (!source) continue
+      const source = nodeOf(key)
+      if (!source || !drop.has(source.id)) continue
       const name = key.slice(source.id.length + 1)
+      const driven =
+        doc.edges.some(e => e.target === source.id && e.targetPort === `par:${name}`) ||
+        !!doc.timeline?.tracks.some(t => t.target === key && t.keyframes.length > 0)
       const read =
         source.params[name] ??
         OPERATOR_INDEX.get(source.op)?.params.find(p => p.name === name)?.default
-      if (read === undefined || isRef(read) || isExpr(read)) delete node.params[param]
+      if (driven || read === undefined || isRef(read) || isExpr(read)) delete node.params[param]
       else node.params[param] = read
     }
   }
