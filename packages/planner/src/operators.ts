@@ -35,9 +35,22 @@ export type PortType = 'table' | 'layer' | 'number' | 'value'
   /** A subnet's boundary: it carries whatever is wired through it. */
   | 'any';
 
+/**
+ * What a `value` port carries, when it is one kind of thing: a camera (a View State's), a map
+ * style, a view, a widget, an extension. Two ports of different shapes don't connect, so a
+ * View State dropped on a deck goes to its view state, never its map style. A port without a
+ * shape (a Switch Value's, a Merge's, a Code node's) takes and gives anything.
+ */
+export type ValueShape = 'viewState' | 'mapStyle' | 'view' | 'widget' | 'extension';
+
+/** Whether a value of shape `a` fits a port of shape `b`: either is any value, or they match. */
+export const shapesFit = (a?: ValueShape, b?: ValueShape): boolean => !a || !b || a === b;
+
 export interface PortSpec {
   name: string;
   type: PortType;
+  /** For a `value` port, the one kind of value it carries. */
+  shape?: ValueShape;
   label?: string;
   /** Takes several edges, in order: a deck's layers, a union's inputs. */
   multi?: boolean;
@@ -72,6 +85,8 @@ export interface ParamDef {
   port?: boolean;
   /** What a `par:` handle accepts. Defaults to `number`. */
   portType?: PortType;
+  /** For a `value` parameter handle, the one kind of value it takes (a map style's). */
+  portShape?: ValueShape;
   /** For `kind: 'field'`: the host's description of its widget. Opaque to the planner. */
   field?: unknown;
   /** Show only when another parameter has one of these values. */
@@ -204,7 +219,7 @@ const blendParam: ParamDef = {
  * in as values; the planner never reads them, and the application attaches them to the layer.
  */
 const extensionsParam: ParamDef = {
-  name: 'extensions', label: 'Extensions', kind: 'field', default: [], folder: 'Style', port: true, portType: 'value',
+  name: 'extensions', label: 'Extensions', kind: 'field', default: [], folder: 'Style', port: true, portType: 'value', portShape: 'extension',
   field: { list: 'extensions' },
 };
 const rampParam: ParamDef = { name: 'ramp', label: 'Color ramp', kind: 'menu', default: 'viridis', options: RAMPS, folder: 'Channels', help: 'Used by ramp() in any channel expression.' };
@@ -1569,10 +1584,10 @@ export const OPERATORS: OpDef[] = [
     inputs: [
       { name: 'layers', type: 'layer', label: 'layers', multi: true },
       // Host values the planner passes through to deck and MapLibre untouched.
-      { name: 'views', type: 'value', label: 'views', multi: true, optional: true },
+      { name: 'views', type: 'value', shape: 'view', label: 'views', multi: true, optional: true },
       { name: 'effects', type: 'value', label: 'effects', multi: true, optional: true },
-      { name: 'widgets', type: 'value', label: 'widgets', multi: true, optional: true },
-      { name: 'viewState', type: 'value', label: 'view state', optional: true },
+      { name: 'widgets', type: 'value', shape: 'widget', label: 'widgets', multi: true, optional: true },
+      { name: 'viewState', type: 'value', shape: 'viewState', label: 'view state', optional: true },
       { name: 'maplibreLayers', type: 'value', label: 'MapLibre layers', multi: true, optional: true },
     ], outputs: [],
     params: [
@@ -1584,7 +1599,7 @@ export const OPERATORS: OpDef[] = [
       { name: 'zoom', label: 'Zoom', kind: 'float', default: 1.5, min: 0, max: 22, step: 0.05, bind: 'prop', folder: 'Camera', port: true },
       { name: 'pitch', label: 'Pitch', kind: 'float', default: 0, min: 0, max: 85, step: 0.5, bind: 'prop', folder: 'Camera', port: true },
       { name: 'bearing', label: 'Bearing', kind: 'float', default: 0, min: -180, max: 180, step: 0.5, bind: 'prop', folder: 'Camera', port: true },
-      { name: 'mapStyle', label: 'Map style URL', kind: 'url', default: '', help: 'A MapLibre style URL, or style JSON. Overrides Basemap when set; a style wired in (a Map Style node, a Code node returning style JSON) overrides both.', port: true, portType: 'value' },
+      { name: 'mapStyle', label: 'Map style URL', kind: 'url', default: '', help: 'A MapLibre style URL, or style JSON. Overrides Basemap when set; a style wired in (a Map Style node, a Code node returning style JSON) overrides both.', port: true, portType: 'value', portShape: 'mapStyle' },
       { name: 'styleOverrides', label: 'Style changes', kind: 'text', default: '', help: 'Changes made in the style editor (layers hidden or recolored), as JSON, applied to the style above. A wired style ignores them.' },
       { name: 'projection', label: 'Projection', kind: 'menu', default: 'mercator', options: [{ value: 'mercator', label: 'Mercator' }, { value: 'globe', label: 'Globe' }] },
       // Video export. Read by the renderer, never lowered.

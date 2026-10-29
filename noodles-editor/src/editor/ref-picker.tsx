@@ -41,6 +41,8 @@ export interface Candidate {
   label: string
   // What the entry shows on the right, when not the parameter's value
   value?: string
+  // The one thing of its kind a drag fits (a camera onto a view state), so a drop links it
+  exact?: boolean
 }
 
 /** Parameters `def` on `node` can reference: the same kind of value, on any other node. */

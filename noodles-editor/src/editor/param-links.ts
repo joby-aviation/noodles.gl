@@ -16,7 +16,7 @@ import {
   type PortSpec,
   resolveRef,
 } from '@noodles.gl/planner'
-import { connect, pathTo, setParam, validConnection } from './doc-ops'
+import { connect, pathTo, portShape, setParam, validConnection } from './doc-ops'
 import { nodeOfKey, referencePaths } from './layer-stack'
 import { type Candidate, referenceable, sameKind } from './ref-picker'
 
@@ -29,6 +29,12 @@ export type LinkDrag =
 
 // A value output's key: `extent>max`. A parameter's is `extent.input`.
 export const outputKey = (nodeId: string, port: string) => `${nodeId}>${port}`
+
+// A node's input port as a link target: `deck<viewState`, which a value output is wired into
+const asInput = (key: string) => {
+  const at = key.indexOf('<')
+  return at < 0 ? undefined : { nodeId: key.slice(0, at), port: key.slice(at + 1) }
+}
 
 const asOutput = (key: string) => {
   const at = key.indexOf('>')
@@ -137,6 +143,11 @@ function canWire(doc: EditorDoc, source: string, target: string): boolean {
 // Whether parameter `target` may read `source`: another parameter, or a value output
 export function canLink(doc: EditorDoc, source: string, target: string): boolean {
   if (source === target || asOutput(target)) return false
+  const into = asInput(target)
+  if (into) {
+    const out = asOutput(source)
+    return !!out && validConnection(doc, out.nodeId, out.port, into.nodeId, into.port)
+  }
   if (asOutput(source)) return canWire(doc, source, target)
   const s = paramDef(doc, source)
   const t = paramDef(doc, target)
@@ -149,6 +160,9 @@ export function canLink(doc: EditorDoc, source: string, target: string): boolean
 // output. False when it can't.
 export function linkParam(doc: EditorDoc, source: string, target: string): boolean {
   if (!canLink(doc, source, target)) return false
+  const into = asInput(target)
+  const from = asOutput(source)
+  if (into && from) return !!connect(doc, from.nodeId, from.port, into.nodeId, into.port)
   const { nodeId, param } = split(doc, target)
   const node = doc.nodes.find(n => n.id === nodeId)
   if (!node) return false
@@ -180,9 +194,33 @@ const outputDef = (port: string): ParamDef => ({
   default: 0,
 })
 
-// The parameters on `nodeId` that `source` could drive
+/**
+ * What on `nodeId` `source` could drive: its parameters, and for a value output its input ports
+ * too (a View State into a deck's view state). One the source's shape matches exactly is
+ * `exact` and comes first: a camera onto a deck is its view state, not its map style.
+ */
 export function targetsOn(doc: EditorDoc, nodeId: string, source: string): Candidate[] {
-  return paramsOf(doc, nodeId, key => canLink(doc, source, key))
+  const node = doc.nodes.find(n => n.id === nodeId)
+  const out = asOutput(source)
+  if (!node) return []
+  const shape = out && portShape(doc, out.nodeId, out.port, 'out')
+  const params = paramsOf(doc, nodeId, key => canLink(doc, source, key)).map(c => ({
+    ...c,
+    exact: !!shape && c.def.portShape === shape,
+  }))
+  const inputs = out
+    ? (OPERATOR_INDEX.get(node.op)?.inputs ?? [])
+        .filter(p => canLink(doc, source, inputKey(nodeId, p.name)))
+        .map(p => ({
+          key: inputKey(nodeId, p.name),
+          node,
+          def: { ...outputDef(p.name), label: p.label ?? p.name },
+          label: `${nodePath(doc, node)} › ${p.label ?? p.name}`,
+          value: 'input',
+          exact: !!shape && p.shape === shape,
+        }))
+    : []
+  return [...inputs, ...params].sort((a, b) => Number(b.exact) - Number(a.exact))
 }
 
 // What on `nodeId` parameter `target` could read: its parameters, then its value outputs

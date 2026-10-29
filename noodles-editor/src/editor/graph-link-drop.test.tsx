@@ -2,6 +2,7 @@ import { type EditorDoc, OPERATOR_INDEX } from '@noodles.gl/planner'
 import { act, cleanup, fireEvent, render, waitFor } from '@testing-library/react'
 import { ReactFlowProvider } from '@xyflow/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { registerDeckOperators } from '../runtime/deck-ops'
 import { DocNetwork, startGraphLink } from './doc-network'
 import { docStore } from './doc-store'
 import { NodeFields } from './field-adapter'
@@ -83,5 +84,44 @@ describe('a Properties port dragged over the node graph', () => {
     // The drag over, the handle goes again
     act(() => getUIStore().setLinkDrag(null))
     await waitFor(() => expect(pitch()).toBeNull())
+  })
+})
+
+describe('a View State dropped on a deck in the node graph', () => {
+  it('wires into its view state at once, with no picker to choose from', {
+    timeout: 30_000,
+  }, async () => {
+    vi.useRealTimers()
+    registerDeckOperators()
+    docStore().load({
+      version: 1,
+      name: 'camera',
+      nodes: [
+        { id: 'shot', op: 'view-state', name: 'shot', x: 0, y: 0, params: {} },
+        { id: 'map', op: 'deck', name: 'map', x: 300, y: 0, params: {} },
+      ],
+      edges: [],
+    })
+    const { container } = render(
+      <ReactFlowProvider>
+        <div style={{ width: 1200, height: 600 }}>
+          <DocNetwork />
+        </div>
+      </ReactFlowProvider>
+    )
+    const deck = () =>
+      container.querySelector('.react-flow__node[data-id="map"] > div') as HTMLElement
+    await waitFor(() => expect(deck()).toBeTruthy(), { timeout: 10_000 })
+    act(() => getUIStore().setLinkDrag({ kind: 'source', key: 'shot>viewState' }))
+    fireEvent.pointerUp(deck())
+    expect(docStore().get().doc.edges).toContainEqual(
+      expect.objectContaining({
+        source: 'shot',
+        sourcePort: 'viewState',
+        target: 'map',
+        targetPort: 'viewState',
+      })
+    )
+    expect(document.querySelector('input[placeholder="Which input reads it?"]')).toBeNull()
   })
 })
