@@ -5,8 +5,10 @@ import {
   listVectors,
   listComponentsSql,
   listComponentColumns,
+  rowwiseSql,
   type RelColumn,
 } from './relational.js'
+import type { GraphNode } from './types.js'
 import { plan } from './planner.js'
 import { targetCaps } from './target.js'
 
@@ -113,5 +115,16 @@ describe('components of a re-packed vector', () => {
     // random() is SQL-only, so P can only be planned if its components are SQL too.
     expect(physical.assignments.find(a => a.nodeId === 'p')?.engine).toBe('sql')
     expect(physical.sql).toContain('"xy_1"')
+  })
+})
+
+describe('re-packing a relation’s vectors for a chain', () => {
+  it('takes any column name, one that is no regular expression included', () => {
+    const shape = {
+      columns: ['x', 'v[_0', 'v[_1'].map((name) => ({ name, type: 'num' as const, duckType: 'DOUBLE' })),
+      vectors: [{ name: 'v[', width: 2 }],
+    }
+    const chain = [{ id: 'a', type: 'attribute', input: 'in', name: 'twice', expr: 'x * 2' }] as GraphNode[]
+    expect(() => rowwiseSql(chain, 'rel', shape, {}, { params: {} }, 'a test')).not.toThrow()
   })
 })

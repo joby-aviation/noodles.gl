@@ -47,7 +47,7 @@ import { sourceParams } from './hoist.js';
 import { propParam, type LayerKind } from './layers.js';
 import { quoteIdent } from './backends/sql.js';
 import {
-  type RelShape, type RelColumn,
+  type RelShape, type RelColumn, type RelVector, escapeRegExp,
   numericListOf, listVectors, listComponentsSql,
   pathColumnOf, sourceSql, verticesSql, joinSql, unionSql, sortSql, limitSql, sqlNodeSql, generateSql, unnestSql, rowwiseSql,
 } from './relational.js';
@@ -76,7 +76,8 @@ export interface RelationPlan {
   stats?: SourceStats;
   rows?: number;
   /** For a JS table: what the catalog runs, and the table it loads the result into. */
-  js?: { code: string; table: string; input?: string; url?: string };
+  /** A code node's table: its code, and its input with the vectors the input stores as components. */
+  js?: { code: string; table: string; input?: string; url?: string; vectors?: RelVector[] };
 }
 
 export interface LayerPlan {
@@ -460,7 +461,10 @@ export async function compileProgram(
         materialize, inputs: inputIds, params: used, consumers: cons,
         shape: { columns: [], vectors },
         ...(node.type === 'js' && jsTable
-          ? { js: { code: node.code, table: jsTable, ...(refs[0] ? { input: refs[0] } : {}), ...(node.url ? { url: node.url } : {}) } }
+          ? { js: {
+              code: node.code, table: jsTable, ...(refs[0] ? { input: refs[0] } : {}), ...(node.url ? { url: node.url } : {}),
+              ...(shapes[0]?.vectors.length ? { vectors: shapes[0].vectors } : {}),
+            } }
           : {}),
       };
       const described = await catalog.describe(rel);
@@ -530,7 +534,7 @@ export async function compileProgram(
           : [],
       );
       const repack = rel.shape.vectors.filter(
-        (v) => !listChannels.has(v.name) && new RegExp(`\\b${v.name}\\b`).test(tailText),
+        (v) => !listChannels.has(v.name) && new RegExp(`\\b${escapeRegExp(v.name)}\\b`).test(tailText),
       );
       const sourceId = root;
       const subNodes: GraphNode[] = [
