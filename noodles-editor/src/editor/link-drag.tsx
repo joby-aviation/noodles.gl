@@ -7,7 +7,7 @@
 // moment selects it, so the Properties panel switches to it and the drag can end on one of its
 // properties, as Cavalry's spring-loaded layers do.
 
-import type { DocNode, ParamDef } from '@noodles.gl/planner'
+import type { DocNode, EditorDoc, ParamDef } from '@noodles.gl/planner'
 import {
   type DragEvent,
   type ReactNode,
@@ -17,6 +17,7 @@ import {
   useState,
 } from 'react'
 import { analytics } from '../utils/analytics'
+import { connect, validConnection } from './doc-ops'
 import { docStore, useEditor } from './doc-store'
 import {
   canLink,
@@ -73,8 +74,52 @@ const centerOf = (el: Element): Point => {
   return { x: r.left + r.width / 2, y: r.top + r.height / 2 }
 }
 
-// Where the line ends: the matching port of a row that can take the drag, else the pointer
+/**
+ * A node graph handle under the pointer that can take a port's drag, and the edit that links
+ * them: a property's output onto a node's parameter handle (`par:`) or an output row onto any
+ * input it fits, and a property's input onto a node's output. Undefined anywhere else.
+ */
+export function graphDrop(
+  doc: EditorDoc,
+  drag: LinkDrag,
+  handle: Element | null | undefined
+): { target: string; apply: (d: EditorDoc) => boolean } | undefined {
+  const nodeId = handle?.getAttribute('data-nodeid')
+  const port = handle?.getAttribute('data-handleid')
+  // ref-in and ref-out draw references, not ports
+  if (!handle || !nodeId || !port || port.startsWith('ref-')) return undefined
+  const isInput = handle.classList.contains('target')
+  if (drag.kind === 'source' && isInput) {
+    if (port.startsWith('par:')) {
+      const target = `${nodeId}.${port.slice(4)}`
+      return canLink(doc, drag.key, target)
+        ? { target, apply: d => linkParam(d, drag.key, target) }
+        : undefined
+    }
+    const at = drag.key.indexOf('>')
+    if (at < 0) return undefined
+    const [from, out] = [drag.key.slice(0, at), drag.key.slice(at + 1)]
+    return validConnection(doc, from, out, nodeId, port)
+      ? { target: `${nodeId}.${port}`, apply: d => !!connect(d, from, out, nodeId, port) }
+      : undefined
+  }
+  if (drag.kind === 'target' && !isInput) {
+    const source = outputKey(nodeId, port)
+    return canLink(doc, source, drag.key)
+      ? { target: drag.key, apply: d => linkParam(d, source, drag.key) }
+      : undefined
+  }
+  return undefined
+}
+
+const handleAt = (x: number, y: number) =>
+  document.elementFromPoint(x, y)?.closest('.react-flow__handle')
+
+// Where the line ends: a graph handle or the matching port of a row that can take the drag,
+// else the pointer
 function endOf(drag: LinkDrag, x: number, y: number): Point {
+  const handle = handleAt(x, y)
+  if (handle && graphDrop(docStore().get().doc, drag, handle)) return centerOf(handle)
   const row = document.elementFromPoint(x, y)?.closest('[data-link-accepts]')
   const port = row?.querySelector(drag.kind === 'source' ? '[data-port="in"]' : '[data-port="out"]')
   return port ? centerOf(port) : { x, y }
@@ -141,9 +186,23 @@ export function startPortDrag(e: ReactPointerEvent, drag: LinkDrag, side: 'in' |
     line?.remove()
     document.body.style.cursor = ''
   }
-  // The row under the pointer gets this pointerup next; let it read the drag, then clear it
-  const up = () => {
+  // The row under the pointer gets this pointerup next; let it read the drag, then clear it. A
+  // node graph handle is no row: the drop on it links here.
+  const up = (ev: PointerEvent) => {
     stop()
+    const drop = line && graphDrop(docStore().get().doc, drag, handleAt(ev.clientX, ev.clientY))
+    if (drop) {
+      let made = false
+      docStore().edit(d => {
+        made = drop.apply(d)
+      }, 'link:graph')
+      if (made)
+        analytics.track('param_linked', {
+          via: 'graph',
+          kind: paramDef(docStore().get().doc, drop.target)?.kind,
+          from: drag.kind === 'target' || drag.key.includes('>') ? 'output' : 'param',
+        })
+    }
     setTimeout(() => getUIStore().setLinkDrag(null), 0)
   }
   const cancel = () => {
@@ -291,7 +350,9 @@ export function useOutputLinkTarget(nodeId: string, port: string) {
 // A node row in a list: takes a dragged port to choose which of the node's properties reads it,
 // or which of its properties and outputs a dragged input reads, and selects the node when the
 // drag rests on it
-export function useNodeLinkTarget(nodeId: string) {
+// A node that takes a drag: a layer stack row, which selects its node when the drag rests on it
+// (`spring`), or a node in the node graph, which doesn't
+export function useNodeLinkTarget(nodeId: string, { spring: springs = true } = {}) {
   const drag = useUIStore(state => state.linkDrag)
   const doc = useEditor(state => state.doc)
   const [picker, setPicker] = useState<Picker>()
@@ -313,7 +374,7 @@ export function useNodeLinkTarget(nodeId: string) {
   const props = {
     'data-link-accepts': accepts || undefined,
     onPointerMove: () => {
-      if (accepts)
+      if (accepts && springs)
         spring.current ??= setTimeout(() => docStore().set({ selection: [nodeId] }), SPRING_MS)
     },
     onPointerLeave: rest,
@@ -321,6 +382,8 @@ export function useNodeLinkTarget(nodeId: string) {
       rest()
       const node = doc.nodes.find(n => n.id === nodeId)
       if (!accepts || !node || !drag || drag.kind === 'node') return
+      // A graph handle takes its own drop: a port's (graphDrop) or a wire's (xyflow)
+      if ((e.target as Element).closest?.('.react-flow__handle')) return
       e.stopPropagation()
       const { key } = drag
       if (drag.kind === 'source')

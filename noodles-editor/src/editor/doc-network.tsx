@@ -42,6 +42,7 @@ import {
 import { docStore, useEditor } from './doc-store'
 import { AddNodeMenu, ContextMenu, type MenuItem } from './menus'
 import { MultiPortEdge } from './multi-port-handle'
+import { outputKey } from './param-links'
 import { getUIStore, useUIStore } from './ui-store'
 
 const nodeTypes = { doc: DocNodeComponent, comment: DocCommentComponent }
@@ -49,6 +50,32 @@ const edgeTypes = { multi: MultiPortEdge }
 
 // A drag that ended anywhere but a multi input leaves no slot behind
 const clearSlot = () => getUIStore().setPendingInsertionIndex(null)
+
+// A wire dragged from a node's handle is a link drag too, so a property row in the Properties
+// panel can take it as it takes a property's port: an output read by a parameter, or a
+// parameter handle reading a property's output
+export function startGraphLink(
+  _e: unknown,
+  {
+    nodeId,
+    handleId,
+    handleType,
+  }: { nodeId: string | null; handleId: string | null; handleType: 'source' | 'target' | null }
+) {
+  if (!nodeId) return
+  const port = handleId ?? (handleType === 'source' ? 'out' : 'in')
+  if (port.startsWith('ref-')) return
+  if (handleType === 'source')
+    getUIStore().setLinkDrag({ kind: 'source', key: outputKey(nodeId, port) })
+  else if (port.startsWith('par:'))
+    getUIStore().setLinkDrag({ kind: 'target', key: `${nodeId}.${port.slice(4)}` })
+}
+
+// The row under the pointer reads the drag on its pointerup, before this clears it
+const endGraphLink = () => {
+  clearSlot()
+  setTimeout(() => getUIStore().setLinkDrag(null), 0)
+}
 
 // The slot a drop onto a multi input picked, once: it belongs to the drag that just ended
 function takeSlot(c: Connection): number | undefined {
@@ -506,7 +533,8 @@ export function DocNetwork({ children }: { children?: ReactNode }) {
         onNodesChange={onNodesChange}
         onConnect={onConnect}
         onReconnect={onReconnect}
-        onConnectEnd={clearSlot}
+        onConnectStart={startGraphLink}
+        onConnectEnd={endGraphLink}
         onReconnectEnd={clearSlot}
         isValidConnection={isValidConnection}
         deleteKeyCode={null}
