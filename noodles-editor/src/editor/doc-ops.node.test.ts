@@ -1,6 +1,6 @@
 import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
-import { type EditorDoc, lowerDocument } from '@noodles.gl/planner'
+import { type EditorDoc, lowerDocument, OPERATOR_INDEX } from '@noodles.gl/planner'
 import { describe, expect, it } from 'vitest'
 import { registerDeckOperators } from '../runtime/deck-ops'
 import {
@@ -16,6 +16,7 @@ import {
   validConnection,
 } from './doc-ops'
 import { DocStore } from './doc-store'
+import { driveWith } from './drivers'
 import { isEditorDoc, loadDoc } from './load-doc'
 
 const doc = (): EditorDoc => ({
@@ -146,6 +147,81 @@ describe('document operations', () => {
     })
     expect(lowerDocument(d).errors).toEqual([])
     expect(renameNode(d, 'src', 'size')).toBe(false)
+  })
+})
+
+describe('deleting what drives a parameter', () => {
+  // A deck whose pitch a Number drives, the Number driven by Time, as the menu makes them
+  const driven = () => {
+    const d: EditorDoc = {
+      version: 1,
+      name: 'drive',
+      nodes: [{ id: 'map', op: 'deck', x: 600, y: 0, params: {} }],
+      edges: [],
+    }
+    const number = addNode(d, 'number', 0, 0)
+    number.params.value = 30
+    return { d, number }
+  }
+  const pitchDef = () => OPERATOR_INDEX.get('number')?.params.find(p => p.name === 'value')
+
+  it('a wired Number driven by Time: deleting Time, then the Number, leaves a document that lowers', () => {
+    const { d, number } = driven()
+    expect(connect(d, number.id, 'out', 'map', 'par:pitch')).toBeDefined()
+    const def = pitchDef()
+    if (!def) throw new Error('no value')
+    const time = driveWith(d, number, def, { op: 'time', label: 'Time' }, 30)
+    expect(time).toBeDefined()
+    removeNodes(d, [time as string])
+    expect(lowerDocument(d).errors).toEqual([])
+    removeNodes(d, [number.id])
+    expect(d.edges).toEqual([])
+    expect(lowerDocument(d).errors).toEqual([])
+  })
+
+  it('a reference to a deleted Number keeps the value it read, rather than pointing at nothing', () => {
+    const { d, number } = driven()
+    setParam(d, 'map', 'pitch', { ref: `${number.name}/value` })
+    setParam(d, 'map', 'bearing', { ref: `${number.name}/value` })
+    removeNodes(d, [number.id])
+    expect(d.nodes[0].params).toMatchObject({ pitch: 30, bearing: 30 })
+    expect(lowerDocument(d).errors).toEqual([])
+  })
+
+  it('a reference to a value a wire or keyframes drive goes back to its default, not a stale value', () => {
+    const wired = driven()
+    const def = pitchDef()
+    if (!def) throw new Error('no value')
+    driveWith(wired.d, wired.number, def, { op: 'time', label: 'Time' }, 30)
+    setParam(wired.d, 'map', 'pitch', { ref: `${wired.number.name}/value` })
+    // The Number first: Time still drives its value, so 30 isn't what pitch read
+    removeNodes(wired.d, [wired.number.id])
+    expect(wired.d.nodes.find(n => n.id === 'map')?.params.pitch).toBeUndefined()
+    const keyed = driven()
+    setKey(keyed.d, `${keyed.number.id}.value`, 0, 10)
+    setKey(keyed.d, `${keyed.number.id}.value`, 2, 50)
+    setParam(keyed.d, 'map', 'pitch', { ref: `${keyed.number.name}/value` })
+    removeNodes(keyed.d, [keyed.number.id])
+    expect(keyed.d.nodes[0].params.pitch).toBeUndefined()
+  })
+
+  it('leaves a reference to a node whose id the deleted one’s starts', () => {
+    const { d } = driven()
+    d.nodes.push(
+      { id: 'a', op: 'number', name: 'a', x: 0, y: 0, params: { value: 1 } },
+      { id: 'a.b', op: 'number', name: 'ab', x: 0, y: 0, params: { value: 7 } }
+    )
+    setParam(d, 'map', 'pitch', { ref: 'ab/value' })
+    removeNodes(d, ['a'])
+    expect(d.nodes.find(n => n.id === 'map')?.params.pitch).toEqual({ ref: 'ab/value' })
+  })
+
+  it('a reference to a deleted parameter that is itself driven goes back to its default', () => {
+    const { d, number } = driven()
+    number.params.value = { expr: 'T * 2' }
+    setParam(d, 'map', 'pitch', { ref: `${number.name}/value` })
+    removeNodes(d, [number.id])
+    expect(d.nodes[0].params.pitch).toBeUndefined()
   })
 })
 
