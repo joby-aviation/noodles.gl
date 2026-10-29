@@ -25,9 +25,14 @@ export function useDeferredCommit<T>(onCommit: (value: T) => void, live: boolean
     if (!open) commitRef.current()
   }, [open])
   useEffect(() => () => commitRef.current(), [])
-  // Turned on, it hands over what was held back
+  // Turned on, it hands over what was held back; turned off, a handover already due is
+  // called off, and what it would have handed waits for the dialog to close
   useEffect(() => {
     if (live) commitRef.current()
+    else {
+      clearTimeout(timer.current)
+      timer.current = undefined
+    }
   }, [live])
 
   const change = (value: T) => {

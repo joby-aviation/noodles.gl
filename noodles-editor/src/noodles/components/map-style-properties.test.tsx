@@ -1,6 +1,8 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { useState } from 'react'
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
-import { loadStyleSpec, type StyleSpec } from '../../utils/map-style-props'
+import { loadStyleSpec, type StyleSpec, withLayerProp } from '../../utils/map-style-props'
+import type { StyleConfiguratorData } from '../../utils/map-style-utils'
 import { LayerInspector } from './map-style-properties'
 
 let spec: StyleSpec
@@ -167,5 +169,38 @@ describe('the layer inspector', () => {
     ])
     fireEvent.click(screen.getByLabelText('opacity: reset'))
     expect(onChange).toHaveBeenLastCalledWith('paint', 'line-opacity', undefined)
+  })
+})
+
+describe('typing a stop’s zoom', () => {
+  // The inspector as the editor holds it: each change fed back as the layer's override
+  function Held({ onValue }: { onValue: (v: unknown) => void }) {
+    const [changes, setChanges] = useState<StyleConfiguratorData>({ layers: [], global: {} })
+    return (
+      <LayerInspector
+        layer={road}
+        layerOverride={changes.layers.find(o => o.layerId === 'roads')}
+        spec={spec}
+        zoom={8}
+        onChange={(group, prop, value) => {
+          setChanges(c => withLayerProp(c, 'roads', group, prop, value))
+          onValue(value)
+        }}
+      />
+    )
+  }
+
+  it('moves the stop being typed in, however the stops re-sort', () => {
+    const onValue = vi.fn()
+    render(<Held onValue={onValue} />)
+    const box = screen
+      .getAllByLabelText('Stop zoom')
+      .find(e => (e as HTMLInputElement).value === '5') as HTMLElement
+    fireEvent.focus(box)
+    for (const text of ['1', '15', '15.5']) fireEvent.change(box, { target: { value: text } })
+    // Nothing moves while it is typed
+    expect(onValue).not.toHaveBeenCalled()
+    fireEvent.blur(box)
+    expect(onValue).toHaveBeenLastCalledWith(['interpolate', ['linear'], ['zoom'], 12, 4, 15.5, 1])
   })
 })

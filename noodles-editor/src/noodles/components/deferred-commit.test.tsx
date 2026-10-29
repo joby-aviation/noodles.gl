@@ -36,6 +36,23 @@ describe('edits held back until a dialog closes', () => {
     expect(onCommit).toHaveBeenCalledTimes(1)
   })
 
+  it('calls off a handover already due when live update turns off, holding it for close', () => {
+    vi.useFakeTimers()
+    const onCommit = vi.fn()
+    const { result, rerender } = renderHook(
+      ({ live, open }) => useDeferredCommit(onCommit, live, open),
+      { initialProps: { live: true, open: true } }
+    )
+    act(() => result.current.change(1))
+    rerender({ live: false, open: true })
+    act(() => result.current.change(2))
+    act(() => vi.advanceTimersByTime(LIVE_MS * 2))
+    expect(onCommit).not.toHaveBeenCalled()
+    rerender({ live: false, open: false })
+    expect(onCommit).toHaveBeenCalledTimes(1)
+    expect(onCommit).toHaveBeenCalledWith(2)
+  })
+
   it('hands over what was held when live update turns on, and when it unmounts', () => {
     const onCommit = vi.fn()
     const { result, rerender, unmount } = renderHook(

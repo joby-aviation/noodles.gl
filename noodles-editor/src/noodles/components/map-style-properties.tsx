@@ -297,6 +297,7 @@ function NumberBox({
   label,
   accept,
   onChange,
+  whileTyping = true,
 }: {
   value: number
   min?: number
@@ -305,6 +306,8 @@ function NumberBox({
   // A number refused here goes back to the value
   accept?: (value: number) => boolean
   onChange: (value: number) => void
+  // Apply as it is typed; off, on Enter or blur (a stop's zoom, which re-sorts the stops)
+  whileTyping?: boolean
 }) {
   const [draft, setDraft] = useState(String(value))
   // Typed into, the box keeps its text: the value it set comes back as a number, which would
@@ -316,6 +319,7 @@ function NumberBox({
   // A whole number typed applies as it is typed, so the map follows; out of range waits for blur
   const type = (text: string) => {
     setDraft(text)
+    if (!whileTyping) return
     const n = Number(text)
     if (text.trim() === '' || !Number.isFinite(n) || n === value) return
     if ((min !== undefined && n < min) || (max !== undefined && n > max)) return
@@ -530,6 +534,8 @@ function RampEditor({
                 min={0}
                 max={24}
                 label="Stop zoom"
+                // Applied as typed, it would re-sort the stops under the box being typed in
+                whileTyping={false}
                 // Stops go up the zoom one at a time: two at one zoom is no ramp MapLibre reads
                 accept={nz => !stops.some(([oz], j) => j !== i && oz === nz)}
                 onChange={nz => setStop(i, [nz, v])}
