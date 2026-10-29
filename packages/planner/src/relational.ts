@@ -420,6 +420,9 @@ export function unnestSql(node: UnnestNode, input: string, shape: RelShape): { s
  */
 const REPACK = '__repack:';
 
+/** A column name as a regular expression's literal text: any valid name, `v[` say, is safe. */
+export const escapeRegExp = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
 export function rowwiseSql(
   chain: GraphNode[],
   input: string,
@@ -440,7 +443,7 @@ export function rowwiseSql(
   // Vectors the relation stores as components, re-packed for the chain that reads them, as a
   // layer's are: `c = [c_0, c_1, c_2]`, so `c`, `c[0]` and `c.r` read those columns in SQL
   const chainText = JSON.stringify(chain);
-  const repack = shape.vectors.filter((v) => new RegExp(`\\b${v.name}\\b`).test(chainText));
+  const repack = shape.vectors.filter((v) => new RegExp(`\\b${escapeRegExp(v.name)}\\b`).test(chainText));
   const repacked = repack.map((v, i) => ({
     id: `${REPACK}${i}`,
     type: 'attribute' as const,

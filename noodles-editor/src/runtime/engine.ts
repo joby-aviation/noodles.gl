@@ -135,7 +135,10 @@ export interface RuntimeLike {
   /** Rows of a query as plain objects. */
   query(sql: string): Promise<Record<string, unknown>[]>
   /** A relation's rows as plain objects, decimals and 64-bit integers as numbers. */
-  relationRows(relation: string): Promise<Record<string, unknown>[]>
+  relationRows(
+    relation: string,
+    vectors?: readonly { name: string; width: number }[]
+  ): Promise<Record<string, unknown>[]>
   onUpdate(listener: (report: UpdateReport) => void): () => void
 }
 
@@ -613,7 +616,7 @@ export class Engine {
     if (!rel) return PENDING
     let rows = this.rows.get(rel.hash)
     if (!rows) {
-      rows = this.runtime.relationRows(rel.ref)
+      rows = this.runtime.relationRows(rel.ref, rel.shape.vectors)
       this.rows.set(rel.hash, rows)
     }
     return rows

@@ -60,36 +60,24 @@ for (const [i, names] of ['xr', 'yg', 'zb', 'wa'].entries()) {
   }
 }
 
-const NUMERIC_TYPE = /^(DOUBLE|FLOAT|REAL|DECIMAL|NUMERIC|U?(TINY|SMALL|BIG|HUGE)?INT(EGER)?)/i
-
 /**
- * The vectors a relation stores as component columns, as the planner names them (`c_0, c_1,
- * c_2`): 2 to 4 numeric columns numbered from 0, with no column of the vector's own name.
+ * A row with each vector the planner knows the relation stores (its shape's vectors) as one
+ * Vec under the vector's name: built from its component columns (`c_0, c_1, c_2`), or wrapped
+ * when the relation also holds it as a list column (one a code node wrote), whose components
+ * the planner generated. Other numbered columns (`value_0`) are left as they are.
  */
-export function vectorColumns(types: Map<string, string>): { name: string; width: number }[] {
-  const widths = new Map<string, number[]>()
-  for (const [column, type] of types) {
-    const m = /^(.+)_([0-3])$/.exec(column)
-    if (!m || !NUMERIC_TYPE.test(type)) continue
-    widths.set(m[1], [...(widths.get(m[1]) ?? []), Number(m[2])])
-  }
-  return [...widths]
-    .filter(
-      ([name, ks]) => !types.has(name) && ks.length >= 2 && ks.every((_, i) => ks.includes(i))
-    )
-    .map(([name, ks]) => ({ name, width: ks.length }))
-}
-
-/** A row with each vector's components folded into one Vec under the vector's name. */
 export function foldVectors(
   row: Record<string, unknown>,
-  vectors: { name: string; width: number }[]
+  vectors: readonly { name: string; width: number }[]
 ): Record<string, unknown> {
   if (vectors.length === 0) return row
   const out = { ...row }
   for (const { name, width } of vectors) {
     const parts = Array.from({ length: width }, (_, i) => `${name}_${i}`)
-    out[name] = Vec.from(parts.map(k => out[k] as number))
+    const list = out[name]
+    if (Array.isArray(list)) out[name] = Vec.from(list as number[])
+    else if (parts.every(k => k in out)) out[name] = Vec.from(parts.map(k => out[k] as number))
+    else continue
     for (const k of parts) delete out[k]
   }
   return out
@@ -107,7 +95,9 @@ export async function readPlainRows(
     describe(relation: string): Promise<Map<string, string>>
     run(sql: string): Promise<{ table: { toArray(): unknown[] } }>
   },
-  relation: string
+  relation: string,
+  // The vectors the planner knows the relation stores, from its shape
+  vectors: readonly { name: string; width: number }[] = []
 ): Promise<Record<string, unknown>[]> {
   const types = await sql.describe(relation)
   const casts = [...types]
@@ -120,7 +110,6 @@ export async function readPlainRows(
     : `SELECT * FROM ${relation}`
   const { table } = await sql.run(select)
   // A vector stored as components is one value: `d.magnitude_color`, read as `[0]` or `.r`
-  const vectors = vectorColumns(types)
   return (table.toArray() as { toJSON(): Record<string, unknown> }[]).map(r =>
     foldVectors(plainRow(r.toJSON()), vectors)
   )

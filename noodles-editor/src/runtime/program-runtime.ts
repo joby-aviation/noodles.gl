@@ -152,9 +152,12 @@ export class ProgramRuntime {
     })
   }
 
-  /** A relation's rows as plain objects, decimals and 64-bit integers as numbers. */
-  relationRows(relation: string): Promise<Record<string, unknown>[]> {
-    return readPlainRows(this.sql, relation)
+  /** A relation's rows as plain objects, decimals and 64-bit integers as numbers, its vectors as Vecs. */
+  relationRows(
+    relation: string,
+    vectors: readonly { name: string; width: number }[] = []
+  ): Promise<Record<string, unknown>[]> {
+    return readPlainRows(this.sql, relation, vectors)
   }
 
   /** Rows of a query as plain objects. */

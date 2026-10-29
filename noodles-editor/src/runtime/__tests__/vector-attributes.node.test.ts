@@ -127,3 +127,34 @@ it('reads a color a ramp computes above it in the same relation', async () => {
   expect(coded[0].red).toBe(rows[0].c_0)
   expect(coded[0].whole).toEqual([rows[0].c_0, rows[0].c_1, rows[0].c_2])
 })
+
+it('keeps a vector a code node passes on readable by component in the next code node', async () => {
+  const d = doc(
+    [
+      attr('c', '[x / 4.0, 0.5, 1.0]'),
+      { id: 'first', op: 'code', x: 0, y: 0, params: { code: 'return d' } },
+    ],
+    [],
+    code
+  )
+  const coded = await rowsOf(d, 'code')
+  expect(coded[1]).toMatchObject({ first: 0.25, red: 0.25, whole: [0.25, 0.5, 1] })
+})
+
+it('leaves numbered columns no vector made as they are, for code to read by name', async () => {
+  const d = doc(
+    [
+      {
+        id: 'cut',
+        op: 'sql',
+        x: 0,
+        y: 0,
+        params: { query: 'SELECT x, x AS value_0, x * 2 AS value_1 FROM {{input0}}' },
+      },
+    ],
+    [],
+    'return d.map(r => ({ sum: r.value_0 + r.value_1, keys: Object.keys(r).join() }))'
+  )
+  const coded = await rowsOf(d, 'code')
+  expect(coded[1]).toMatchObject({ sum: 3, keys: 'x,value_0,value_1' })
+})
