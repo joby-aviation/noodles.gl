@@ -1044,8 +1044,6 @@ export default function TimelineEditor() {
           flowGraph={flowGraph}
           spreadsheet={<SpreadsheetPane selectedNodeIds={selectedNodeIds ?? []} />}
         >
-          {/* Outside the scaled render surface, so the label keeps its size */}
-          {clickToEdit.label}
           {!isRendering && geographic && (
             <CameraToolbar
               control={cameraControl}

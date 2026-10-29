@@ -64,21 +64,3 @@ export function isClickNotDrag(
   if (!down || !up) return true
   return Math.hypot(up.x - down.x, up.y - down.y) <= tolerance
 }
-
-type Size = { width: number; height: number }
-
-// Puts a label below and right of the pointer, flipping to the other side of an axis
-// where it would run past the edge of the map
-export function placeLabel(
-  pointer: ScreenPoint,
-  label: Size,
-  bounds: Size,
-  offset: number
-): ScreenPoint {
-  const axis = (at: number, size: number, limit: number) =>
-    at + offset + size <= limit ? at + offset : Math.max(0, at - offset - size)
-  return {
-    x: axis(pointer.x, label.width, bounds.width),
-    y: axis(pointer.y, label.height, bounds.height),
-  }
-}
