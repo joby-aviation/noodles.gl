@@ -27,6 +27,7 @@ import {
 } from '../../utils/map-style-utils'
 import { CARTO_DARK } from '../../utils/map-styles'
 import { ColorSwatch } from './color-swatch'
+import { useDeferredCommit } from './deferred-commit'
 import configuratorStyles from './map-style-configurator.module.css'
 import { LayerInspector } from './map-style-properties'
 
@@ -116,6 +117,16 @@ interface ConfiguratorDialogProps {
 }
 
 const NYC = { longitude: -74.006, latitude: 40.7128, zoom: 9 }
+
+// Whether edits reach the project as they are made, rather than when the editor closes
+const LIVE_KEY = 'noodles-style-editor-live'
+const readLive = () => {
+  try {
+    return localStorage.getItem(LIVE_KEY) === 'true'
+  } catch {
+    return false
+  }
+}
 const WHOLE_STYLE = ''
 
 export function MapStyleConfiguratorDialog({
@@ -199,11 +210,19 @@ export function MapStyleConfiguratorDialog({
     }
   }, [open])
 
+  // Edits redraw this editor's own map as they are made; the project (the deck's map, the
+  // document, undo) takes them when the editor closes, or every LIVE_MS with Live update on.
+  // Each edit reaching the project restyles the main map, which is what made dragging a
+  // color slow.
+  const [live, setLive] = useState(readLive)
+  const { change, commit } = useDeferredCommit(onOverridesChange, live, open)
+
   const handleOpenChange = (nextOpen: boolean) => {
     if (nextOpen) {
       onEditStart?.()
       analytics.track('map_style_configurator_opened')
     } else {
+      commit()
       onEditEnd?.()
     }
     onOpenChange(nextOpen)
@@ -211,7 +230,17 @@ export function MapStyleConfiguratorDialog({
 
   const updateOverrides = (next: StyleConfiguratorData) => {
     setOverrides(next)
-    onOverridesChange(next)
+    change(next)
+  }
+
+  const toggleLive = (on: boolean) => {
+    setLive(on)
+    try {
+      localStorage.setItem(LIVE_KEY, String(on))
+    } catch {
+      // Storage off: the choice lasts this session
+    }
+    analytics.track('map_style_configurator_live', { on })
   }
 
   const setLayerProp = (layerId: string, group: 'paint' | 'layout', prop: string, value: unknown) =>
@@ -325,6 +354,13 @@ export function MapStyleConfiguratorDialog({
                 ? `${totalOverrides} layer${totalOverrides === 1 ? '' : 's'} changed`
                 : 'No changes'}
             </span>
+            <label
+              className={configuratorStyles.liveToggle}
+              title="Update the project's map as you edit. Off, the map takes your changes when the editor closes, which keeps editing fast."
+            >
+              <input type="checkbox" checked={live} onChange={e => toggleLive(e.target.checked)} />
+              Live update
+            </label>
             <button
               type="button"
               className={configuratorStyles.resetButton}

@@ -416,6 +416,23 @@
   }
 }
 
+.liveToggle input {
+  /* A global reset takes the native checkbox away */
+  appearance: auto;
+  accent-color: #3b82f6;
+  margin: 0;
+}
+
+.liveToggle {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.8rem;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  user-select: none;
+}
+
 .resetButton:disabled {
   opacity: 0.4;
   cursor: default;
