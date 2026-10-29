@@ -99,6 +99,19 @@
   background: var(--color-bg-hover);
 }
 
+/* A vector's name over its components */
+.groupHeader {
+  text-align: center;
+  border-bottom: 1px solid var(--color-accent, #3b82f6);
+}
+
+/* A component's swizzle letter, under its vector's name */
+.component {
+  color: var(--color-text-secondary);
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-weight: 500;
+}
+
 .table td {
   padding: 6px 12px;
   border-bottom: 1px solid var(--color-border-subtle);
