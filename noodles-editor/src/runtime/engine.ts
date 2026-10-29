@@ -450,12 +450,24 @@ export class Engine {
       OPERATOR_INDEX.get(this.doc?.nodes.find(n => n.id === id)?.op ?? '')
     const isHost = (id: string) => !!opOf(id) && !opOf(id)?.lower
     // Only a planner node's table input reads rows; a deck's layers port takes the host's layers.
-    const readsRows = (id: string, port: string) =>
-      opOf(id)?.inputs.find(p => p.name === port)?.type === 'table'
+    // A port of any type (a Switch's) reads rows when what's wired in is a table.
+    const readsRows = (e: {
+      source: string
+      sourcePort: string
+      target: string
+      targetPort: string
+    }) => {
+      const into = opOf(e.target)?.inputs.find(p => p.name === e.targetPort)?.type
+      if (into === 'table') return true
+      return (
+        into === 'any' &&
+        opOf(e.source)?.outputs.find(p => p.name === e.sourcePort)?.type === 'table'
+      )
+    }
     let changed = false
     const live = new Set<string>()
     for (const e of this.doc.edges) {
-      if (!isHost(e.source) || isHost(e.target) || !readsRows(e.target, e.targetPort)) continue
+      if (!isHost(e.source) || isHost(e.target) || !readsRows(e)) continue
       const key = `${e.source}.${e.sourcePort}`
       if (live.has(key)) continue
       live.add(key)

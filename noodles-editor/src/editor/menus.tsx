@@ -3,6 +3,7 @@
 import { OPERATORS, type OpDef } from '@noodles.gl/planner'
 import cx from 'classnames'
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { CATEGORY_ORDER } from './categories'
 import s from './doc-editor.module.css'
 
@@ -56,7 +57,8 @@ export function AddNodeMenu({
   }, [onClose])
 
   let lastCategory = ''
-  return (
+  // On the page itself: inside an area, the map's pane above it would cover the menu
+  return createPortal(
     <div
       className={s.tabMenu}
       ref={ref}
@@ -114,7 +116,8 @@ export function AddNodeMenu({
         })}
         {items.length === 0 && <div className={s.category}>nothing matches</div>}
       </div>
-    </div>
+    </div>,
+    document.body
   )
 }
 
@@ -157,7 +160,7 @@ export function ContextMenu({
       window.removeEventListener('keydown', onKey)
     }
   }, [onClose])
-  return (
+  return createPortal(
     <div
       className={s.menu}
       ref={ref}
@@ -220,6 +223,7 @@ export function ContextMenu({
           onClose={onClose}
         />
       )}
-    </div>
+    </div>,
+    document.body
   )
 }
