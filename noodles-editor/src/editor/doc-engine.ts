@@ -8,6 +8,7 @@ import { useSyncExternalStore } from 'react'
 import { useFileSystemStore } from '../noodles/filesystem-store'
 import { agentBench, externalControl } from '../noodles/globals'
 import { setOpResolver } from '../noodles/op-resolver'
+import { onAssetWritten } from '../noodles/storage'
 import { DeckProjectAssetResolver } from '../noodles/utils/deck-project-asset-resolver'
 import { instantiateDeckView } from '../noodles/utils/deck-view'
 import {
@@ -234,12 +235,17 @@ export function bindEngine(
     // The engine publishes what it drew through onChange
     if (!stopped && store.get().loadId !== 0) void opened?.refresh()
   })
+  // An uploaded or rewritten project file a layer draws (an icon atlas) is read again
+  const assets = onAssetWritten(name => {
+    if (!stopped) void opened?.assetChanged(name)
+  })
   const unsubscribe = store.subscribe(() => void sync())
   setOpResolver((path, contextId) => opView(store, currentEngine, path, contextId))
   void sync()
   return () => {
     stopped = true
     unsubscribe()
+    assets()
     surface.unsubscribe()
     setOpResolver(undefined)
   }
