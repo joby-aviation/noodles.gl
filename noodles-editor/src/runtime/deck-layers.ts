@@ -819,7 +819,8 @@ function buildLayer(
       } as never)
     }
     case 'icon': {
-      const mapping = String(p.iconMapping ?? '{}').trim()
+      // Empty: an `@/` mapping file not read yet
+      const mapping = String(p.iconMapping ?? '').trim() || '{}'
       const color = rgb(p.color, [0, 0, 0])
       return new IconLayer({
         ...common,

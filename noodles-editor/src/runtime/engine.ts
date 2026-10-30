@@ -21,6 +21,7 @@ import {
   OPERATOR_INDEX,
   parameterValues,
   type RelShape as RelationShape,
+  type ResolvedProp,
   type SqlEngine,
   targetCaps,
 } from '@noodles.gl/planner'
@@ -196,6 +197,8 @@ export class Engine {
   private readonly hostTables = new Map<string, string>()
   private readonly tableFiles = new WeakMap<object, string>()
   private tableCount = 0
+  /** `@/name` layer props (an icon atlas, a mesh) as object URLs deck can fetch, or why not. */
+  private readonly assetUrls = new Map<string, { url?: string; error?: string }>()
 
   constructor(
     backend: SqlEngine | RuntimeLike,
@@ -226,12 +229,14 @@ export class Engine {
     return this.options.host?.runner.output(nodeId, port)
   }
 
-  /** Host operators that failed on the last run, and Style changes whose style didn't load. */
+  /**
+   * Host operators that failed on the last run, project files a layer names that didn't read,
+   * and Style changes whose style didn't load.
+   */
   errors(): { nodeId: string; message: string }[] {
     const style = this.changedStyle
-    return style?.error
-      ? [...this.hostErrors, { nodeId: style.deck, message: style.error }]
-      : this.hostErrors
+    const errors = [...this.hostErrors, ...this.assetErrors()]
+    return style?.error ? [...errors, { nodeId: style.deck, message: style.error }] : errors
   }
 
   /**
@@ -242,6 +247,7 @@ export class Engine {
   async openProject(): Promise<void> {
     await this.pending.catch(() => undefined)
     this.registered.clear()
+    this.revokeAssetUrls()
     this.structure = undefined
     this.built.clear()
     this.extended.clear()
@@ -258,6 +264,8 @@ export class Engine {
   /** Show a document: a structural edit recompiles, a value edit only rebinds. */
   setDoc(doc: EditorDoc, time = this.time): Promise<void> {
     this.doc = doc
+    // A file that failed to read may have been added since: an edit tries it again
+    for (const [name, asset] of this.assetUrls) if (asset.error) this.assetUrls.delete(name)
     this.time = time
     this.lower()
     return this.update()
@@ -398,9 +406,57 @@ export class Engine {
         kind: l.plan.kind,
         data: l.data,
         bindings: l.plan.plan.layer?.bindings ?? [],
-        props: l.props,
+        props: this.withAssetUrls(l.props),
       }))
     )
+  }
+
+  // A project file deck would otherwise fetch as the page-relative path `@/plane.png`, and
+  // draw nothing. Unread yet, or unreadable, it is no URL at all.
+  private withAssetUrls(props: Record<string, ResolvedProp>): Record<string, ResolvedProp> {
+    if (!Object.values(props).some(isProjectFile)) return props
+    const out = { ...props }
+    for (const [k, v] of Object.entries(props)) {
+      if (isProjectFile(v)) out[k] = this.assetUrls.get(v)?.url ?? ''
+    }
+    return out
+  }
+
+  /** Read the project files planner layer props name, once each, as object URLs. */
+  private async loadLayerAssets(): Promise<void> {
+    const { readAsset } = this.options
+    for (const l of this.runtime.layers()) {
+      for (const v of Object.values(l.props)) {
+        if (!isProjectFile(v) || this.assetUrls.has(v)) continue
+        if (!readAsset) {
+          this.assetUrls.set(v, { error: 'no project files to read' })
+          continue
+        }
+        try {
+          const bytes = await readAsset(v.slice(2))
+          this.assetUrls.set(v, { url: assetObjectUrl(v.slice(2), bytes) })
+        } catch (error) {
+          this.assetUrls.set(v, { error: (error as Error).message })
+        }
+      }
+    }
+  }
+
+  private assetErrors(): { nodeId: string; message: string }[] {
+    const errors: { nodeId: string; message: string }[] = []
+    for (const l of this.runtime.layers()) {
+      for (const v of Object.values(l.props)) {
+        const error = isProjectFile(v) ? this.assetUrls.get(v)?.error : undefined
+        if (error) errors.push({ nodeId: l.id, message: `Couldn't read ${v}: ${error}` })
+      }
+    }
+    return errors
+  }
+
+  private revokeAssetUrls(): void {
+    // Without the fragment: the store holds the bare URL
+    for (const { url } of this.assetUrls.values()) if (url) URL.revokeObjectURL(url.split('#')[0])
+    this.assetUrls.clear()
   }
 
   private deckNode(): DocNode | undefined {
@@ -441,6 +497,7 @@ export class Engine {
         await this.runtime.setValues(values)
       }
       await this.runtime.idle()
+      await this.loadLayerAssets()
       await this.runHost(true)
       // Host and deck operators that read planner output (a camera fit to the rows) ran
       // just now: values that read them are evaluated again, once
@@ -769,3 +826,30 @@ function styleOf(deck: DocNode): string | Record<string, unknown> | undefined {
 
 // NaN is NaN: a value that is still missing has not changed
 const sameValue = (a: unknown, b: unknown) => Object.is(a, b) || a === b
+
+const isProjectFile = (v: unknown): v is string => typeof v === 'string' && v.startsWith('@/')
+
+const ASSET_TYPES: Record<string, string> = {
+  png: 'image/png',
+  jpg: 'image/jpeg',
+  jpeg: 'image/jpeg',
+  gif: 'image/gif',
+  webp: 'image/webp',
+  svg: 'image/svg+xml',
+  json: 'application/json',
+  glb: 'model/gltf-binary',
+  gltf: 'model/gltf+json',
+}
+
+/**
+ * An object URL of a project file's bytes, typed by its extension. The file name rides along
+ * as the fragment, which a fetch ignores, so a loader picked by extension (a `.ply` mesh)
+ * still sees it.
+ */
+function assetObjectUrl(name: string, bytes: Uint8Array): string {
+  const ext = /\.([^./]+)$/.exec(name)?.[1]?.toLowerCase() ?? ''
+  const blob = new Blob([bytes as BlobPart], {
+    type: ASSET_TYPES[ext] ?? 'application/octet-stream',
+  })
+  return `${URL.createObjectURL(blob)}#${encodeURIComponent(name.split('/').pop() ?? name)}`
+}
