@@ -332,6 +332,47 @@ export function limitSql(node: LimitNode, input: string): string {
   return `SELECT * FROM ${input} LIMIT ${Math.max(0, Math.floor(node.count))}${offset}`;
 }
 
+/**
+ * A query without the comments, whitespace and semicolons around it. A header comment would
+ * hide the SELECT from the check, and the query is inlined as `(…)`, where a trailing `--`
+ * comment would swallow the closing paren. Strings and quoted names are skipped whole, so a
+ * `--` inside one is not taken for a comment; comments inside the query are left alone.
+ */
+export function trimSqlEnds(text: string): string {
+  let start = -1;
+  let end = 0;
+  let i = 0;
+  let dollar: RegExpExecArray | null;
+  while (i < text.length) {
+    const c = text[i];
+    if (c === '-' && text[i + 1] === '-') {
+      const nl = text.indexOf('\n', i);
+      i = nl < 0 ? text.length : nl + 1;
+      continue;
+    }
+    if (c === '/' && text[i + 1] === '*') {
+      const close = text.indexOf('*/', i + 2);
+      i = close < 0 ? text.length : close + 2;
+      continue;
+    }
+    if (/\s/.test(c) || c === ';') { i++; continue; }
+    if (start < 0) start = i;
+    if (c === "'" || c === '"') {
+      // A doubled quote is an escaped one; scanning on past it reads the same
+      const close = text.indexOf(c, i + 1);
+      i = close < 0 ? text.length : close + 1;
+    } else if (c === '$' && (dollar = /^\$(?:[A-Za-z_][A-Za-z0-9_]*)?\$/.exec(text.slice(i)))) {
+      // A dollar string, $$…$$ or tagged $tag$…$tag$, ends only at the same delimiter
+      const close = text.indexOf(dollar[0], i + dollar[0].length);
+      i = close < 0 ? text.length : close + dollar[0].length;
+    } else {
+      i++;
+    }
+    end = i;
+  }
+  return start < 0 ? '' : text.slice(start, end);
+}
+
 export function sqlNodeSql(
   node: SqlNode,
   inputs: string[],
@@ -345,7 +386,7 @@ export function sqlNodeSql(
     return ref;
   });
   const inlined = inlineParamsInText(text, values, `SQL ${node.id}`, inputNames);
-  text = inlined.text.trim().replace(/;+\s*$/, '');
+  text = trimSqlEnds(inlined.text);
   if (!/^\s*(select|with|from|values|\()/i.test(text)) {
     throw new PlanError(`SQL ${node.id}: the query must be a single SELECT (or WITH … SELECT)`);
   }

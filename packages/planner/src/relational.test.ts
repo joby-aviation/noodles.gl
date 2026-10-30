@@ -6,9 +6,10 @@ import {
   listComponentsSql,
   listComponentColumns,
   rowwiseSql,
+  sqlNodeSql,
   type RelColumn,
 } from './relational.js'
-import type { GraphNode } from './types.js'
+import type { GraphNode, SqlNode } from './types.js'
 import { plan } from './planner.js'
 import { targetCaps } from './target.js'
 
@@ -126,5 +127,40 @@ describe('re-packing a relation’s vectors for a chain', () => {
     }
     const chain = [{ id: 'a', type: 'attribute', input: 'in', name: 'twice', expr: 'x * 2' }] as GraphNode[]
     expect(() => rowwiseSql(chain, 'rel', shape, {}, { params: {} }, 'a test')).not.toThrow()
+  })
+})
+
+describe('a SQL node’s query', () => {
+  const sqlNode = (query: string): SqlNode => ({ id: 'q', type: 'sql', query, inputs: ['src'] })
+  const emit = (query: string) => sqlNodeSql(sqlNode(query), ['"__m_src"'], {}).sql
+
+  it('accepts leading line comments, and drops them', () => {
+    const query = '-- Busiest routes\n-- one row per pair\n\nSELECT a, b FROM {{input}}'
+    expect(emit(query)).toBe('SELECT a, b FROM "__m_src"')
+  })
+
+  it('accepts a block comment header, and drops it', () => {
+    const query = '/*\n * Busiest routes\n */\nWITH t AS (SELECT * FROM {{input}}) SELECT * FROM t'
+    expect(emit(query)).toBe('WITH t AS (SELECT * FROM "__m_src") SELECT * FROM t')
+  })
+
+  it('drops a trailing comment, so the query inlines inside parentheses', () => {
+    const sql = emit('SELECT a FROM {{input}} -- the last line\n;\n-- done')
+    expect(sql).toBe('SELECT a FROM "__m_src"')
+    expect(`(${sql})`).toBe('(SELECT a FROM "__m_src")')
+  })
+
+  it('keeps comments inside the query, and dashes inside strings and names', () => {
+    expect(emit("SELECT 'a -- b' AS \"x--y\" -- note\nFROM {{input}}"))
+      .toBe("SELECT 'a -- b' AS \"x--y\" -- note\nFROM \"__m_src\"")
+    expect(emit("SELECT 'it''s' AS s /* one */ FROM {{input}}"))
+      .toBe("SELECT 'it''s' AS s /* one */ FROM \"__m_src\"")
+    expect(emit('SELECT $tag$a -- b$tag$ AS label, $$c -- d$$ AS other FROM {{input}}'))
+      .toBe('SELECT $tag$a -- b$tag$ AS label, $$c -- d$$ AS other FROM "__m_src"')
+  })
+
+  it('still refuses a statement that is not a query', () => {
+    expect(() => emit('-- clean up\nDROP TABLE t')).toThrow(/must be a single SELECT/)
+    expect(() => emit('-- nothing here')).toThrow(/must be a single SELECT/)
   })
 })
