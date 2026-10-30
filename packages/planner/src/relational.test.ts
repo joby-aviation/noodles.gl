@@ -155,6 +155,8 @@ describe('a SQL node’s query', () => {
       .toBe("SELECT 'a -- b' AS \"x--y\" -- note\nFROM \"__m_src\"")
     expect(emit("SELECT 'it''s' AS s /* one */ FROM {{input}}"))
       .toBe("SELECT 'it''s' AS s /* one */ FROM \"__m_src\"")
+    expect(emit('SELECT $tag$a -- b$tag$ AS label, $$c -- d$$ AS other FROM {{input}}'))
+      .toBe('SELECT $tag$a -- b$tag$ AS label, $$c -- d$$ AS other FROM "__m_src"')
   })
 
   it('still refuses a statement that is not a query', () => {

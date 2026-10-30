@@ -342,6 +342,7 @@ export function trimSqlEnds(text: string): string {
   let start = -1;
   let end = 0;
   let i = 0;
+  let dollar: RegExpExecArray | null;
   while (i < text.length) {
     const c = text[i];
     if (c === '-' && text[i + 1] === '-') {
@@ -360,9 +361,10 @@ export function trimSqlEnds(text: string): string {
       // A doubled quote is an escaped one; scanning on past it reads the same
       const close = text.indexOf(c, i + 1);
       i = close < 0 ? text.length : close + 1;
-    } else if (c === '$' && text[i + 1] === '$') {
-      const close = text.indexOf('$$', i + 2);
-      i = close < 0 ? text.length : close + 2;
+    } else if (c === '$' && (dollar = /^\$(?:[A-Za-z_][A-Za-z0-9_]*)?\$/.exec(text.slice(i)))) {
+      // A dollar string, $$…$$ or tagged $tag$…$tag$, ends only at the same delimiter
+      const close = text.indexOf(dollar[0], i + dollar[0].length);
+      i = close < 0 ? text.length : close + dollar[0].length;
     } else {
       i++;
     }
