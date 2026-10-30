@@ -681,8 +681,27 @@ export async function getAssetFileHandle(
   }
 }
 
+const assetWriteListeners = new Set<(fileName: string) => void>()
+
+/** Called with an asset's file name after `writeAsset` writes it, for readers that cache it. */
+export function onAssetWritten(listener: (fileName: string) => void): () => void {
+  assetWriteListeners.add(listener)
+  return () => assetWriteListeners.delete(listener)
+}
+
 // Write an asset file to a project's data directory
 export async function writeAsset(
+  type: StorageType,
+  projectName: string,
+  fileName: string,
+  contents: string | Blob
+): Promise<FileSystemResult<void>> {
+  const result = await writeAssetFile(type, projectName, fileName, contents)
+  if (result.success) for (const listener of assetWriteListeners) listener(fileName)
+  return result
+}
+
+async function writeAssetFile(
   type: StorageType,
   projectName: string,
   fileName: string,

@@ -122,3 +122,33 @@ it('keeps a mesh file’s extension, which picks its loader', async () => {
   expect(props.mesh).toMatch(/^blob:.*#plane\.ply$/)
   expect((props.loaders as { id: string }[])[0].id).toBe('ply')
 })
+
+it('draws a project file’s new bytes once it is written again', async () => {
+  const engine = engineFor()
+  await engine.setDoc(icons({ iconAtlas: '@/plane.png', iconMapping: MAPPING }))
+  await engine.settle()
+  const before = String(layerProps(engine, 'planes').iconAtlas)
+
+  const redrawn = new Uint8Array([...PNG, 1])
+  FILES['plane.png'] = redrawn
+  try {
+    await engine.assetChanged('plane.png')
+    const after = String(layerProps(engine, 'planes').iconAtlas)
+    expect(after).not.toBe(before)
+    expect(new Uint8Array(await (await fetch(after)).arrayBuffer())).toEqual(redrawn)
+    // The old bytes are given back
+    await expect(fetch(before)).rejects.toThrow()
+  } finally {
+    FILES['plane.png'] = PNG
+  }
+})
+
+it('gives back a file’s object URL once no layer names it', async () => {
+  const engine = engineFor()
+  await engine.setDoc(icons({ iconAtlas: '@/plane.png', iconMapping: MAPPING }))
+  await engine.settle()
+  const atlas = String(layerProps(engine, 'planes').iconAtlas)
+  await engine.setDoc(icons({ iconAtlas: '', iconMapping: MAPPING }))
+  await engine.settle()
+  await expect(fetch(atlas)).rejects.toThrow()
+})

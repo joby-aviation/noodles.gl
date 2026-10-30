@@ -422,12 +422,27 @@ export class Engine {
     return out
   }
 
+  /**
+   * A project file was written: a layer that names it reads it again, and draws the new
+   * bytes, on this refresh.
+   */
+  assetChanged(name: string): Promise<void> {
+    const asset = this.assetUrls.get(`@/${name}`)
+    if (!asset) return Promise.resolve()
+    this.forgetAsset(`@/${name}`)
+    // Only a prop changed: nothing in the runtime announces it
+    return this.update().then(() => this.emit())
+  }
+
   /** Read the project files planner layer props name, once each, as object URLs. */
   private async loadLayerAssets(): Promise<void> {
     const { readAsset } = this.options
+    const named = new Set<string>()
     for (const l of this.runtime.layers()) {
       for (const v of Object.values(l.props)) {
-        if (!isProjectFile(v) || this.assetUrls.has(v)) continue
+        if (!isProjectFile(v)) continue
+        named.add(v)
+        if (this.assetUrls.has(v)) continue
         if (!readAsset) {
           this.assetUrls.set(v, { error: 'no project files to read' })
           continue
@@ -440,6 +455,8 @@ export class Engine {
         }
       }
     }
+    // A file no layer names any more gives its bytes back
+    for (const name of [...this.assetUrls.keys()]) if (!named.has(name)) this.forgetAsset(name)
   }
 
   private assetErrors(): { nodeId: string; message: string }[] {
@@ -453,10 +470,15 @@ export class Engine {
     return errors
   }
 
-  private revokeAssetUrls(): void {
+  private forgetAsset(name: string): void {
+    const url = this.assetUrls.get(name)?.url
     // Without the fragment: the store holds the bare URL
-    for (const { url } of this.assetUrls.values()) if (url) URL.revokeObjectURL(url.split('#')[0])
-    this.assetUrls.clear()
+    if (url) URL.revokeObjectURL(url.split('#')[0])
+    this.assetUrls.delete(name)
+  }
+
+  private revokeAssetUrls(): void {
+    for (const name of [...this.assetUrls.keys()]) this.forgetAsset(name)
   }
 
   private deckNode(): DocNode | undefined {
