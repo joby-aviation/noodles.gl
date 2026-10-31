@@ -37,7 +37,7 @@ describe('TableEditor - Edit Flow', () => {
 
       // Click cell to start editing
       const cell = getByText('Alice')
-      fireEvent.click(cell)
+      fireEvent.doubleClick(cell)
 
       // Find input and change value
       const input = container.querySelector('input.p-inputtext') as HTMLInputElement
@@ -75,7 +75,7 @@ describe('TableEditor - Edit Flow', () => {
 
       // Find and click the count cell to open editor
       const countCell = getByText('10')
-      fireEvent.click(countCell)
+      fireEvent.doubleClick(countCell)
 
       // Verify input editor appears (now using InputText instead of InputNumber)
       const input = container.querySelector('input.p-inputtext') as HTMLInputElement
@@ -96,7 +96,7 @@ describe('TableEditor - Edit Flow', () => {
       )
     })
 
-    it('should render string literals as a dropdown and commit the selection immediately', () => {
+    it('renders configured string literals as one-click dropdowns with selectable cell padding', () => {
       const onDataChange = vi.fn()
       const literalSchema: TableSchema = {
         columns: [
@@ -109,27 +109,40 @@ describe('TableEditor - Edit Flow', () => {
         ],
       }
 
-      const { getByText, getByRole } = render(
+      const { getAllByRole } = render(
         <TableEditor
-          data={[{ anchor: 'start' }]}
+          data={[{ anchor: 'start' }, { anchor: 'middle' }]}
           schema={literalSchema}
           onDataChange={onDataChange}
           onSchemaChange={vi.fn()}
         />
       )
 
-      fireEvent.click(getByText('start'))
-
-      const dropdown = getByRole('combobox') as HTMLSelectElement
+      const dropdown = getAllByRole('combobox', {
+        name: 'Choose anchor',
+      })[1] as HTMLSelectElement
       expect(Array.from(dropdown.options, option => option.value)).toEqual([
         'start',
         'middle',
         'end',
       ])
 
+      const cell = dropdown.closest('[role="gridcell"]') as HTMLElement
+      fireEvent.pointerDown(dropdown, { button: 0, pointerId: 1 })
+      fireEvent.click(dropdown)
+      expect(cell).not.toHaveAttribute('aria-selected', 'true')
+
+      fireEvent.click(dropdown.parentElement as HTMLElement)
+      expect(cell).toHaveAttribute('aria-selected', 'true')
+      expect(dropdown).toHaveValue('middle')
+      expect(onDataChange).not.toHaveBeenCalled()
+
       fireEvent.change(dropdown, { target: { value: 'end' } })
 
-      expect(onDataChange).toHaveBeenCalledWith([{ anchor: 'end' }], 'Edit cell anchor')
+      expect(onDataChange).toHaveBeenCalledWith(
+        [{ anchor: 'start' }, { anchor: 'end' }],
+        'Edit cell anchor'
+      )
     })
 
     it('should allow free text editing when a string literal has no configured choices', () => {
@@ -147,7 +160,7 @@ describe('TableEditor - Edit Flow', () => {
         />
       )
 
-      fireEvent.click(getByText('custom'))
+      fireEvent.doubleClick(getByText('custom'))
 
       expect(queryByRole('combobox')).toBeNull()
       const input = getByRole('textbox') as HTMLInputElement
@@ -174,7 +187,7 @@ describe('TableEditor - Edit Flow', () => {
 
       // First edit: Alice → Charlie
       const cell = getByText('Alice')
-      fireEvent.click(cell)
+      fireEvent.doubleClick(cell)
 
       let input = container.querySelector('input.p-inputtext') as HTMLInputElement
       fireEvent.change(input, { target: { value: 'Charlie' } })
@@ -204,7 +217,7 @@ describe('TableEditor - Edit Flow', () => {
 
       // Second edit: Charlie → David
       const charlieCell = getByText('Charlie')
-      fireEvent.click(charlieCell)
+      fireEvent.doubleClick(charlieCell)
 
       input = container.querySelector('input.p-inputtext') as HTMLInputElement
       expect(input.value).toBe('Charlie') // Should start with Charlie, not Alice
@@ -236,7 +249,7 @@ describe('TableEditor - Edit Flow', () => {
       )
 
     const startEdit = async (container: HTMLElement, text: string, newValue: string) => {
-      await userEvent.click(screen.getByText(text))
+      await userEvent.dblClick(screen.getByText(text))
       const input = container.querySelector('input.p-inputtext') as HTMLInputElement
       await userEvent.fill(input, newValue)
       return input
@@ -247,7 +260,7 @@ describe('TableEditor - Edit Flow', () => {
       const { container } = renderTable(onDataChange)
 
       await startEdit(container, 'Alice', 'Charlie')
-      await userEvent.click(screen.getByText('Bob'))
+      fireEvent.click(screen.getByText('Bob'))
 
       expect(onDataChange).toHaveBeenCalledWith(
         [
@@ -305,15 +318,15 @@ describe('TableEditor - Edit Flow', () => {
       const { container } = renderTable(onDataChange)
       const activeEditors = () => container.querySelectorAll('input.p-inputtext').length
 
-      await userEvent.click(screen.getByText('Alice'))
+      await userEvent.dblClick(screen.getByText('Alice'))
       expect(activeEditors()).toBe(1)
 
       // A different column in a different row
-      await userEvent.click(screen.getByText('20'))
+      await userEvent.dblClick(screen.getByText('20'))
       expect(activeEditors()).toBe(1)
 
       // A different column in the same row
-      await userEvent.click(screen.getByText('Bob'))
+      await userEvent.dblClick(screen.getByText('Bob'))
       expect(activeEditors()).toBe(1)
     })
 
@@ -322,13 +335,13 @@ describe('TableEditor - Edit Flow', () => {
       const { container } = renderTable(onDataChange)
       const activeEditors = () => container.querySelectorAll('input.p-inputtext').length
 
-      await userEvent.click(screen.getByText('Alice'))
+      await userEvent.dblClick(screen.getByText('Alice'))
       expect(activeEditors()).toBe(1)
 
       await userEvent.click(screen.getByRole('button', { name: /add row/i }))
       expect(activeEditors()).toBe(0)
 
-      await userEvent.click(screen.getByText('Bob'))
+      await userEvent.dblClick(screen.getByText('Bob'))
       expect(activeEditors()).toBe(1)
 
       await userEvent.click(screen.getAllByRole('button', { name: /delete row/i })[0])
@@ -362,7 +375,7 @@ describe('TableEditor - Edit Flow', () => {
 
       // Test with string field (which we CAN test properly)
       const aliceCell = getByText('Alice')
-      fireEvent.click(aliceCell)
+      fireEvent.doubleClick(aliceCell)
 
       const input = container.querySelector('input.p-inputtext') as HTMLInputElement
       expect(input).not.toBeNull()
@@ -432,7 +445,7 @@ describe('TableEditor - Edit Flow', () => {
 
       // Click and blur without changing
       const cell = getByText('Alice')
-      fireEvent.click(cell)
+      fireEvent.doubleClick(cell)
 
       const input = container.querySelector('input.p-inputtext') as HTMLInputElement
       fireEvent.blur(input)
@@ -455,7 +468,7 @@ describe('TableEditor - Edit Flow', () => {
       )
 
       const cell = getByText('Alice')
-      fireEvent.click(cell)
+      fireEvent.doubleClick(cell)
 
       const input = container.querySelector('input.p-inputtext') as HTMLInputElement
 
@@ -489,7 +502,7 @@ describe('TableEditor - Edit Flow', () => {
 
       // Start editing
       const cell = getByText('500')
-      fireEvent.click(cell)
+      fireEvent.doubleClick(cell)
 
       // Input should show "500" as string
       const input = container.querySelector('input.p-inputtext') as HTMLInputElement
@@ -536,11 +549,13 @@ describe('TableEditor - Edit Flow', () => {
         />
       )
 
-      // The cell remounts after each edit, so look it up before every click
-      const getCell = () => container.querySelector('td button') as HTMLElement
+      // The cell remounts after each edit, so look it up before every click. Its first data
+      // column is the grid's second (the row number is the first).
+      const getCell = () =>
+        container.querySelector('tbody [role="gridcell"][aria-colindex="2"]') as HTMLElement
 
       // Test invalid input defaults to 0
-      fireEvent.click(getCell())
+      fireEvent.doubleClick(getCell())
       let input = container.querySelector('input.p-inputtext') as HTMLInputElement
       fireEvent.change(input, { target: { value: 'abc' } })
       fireEvent.blur(input)
@@ -549,7 +564,7 @@ describe('TableEditor - Edit Flow', () => {
       onDataChange.mockClear()
 
       // Test max clamping
-      fireEvent.click(getCell())
+      fireEvent.doubleClick(getCell())
       input = container.querySelector('input.p-inputtext') as HTMLInputElement
       fireEvent.change(input, { target: { value: '150' } })
       fireEvent.blur(input)
@@ -558,7 +573,7 @@ describe('TableEditor - Edit Flow', () => {
       onDataChange.mockClear()
 
       // Test min clamping
-      fireEvent.click(getCell())
+      fireEvent.doubleClick(getCell())
       input = container.querySelector('input.p-inputtext') as HTMLInputElement
       fireEvent.change(input, { target: { value: '-10' } })
       fireEvent.blur(input)
@@ -583,7 +598,7 @@ describe('TableEditor - Edit Flow', () => {
       )
 
       const cell = getByText('500')
-      fireEvent.click(cell)
+      fireEvent.doubleClick(cell)
 
       const input = container.querySelector('input.p-inputtext') as HTMLInputElement
       fireEvent.change(input, { target: { value: '999' } })
@@ -610,7 +625,7 @@ describe('TableEditor - Edit Flow', () => {
         />
       )
 
-      fireEvent.click(getByText('10'))
+      fireEvent.doubleClick(getByText('10'))
       const input = screen.getByRole('spinbutton', { name: 'Edit amount' })
       const wrapper = input.parentElement as HTMLElement
 
@@ -619,6 +634,107 @@ describe('TableEditor - Edit Flow', () => {
       fireEvent.mouseUp(document, { clientX: 120, clientY: 100 })
 
       expect(onDataChange).toHaveBeenCalledWith([{ amount: 15 }], 'Edit cell amount')
+    })
+
+    it('selects an inactive number cell and starts scrubbing in the same drag', () => {
+      const onDataChange = vi.fn()
+      const scrubSchema: TableSchema = {
+        columns: [
+          { name: 'label', type: 'string', defaultValue: '' },
+          { name: 'amount', type: 'number', defaultValue: 0, options: { step: 0.25 } },
+        ],
+      }
+      const { getByText } = render(
+        <TableEditor
+          data={[{ label: 'Alpha', amount: 10 }]}
+          schema={scrubSchema}
+          onDataChange={onDataChange}
+          onSchemaChange={vi.fn()}
+        />
+      )
+
+      const cell = getByText('10').closest('td') as HTMLTableCellElement
+      expect(cell).not.toHaveAttribute('aria-selected', 'true')
+
+      fireEvent.pointerDown(cell, {
+        button: 0,
+        pointerId: 1,
+        pointerType: 'mouse',
+        clientX: 100,
+        clientY: 100,
+      })
+      expect(cell).toHaveAttribute('aria-selected', 'true')
+      fireEvent.pointerMove(document, { pointerId: 1, clientX: 120, clientY: 100 })
+
+      expect(screen.getByRole('spinbutton', { name: 'Edit amount' })).toHaveValue(15)
+      fireEvent.mouseUp(document, { clientX: 120, clientY: 100 })
+
+      expect(onDataChange).toHaveBeenCalledWith(
+        [{ label: 'Alpha', amount: 15 }],
+        'Edit cell amount'
+      )
+    })
+
+    it('keeps a number cell in selection mode when the pointer does not drag', () => {
+      const { getByText } = render(
+        <TableEditor
+          data={[{ label: 'Alpha', amount: 10 }]}
+          schema={{
+            columns: [
+              { name: 'label', type: 'string', defaultValue: '' },
+              { name: 'amount', type: 'number', defaultValue: 0 },
+            ],
+          }}
+          onDataChange={vi.fn()}
+          onSchemaChange={vi.fn()}
+        />
+      )
+
+      const cell = getByText('10').closest('td') as HTMLTableCellElement
+      fireEvent.pointerDown(cell, {
+        button: 0,
+        pointerId: 1,
+        pointerType: 'mouse',
+        clientX: 100,
+        clientY: 100,
+      })
+      fireEvent.pointerUp(document, { button: 0, pointerId: 1, clientX: 100, clientY: 100 })
+      fireEvent.click(cell)
+
+      expect(cell).toHaveAttribute('aria-selected', 'true')
+      expect(screen.queryByRole('spinbutton', { name: 'Edit amount' })).not.toBeInTheDocument()
+    })
+
+    it('keeps touch drags in cell selection instead of starting a mouse-only scrub', () => {
+      const onDataChange = vi.fn()
+      const { getByText } = render(
+        <TableEditor
+          data={[{ amount: 10 }]}
+          schema={{ columns: [{ name: 'amount', type: 'number', defaultValue: 0 }] }}
+          onDataChange={onDataChange}
+          onSchemaChange={vi.fn()}
+        />
+      )
+
+      const cell = getByText('10').closest('td') as HTMLTableCellElement
+      fireEvent.pointerDown(cell, {
+        button: 0,
+        pointerId: 2,
+        pointerType: 'touch',
+        clientX: 100,
+        clientY: 100,
+      })
+      fireEvent.pointerMove(document, {
+        pointerId: 2,
+        pointerType: 'touch',
+        clientX: 120,
+        clientY: 100,
+      })
+      fireEvent.pointerCancel(document, { pointerId: 2, pointerType: 'touch' })
+
+      expect(cell).toHaveAttribute('aria-selected', 'true')
+      expect(screen.queryByRole('spinbutton', { name: 'Edit amount' })).not.toBeInTheDocument()
+      expect(onDataChange).not.toHaveBeenCalled()
     })
 
     it('uses vector steps for vec2 scrubbing and preserves the other channel', () => {
@@ -635,7 +751,7 @@ describe('TableEditor - Edit Flow', () => {
         />
       )
 
-      fireEvent.click(getByText('[1.0000, 2.0000]'))
+      fireEvent.doubleClick(getByText('[1.0000, 2.0000]'))
       const xInput = screen.getByRole('spinbutton', { name: 'X' })
 
       fireEvent.mouseDown(xInput.parentElement as HTMLElement, { clientX: 100, clientY: 100 })
@@ -659,7 +775,7 @@ describe('TableEditor - Edit Flow', () => {
         />
       )
 
-      fireEvent.click(getByText('[1.00, 2.35, 3.00]'))
+      fireEvent.doubleClick(getByText('[1.00, 2.35, 3.00]'))
       const xInput = screen.getByRole('spinbutton', { name: 'X' })
       const yInput = screen.getByRole('spinbutton', { name: 'Y' })
       expect(yInput).toHaveValue(2.3456)
@@ -672,6 +788,33 @@ describe('TableEditor - Edit Flow', () => {
       fireEvent.blur(yInput)
 
       expect(onDataChange).toHaveBeenCalledWith([{ vector: [1, 4, 3] }], 'Edit cell vector')
+    })
+
+    it('lets Tab finish a cleared vector channel before committing the cell', () => {
+      const onDataChange = vi.fn()
+      const scrubSchema: TableSchema = {
+        columns: [{ name: 'vector', type: 'vec2', defaultValue: [0, 0] }],
+      }
+      render(
+        <TableEditor
+          data={[{ vector: [1, 2] }]}
+          schema={scrubSchema}
+          onDataChange={onDataChange}
+          onSchemaChange={vi.fn()}
+        />
+      )
+
+      fireEvent.doubleClick(screen.getByText('[1.0000, 2.0000]'))
+      const xInput = screen.getByRole('spinbutton', { name: 'X' })
+      const yInput = screen.getByRole('spinbutton', { name: 'Y' })
+      fireEvent.change(xInput, { target: { value: '' } })
+      fireEvent.keyDown(xInput, { key: 'Tab' })
+      expect(onDataChange).not.toHaveBeenCalled()
+
+      fireEvent.blur(xInput, { relatedTarget: yInput })
+      fireEvent.focus(yInput, { relatedTarget: xInput })
+      fireEvent.blur(yInput)
+      expect(onDataChange).toHaveBeenCalledWith([{ vector: [0, 2] }], 'Edit cell vector')
     })
 
     it.each([
@@ -703,7 +846,7 @@ describe('TableEditor - Edit Flow', () => {
         />
       )
 
-      fireEvent.click(getByText(testCase.renderedValue))
+      fireEvent.doubleClick(getByText(testCase.renderedValue))
       const input = screen.getByRole('spinbutton', { name: testCase.channel })
       fireEvent.change(input, { target: { value: '' } })
       fireEvent.keyDown(input, { key: 'Enter' })

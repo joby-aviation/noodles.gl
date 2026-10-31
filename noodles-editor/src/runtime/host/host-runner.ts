@@ -9,7 +9,9 @@
 import type { DocEdge, DocNode, EditorDoc } from '@noodles.gl/planner'
 import { OPERATOR_INDEX, outputKey, type RelShape } from '@noodles.gl/planner'
 import { applySerializedFieldValue, type Field, ListField } from '../../noodles/fields'
+import type { KeyType } from '../../noodles/keys-store'
 import { type IOperator, type Operator, opTypes } from '../../noodles/operators'
+import { keyValues } from '../../noodles/utils/key-dependencies'
 import { readsTimeline } from '../../noodles/utils/timeline-dependencies'
 import { getRenderSurfaceSize } from '../../render/render-surface-size'
 import { DECK_OP_INDEX, type DeckOp } from '../deck-ops'
@@ -157,6 +159,9 @@ export class HostRunner {
         const { width, height } = getRenderSurfaceSize()
         read.push(`${width}x${height}`)
       }
+      // One that sends requests with an API key (Geocoder) reruns when that key changes
+      const { usesKeys } = op.constructor as { usesKeys?: readonly KeyType[] }
+      if (usesKeys?.length) read.push(...keyValues(usesKeys))
       if (entry.outputs && entry.read && sameValues(entry.read, read)) {
         report.reused.push(node.id)
         continue
@@ -232,6 +237,7 @@ export class HostRunner {
     )
     const surface = getRenderSurfaceSize()
     if (deck.surface) read.push(`${surface.width}x${surface.height}`)
+    if (deck.usesKeys) read.push(...keyValues(deck.usesKeys))
     if (read.some(v => v === PENDING || (Array.isArray(v) && v.includes(PENDING)))) {
       failed.add(node.id)
       report.pending.push(node.id)

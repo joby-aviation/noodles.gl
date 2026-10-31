@@ -11,6 +11,10 @@ A key can come from three places, used in this order:
 
 App Settings → API Keys shows each source and marks the one in use as **Active**. To use your own key instead of the project's, click **Use** next to it. The choice applies to this project in this browser only. If the project's key changes, the project's key is used again.
 
+When you open a project whose Mapbox, Google Maps or Cesium Ion key differs from your own, a prompt asks which to use. **Keep** uses the project's key and stops asking, and **Use mine** switches to yours. While your key is in use, a prompt says so and offers the project's key back. If Google rejects the project's key on this site, the prompt offers your key instead. Google search and directions keep the key they first loaded with, so reload the page after switching that key. **Dismiss** hides a prompt until you reload the page.
+
+Nodes that use a key, such as Geocoder, Directions and Tile 3D Layer, run again with the new key once you stop typing it or switch to another key. Browser keys and choices made in another tab apply in this one too.
+
 AI provider keys (Anthropic and OpenRouter) are the exception: they come only from the browser or the environment, never from a project file. See [AI keys stay out of project files](#ai-keys-stay-out-of-project-files).
 
 ## Supported Keys

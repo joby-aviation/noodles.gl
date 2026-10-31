@@ -374,7 +374,7 @@ export function SettingsDialog({ open, setOpen, projectName = null }: SettingsDi
       projectId === undefined
         ? undefined
         : (source: KeySource) => {
-            setKeyOverride(key, source === 'project' ? null : source)
+            setKeyOverride(key, source)
             analytics.track('key_source_chosen', { key, source })
           },
   })

@@ -8,6 +8,7 @@ import {
   isAIKey,
   type KeysConfig,
   keysProjectId,
+  syncKeysAcrossTabs,
   useKeysStore,
 } from './keys-store'
 
@@ -23,6 +24,7 @@ describe('Keys Store', () => {
       projectId: undefined,
       projectKeyEdits: 0,
       ignoredProjectKeys: [],
+      rejectedKeys: {},
     })
   })
 
@@ -560,6 +562,41 @@ describe('Keys Store', () => {
       expect(getKeysStore().keyOverrides).toEqual({})
     })
 
+    it('picks up keys and choices saved in another tab', async () => {
+      const { setProjectKeys } = getKeysStore()
+      setProjectKeys({ mapbox: 'project-key' }, '/projects/a')
+      const stop = syncKeysAcrossTabs()
+
+      // Another tab writes localStorage directly, which this tab only hears as an event
+      const newValue = JSON.stringify({
+        state: {
+          browserKeys: { mapbox: 'other-tab-key' },
+          keyOverrides: {
+            '/projects/a': {
+              mapbox: { source: 'browser', projectKeyFingerprint: fingerprintKey('project-key') },
+            },
+          },
+          providerPreference: 'automatic',
+        },
+        version: 1,
+      })
+      localStorage.setItem('noodles-keys', newValue)
+      window.dispatchEvent(new StorageEvent('storage', { key: 'noodles-keys', newValue }))
+
+      await vi.waitFor(() => expect(getKeysStore().getKey('mapbox')).toBe('other-tab-key'))
+      expect(getKeysStore().projectKeys).toEqual({ mapbox: 'project-key' })
+      expect(getKeysStore().projectId).toBe('/projects/a')
+
+      stop()
+      localStorage.setItem(
+        'noodles-keys',
+        JSON.stringify({ state: { browserKeys: {} }, version: 1 })
+      )
+      window.dispatchEvent(new StorageEvent('storage', { key: 'noodles-keys' }))
+      await Promise.resolve()
+      expect(getKeysStore().browserKeys).toEqual({ mapbox: 'other-tab-key' })
+    })
+
     it('should NOT persist projectKeys', () => {
       const { setProjectKeys } = getKeysStore()
       setProjectKeys({ mapbox: 'project-key', anthropic: 'project-anthropic' })
@@ -603,6 +640,84 @@ describe('Keys Store', () => {
       unsubscribe()
     })
   })
+
+  describe('getPrompt', () => {
+    beforeEach(() => {
+      vi.stubEnv('VITE_CESIUM_ACCESS_TOKEN', '')
+      getKeysStore().setProjectKeys({ cesium: 'project-cesium' }, 'project-a')
+      getKeysStore().setBrowserKey('cesium', 'browser-cesium')
+    })
+
+    afterEach(() => {
+      vi.unstubAllEnvs()
+    })
+
+    it('should ask when the project key and the user key differ', () => {
+      expect(getKeysStore().getPrompt('cesium')).toEqual({ kind: 'choose', mine: 'browser' })
+    })
+
+    it('should ask about the environment key when there is no browser key', () => {
+      vi.stubEnv('VITE_CESIUM_ACCESS_TOKEN', 'env-cesium')
+      getKeysStore().setBrowserKey('cesium', undefined)
+
+      expect(getKeysStore().getPrompt('cesium')).toEqual({ kind: 'choose', mine: 'env' })
+    })
+
+    it('should not ask when the keys match or there is no user key', () => {
+      getKeysStore().setBrowserKey('cesium', 'project-cesium')
+      expect(getKeysStore().getPrompt('cesium')).toBeNull()
+
+      getKeysStore().setBrowserKey('cesium', undefined)
+      expect(getKeysStore().getPrompt('cesium')).toBeNull()
+    })
+
+    it('should not ask again once the project key is kept', () => {
+      getKeysStore().setKeyOverride('cesium', 'project')
+
+      expect(getKeysStore().getPrompt('cesium')).toBeNull()
+      expect(getKeysStore().getKey('cesium')).toBe('project-cesium')
+    })
+
+    it('should ask again when the kept project key changes', () => {
+      getKeysStore().setKeyOverride('cesium', 'project')
+      getKeysStore().setProjectKeys({ cesium: 'new-project-cesium' }, 'project-a')
+
+      expect(getKeysStore().getPrompt('cesium')).toEqual({ kind: 'choose', mine: 'browser' })
+    })
+
+    it('should ask about the environment key once the chosen browser key is cleared', () => {
+      vi.stubEnv('VITE_CESIUM_ACCESS_TOKEN', 'env-cesium')
+      getKeysStore().setKeyOverride('cesium', 'browser')
+      getKeysStore().setBrowserKey('cesium', undefined)
+
+      expect(getKeysStore().getPrompt('cesium')).toEqual({ kind: 'choose', mine: 'env' })
+    })
+
+    it('should not ask about a project key typed into Settings', () => {
+      getKeysStore().setProjectKey('cesium', 'typed-cesium')
+
+      expect(getKeysStore().getPrompt('cesium')).toBeNull()
+    })
+
+    it('should say when the user key is in use instead', () => {
+      getKeysStore().setKeyOverride('cesium', 'browser')
+
+      expect(getKeysStore().getPrompt('cesium')).toEqual({ kind: 'overridden', source: 'browser' })
+    })
+
+    it('should offer the user key when the project key is rejected, even after keeping it', () => {
+      getKeysStore().setKeyOverride('cesium', 'project')
+      getKeysStore().reportKeyRejected('cesium', 'project-cesium')
+
+      expect(getKeysStore().getPrompt('cesium')).toEqual({ kind: 'rejected', mine: 'browser' })
+    })
+
+    it('should not ask without a project id', () => {
+      getKeysStore().setProjectKeys({ cesium: 'project-cesium' })
+
+      expect(getKeysStore().getPrompt('cesium')).toBeNull()
+    })
+  })
 })
 
 describe('getKeysForProject', () => {
@@ -615,6 +730,7 @@ describe('getKeysForProject', () => {
       projectId: undefined,
       projectKeyEdits: 0,
       ignoredProjectKeys: [],
+      rejectedKeys: {},
     })
   })
 

@@ -79,6 +79,10 @@ export async function loadGoogleMapsAPI(apiKey: string): Promise<void> {
   }
 
   loadingApiKey = apiKey
+  // Google calls this when it rejects the key, e.g. for a site the key isn't restricted to
+  Object.assign(window, {
+    gm_authFailure: () => getKeysStore().reportKeyRejected('googleMaps', apiKey),
+  })
   googleMapsPromise = new Promise<void>((resolve, reject) => {
     const callbackName = `googleMapsCallback_${Date.now()}`
 

@@ -6,6 +6,7 @@ import { type EditorDoc, OPERATOR_INDEX } from '@noodles.gl/planner'
 import { PrimeReactProvider } from 'primereact/api'
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useParams } from 'wouter'
+import { KeyPrompts } from '../components/key-prompts'
 import { getPendingQuickStartAction } from '../components/quick-start-modal'
 import { CreateFromSQLDialog } from '../noodles/components/create-from-sql-dialog'
 import { ErrorBoundary } from '../noodles/components/error-boundary'
@@ -34,6 +35,7 @@ import { TimelineProvider } from '../timeline/timeline-context'
 import { getTimelineStore, useTimelineStore } from '../timeline/timeline-store'
 import { analytics } from '../utils/analytics'
 import type { Visualization } from '../visualizations'
+import { CanvasPaste } from './canvas-paste'
 import { bindEngine, settleEngine, useEngineState, visCommitted } from './doc-engine'
 import { canPaste, copySelection, DocNetwork, pasteClipboard } from './doc-network'
 import { setParam } from './doc-ops'
@@ -41,7 +43,13 @@ import { getUIStore } from './ui-store'
 import { setEditorShown, useEditorShown } from './workspace-store'
 import '../noodles/layers.css'
 import { agentBench, externalControl } from '../noodles/globals'
-import { getKeysStore, type KeysConfig, keysProjectId, useKeysStore } from '../noodles/keys-store'
+import {
+  getKeysStore,
+  type KeysConfig,
+  keysProjectId,
+  syncKeysAcrossTabs,
+  useKeysStore,
+} from '../noodles/keys-store'
 import { trackChatClosed, trackChatOpened } from '../noodles/utils/editor-analytics'
 import { claimStarterSelection, findStarterNodeId } from '../noodles/utils/starter-node'
 import { DocProperties } from './doc-properties'
@@ -122,6 +130,8 @@ export function useDocNoodles(): Visualization {
   const { setCurrentDirectory, setActiveStorageType, setError } = useFileSystemStore()
   const doc = useEditor(s => s.doc)
   const dirty = useEditor(s => s.dirty)
+  // Keys and choices set in another tab apply here too
+  useEffect(() => syncKeysAcrossTabs(), [])
   // Editing a project key in Settings changes what the project file saves
   useEffect(
     () =>
@@ -413,6 +423,7 @@ export function useDocNoodles(): Visualization {
               pendingFile={pendingImportFile}
               onPendingFileHandled={() => setPendingImportFile(null)}
             />
+            <CanvasPaste />
           </DocNetwork>
           {files.dialogs}
           <CreateFromSQLDialog
@@ -420,6 +431,7 @@ export function useDocNoodles(): Visualization {
             onConfirm={onConfirmCreateFromSQL}
             onClose={() => setPendingCreateFromSQL(null)}
           />
+          <KeyPrompts />
         </TimelineProvider>
       </PrimeReactProvider>
     </div>

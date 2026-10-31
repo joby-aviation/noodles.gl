@@ -2,6 +2,7 @@ import type { EditorDoc } from '@noodles.gl/planner'
 import { describe, expect, it } from 'vitest'
 import { DocStore } from '../../editor/doc-store'
 import { opView } from '../../editor/op-view'
+import { getKeysStore, useKeysStore } from '../../noodles/keys-store'
 import { setOpResolver } from '../../noodles/op-resolver'
 import { isHostOperator, registerHostOperators } from './host-ops'
 import { HostRunner } from './host-runner'
@@ -194,6 +195,29 @@ describe('deck operators', () => {
       brightnessContrast: { brightness: 0.5, contrast: 0 },
       vibrance: { amount: 0.2 },
     })
+  })
+
+  it('build a Tile 3D layer again when the key it loads with changes', async () => {
+    const tiles: EditorDoc = {
+      version: 1,
+      name: 'tiles',
+      nodes: [{ id: '/tiles', op: 'tile-3d', x: 0, y: 0, params: { provider: 'Google' } }],
+      edges: [],
+    }
+    useKeysStore.setState({ browserKeys: {}, keyOverrides: {}, projectKeys: undefined })
+    try {
+      getKeysStore().setBrowserKey('googleMaps', 'g.one')
+      const runner = new HostRunner()
+      expect((await runner.run(tiles, inputs())).ran).toEqual(['/tiles'])
+      expect((await runner.run(tiles, inputs())).reused).toEqual(['/tiles'])
+      getKeysStore().setBrowserKey('googleMaps', 'g.two')
+      expect((await runner.run(tiles, inputs())).ran).toEqual(['/tiles'])
+      expect(runner.output('/tiles', 'layer')).toMatchObject({
+        loadOptions: { fetch: { headers: { 'X-GOOG-API-KEY': 'g.two' } } },
+      })
+    } finally {
+      useKeysStore.setState({ browserKeys: {} })
+    }
   })
 
   it('build a legend from a color scheme by name', async () => {

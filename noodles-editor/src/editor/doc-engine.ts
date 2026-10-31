@@ -16,6 +16,7 @@ import {
   instantiateLayer,
   instantiateWidget,
 } from '../noodles/utils/instantiate-vis'
+import { onKeyChange } from '../noodles/utils/key-dependencies'
 import { subscribeToRenderSurfaceSize } from '../render/render-surface-size'
 import { Engine, type EngineVis } from '../runtime/engine'
 import { registerHostOperators } from '../runtime/host/host-ops'
@@ -239,6 +240,11 @@ export function bindEngine(
   const assets = onAssetWritten(name => {
     if (!stopped) void opened?.assetChanged(name)
   })
+  // An operator that sends requests with an API key (Geocoder, Google 3D tiles) runs again
+  // once the user changes that key
+  const keys = onKeyChange(() => {
+    if (!stopped && store.get().loadId !== 0) void opened?.refresh()
+  })
   const unsubscribe = store.subscribe(() => void sync())
   setOpResolver((path, contextId) => opView(store, currentEngine, path, contextId))
   void sync()
@@ -247,6 +253,7 @@ export function bindEngine(
     unsubscribe()
     assets()
     surface.unsubscribe()
+    keys()
     setOpResolver(undefined)
   }
 }
