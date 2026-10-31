@@ -41,7 +41,13 @@ import { analytics } from '../utils/analytics'
 import { lazyWithReload, staleChunk } from '../utils/stale-chunk'
 import { setCurrentProject, setModificationApplier } from '../webmcp/bridge'
 import { agentBench, externalControl } from './globals'
-import { getKeysForProject, getKeysStore, keysProjectId, useKeysStore } from './keys-store'
+import {
+  getKeysForProject,
+  getKeysStore,
+  keysProjectId,
+  syncKeysAcrossTabs,
+  useKeysStore,
+} from './keys-store'
 import newProjectJSON from './new.json'
 import { BitmapOverlayWidget, type BitmapOverlayWidgetProps } from './widgets/bitmap-overlay-widget'
 import { LegendWidget, type LegendWidgetProps } from './widgets/legend-widget'
@@ -135,6 +141,7 @@ import { reconcileForLoopGroups } from './utils/for-loop-group-utils'
 import { shouldAutosave, supportsVersioning, useGitSettings } from './utils/git-settings'
 import { edgeId, nodeId } from './utils/id-utils'
 import { shouldBlockKeyboardShortcut } from './utils/input-detection'
+import { rerunOnKeyChange } from './utils/key-dependencies'
 import { generateDraftId, memoryProjectStore } from './utils/memory-project-store'
 import { migrateProject } from './utils/migrate-schema'
 import { normalizeMultiInputEdges } from './utils/multi-input-utils'
@@ -394,6 +401,9 @@ export function getNoodles(): Visualization {
       }),
     []
   )
+
+  useEffect(() => rerunOnKeyChange(() => getOpStore().getAllOps()), [])
+  useEffect(() => syncKeysAcrossTabs(), [])
 
   // Wrap onEdgesChange to mark unsaved changes
   const onEdgesChange = useCallback(

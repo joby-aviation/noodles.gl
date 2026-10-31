@@ -8,6 +8,7 @@ import {
   isAIKey,
   type KeysConfig,
   keysProjectId,
+  syncKeysAcrossTabs,
   useKeysStore,
 } from './keys-store'
 
@@ -559,6 +560,41 @@ describe('Keys Store', () => {
       expect(state.saveInProject).toBeUndefined()
       expect(getKeysStore().browserKeys).toEqual({ mapbox: 'old-token' })
       expect(getKeysStore().keyOverrides).toEqual({})
+    })
+
+    it('picks up keys and choices saved in another tab', async () => {
+      const { setProjectKeys } = getKeysStore()
+      setProjectKeys({ mapbox: 'project-key' }, '/projects/a')
+      const stop = syncKeysAcrossTabs()
+
+      // Another tab writes localStorage directly, which this tab only hears as an event
+      const newValue = JSON.stringify({
+        state: {
+          browserKeys: { mapbox: 'other-tab-key' },
+          keyOverrides: {
+            '/projects/a': {
+              mapbox: { source: 'browser', projectKeyFingerprint: fingerprintKey('project-key') },
+            },
+          },
+          providerPreference: 'automatic',
+        },
+        version: 1,
+      })
+      localStorage.setItem('noodles-keys', newValue)
+      window.dispatchEvent(new StorageEvent('storage', { key: 'noodles-keys', newValue }))
+
+      await vi.waitFor(() => expect(getKeysStore().getKey('mapbox')).toBe('other-tab-key'))
+      expect(getKeysStore().projectKeys).toEqual({ mapbox: 'project-key' })
+      expect(getKeysStore().projectId).toBe('/projects/a')
+
+      stop()
+      localStorage.setItem(
+        'noodles-keys',
+        JSON.stringify({ state: { browserKeys: {} }, version: 1 })
+      )
+      window.dispatchEvent(new StorageEvent('storage', { key: 'noodles-keys' }))
+      await Promise.resolve()
+      expect(getKeysStore().browserKeys).toEqual({ mapbox: 'other-tab-key' })
     })
 
     it('should NOT persist projectKeys', () => {

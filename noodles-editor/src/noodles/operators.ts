@@ -154,7 +154,7 @@ import {
   WidgetField,
 } from './fields'
 import { DEFAULT_LATITUDE, DEFAULT_LONGITUDE, safeMode } from './globals'
-import { getKeysStore } from './keys-store'
+import { getKeysStore, type KeyType } from './keys-store'
 import { getAllOps, getOp } from './store'
 import { prepareTableDataForOutput, type TableSchema, validateTableData } from './table-schema'
 import type { ExtensionConstructorArgs, LayerPropsValue } from './types'
@@ -221,6 +221,9 @@ export abstract class Operator<OP extends IOperator> {
 
   // Opt-in flag for operators that support custom fields
   static supportsCustomFields = false
+
+  // API keys execute() reads, so the operator runs again when the key it would get changes
+  static usesKeys: readonly KeyType[] = []
 
   inputs: ReturnType<OP['createInputs']>
   outputs: ReturnType<OP['createOutputs']>
@@ -3524,6 +3527,7 @@ export class BoundingBoxOp extends Operator<BoundingBoxOp> {
 export class GeocoderOp extends Operator<GeocoderOp> {
   static displayName = 'Geocoder'
   static description = 'Get the location of a query string'
+  static usesKeys = ['mapbox'] as const
   createInputs() {
     return {
       query: new StringField(undefined, {
@@ -3578,6 +3582,7 @@ export class GeocoderOp extends Operator<GeocoderOp> {
 export class DirectionsOp extends Operator<DirectionsOp> {
   static displayName = 'Directions'
   static description = 'Get driving, traffic-aware driving, or transit directions between points'
+  static usesKeys = ['mapbox', 'googleMaps'] as const
   asDownload = () => this.outputData
   createInputs() {
     return {
@@ -3708,6 +3713,7 @@ export class DirectionsOp extends Operator<DirectionsOp> {
 export class OverpassOp extends Operator<OverpassOp> {
   static displayName = 'Overpass'
   static description = 'Query OpenStreetMap data using Overpass API'
+  static usesKeys = ['overpass'] as const
   asDownload = () => this.outputData
   createInputs() {
     return {
@@ -8247,6 +8253,7 @@ export class HexagonLayerOp extends Operator<HexagonLayerOp> {
 export class Tile3DLayerOp extends Operator<Tile3DLayerOp> {
   static displayName = 'Tile3DLayer'
   static description = 'Render 3D tiles on the map (Google, Cesium, or a custom tileset URL)'
+  static usesKeys = ['googleMaps', 'cesium'] as const
   createInputs() {
     return {
       visible: new BooleanField(true),
