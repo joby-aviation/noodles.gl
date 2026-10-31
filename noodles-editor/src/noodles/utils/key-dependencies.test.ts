@@ -1,10 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { getKeysStore, useKeysStore } from '../keys-store'
-import { GeocoderOp, type IOperator, NumberOp, type Operator, OverpassOp } from '../operators'
-import { KEY_RERUN_DELAY_MS, rerunOnKeyChange } from './key-dependencies'
+import { KEY_RERUN_DELAY_MS, keyValues, onKeyChange } from './key-dependencies'
 
-describe('rerunOnKeyChange', () => {
-  let ops: Operator<IOperator>[]
+describe('onKeyChange', () => {
+  let run: ReturnType<typeof vi.fn>
   let stop: () => void
 
   beforeEach(() => {
@@ -18,98 +17,78 @@ describe('rerunOnKeyChange', () => {
       projectId: undefined,
       rejectedKeys: {},
     })
-    ops = [
-      new GeocoderOp('/geocoder'),
-      new OverpassOp('/overpass'),
-      new NumberOp('/number'),
-    ] as unknown as Operator<IOperator>[]
-    for (const op of ops) vi.spyOn(op, 'markDirty')
-    stop = rerunOnKeyChange(() => ops)
+    run = vi.fn()
+    stop = onKeyChange(run)
   })
 
   afterEach(() => {
     stop()
-    for (const op of ops) op.dispose()
     vi.useRealTimers()
   })
 
-  const marked = () => ops.filter(op => vi.mocked(op.markDirty).mock.calls.length > 0)
-
-  it('re-runs the operators that read a key once typing stops', () => {
+  it('runs once typing stops', () => {
     getKeysStore().setBrowserKey('mapbox', 'pk.a')
     getKeysStore().setBrowserKey('mapbox', 'pk.ab')
     vi.advanceTimersByTime(KEY_RERUN_DELAY_MS - 1)
-    expect(marked()).toEqual([])
-
+    expect(run).not.toHaveBeenCalled()
     vi.advanceTimersByTime(1)
-    expect(marked()).toEqual([ops[0]])
-    expect(ops[0].markDirty).toHaveBeenCalledTimes(1)
+    expect(run).toHaveBeenCalledTimes(1)
   })
 
-  it('re-runs when a choice changes which key is used', () => {
+  it('runs when a choice changes which key is used', () => {
     getKeysStore().setBrowserKey('mapbox', 'pk.mine')
     getKeysStore().setProjectKeys({ mapbox: 'pk.project' }, '/projects/a')
     vi.advanceTimersByTime(KEY_RERUN_DELAY_MS)
-    vi.mocked(ops[0].markDirty).mockClear()
+    run.mockClear()
 
     getKeysStore().setKeyOverride('mapbox', 'browser')
     vi.advanceTimersByTime(KEY_RERUN_DELAY_MS)
-    expect(marked()).toEqual([ops[0]])
+    expect(run).toHaveBeenCalledTimes(1)
   })
 
-  it("leaves operators alone when the key they'd get is the same", () => {
+  it("doesn't run when the key in use stays the same", () => {
     getKeysStore().setProjectKeys({ mapbox: 'pk.project' }, '/projects/a')
     getKeysStore().setBrowserKey('mapbox', 'pk.mine')
     getKeysStore().setKeyOverride('mapbox', 'project')
-    getKeysStore().setProjectKey('mapbox', 'pk.other')
-    getKeysStore().setProjectKey('mapbox', 'pk.project')
     vi.advanceTimersByTime(KEY_RERUN_DELAY_MS)
-    expect(marked()).toEqual([])
+    run.mockClear()
+
+    getKeysStore().setBrowserKey('mapbox', 'pk.mine2')
+    vi.advanceTimersByTime(KEY_RERUN_DELAY_MS)
+    expect(run).not.toHaveBeenCalled()
   })
 
-  it("doesn't re-run a newly loaded project's operators", () => {
-    getKeysStore().setBrowserKey('overpass', 'https://example.com/api')
+  it("doesn't run for a project opening with its own keys", () => {
     getKeysStore().setProjectKeys({ mapbox: 'pk.project' }, '/projects/a')
     vi.advanceTimersByTime(KEY_RERUN_DELAY_MS)
-    expect(marked()).toEqual([])
-
-    getKeysStore().setProjectKeys({ mapbox: 'pk.project' }, '/projects/b')
     getKeysStore().setProjectKeys({ mapbox: 'pk.other' }, '/projects/b')
     vi.advanceTimersByTime(KEY_RERUN_DELAY_MS)
-    expect(marked()).toEqual([])
+    expect(run).not.toHaveBeenCalled()
   })
 
-  it('re-runs when the last project key is cleared', () => {
+  it('runs when the last project key is cleared', () => {
     getKeysStore().setProjectKeys(undefined, '/projects/a')
-    getKeysStore().setProjectKey('overpass', 'https://example.com/api')
+    getKeysStore().setProjectKey('mapbox', 'pk.project')
     vi.advanceTimersByTime(KEY_RERUN_DELAY_MS)
-    vi.mocked(ops[1].markDirty).mockClear()
+    run.mockClear()
 
-    getKeysStore().removeProjectKey('overpass')
+    getKeysStore().removeProjectKey('mapbox')
     vi.advanceTimersByTime(KEY_RERUN_DELAY_MS)
-    expect(marked()).toEqual([ops[1]])
-  })
-
-  it('still re-runs after saving to a new place mid-edit', () => {
-    getKeysStore().setProjectKeys(undefined, '/projects/a')
-    getKeysStore().setBrowserKey('mapbox', 'pk.mine')
-    getKeysStore().copyKeyOverridesTo('/projects/b')
-    vi.advanceTimersByTime(KEY_RERUN_DELAY_MS)
-    expect(marked()).toEqual([ops[0]])
-  })
-
-  it('holds locked operators', () => {
-    ops[1].locked.next(true)
-    vi.mocked(ops[1].markDirty).mockClear()
-    getKeysStore().setBrowserKey('overpass', 'https://example.com/api')
-    vi.advanceTimersByTime(KEY_RERUN_DELAY_MS)
-    expect(marked()).toEqual([])
+    expect(run).toHaveBeenCalledTimes(1)
   })
 
   it('stops when unsubscribed', () => {
     getKeysStore().setBrowserKey('mapbox', 'pk.a')
     stop()
     vi.advanceTimersByTime(KEY_RERUN_DELAY_MS)
-    expect(marked()).toEqual([])
+    expect(run).not.toHaveBeenCalled()
+  })
+})
+
+describe('keyValues', () => {
+  it('reads the keys an operator would get now, in order', () => {
+    useKeysStore.setState({ browserKeys: {}, keyOverrides: {}, projectKeys: undefined })
+    getKeysStore().setBrowserKey('googleMaps', 'g.key')
+    expect(keyValues(['googleMaps'])).toEqual(['g.key'])
   })
 })

@@ -79,6 +79,9 @@ jobs:
           npx playwright install chromium
         if: steps.playwright-cache.outputs.cache-hit == 'true'
 
+      - name: Run planner tests
+        run: npm test -w @noodles.gl/planner
+
       - name: Run tests
         env:
           VITE_GOOGLE_MAPS_API_KEY: ${{ secrets.VITE_GOOGLE_MAPS_API_KEY }}

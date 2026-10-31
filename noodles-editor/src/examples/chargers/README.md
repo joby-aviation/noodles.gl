@@ -3,27 +3,27 @@
 ## Overview
 This example fetches live EV charging station data from the Open Charge Map API based on a geocoded location (Denver, CO). It demonstrates a complete data pipeline: converting a city name to coordinates, fetching nearby charging stations via API, calculating the bounding box, and displaying results as either individual points (scatterplot) or a density heatmap. The map automatically centers on the data.
 
-## Key Techniques
-- **Geocoder**: `GeocoderOp` with query `"Denver, CO"` converts place name to coordinates
-- **API query**: `DuckDbOp` fetches charging station data from Open Charge Map API
-- **Bounding box**: `BoundingBoxOp` calculates map extent with 200px padding
-- **View state**: `MapViewStateOp` centers map on data at zoom 10.8
-- **Position accessor**: `AccessorOp` with expression `[d.lng, d.lat]` extracts coordinates
-- **Scatterplot layer**: `ScatterplotLayerOp` shows individual stations
-- **Heatmap layer**: `HeatmapLayerOp` shows density with 100px radius
-- **Layer switching**: `SwitchOp` toggles between the two visualization styles
-- **Basemap**: `MaplibreBasemapOp`
+## Nodes
+- **`centroid`** (`GeocoderOp`, a host operator) turns `query: "Denver, CO"` into a location
+- **`charger-query`** (DuckDB SQL) reads up to 1000 stations from the Open Charge Map API in a box 0.5 degrees around the geocoded point, as `lat` and `lng` columns
+- **`charger-bounds`** (`fit-bounds`) computes the chargers' extent in DuckDB and fits the camera to it, with `padding: 200`
+- **`auto-view`** (View State) takes `longitude` and `latitude` from `charger-bounds`, with `zoom: 10.8`, and drives the deck's camera
+- **`charger-position`** (Attribute Create) writes `charger_position` as `[lng, lat]`
+- **`charger-points`** (Scatterplot Layer) draws each station in orange
+- **`charger-heatmap`** (Heatmap Layer) shows density with `radiusPixels: 100` and `weightConstant: 5.4`
+- **`layer-toggle`** (Switch) picks one layer: `index: 0` is the points, `1` the heatmap
+- **`deck`** (Deck) holds the Carto Dark Matter (no labels) basemap
 
 ## Data Structure
 The Open Charge Map API returns charging station records with:
 - `AddressInfo.Latitude`, `AddressInfo.Longitude`: Station location
 - Additional fields like operator, connection types, power output
 
-## Node Graph Flow
+## Pipeline
 ```
-Geocoder → DuckDB (API fetch) → BoundingBox → ViewState → Basemap
-                               ↘ Position Accessor → Scatterplot Layer → Switch → Deck
-                                                   ↘ Heatmap Layer ↗
+centroid → charger-query → charger-bounds → auto-view → deck (viewState)
+                         ↘ charger-position → charger-points  → layer-toggle → deck
+                                            ↘ charger-heatmap ↗
 ```
 
 ## Use Cases

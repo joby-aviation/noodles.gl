@@ -1,299 +1,236 @@
 {
+  "version": 1,
   "name": "Overture Maps NYC Parks",
-  "edges": [
-    {
-      "id": "/duckdb-query.out.data->/extract-geojson.par.data",
-      "source": "/duckdb-query",
-      "target": "/extract-geojson",
-      "sourceHandle": "out.data",
-      "targetHandle": "par.data"
-    },
-    {
-      "id": "/extract-geojson.out.data->/geojson-layer.par.data",
-      "source": "/extract-geojson",
-      "target": "/geojson-layer",
-      "sourceHandle": "out.data",
-      "targetHandle": "par.data"
-    },
-    {
-      "id": "/geojson-layer.out.layer->/deck.par.layers",
-      "source": "/geojson-layer",
-      "target": "/deck",
-      "sourceHandle": "out.layer",
-      "targetHandle": "par.layers"
-    },
-    {
-      "id": "/deck.out.vis->/out.par.vis",
-      "source": "/deck",
-      "target": "/out",
-      "sourceHandle": "out.vis",
-      "targetHandle": "par.vis"
-    },
-    {
-      "source": "/maplibre-basemap",
-      "sourceHandle": "out.maplibre",
-      "target": "/deck",
-      "targetHandle": "par.basemap",
-      "id": "/maplibre-basemap.out.maplibre->/deck.par.basemap"
-    },
-    {
-      "id": "/bounds.out.bounds->/duckdb-query.par.query",
-      "type": "ReferenceEdge",
-      "selectable": false,
-      "deletable": false,
-      "focusable": false,
-      "reconnectable": false,
-      "source": "/bounds",
-      "target": "/duckdb-query",
-      "sourceHandle": null,
-      "targetHandle": "par.query"
-    }
-  ],
-  "version": 21,
-  "editorSettings": {
-    "showOverlay": true
-  },
   "nodes": [
     {
-      "id": "/bounds",
-      "type": "BoundsOp",
-      "data": {
-        "inputs": {
-          "southwest": {
-            "lng": -74.05,
-            "lat": 40.68
-          },
-          "northeast": {
-            "lng": -73.9,
-            "lat": 40.82
-          }
-        },
-        "locked": false
-      },
-      "position": {
-        "x": -1045.3309075342468,
-        "y": -42.831050228310495
+      "id": "deck",
+      "op": "deck",
+      "name": "deck",
+      "x": 1104,
+      "y": 196,
+      "params": {
+        "mapStyle": "https://basemaps.cartocdn.com/gl/positron-gl-style/style.json",
+        "projection": "mercator",
+        "longitude": -73.97,
+        "latitude": 40.75,
+        "zoom": 11,
+        "pitch": 0,
+        "bearing": 0,
+        "display": "fixed",
+        "width": 1920,
+        "height": 1080,
+        "lod": 2,
+        "scaleMode": "fit",
+        "waitForData": true,
+        "codec": "avc",
+        "bitrateMbps": 10,
+        "bitrateMode": "constant",
+        "scaleControl": 0.3,
+        "framerate": 30,
+        "captureDelay": 50,
+        "rendersDirectory": "renders"
       }
     },
     {
-      "id": "/duckdb-query",
-      "type": "DuckDbOp",
-      "data": {
-        "inputs": {
-          "query": [
-            "SELECT JSON({",
-            "  'type': 'FeatureCollection',",
-            "  'features': LIST(",
-            "    JSON({",
-            "      'type': 'Feature',",
-            "      'geometry': JSON(ST_AsGeoJSON(geometry)),",
-            "      'properties': JSON({",
-            "        'id': id,",
-            "        'name': COALESCE(names.primary, 'Unnamed Park'),",
-            "        'category': taxonomy.primary",
-            "      })",
-            "    })",
-            "  )",
-            "}) as geojson",
-            "FROM read_parquet([",
-            "  's3://overturemaps-us-west-2/release/2026-10-21.0/theme=places/type=place/part-00000-a0a9949b-7e8e-59fe-803b-6cc55b17f790-c000.zstd.parquet',",
-            "  's3://overturemaps-us-west-2/release/2026-10-21.0/theme=places/type=place/part-00001-95b3bb67-399f-571e-9503-61421d57661c-c000.zstd.parquet',",
-            "  's3://overturemaps-us-west-2/release/2026-10-21.0/theme=places/type=place/part-00002-6f03d044-7fc3-539e-842b-7b15c796e629-c000.zstd.parquet',",
-            "  's3://overturemaps-us-west-2/release/2026-10-21.0/theme=places/type=place/part-00003-755a53ba-2d37-54c8-b30e-8c14897bc3f3-c000.zstd.parquet',",
-            "  's3://overturemaps-us-west-2/release/2026-10-21.0/theme=places/type=place/part-00004-14b83d8c-d850-51f9-85b2-8f8a0b4634af-c000.zstd.parquet',",
-            "  's3://overturemaps-us-west-2/release/2026-10-21.0/theme=places/type=place/part-00005-c3667754-428e-500c-bf3b-a0b5921b7cc0-c000.zstd.parquet',",
-            "  's3://overturemaps-us-west-2/release/2026-10-21.0/theme=places/type=place/part-00006-55d446f6-129a-556e-b79e-e1cfd5735068-c000.zstd.parquet',",
-            "  's3://overturemaps-us-west-2/release/2026-10-21.0/theme=places/type=place/part-00007-a2c7689b-daa2-5233-9780-d37ccfc3ea74-c000.zstd.parquet',",
-            "  's3://overturemaps-us-west-2/release/2026-10-21.0/theme=places/type=place/part-00008-8b09f6c1-f726-581a-9b39-f891088cc2ad-c000.zstd.parquet',",
-            "  's3://overturemaps-us-west-2/release/2026-10-21.0/theme=places/type=place/part-00009-fe90ff49-733f-5fa3-9755-c6cd4438305c-c000.zstd.parquet',",
-            "  's3://overturemaps-us-west-2/release/2026-10-21.0/theme=places/type=place/part-00010-c680fdf1-f03b-5be1-93f1-56c835a00765-c000.zstd.parquet',",
-            "  's3://overturemaps-us-west-2/release/2026-10-21.0/theme=places/type=place/part-00011-472205f3-e3ff-5474-98a4-b9b3361f7306-c000.zstd.parquet',",
-            "  's3://overturemaps-us-west-2/release/2026-10-21.0/theme=places/type=place/part-00012-8cf9bdfe-d946-56f8-84c0-19493d0fbb9c-c000.zstd.parquet',",
-            "  's3://overturemaps-us-west-2/release/2026-10-21.0/theme=places/type=place/part-00013-6c366648-1364-543e-894b-d6e65d03c056-c000.zstd.parquet',",
-            "  's3://overturemaps-us-west-2/release/2026-10-21.0/theme=places/type=place/part-00014-dcceff87-235e-5a0e-a4b4-5f25ccb873e7-c000.zstd.parquet',",
-            "  's3://overturemaps-us-west-2/release/2026-10-21.0/theme=places/type=place/part-00015-eb1c1331-f519-5db6-8fef-74a77e5776ff-c000.zstd.parquet'",
-            "],",
-            "  filename=true,",
-            "  hive_partitioning=1",
-            ")",
-            "WHERE",
-            "  bbox.xmin >= {{./bounds.out.bounds.0.0}}",
-            "  AND bbox.xmax <= {{./bounds.out.bounds.1.0}}",
-            "  AND bbox.ymin >= {{./bounds.out.bounds.0.1}}",
-            "  AND bbox.ymax <= {{./bounds.out.bounds.1.1}}",
-            "  AND taxonomy.primary = 'park'",
-            "LIMIT 1000;"
-          ]
-        },
-        "locked": false
-      },
-      "position": {
-        "x": -773.2762557077626,
-        "y": -101.76940639269407
-      },
-      "measured": {
-        "width": 432,
-        "height": 254
+      "id": "duckdb-query",
+      "op": "sql",
+      "name": "duckdb-query",
+      "x": 0,
+      "y": 104,
+      "params": {
+        "query": "SELECT JSON({\n  'type': 'FeatureCollection',\n  'features': LIST(\n    JSON({\n      'type': 'Feature',\n      'geometry': JSON(ST_AsGeoJSON(geometry)),\n      'properties': JSON({\n        'id': id,\n        'name': COALESCE(names.primary, 'Unnamed Park'),\n        'category': taxonomy.primary\n      })\n    })\n  )\n}) as geojson\nFROM read_parquet([\n  's3://overturemaps-us-west-2/release/2026-10-21.0/theme=places/type=place/part-00000-a0a9949b-7e8e-59fe-803b-6cc55b17f790-c000.zstd.parquet',\n  's3://overturemaps-us-west-2/release/2026-10-21.0/theme=places/type=place/part-00001-95b3bb67-399f-571e-9503-61421d57661c-c000.zstd.parquet',\n  's3://overturemaps-us-west-2/release/2026-10-21.0/theme=places/type=place/part-00002-6f03d044-7fc3-539e-842b-7b15c796e629-c000.zstd.parquet',\n  's3://overturemaps-us-west-2/release/2026-10-21.0/theme=places/type=place/part-00003-755a53ba-2d37-54c8-b30e-8c14897bc3f3-c000.zstd.parquet',\n  's3://overturemaps-us-west-2/release/2026-10-21.0/theme=places/type=place/part-00004-14b83d8c-d850-51f9-85b2-8f8a0b4634af-c000.zstd.parquet',\n  's3://overturemaps-us-west-2/release/2026-10-21.0/theme=places/type=place/part-00005-c3667754-428e-500c-bf3b-a0b5921b7cc0-c000.zstd.parquet',\n  's3://overturemaps-us-west-2/release/2026-10-21.0/theme=places/type=place/part-00006-55d446f6-129a-556e-b79e-e1cfd5735068-c000.zstd.parquet',\n  's3://overturemaps-us-west-2/release/2026-10-21.0/theme=places/type=place/part-00007-a2c7689b-daa2-5233-9780-d37ccfc3ea74-c000.zstd.parquet',\n  's3://overturemaps-us-west-2/release/2026-10-21.0/theme=places/type=place/part-00008-8b09f6c1-f726-581a-9b39-f891088cc2ad-c000.zstd.parquet',\n  's3://overturemaps-us-west-2/release/2026-10-21.0/theme=places/type=place/part-00009-fe90ff49-733f-5fa3-9755-c6cd4438305c-c000.zstd.parquet',\n  's3://overturemaps-us-west-2/release/2026-10-21.0/theme=places/type=place/part-00010-c680fdf1-f03b-5be1-93f1-56c835a00765-c000.zstd.parquet',\n  's3://overturemaps-us-west-2/release/2026-10-21.0/theme=places/type=place/part-00011-472205f3-e3ff-5474-98a4-b9b3361f7306-c000.zstd.parquet',\n  's3://overturemaps-us-west-2/release/2026-10-21.0/theme=places/type=place/part-00012-8cf9bdfe-d946-56f8-84c0-19493d0fbb9c-c000.zstd.parquet',\n  's3://overturemaps-us-west-2/release/2026-10-21.0/theme=places/type=place/part-00013-6c366648-1364-543e-894b-d6e65d03c056-c000.zstd.parquet',\n  's3://overturemaps-us-west-2/release/2026-10-21.0/theme=places/type=place/part-00014-dcceff87-235e-5a0e-a4b4-5f25ccb873e7-c000.zstd.parquet',\n  's3://overturemaps-us-west-2/release/2026-10-21.0/theme=places/type=place/part-00015-eb1c1331-f519-5db6-8fef-74a77e5776ff-c000.zstd.parquet'\n],\n  filename=true,\n  hive_partitioning=1\n)\nWHERE\n  bbox.xmin >= -74.05\n  AND bbox.xmax <= -73.9\n  AND bbox.ymin >= 40.68\n  AND bbox.ymax <= 40.82\n  AND taxonomy.primary = 'park'\nLIMIT 1000"
       }
     },
     {
-      "id": "/extract-geojson",
-      "type": "CodeOp",
-      "data": {
-        "inputs": {
-          "code": [
-            "// Extract GeoJSON from DuckDB result",
-            "if (!d || d.length === 0) {",
-            "  return { type: 'FeatureCollection', features: [] }",
-            "}",
-            "return d[0].geojson"
-          ]
-        },
-        "locked": false
-      },
-      "position": {
-        "x": -290.56735159817356,
-        "y": -133.20319634703196
-      },
-      "measured": {
-        "width": 432,
-        "height": 279
+      "id": "extract-geojson",
+      "op": "code",
+      "name": "extract-geojson",
+      "x": 284,
+      "y": 122,
+      "params": {
+        "code": "// Extract GeoJSON from DuckDB result\nif (!d || d.length === 0) {\n  return { type: 'FeatureCollection', features: [] }\n}\nreturn d[0].geojson"
       }
     },
     {
-      "id": "/geojson-layer",
-      "type": "GeoJsonLayerOp",
-      "data": {
-        "inputs": {
-          "opacity": 0.6,
-          "getFillColor": "#22c55eff",
-          "getLineColor": "#16a34aff",
-          "getLineWidth": 2
-        },
-        "locked": false
-      },
-      "position": {
-        "x": 200,
-        "y": -200
+      "id": "extract-geojson-rows",
+      "op": "geojson",
+      "name": "extract-geojson-rows",
+      "x": 533,
+      "y": 95,
+      "params": {
+        "url": ""
       }
     },
     {
-      "id": "/deck",
-      "type": "DeckRendererOp",
-      "data": {
-        "inputs": {},
-        "locked": false
-      },
-      "position": {
-        "x": 566.796803652968,
-        "y": -200
+      "id": "geojson-layer",
+      "op": "polygon",
+      "name": "geojson-layer",
+      "x": 810,
+      "y": 122,
+      "params": {
+        "opacity": 0.6,
+        "blend": "normal",
+        "position": "geom",
+        "color": "",
+        "fillColor": [
+          34,
+          197,
+          94
+        ],
+        "lineColorChannel": "",
+        "lineColor": [
+          22,
+          163,
+          74
+        ],
+        "filled": true,
+        "stroked": true,
+        "lineWidthScale": 2,
+        "lineWidthUnits": "meters",
+        "lineWidthMinPixels": 0,
+        "extruded": false,
+        "elevation": "",
+        "elevationScale": 1000
       }
     },
     {
-      "id": "/out",
-      "type": "OutOp",
-      "data": {
-        "inputs": {
-          "display": "fixed",
-          "width": 1920,
-          "height": 1080,
-          "lod": 2,
-          "waitForData": true,
-          "codec": "avc",
-          "bitrateMbps": 10,
-          "bitrateMode": "constant",
-          "scaleControl": 0.3,
-          "framerate": 30,
-          "captureDelay": 50
-        },
-        "locked": false
-      },
-      "position": {
-        "x": 872.6906392694063,
-        "y": -127.30936073059361
+      "id": "geojson-layer-lines",
+      "op": "path",
+      "name": "geojson-layer-lines",
+      "x": 810,
+      "y": 232,
+      "params": {
+        "opacity": 0.6,
+        "blend": "normal",
+        "position": "geom",
+        "color": "",
+        "lineColor": [
+          22,
+          163,
+          74
+        ],
+        "widthScale": 2,
+        "widthUnits": "meters",
+        "widthMinPixels": 0
       }
     },
     {
-      "type": "MaplibreBasemapOp",
-      "id": "/maplibre-basemap",
-      "position": {
-        "x": 119.45091324200911,
-        "y": -416.93849885844753
-      },
-      "data": {
-        "inputs": {
-          "mapStyle": "https://basemaps.cartocdn.com/gl/positron-gl-style/style.json",
-          "viewState": {
-            "latitude": 40.75,
-            "longitude": -73.97,
-            "zoom": 11,
-            "pitch": 0,
-            "bearing": 0
-          }
-        },
-        "locked": false
+      "id": "geojson-layer-points",
+      "op": "scatter",
+      "name": "geojson-layer-points",
+      "x": 810,
+      "y": 342,
+      "params": {
+        "opacity": 0.6,
+        "blend": "normal",
+        "position": "geom",
+        "color": "",
+        "fillColor": [
+          34,
+          197,
+          94
+        ],
+        "radius": "",
+        "radiusScale": 1,
+        "radiusUnits": "meters"
       }
     },
     {
-      "id": "/query-note",
-      "type": "CommentOp",
-      "position": {
-        "x": -773,
-        "y": -240
-      },
-      "data": {
-        "inputs": {
-          "text": "This query finds parks in Overture Maps, a free world map dataset, inside the box set by bounds."
-        },
-        "locked": false
-      },
-      "width": 340,
-      "height": 80
+      "id": "query-note",
+      "op": "comment",
+      "name": "query-note",
+      "x": 0,
+      "y": 0,
+      "params": {
+        "text": "This query finds parks in Overture Maps, a free world map dataset, inside a box around New York City.",
+        "width": 220,
+        "height": 96
+      }
     },
     {
-      "id": "/layer-note",
-      "type": "CommentOp",
-      "position": {
-        "x": 200,
-        "y": 130
-      },
-      "data": {
-        "inputs": {
-          "text": "This layer draws each park in green. Click it and pick a new getFillColor."
-        },
-        "locked": false
-      },
-      "width": 300,
-      "height": 80
+      "id": "layer-note",
+      "op": "comment",
+      "name": "layer-note",
+      "x": 810,
+      "y": 37,
+      "params": {
+        "text": "This layer draws each park in green. Click it and pick a new Fill color.",
+        "width": 230,
+        "height": 77
+      }
     },
     {
-      "id": "/try-next-note",
-      "type": "CommentOp",
-      "position": {
-        "x": 873,
-        "y": -10
-      },
-      "data": {
-        "inputs": {
-          "text": "Try next:\n- Click maplibre-basemap and change zoom under viewState to look closer.\n- Click the diamond next to opacity on geojson-layer, pick a later time in the Timeline, and change it again.\n- Press Export and pick Image (PNG) to save the map."
-        },
-        "locked": false
-      },
-      "width": 340,
-      "height": 190
+      "id": "try-next-note",
+      "op": "comment",
+      "name": "try-next-note",
+      "x": 1318,
+      "y": 196,
+      "params": {
+        "text": "Try next:\n- Click deck and change Zoom to look closer.\n- Click the diamond next to Opacity on geojson-layer, pick a later time in the Timeline, and change it again.\n- Press Export and pick Image (PNG) to save the map.",
+        "width": 340,
+        "height": 155
+      }
     }
   ],
-  "timeline": {
-    "sheetsById": {
-      "Noodles": {
-        "staticOverrides": {
-          "byObject": {}
-        }
-      }
+  "edges": [
+    {
+      "id": "duckdb-query.out->extract-geojson.in",
+      "source": "duckdb-query",
+      "sourcePort": "out",
+      "target": "extract-geojson",
+      "targetPort": "in"
     },
-    "definitionVersion": "0.4.0",
-    "revisionHistory": [
-      "05HP5KUPC8hGmM0r"
-    ]
-  }
+    {
+      "id": "extract-geojson.out->extract-geojson-rows.in",
+      "source": "extract-geojson",
+      "sourcePort": "out",
+      "target": "extract-geojson-rows",
+      "targetPort": "in"
+    },
+    {
+      "id": "geojson-layer.out->deck.layers",
+      "source": "geojson-layer",
+      "sourcePort": "out",
+      "target": "deck",
+      "targetPort": "layers",
+      "index": 0
+    },
+    {
+      "id": "geojson-layer-lines.out->deck.layers.1",
+      "source": "geojson-layer-lines",
+      "sourcePort": "out",
+      "target": "deck",
+      "targetPort": "layers",
+      "index": 1
+    },
+    {
+      "id": "geojson-layer-points.out->deck.layers.2",
+      "source": "geojson-layer-points",
+      "sourcePort": "out",
+      "target": "deck",
+      "targetPort": "layers",
+      "index": 2
+    },
+    {
+      "id": "extract-geojson-rows.features->geojson-layer.in",
+      "source": "extract-geojson-rows",
+      "sourcePort": "features",
+      "target": "geojson-layer",
+      "targetPort": "in"
+    },
+    {
+      "id": "extract-geojson-rows.features->geojson-layer-lines.in",
+      "source": "extract-geojson-rows",
+      "sourcePort": "features",
+      "target": "geojson-layer-lines",
+      "targetPort": "in"
+    },
+    {
+      "id": "extract-geojson-rows.features->geojson-layer-points.in",
+      "source": "extract-geojson-rows",
+      "sourcePort": "features",
+      "target": "geojson-layer-points",
+      "targetPort": "in"
+    }
+  ]
 }

@@ -1,13 +1,10 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { userEvent } from 'vitest/browser'
-import { TableEditorOp } from '../operators'
 import type { TableSchema } from '../table-schema'
 import { TableEditor } from './table-editor'
 
 describe('TableEditor - Edit Flow', () => {
-  const mockOp = new TableEditorOp('/test-table')
-
   afterEach(() => {
     cleanup()
   })
@@ -31,7 +28,6 @@ describe('TableEditor - Edit Flow', () => {
 
       const { getByText, container } = render(
         <TableEditor
-          op={mockOp}
           data={data}
           schema={schema}
           onDataChange={onDataChange}
@@ -70,7 +66,6 @@ describe('TableEditor - Edit Flow', () => {
 
       const { getByText, container } = render(
         <TableEditor
-          op={mockOp}
           data={data}
           schema={schema}
           onDataChange={onDataChange}
@@ -116,7 +111,6 @@ describe('TableEditor - Edit Flow', () => {
 
       const { getAllByRole } = render(
         <TableEditor
-          op={mockOp}
           data={[{ anchor: 'start' }, { anchor: 'middle' }]}
           schema={literalSchema}
           onDataChange={onDataChange}
@@ -159,7 +153,6 @@ describe('TableEditor - Edit Flow', () => {
 
       const { getByText, getByRole, queryByRole } = render(
         <TableEditor
-          op={mockOp}
           data={[{ anchor: 'custom' }]}
           schema={literalSchema}
           onDataChange={onDataChange}
@@ -185,7 +178,6 @@ describe('TableEditor - Edit Flow', () => {
 
       const { getByText, container, rerender } = render(
         <TableEditor
-          op={mockOp}
           data={data}
           schema={schema}
           onDataChange={onDataChange}
@@ -216,7 +208,6 @@ describe('TableEditor - Edit Flow', () => {
       ]
       rerender(
         <TableEditor
-          op={mockOp}
           data={updatedData}
           schema={schema}
           onDataChange={onDataChange}
@@ -250,7 +241,6 @@ describe('TableEditor - Edit Flow', () => {
     const renderTable = (onDataChange: (data: unknown[], description?: string) => void) =>
       render(
         <TableEditor
-          op={mockOp}
           data={data}
           schema={schema}
           onDataChange={onDataChange}
@@ -376,7 +366,6 @@ describe('TableEditor - Edit Flow', () => {
 
       const { getByText, container } = render(
         <TableEditor
-          op={mockOp}
           data={data}
           schema={schema}
           onDataChange={onDataChange}
@@ -427,7 +416,6 @@ describe('TableEditor - Edit Flow', () => {
 
       render(
         <TableEditor
-          op={mockOp}
           data={data}
           schema={schema}
           onDataChange={onDataChange}
@@ -448,7 +436,6 @@ describe('TableEditor - Edit Flow', () => {
 
       const { getByText, container } = render(
         <TableEditor
-          op={mockOp}
           data={data}
           schema={schema}
           onDataChange={onDataChange}
@@ -473,7 +460,6 @@ describe('TableEditor - Edit Flow', () => {
 
       const { getByText, container } = render(
         <TableEditor
-          op={mockOp}
           data={data}
           schema={schema}
           onDataChange={onDataChange}
@@ -507,7 +493,6 @@ describe('TableEditor - Edit Flow', () => {
 
       const { container, getByText } = render(
         <TableEditor
-          op={mockOp}
           data={data}
           schema={schema}
           onDataChange={onDataChange}
@@ -557,7 +542,6 @@ describe('TableEditor - Edit Flow', () => {
 
       const { container } = render(
         <TableEditor
-          op={mockOp}
           data={data}
           schema={schema}
           onDataChange={onDataChange}
@@ -565,8 +549,10 @@ describe('TableEditor - Edit Flow', () => {
         />
       )
 
-      // The cell remounts after each edit, so look it up before every click
-      const getCell = () => container.querySelector('td button') as HTMLElement
+      // The cell remounts after each edit, so look it up before every click. Its first data
+      // column is the grid's second (the row number is the first).
+      const getCell = () =>
+        container.querySelector('tbody [role="gridcell"][aria-colindex="2"]') as HTMLElement
 
       // Test invalid input defaults to 0
       fireEvent.doubleClick(getCell())
@@ -604,7 +590,6 @@ describe('TableEditor - Edit Flow', () => {
 
       const { container, getByText } = render(
         <TableEditor
-          op={mockOp}
           data={data}
           schema={schema}
           onDataChange={onDataChange}
@@ -633,7 +618,6 @@ describe('TableEditor - Edit Flow', () => {
       }
       const { getByText } = render(
         <TableEditor
-          op={mockOp}
           data={[{ amount: 10 }]}
           schema={scrubSchema}
           onDataChange={onDataChange}
@@ -662,7 +646,6 @@ describe('TableEditor - Edit Flow', () => {
       }
       const { getByText } = render(
         <TableEditor
-          op={mockOp}
           data={[{ label: 'Alpha', amount: 10 }]}
           schema={scrubSchema}
           onDataChange={onDataChange}
@@ -695,7 +678,6 @@ describe('TableEditor - Edit Flow', () => {
     it('keeps a number cell in selection mode when the pointer does not drag', () => {
       const { getByText } = render(
         <TableEditor
-          op={mockOp}
           data={[{ label: 'Alpha', amount: 10 }]}
           schema={{
             columns: [
@@ -727,7 +709,6 @@ describe('TableEditor - Edit Flow', () => {
       const onDataChange = vi.fn()
       const { getByText } = render(
         <TableEditor
-          op={mockOp}
           data={[{ amount: 10 }]}
           schema={{ columns: [{ name: 'amount', type: 'number', defaultValue: 0 }] }}
           onDataChange={onDataChange}
@@ -763,7 +744,6 @@ describe('TableEditor - Edit Flow', () => {
       }
       const { getByText } = render(
         <TableEditor
-          op={mockOp}
           data={[{ offset: [1, 2] }]}
           schema={scrubSchema}
           onDataChange={onDataChange}
@@ -788,7 +768,6 @@ describe('TableEditor - Edit Flow', () => {
       }
       const { getByText } = render(
         <TableEditor
-          op={mockOp}
           data={[{ vector: [1, 2.3456, 3] }]}
           schema={scrubSchema}
           onDataChange={onDataChange}
@@ -818,7 +797,6 @@ describe('TableEditor - Edit Flow', () => {
       }
       render(
         <TableEditor
-          op={mockOp}
           data={[{ vector: [1, 2] }]}
           schema={scrubSchema}
           onDataChange={onDataChange}
@@ -861,7 +839,6 @@ describe('TableEditor - Edit Flow', () => {
       }
       const { getByText } = render(
         <TableEditor
-          op={mockOp}
           data={[{ vector: testCase.value }]}
           schema={scrubSchema}
           onDataChange={onDataChange}

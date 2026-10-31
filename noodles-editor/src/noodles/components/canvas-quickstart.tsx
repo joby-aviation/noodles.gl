@@ -63,7 +63,7 @@ const TIPS: { action: string; result: string }[] = [
   { action: 'Scroll or pinch', result: 'to zoom' },
   { action: 'Click a node', result: 'to edit its properties in the side panel' },
   { action: 'Drag from a dot on a node', result: 'to another dot to connect them' },
-  { action: 'Right-click or press A', result: 'to add a node' },
+  { action: 'Right-click or press Tab', result: 'to add a node' },
 ]
 
 // Rendered inside <ReactFlow>

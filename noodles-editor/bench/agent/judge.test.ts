@@ -1,5 +1,6 @@
 /// <reference types="vite/client" />
 
+import type { EditorDoc } from '@noodles.gl/planner'
 import { describe, expect, it } from 'vitest'
 import type { BenchResult } from '../../src/ai-chat/bench/bench-hook'
 import type { Grade } from './grade'
@@ -84,10 +85,11 @@ const result = {
       firstEventMs: 1,
     },
   ],
-  finalProject: { nodes: [], edges: [] },
-  finalOps: { '/pickup': { inputs: { color: '#ff0000' }, outputs: [] } },
-  initialOperatorErrors: [],
-  operatorErrors: [],
+  initialDoc: null,
+  finalDoc: { version: 1, name: 't', nodes: [], edges: [] },
+  finalParams: { '/pickup': { color: '#ff0000' } },
+  initialErrors: [],
+  errors: [],
   registry: {},
   loadMs: 1,
   timedOut: false,
@@ -151,15 +153,15 @@ describe('renderTranscript', () => {
 })
 
 describe('artifacts', () => {
-  it('adds the starting graph when the run recorded one', () => {
-    const start = { nodes: [{ id: '/pickup' }], edges: [] }
+  it('adds the starting document when the run recorded one', () => {
+    const start: EditorDoc = { version: 1, name: 't', nodes: [], edges: [] }
     const names = (r: BenchResult) => artifacts(r).map(a => a.name)
-    expect(names({ ...result, initialProject: start } as unknown as BenchResult)).toEqual([
-      'start-project.json',
-      'project.json',
-      'ops.json',
+    expect(names({ ...result, initialDoc: start })).toEqual([
+      'start-doc.json',
+      'doc.json',
+      'params.json',
     ])
-    expect(names(result)).toEqual(['project.json', 'ops.json'])
+    expect(names(result)).toEqual(['doc.json', 'params.json'])
   })
 })
 
@@ -182,7 +184,7 @@ it('fills every slot of the committed prompt', () => {
   const prompt = buildJudgePrompt(template, { task, rubric, result, grade })
   expect(prompt).not.toMatch(/\{\{[A-Z]+\}\}/)
   expect(prompt).toContain('L1: [turn 1] [user] Make it red')
-  expect(prompt).toContain('ops.json:3:')
+  expect(prompt).toContain('params.json:3:')
   // A $ in content must not be read as a replacement pattern
   expect(prompt).toContain('PASS applySucceeded: $& ok')
 })
@@ -215,16 +217,16 @@ it('checks citations against the transcript and artifacts', () => {
     b: {
       style: 'checklist' as const,
       criteria: {
-        c: { verdict: 'pass' as const, evidence: 'ops.json:3 and project.json:99' },
+        c: { verdict: 'pass' as const, evidence: 'params.json:3 and doc.json:99' },
       },
     },
   }
-  const citations = checkCitations(dims, 5, { 'ops.json': 10, 'project.json': 20 })
+  const citations = checkCitations(dims, 5, { 'params.json': 10, 'doc.json': 20 })
   expect(citations.checked).toBe(4)
   expect(citations.resolved).toBe(2)
   expect(citations.unresolved).toEqual([
     'L9 (transcript has 5 lines)',
-    'project.json:99 does not resolve',
+    'doc.json:99 does not resolve',
   ])
 })
 

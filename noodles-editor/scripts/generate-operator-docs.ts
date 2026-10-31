@@ -3,8 +3,8 @@
  * Operator reference generator
  *
  * Writes one page per operator to docs/reference/operators/ and a category index at
- * docs/reference/operators.md, from noodles-validate/registry.json (run
- * `npm run generate:registry` first after changing an operator).
+ * docs/reference/operators.md, from noodles-validate/registry.json, the operator catalog's
+ * snapshot (run `npm run generate:registry` first after changing an operator).
  *
  * The generator owns only the text between `<!-- gen:begin NAME -->` and
  * `<!-- gen:end NAME -->` markers, plus each page's `# Title` line. Everything else
@@ -18,30 +18,41 @@
 import * as fs from 'node:fs'
 import * as path from 'node:path'
 import { pathToFileURL } from 'node:url'
-import { type FieldInfo, type Registry, validateProject } from 'noodles-validate'
-import { categories as editorCategories } from '../src/noodles/components/categories'
+import {
+  type OperatorInfo,
+  type ParamInfo,
+  type PortInfo,
+  type Registry,
+  validateProject,
+} from 'noodles-validate'
 
 const repoRoot = path.join(import.meta.dirname, '../..')
 
-const GITHUB_SOURCE = 'https://github.com/joby-aviation/noodles.gl/blob/main'
-const MIGRATIONS_PATH = 'noodles-editor/src/noodles/__migrations__'
-
-// Placeholder for unknown types while a project loads; not an operator anyone adds
-const UNDOCUMENTED = new Set(['UnknownOperator'])
-
 // Regions in the order they appear on a page
-const PAGE_REGIONS = ['summary', 'syntax', 'inputs', 'outputs', 'details', 'history'] as const
+const PAGE_REGIONS = [
+  'summary',
+  'syntax',
+  'inputs',
+  'params',
+  'outputs',
+  'details',
+  'history',
+] as const
 
-const CATEGORY_LABELS: Record<string, string> = { geojson: 'GeoJSON' }
+const CATEGORY_LABELS: Record<string, string> = {
+  data: 'Data',
+  table: 'Tables',
+  geometry: 'Geometry',
+  rows: 'Rows',
+  color: 'Color',
+  layer: 'Layers',
+  number: 'Numbers',
+  output: 'Output',
+  structure: 'Structure',
+  host: 'Host operators',
+}
 
 const MAX_DEFAULT_CHARS = 100
-
-export interface Migration {
-  version: number
-  name: string
-  // Operator types the migration's source mentions
-  types: string[]
-}
 
 export interface OpDoc {
   type: string
@@ -49,15 +60,15 @@ export interface OpDoc {
   slug: string
   category: string
   description: string
-  inputs: [string, FieldInfo][]
-  outputs: [string, FieldInfo][]
-  migrations: Migration[]
+  inputs: [string, PortInfo][]
+  outputs: [string, PortInfo][]
+  params: [string, ParamInfo][]
+  // Operator classes of older projects that convert to this operator
+  formerly: string[]
 }
 
 export interface DocsOptions {
   registry: Registry
-  categories: Record<string, readonly string[]>
-  migrations: Migration[]
   // docs/reference/operators/
   pagesDir: string
   // docs/reference/operators.md
@@ -72,7 +83,8 @@ export interface DocsResult {
   errors: string[]
 }
 
-// FileOp -> file, ScatterplotLayerOp -> scatterplot-layer, H3HexagonLayerOp -> h3-hexagon-layer
+// A planner operator's type is its slug already (`scatter`, `fit-bounds`); a host operator's
+// class name is made one: CodeOp -> code, CustomMapLibreLayerOp -> custom-map-libre-layer
 export function toSlug(type: string): string {
   return type
     .replace(/Op$/, '')
@@ -85,59 +97,36 @@ export function categoryLabel(category: string): string {
   return CATEGORY_LABELS[category] ?? category.charAt(0).toUpperCase() + category.slice(1)
 }
 
-// The Add Node menu files an operator under the category that lists its type without
-// "Op" (some entries use the display name instead). Unlisted operators are utilities.
-function categoryOf(
-  type: string,
-  name: string,
-  categories: Record<string, readonly string[]>
-): string {
-  const bare = type.replace(/Op$/, '')
-  for (const key of [bare, name]) {
-    for (const [category, names] of Object.entries(categories)) {
-      if (names.includes(key)) return category
-    }
+export function buildModel({ registry }: Pick<DocsOptions, 'registry'>): OpDoc[] {
+  const formerly = new Map<string, string[]>()
+  for (const [old, ops] of Object.entries(registry.formerly ?? {})) {
+    for (const op of ops) formerly.set(op, [...(formerly.get(op) ?? []), old])
   }
-  return 'utility'
-}
-
-// Each migration NNN-name.ts brings a project to schema version NNN. A migration
-// belongs to every operator type its source names.
-export function parseMigrations(dir: string, knownTypes: Set<string>): Migration[] {
-  return fs
-    .readdirSync(dir)
-    .filter(file => /^\d+-.+\.ts$/.test(file) && !file.endsWith('.test.ts'))
-    .sort()
-    .map(file => {
-      const source = fs.readFileSync(path.join(dir, file), 'utf8')
-      const mentioned = new Set(source.match(/\b[A-Z][A-Za-z0-9]*Op\b/g) ?? [])
+  const planner = new Set(
+    Object.values(registry.operators)
+      .filter(op => op.category !== 'host')
+      .map(op => op.type)
+  )
+  const docs = Object.values(registry.operators)
+    .map((op: OperatorInfo) => {
+      // A host class whose slug a planner operator has (CodeOp, code) is told apart
+      const slug =
+        op.category === 'host' && planner.has(toSlug(op.type))
+          ? `${toSlug(op.type)}-host`
+          : toSlug(op.type)
       return {
-        version: Number.parseInt(file, 10),
-        name: file.replace(/\.ts$/, ''),
-        types: [...mentioned].filter(type => knownTypes.has(type)).sort(),
+        type: op.type,
+        name: op.name,
+        slug,
+        category: op.category ?? 'host',
+        description: op.description ?? '',
+        inputs: Object.entries(op.inputs),
+        outputs: Object.entries(op.outputs),
+        params: Object.entries(op.params ?? {}),
+        formerly: (formerly.get(op.type) ?? []).sort(),
       }
     })
-}
-
-export function buildModel({
-  registry,
-  categories,
-  migrations,
-}: Pick<DocsOptions, 'registry' | 'categories' | 'migrations'>): OpDoc[] {
-  const docs = Object.values(registry.operators)
-    .filter(op => !UNDOCUMENTED.has(op.type))
-    .map(op => ({
-      type: op.type,
-      name: op.name,
-      slug: toSlug(op.type),
-      category: categoryOf(op.type, op.name, categories),
-      description: op.description ?? '',
-      inputs: Object.entries(op.inputs),
-      outputs: Object.entries(op.outputs),
-      migrations: migrations.filter(m => m.types.includes(op.type)),
-    }))
     .sort((a, b) => a.slug.localeCompare(b.slug))
-
   const bySlug = new Map<string, string>()
   for (const doc of docs) {
     const other = bySlug.get(doc.slug)
@@ -189,12 +178,12 @@ export function tableCode(text: string): string {
   return escaped.includes('`') ? `\`\` ${escaped} \`\`` : `\`${escaped}\``
 }
 
-export function renderDefault(field: FieldInfo): string {
+export function renderDefault(param: ParamInfo): string {
   // JS text for a default JSON can't hold, such as Infinity
-  let json = field.defaultText
+  let json = param.defaultText
   if (json === undefined) {
-    if (!('default' in field) || field.default === undefined) return ''
-    json = JSON.stringify(field.default)
+    if (!('default' in param) || param.default === undefined || param.default === null) return ''
+    json = JSON.stringify(param.default)
   }
   if (json.length > MAX_DEFAULT_CHARS) json = `${json.slice(0, MAX_DEFAULT_CHARS - 3)}...`
   return tableCode(json)
@@ -209,71 +198,85 @@ function renderSummary(doc: OpDoc): string {
 }
 
 function renderSyntax(doc: OpDoc): string {
-  const id = `/${doc.slug}`
   const lines = [
     '```json',
-    '{',
-    `  "id": "${id}",`,
-    `  "type": "${doc.type}",`,
-    '  "position": { "x": 0, "y": 0 },',
-    '  "data": { "inputs": {} }',
-    '}',
+    `{ "id": "n1", "op": "${doc.type}", "name": "${doc.slug}", "x": 0, "y": 0, "params": {} }`,
     '```',
   ]
   const [input] = doc.inputs[0] ?? []
   const [output] = doc.outputs[0] ?? []
-  const reads = [
-    input && `\`op('${id}').par.${input}\` (an input)`,
-    output && `\`op('${id}').out.${output}\` (an output)`,
+  // A number parameter: one an edge from a number output can drive
+  const [param] = doc.params.find(([, p]) => p.kind === 'float' || p.kind === 'int') ?? []
+  const parts = [
+    input && `an edge into it ends at \`"targetPort": "${input}"\``,
+    output && `one out of it starts at \`"sourcePort": "${output}"\``,
+    param &&
+      `a parameter is set in \`params\` (leave out the ones at their default), driven by an edge to \`par:${param}\`, or read elsewhere as \`ch('${doc.slug}/${param}')\``,
   ].filter(Boolean)
-  if (reads.length) {
-    const handles = [input && `\`par.${input}\``, output && `\`out.${output}\``].filter(Boolean)
-    lines.push(
-      '',
-      `Expressions and code read its fields as ${reads.join(' and ')}. Edges name the same fields as handles: ${handles.join(', ')}.`
-    )
+  if (parts.length) {
+    const text = parts.join('; ')
+    lines.push('', `${text.charAt(0).toUpperCase()}${text.slice(1)}.`)
   }
   return lines.join('\n')
 }
 
+const portFlags = (port: PortInfo) =>
+  [port.multi && 'several, in order', port.optional && 'optional'].filter(Boolean).join(', ')
+
 function renderInputs(doc: OpDoc): string {
-  if (!doc.inputs.length) return 'This operator has no inputs.'
+  if (!doc.inputs.length) return 'This operator has no input ports.'
   return [
-    '| Name | Type | Default |',
-    '|------|------|---------|',
+    '| Port | Type | Takes |',
+    '|------|------|-------|',
     ...doc.inputs.map(
-      ([name, field]) => `| \`${name}\` | \`${field.type}\` | ${renderDefault(field)} |`
+      ([name, port]) => `| \`${name}\` | \`${port.type}\` | ${portFlags(port) || 'one edge'} |`
     ),
+  ].join('\n')
+}
+
+function renderParams(doc: OpDoc): string {
+  if (!doc.params.length) return 'This operator has no parameters.'
+  return [
+    '| Parameter | Kind | Default | Choices |',
+    '|-----------|------|---------|---------|',
+    ...doc.params.map(([name, param]) => {
+      const choices = param.options?.length
+        ? param.options.length > 8
+          ? `${param.options.length} choices`
+          : param.options.map(o => tableCode(o)).join(', ')
+        : ''
+      return `| \`${name}\` | \`${param.kind}\` | ${renderDefault(param)} | ${choices} |`
+    }),
   ].join('\n')
 }
 
 function renderOutputs(doc: OpDoc): string {
   if (!doc.outputs.length) return 'This operator has no outputs.'
   return [
-    '| Name | Type |',
+    '| Port | Type |',
     '|------|------|',
-    ...doc.outputs.map(([name, field]) => `| \`${name}\` | \`${field.type}\` |`),
+    ...doc.outputs.map(([name, port]) => `| \`${name}\` | \`${port.type}\` |`),
   ].join('\n')
 }
 
 function renderDetails(doc: OpDoc): string {
   return [
     `- **Category:** [${categoryLabel(doc.category)}](../operators.md#${doc.category})`,
-    `- **Type name:** \`${doc.type}\``,
+    `- **Operator:** \`${doc.type}\``,
+    ...(doc.category === 'host'
+      ? [
+          '- **Runs:** on the page, not in the engine: it cannot be compiled to SQL or an expression',
+        ]
+      : []),
   ].join('\n')
 }
 
 function renderHistory(doc: OpDoc): string {
-  if (!doc.migrations.length) return ''
+  if (!doc.formerly.length) return ''
   return [
-    '## History',
+    '## Older projects',
     '',
-    'Schema migrations that changed this operator. Older project files go through them when they open.',
-    '',
-    ...doc.migrations.map(
-      m =>
-        `- Version ${m.version}: [\`${m.name}\`](${GITHUB_SOURCE}/${MIGRATIONS_PATH}/${m.name}.ts)`
-    ),
+    `Projects saved before documents used operator classes. These convert to \`${doc.type}\` when they open: ${doc.formerly.map(t => `\`${t}\``).join(', ')}.`,
   ].join('\n')
 }
 
@@ -282,6 +285,7 @@ export function renderPageRegions(doc: OpDoc): Record<(typeof PAGE_REGIONS)[numb
     summary: renderSummary(doc),
     syntax: renderSyntax(doc),
     inputs: renderInputs(doc),
+    params: renderParams(doc),
     outputs: renderOutputs(doc),
     details: renderDetails(doc),
     history: renderHistory(doc),
@@ -306,6 +310,10 @@ ${region('syntax', regions.syntax)}
 ## Inputs
 
 ${region('inputs', regions.inputs)}
+
+## Parameters
+
+${region('params', regions.params)}
 
 ## Outputs
 
@@ -399,12 +407,12 @@ export function hasRemarks(text: string): boolean {
   return !!match && stripComments(match[1]).trim().length > 0
 }
 
-function renderIndexRegions(docs: OpDoc[], withRemarks: number) {
+function renderIndexRegions(docs: OpDoc[], withRemarks: number, categoryOrder: string[]) {
   const byCategory = new Map<string, OpDoc[]>()
   for (const doc of docs) {
     byCategory.set(doc.category, [...(byCategory.get(doc.category) ?? []), doc])
   }
-  const order = [...new Set([...Object.keys(editorCategories), ...byCategory.keys()])]
+  const order = [...new Set([...categoryOrder, ...byCategory.keys()])]
   const sections = order
     .filter(category => byCategory.has(category))
     .map(category =>
@@ -428,7 +436,7 @@ function indexScaffold(regions: Record<string, string>): string {
 
 ${region('coverage', regions.coverage)}
 
-One page per operator. The Inputs and Outputs tables are generated from the operator classes; Remarks and Examples are written by hand.
+One page per operator. The ports and parameters tables are generated from the operator catalog; Remarks and Examples are written by hand.
 
 ${region('operators', regions.operators)}
 `
@@ -438,16 +446,17 @@ export function renderIndex(
   docs: OpDoc[],
   withRemarks: number,
   existing: string | null,
-  file?: string
+  file?: string,
+  categoryOrder: string[] = []
 ): string {
-  const regions = renderIndexRegions(docs, withRemarks)
+  const regions = renderIndexRegions(docs, withRemarks, categoryOrder)
   return existing === null ? indexScaffold(regions) : spliceRegions(existing, regions, file)
 }
 
 // === Examples ===
 
-// Every ```json block a person wrote must load: a whole project, a { nodes, edges }
-// fragment, or a single node. The current version is filled in when it's left out.
+// Every ```json block a person wrote must load: a whole document, a { nodes, edges } fragment,
+// or a single node. The document version is filled in when it's left out.
 export function checkExamples(text: string, registry: Registry, file = 'page'): string[] {
   const errors: string[] = []
   const blocks = handWritten(text).matchAll(/^```json[^\n]*\n([\s\S]*?)^```/gm)
@@ -462,10 +471,11 @@ export function checkExamples(text: string, registry: Registry, file = 'page'): 
     if (!value || typeof value !== 'object' || Array.isArray(value)) continue
     const object = value as Record<string, unknown>
     let project: Record<string, unknown>
+    const base = { version: registry.documentVersion, name: 'example', edges: [] }
     if (Array.isArray(object.nodes)) {
-      project = { version: registry.projectVersion, edges: [], ...object }
-    } else if (typeof object.type === 'string') {
-      project = { version: registry.projectVersion, nodes: [object], edges: [] }
+      project = { ...base, ...object }
+    } else if (typeof object.op === 'string') {
+      project = { ...base, nodes: [object] }
     } else {
       continue
     }
@@ -512,7 +522,13 @@ export function generateDocs(options: DocsOptions, { check = false } = {}): Docs
 
   try {
     const existing = read(indexFile)
-    const index = renderIndex(docs, withRemarks, existing, relativeToRepo(indexFile))
+    const index = renderIndex(
+      docs,
+      withRemarks,
+      existing,
+      relativeToRepo(indexFile),
+      registry.categories ?? []
+    )
     result.errors.push(...checkExamples(index, registry, relativeToRepo(indexFile)))
     if (index !== existing) pending.push([indexFile, index])
   } catch (error) {
@@ -541,11 +557,6 @@ export function defaultOptions(): DocsOptions {
   ) as Registry
   return {
     registry,
-    categories: editorCategories,
-    migrations: parseMigrations(
-      path.join(repoRoot, MIGRATIONS_PATH),
-      new Set(Object.keys(registry.operators))
-    ),
     pagesDir: path.join(repoRoot, 'docs/reference/operators'),
     indexFile: path.join(repoRoot, 'docs/reference/operators.md'),
   }

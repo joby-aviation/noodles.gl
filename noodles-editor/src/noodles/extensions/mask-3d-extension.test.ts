@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { Mask3DExtensionOp } from '../operators'
+import { DECK_OP_INDEX, registerDeckOperators } from '../../runtime/deck-ops'
 import { Mask3DExtension } from './mask-3d-extension'
 
 describe('Mask3DExtension', () => {
@@ -11,14 +11,14 @@ describe('Mask3DExtension', () => {
 })
 
 // Rendering is covered in extensions.test.ts
-describe('Mask3DExtensionOp', () => {
+describe('the Mask 3D Extension operator', () => {
   it('passes the lng/lat/alt target and radii through to the extension', () => {
-    const op = new Mask3DExtensionOp('/mask-3d')
-    const { extension } = op.execute({
-      targetPosition: [-118.2637, 34.0171, 50],
-      innerRadius: 500,
-      fadeRange: 10,
-    } as unknown as Parameters<Mask3DExtensionOp['execute']>[0])
+    registerDeckOperators()
+    const extension = DECK_OP_INDEX.get('mask-3d-extension')?.build(
+      { targetPosition: [-118.2637, 34.0171, 50], innerRadius: 500, fadeRange: 10 },
+      'mask',
+      { surface: { width: 800, height: 600 } }
+    )
 
     expect(extension).toEqual({
       extension: { type: 'Mask3DExtension' },

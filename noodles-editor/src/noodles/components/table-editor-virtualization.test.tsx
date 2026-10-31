@@ -1,6 +1,5 @@
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { TableEditorOp } from '../operators'
 import type { TableSchema } from '../table-schema'
 import { TableEditor } from './table-editor'
 
@@ -64,13 +63,7 @@ describe('TableEditor row virtualization', () => {
 
     render(
       <div style={{ height: 300 }}>
-        <TableEditor
-          op={new TableEditorOp('/virtual-table')}
-          data={data}
-          schema={schema}
-          onDataChange={vi.fn()}
-          onSchemaChange={vi.fn()}
-        />
+        <TableEditor data={data} schema={schema} onDataChange={vi.fn()} onSchemaChange={vi.fn()} />
       </div>
     )
 
@@ -96,7 +89,6 @@ describe('TableEditor row virtualization', () => {
 
     render(
       <TableEditor
-        op={new TableEditorOp('/virtual-table')}
         data={data}
         schema={schema}
         onDataChange={onDataChange}
@@ -123,7 +115,6 @@ describe('TableEditor row virtualization', () => {
 
     render(
       <TableEditor
-        op={new TableEditorOp('/resized-virtual-table')}
         data={data}
         schema={schema}
         onDataChange={onDataChange}
@@ -150,7 +141,6 @@ describe('TableEditor row virtualization', () => {
 
     render(
       <TableEditor
-        op={new TableEditorOp('/resized-number-table')}
         data={data}
         schema={schema}
         onDataChange={onDataChange}
@@ -191,7 +181,6 @@ describe('TableEditor row virtualization', () => {
 
       render(
         <TableEditor
-          op={new TableEditorOp(`/resized-${type}-table`)}
           data={data}
           schema={schema}
           onDataChange={onDataChange}
@@ -222,13 +211,7 @@ describe('TableEditor row virtualization', () => {
     const data = Array.from({ length: 1_000 }, (_, index) => ({ label: `Row ${index + 1}` }))
 
     render(
-      <TableEditor
-        op={new TableEditorOp('/focused-virtual-table')}
-        data={data}
-        schema={schema}
-        onDataChange={vi.fn()}
-        onSchemaChange={vi.fn()}
-      />
+      <TableEditor data={data} schema={schema} onDataChange={vi.fn()} onSchemaChange={vi.fn()} />
     )
 
     const firstCell = screen.getByText('Row 1').closest('[role="gridcell"]') as HTMLElement
@@ -252,13 +235,7 @@ describe('TableEditor row virtualization', () => {
     const data = Array.from({ length: 1_000 }, (_, index) => ({ label: `Row ${index + 1}` }))
 
     render(
-      <TableEditor
-        op={new TableEditorOp('/keyboard-edit-virtual-table')}
-        data={data}
-        schema={schema}
-        onDataChange={vi.fn()}
-        onSchemaChange={vi.fn()}
-      />
+      <TableEditor data={data} schema={schema} onDataChange={vi.fn()} onSchemaChange={vi.fn()} />
     )
 
     const firstCell = screen.getByText('Row 1').closest('[role="gridcell"]') as HTMLElement

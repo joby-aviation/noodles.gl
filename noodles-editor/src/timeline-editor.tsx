@@ -3,8 +3,22 @@ import { MapLibreOverlay, type MapLibreOverlayProps } from '@deck.gl/maplibre'
 import { DeckGL } from '@deck.gl/react'
 import { ReactFlowProvider } from '@xyflow/react'
 import type { CustomLayerInterface, Map as MapLibre } from 'maplibre-gl'
-import { forwardRef, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import {
+  forwardRef,
+  type PointerEvent as ReactPointerEvent,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
 import ReactMapGL, { type MapProps, useControl } from 'react-map-gl/maplibre'
+import { cameraControlOf, cameraGesture, writeCamera } from './editor/camera-control'
+import { currentEngine } from './editor/doc-engine'
+import { useDocNoodles } from './editor/doc-noodles'
+import { docStore, useEditor } from './editor/doc-store'
+import { useUIStore } from './editor/ui-store'
 import { Layout } from './layout'
 import { ErrorBoundary } from './noodles/components/error-boundary'
 import { useMapClickToEdit } from './noodles/components/map-click-to-edit'
@@ -15,23 +29,13 @@ import { TopMenuBar } from './noodles/components/top-menu-bar'
 import { ExportActionsProvider } from './noodles/contexts/export-actions-context'
 import { useActiveStorageType, useCurrentDirectory } from './noodles/filesystem-store'
 import { agentBench, externalControl } from './noodles/globals'
-import { useActiveOutOp } from './noodles/hooks/use-active-outop'
-import { useRenderSettings } from './noodles/hooks/use-render-settings'
-import { getNoodles } from './noodles/noodles'
 import { fnWithSource } from './noodles/operators'
-import { useUIStore } from './noodles/store'
 import {
   trackDeckInteraction,
   trackMapLibreGesture,
   trackPanelToggled,
 } from './noodles/utils/editor-analytics'
-import {
-  createCameraGestureHistory,
-  updateCameraInputs,
-  useCameraControlState,
-} from './noodles/utils/map-camera-control'
-import { captureOperatorInputs, firePropertyMutation } from './noodles/utils/property-history'
-import type { RenderSettings } from './noodles/utils/serialization'
+import { DEFAULT_RENDER_SETTINGS, type RenderSettings } from './noodles/utils/serialization'
 import { PREVIEW_FRAME_DELAY, useDeckDrawLoop } from './render/draw-loop'
 import { FrameCounter } from './render/frame-stats'
 import type { RenderSource } from './render/render-analytics'
@@ -40,6 +44,7 @@ import {
   calculateRenderSurfaceSize,
   observeRenderSurface,
   setRenderSurfaceSize,
+  toRenderSurfacePoint,
 } from './render/render-surface-size'
 import { captureScreenshot, useRenderer } from './render/renderer'
 import { deckRenderingDefaults, mapRenderingDefaults } from './render/rendering-defaults'
@@ -152,7 +157,7 @@ export default function TimelineEditor() {
     if (!isRenderingRef.current) setRand(Math.random())
   }, [])
 
-  const noodles = getNoodles()
+  const noodles = useDocNoodles()
   const {
     flowGraph,
     nodeSidebar,
@@ -160,16 +165,13 @@ export default function TimelineEditor() {
     chatPanel,
     gitHistoryPanel,
     selectedNodeIds,
-    edges,
     ...visualization
   } = noodles
 
   const setTimelineExpanded = useUIStore(state => state.setTimelineExpanded)
 
-  // Render settings are now stored as OutOp inputs
-  const renderSettings = useRenderSettings()
-  // Active OutOp for updating rendersDirectory when user picks a directory
-  const activeOutOp = useActiveOutOp()
+  // Render settings are the document's deck parameters
+  const renderSettings = noodles.renderSettings ?? DEFAULT_RENDER_SETTINGS
   // File system state for resolving the renders directory
   const currentDirectory = useCurrentDirectory()
   const activeStorageType = useActiveStorageType()
@@ -202,23 +204,20 @@ export default function TimelineEditor() {
     bitrate: bitrateMbps * 1_000_000,
     bitrateMode,
     redraw,
+    settle: noodles.settle,
   })
   isRenderingRef.current = isRendering
 
   const isPlaying = useTimelineStore(state => state.playing)
-  const cameraControl = useCameraControlState(selectedNodeIds ?? [], {
-    edges: edges ?? [],
-    isRendering,
-    isPlaying,
-  })
-  const cameraHistoryRef = useRef(
-    createCameraGestureHistory(captureOperatorInputs, before =>
-      firePropertyMutation('Move map camera', before)
-    )
+  const doc = useEditor(state => state.doc)
+  const cameraControl = useMemo(
+    () => cameraControlOf(doc, selectedNodeIds ?? [], { isRendering, isPlaying }),
+    [doc, selectedNodeIds, isRendering, isPlaying]
   )
+  const cameraHistoryRef = useRef(cameraGesture())
 
   // Starting playback or an export, or changing the selection, can turn camera control off
-  // mid-drag. Close the gesture then so the next drag takes a fresh history snapshot.
+  // mid-drag. Close the gesture then so the next drag is an undo step of its own.
   useEffect(() => {
     if (!cameraControl.enabled) cameraHistoryRef.current.finish()
   }, [cameraControl.enabled])
@@ -230,11 +229,15 @@ export default function TimelineEditor() {
 
   const updateSelectedCamera = useCallback(
     (viewState: unknown) => {
-      if (!cameraControl.enabled || !cameraControl.op) return
-      beginCameraGesture()
-      updateCameraInputs(cameraControl.op, viewState)
+      const id = cameraControl.nodeId
+      if (!cameraControl.enabled || !id) return
+      const store = docStore()
+      store.edit(
+        d => writeCamera(d, id, viewState, store.get().time),
+        cameraHistoryRef.current.tag()
+      )
     },
-    [beginCameraGesture, cameraControl]
+    [cameraControl]
   )
 
   const finishCameraGesture = useCallback(() => {
@@ -724,12 +727,12 @@ export default function TimelineEditor() {
     try {
       const handle = await window.showDirectoryPicker({ mode: 'readwrite' })
       rendersDirectoryHandleRef.current = handle
-      // Persist the folder name to the OutOp so it survives project reloads
-      activeOutOp?.inputs.rendersDirectory.setValue(handle.name)
+      // Persist the folder name in the document so it survives project reloads
+      noodles.setRenderSettings?.({ ...renderSettings, rendersDirectory: handle.name })
     } catch (e) {
       if ((e as DOMException).name !== 'AbortError') throw e
     }
-  }, [activeOutOp])
+  }, [noodles.setRenderSettings, renderSettings])
 
   const exportSequence = useCallback(async () => {
     const canvas = getDeckCanvas()
@@ -867,7 +870,7 @@ export default function TimelineEditor() {
         ref={renderSurfaceRef}
         data-render-surface
         style={{ position: 'relative', width: '100%', height: '100%' }}
-        {...clickToEdit.surfaceHandlers}
+        onPointerMove={trackPointer}
       >
         {content}
       </div>
@@ -956,4 +959,16 @@ export default function TimelineEditor() {
       </ExportActionsProvider>
     </ReactFlowProvider>
   )
+}
+
+let pointerFrame = 0
+
+// The pointer, for a document that reads it (a Mouse node, MX or MY), in the render surface's
+// own pixels: the surface may be drawn scaled to fit the pane
+function trackPointer(e: ReactPointerEvent<HTMLDivElement>) {
+  const engine = currentEngine()
+  if (!engine?.readsPointer()) return
+  const { x, y } = toRenderSurfacePoint(e.currentTarget, e.clientX, e.clientY)
+  cancelAnimationFrame(pointerFrame)
+  pointerFrame = requestAnimationFrame(() => void engine.setPointer(x, y))
 }

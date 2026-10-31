@@ -1,101 +1,51 @@
 // Which node the Draw tool can edit, and how its geometry is read and written. The Draw
-// tool edits two kinds of node: a GeoEditor (a FeatureCollection kept as text) and a
-// Point (one coordinate). A layer drawing either of them hands the edit to that node.
+// tool edits two kinds of node: a `features` node (GeoJSON kept as text) and a `point`
+// (a longitude and a latitude). A layer drawing either of them hands the edit to that node.
 
-export type EditKind = 'geo-editor' | 'point'
+import {
+  type DocNode,
+  type EditorDoc,
+  isExpr,
+  isRef,
+  nameOf,
+  OPERATOR_INDEX,
+} from '@noodles.gl/planner'
+import { setParam } from '../../../editor/doc-ops'
+
+export type EditKind = 'features' | 'point'
 
 export interface EditTarget {
-  opId: string
+  nodeId: string
   kind: EditKind
-  // Set when the geometry input is driven by something else, which would overwrite a
-  // saved edit: the reason, shown on the disabled button
+  // Set when something else drives the geometry, which would overwrite a saved edit: the
+  // reason, shown on the disabled button
   locked?: string
 }
 
-// The input that holds each kind's geometry
-export const GEOMETRY_INPUT: Record<EditKind, string> = {
-  'geo-editor': 'geojson',
-  point: 'coordinates',
+// The parameters that hold each kind's geometry
+export const GEOMETRY_PARAMS: Record<EditKind, string[]> = {
+  features: ['geojson'],
+  point: ['lng', 'lat'],
 }
 
-interface FieldLike {
-  value: unknown
-  setValue: (value: unknown) => void
-  // Set while an expression drives the field
-  expression?: string | null
+const KINDS: Record<string, EditKind | undefined> = { features: 'features', point: 'point' }
+
+// A layer reaches its shapes through a few table steps (an attribute, a filter): it edits
+// the features or point at the head of that chain
+const MAX_HOPS = 8
+
+function param(node: DocNode, name: string): unknown {
+  return (
+    node.params[name] ?? OPERATOR_INDEX.get(node.op)?.params.find(p => p.name === name)?.default
+  )
 }
 
-export interface EditableOp {
-  id: string
-  constructor: unknown
-  inputs: Record<string, unknown>
-}
-
-interface EdgeLike {
-  source: string
-  target: string
-  targetHandle?: string | null
-}
-
-function displayName(op: EditableOp): string {
-  return (op.constructor as { displayName?: string }).displayName ?? ''
-}
-
-function kindOf(op: EditableOp): EditKind | null {
-  const name = displayName(op)
-  if (name === 'GeoEditor') return 'geo-editor'
-  if (name === 'Point') return 'point'
-  return null
-}
-
-// A connection, an expression or keyframes would replace whatever the editor saves
-function lockedReason(
-  op: EditableOp,
-  kind: EditKind,
-  edges: EdgeLike[],
-  isKeyframed: (opId: string, input: string) => boolean
-): string | undefined {
-  const input = GEOMETRY_INPUT[kind]
-  if (edges.some(edge => edge.target === op.id && edge.targetHandle === `par.${input}`)) {
-    return 'Its geometry comes from a connection'
-  }
-  if (field(op, input)?.expression) return 'Its geometry comes from an expression'
-  if (isKeyframed(op.id, input)) return 'Its geometry is keyframed'
-  return undefined
-}
-
-// The node itself when it holds editable geometry, else the GeoEditor or Point wired
-// into a layer's Data input. `edges` should hold the graph's edges, since both the
-// node's and its source's incoming edges are read.
-export function resolveEditTarget(
-  opId: string,
-  getOp: (id: string) => EditableOp | undefined,
-  edges: EdgeLike[],
-  isKeyframed: (opId: string, input: string) => boolean = () => false
-): EditTarget | null {
-  const op = getOp(opId)
-  if (!op) return null
-  let target: EditableOp | undefined = op
-  let kind = kindOf(op)
-  if (!kind) {
-    if (!displayName(op).endsWith('Layer')) return null
-    const dataEdge = edges.find(edge => edge.target === opId && edge.targetHandle === 'par.data')
-    target = dataEdge && getOp(dataEdge.source)
-    kind = target ? kindOf(target) : null
-  }
-  if (!target || !kind) return null
-  const locked = lockedReason(target, kind, edges, isKeyframed)
-  return locked ? { opId: target.id, kind, locked } : { opId: target.id, kind }
-}
-
-function field(op: EditableOp, name: string): FieldLike | undefined {
-  return op.inputs[name] as FieldLike | undefined
-}
-
-// Same parsing as GeoEditorOp.execute, so the editor shows what the node outputs
-function parseGeoJson(text: unknown): GeoJSON.Feature[] {
+// The features in the node's text, or null when the text is WKT rather than GeoJSON
+function parseGeoJson(text: unknown): GeoJSON.Feature[] | null {
+  if (typeof text !== 'string') return []
+  if (text.trim() && !text.trim().startsWith('{')) return null
   try {
-    const parsed = typeof text === 'string' ? JSON.parse(text) : text
+    const parsed = JSON.parse(text)
     if (!parsed || typeof parsed !== 'object') return []
     if (parsed.type === 'FeatureCollection') return parsed.features ?? []
     if (parsed.type === 'Feature') return [parsed]
@@ -106,39 +56,85 @@ function parseGeoJson(text: unknown): GeoJSON.Feature[] {
   }
 }
 
-function pointCoordinates(value: unknown): GeoJSON.Position | null {
-  if (Array.isArray(value) && value.length >= 2) return [Number(value[0]), Number(value[1])]
-  if (value && typeof value === 'object' && 'lng' in value && 'lat' in value) {
-    const { lng, lat } = value as { lng: number; lat: number }
-    return [lng, lat]
+// A wire, an expression, a reference or keyframes would replace whatever the editor saves
+function lockedReason(doc: EditorDoc, node: DocNode, kind: EditKind): string | undefined {
+  for (const name of GEOMETRY_PARAMS[kind]) {
+    if (doc.edges.some(e => e.target === node.id && e.targetPort === `par:${name}`))
+      return 'Its geometry comes from a connection'
+    const value = node.params[name]
+    if (isExpr(value)) return 'Its geometry comes from an expression'
+    if (isRef(value)) return 'Its geometry comes from a reference'
+    if (doc.timeline?.tracks.some(t => t.target === `${node.id}.${name}`))
+      return 'Its geometry is keyframed'
   }
-  return null
+  // The features node also reads WKT, which a save would replace with GeoJSON
+  if (kind === 'features' && parseGeoJson(param(node, 'geojson')) === null)
+    return 'Its geometry is written as WKT'
+  return undefined
 }
 
-export function readTargetFeatures(op: EditableOp, kind: EditKind): GeoJSON.Feature[] {
-  if (kind === 'geo-editor') return parseGeoJson(field(op, 'geojson')?.value)
-  const coordinates = pointCoordinates(field(op, 'coordinates')?.value)
-  if (!coordinates) return []
-  return [{ type: 'Feature', geometry: { type: 'Point', coordinates }, properties: {} }]
+function isLayer(node: DocNode): boolean {
+  return !!OPERATOR_INDEX.get(node.op)?.outputs.some(p => p.type === 'layer')
 }
 
-// Returns false when there is nothing the node can hold, such as a Point with no point
+// The node itself when it holds editable geometry, else the features or point a layer draws
+export function resolveEditTarget(doc: EditorDoc, nodeId: string): EditTarget | null {
+  const node = doc.nodes.find(n => n.id === nodeId)
+  if (!node) return null
+  let target: DocNode | undefined = node
+  let kind = KINDS[node.op]
+  if (!kind) {
+    if (!isLayer(node)) return null
+    target = node
+    for (let hop = 0; hop < MAX_HOPS && target && !kind; hop++) {
+      const from: DocNode = target
+      const wire = doc.edges.find(e => e.target === from.id && e.targetPort === 'in')
+      target = wire && doc.nodes.find(n => n.id === wire.source)
+      kind = target ? KINDS[target.op] : undefined
+    }
+  }
+  if (!target || !kind) return null
+  const locked = lockedReason(doc, target, kind)
+  return locked ? { nodeId: target.id, kind, locked } : { nodeId: target.id, kind }
+}
+
+export function targetLabel(doc: EditorDoc, target: EditTarget): string {
+  const node = doc.nodes.find(n => n.id === target.nodeId)
+  return node ? nameOf(node) : target.nodeId
+}
+
+export function readTargetFeatures(doc: EditorDoc, target: EditTarget): GeoJSON.Feature[] {
+  const node = doc.nodes.find(n => n.id === target.nodeId)
+  if (!node) return []
+  if (target.kind === 'features') return parseGeoJson(param(node, 'geojson')) ?? []
+  const lng = Number(param(node, 'lng'))
+  const lat = Number(param(node, 'lat'))
+  if (!Number.isFinite(lng) || !Number.isFinite(lat)) return []
+  return [{ type: 'Feature', geometry: { type: 'Point', coordinates: [lng, lat] }, properties: {} }]
+}
+
+// Writes the shapes into the node, on a draft inside `docStore().edit`. False when there is
+// nothing the node can hold, such as a point with no point, or something else drives it.
 export function writeTargetFeatures(
-  op: EditableOp,
-  kind: EditKind,
+  doc: EditorDoc,
+  target: EditTarget,
   features: GeoJSON.Feature[]
 ): boolean {
-  if (field(op, GEOMETRY_INPUT[kind])?.expression) return false
-  if (kind === 'geo-editor') {
-    const target = field(op, 'geojson')
-    if (!target) return false
-    target.setValue(JSON.stringify({ type: 'FeatureCollection', features }, null, 2))
+  const node = doc.nodes.find(n => n.id === target.nodeId)
+  if (!node || lockedReason(doc, node, target.kind)) return false
+  if (target.kind === 'features') {
+    setParam(
+      doc,
+      node.id,
+      'geojson',
+      JSON.stringify({ type: 'FeatureCollection', features }, null, 2)
+    )
     return true
   }
   const point = features.find(feature => feature.geometry?.type === 'Point')
-  const target = field(op, 'coordinates')
-  if (!point || !target) return false
+  if (!point) return false
   const [lng, lat] = (point.geometry as GeoJSON.Point).coordinates
-  target.setValue({ lng, lat })
+  setParam(doc, node.id, 'lng', lng)
+  setParam(doc, node.id, 'lat', lat)
   return true
 }

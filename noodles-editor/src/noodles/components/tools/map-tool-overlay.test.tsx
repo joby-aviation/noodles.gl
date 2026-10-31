@@ -148,9 +148,9 @@ describe('MapToolOverlay drawing', () => {
 
   it('drags a vertex of an existing GeoEditor shape and saves it back', () => {
     const session: EditSession = {
-      opId: '/geo-editor',
-      kind: 'geo-editor',
-      label: 'geo-editor',
+      nodeId: 'features1',
+      kind: 'features',
+      label: 'features1',
       features: [
         {
           type: 'Feature',
@@ -172,8 +172,8 @@ describe('MapToolOverlay drawing', () => {
     useMapToolStore.setState({ editTarget: session })
     const overlay = renderOverlay({ editSession: session })
     canvas = overlay.canvas
-    expect(screen.getByText('Editing geo-editor')).toBeTruthy()
-    const save = screen.getByText(/Save to geo-editor/).closest('button') as HTMLButtonElement
+    expect(screen.getByText('Editing features1')).toBeTruthy()
+    const save = screen.getByText(/Save to features1/).closest('button') as HTMLButtonElement
     expect(save.disabled).toBe(true)
 
     fireEvent.mouseDown(overlay.surface, { clientX: 151, clientY: 151, button: 0 })
@@ -186,7 +186,7 @@ describe('MapToolOverlay drawing', () => {
     expect(save.disabled).toBe(false)
     fireEvent.click(save)
     const [target, features] = overlay.onSaveEdits.mock.calls[0]
-    expect(target.opId).toBe('/geo-editor')
+    expect(target.nodeId).toBe('features1')
     expect(features).toHaveLength(1)
     expect(features[0].properties).toEqual({ name: 'zone' })
     expect((features[0].geometry as GeoJSON.Polygon).coordinates[0]).toEqual([
@@ -199,7 +199,7 @@ describe('MapToolOverlay drawing', () => {
 
   it('moves a Point node to wherever the map is clicked', () => {
     const session: EditSession = {
-      opId: '/point',
+      nodeId: 'point1',
       kind: 'point',
       label: 'point',
       features: [
@@ -223,9 +223,9 @@ describe('MapToolOverlay drawing', () => {
   it('opens a GeoEditor whose features include an empty geometry, and keeps it on save', () => {
     const empty = { type: 'Feature', geometry: null, properties: { note: 'empty' } }
     const session: EditSession = {
-      opId: '/geo-editor',
-      kind: 'geo-editor',
-      label: 'geo-editor',
+      nodeId: 'features1',
+      kind: 'features',
+      label: 'features1',
       features: [
         empty as unknown as GeoJSON.Feature,
         { type: 'Feature', geometry: { type: 'Point', coordinates: [20, 20] }, properties: {} },
@@ -237,7 +237,7 @@ describe('MapToolOverlay drawing', () => {
     fireEvent.mouseDown(overlay.surface, { clientX: 20, clientY: 20, button: 0 })
     fireEvent.mouseMove(window, { clientX: 40, clientY: 40 })
     fireEvent.mouseUp(window, { clientX: 40, clientY: 40 })
-    fireEvent.click(screen.getByText(/Save to geo-editor/))
+    fireEvent.click(screen.getByText(/Save to features1/))
     const [, features] = overlay.onSaveEdits.mock.calls[0]
     expect(features[0]).toEqual(empty)
     expect((features[1].geometry as GeoJSON.Point).coordinates).toEqual([40, 40])
@@ -259,9 +259,9 @@ describe('MapToolOverlay drawing', () => {
     expect(screen.getByText('Add 1 more point')).toBeTruthy()
 
     const session: EditSession = {
-      opId: '/geo-editor',
-      kind: 'geo-editor',
-      label: 'geo-editor',
+      nodeId: 'features1',
+      kind: 'features',
+      label: 'features1',
       features: [],
     }
     rerender(<MapToolOverlay {...props} editSession={session} />)
@@ -271,9 +271,9 @@ describe('MapToolOverlay drawing', () => {
 
   it('takes the next click after a drag released off the map', async () => {
     const session: EditSession = {
-      opId: '/geo-editor',
-      kind: 'geo-editor',
-      label: 'geo-editor',
+      nodeId: 'features1',
+      kind: 'features',
+      label: 'features1',
       features: [
         { type: 'Feature', geometry: { type: 'Point', coordinates: [20, 20] }, properties: {} },
       ],
@@ -294,9 +294,9 @@ describe('MapToolOverlay drawing', () => {
 
   describe('point tools', () => {
     const triangle = (): EditSession => ({
-      opId: '/geo-editor',
-      kind: 'geo-editor',
-      label: 'geo-editor',
+      nodeId: 'features1',
+      kind: 'features',
+      label: 'features1',
       features: [
         {
           type: 'Feature',
@@ -316,7 +316,7 @@ describe('MapToolOverlay drawing', () => {
       ],
     })
     const ring = (overlay: ReturnType<typeof renderOverlay>) => {
-      fireEvent.click(screen.getByText(/Save to geo-editor/))
+      fireEvent.click(screen.getByText(/Save to features1/))
       const [, features] = overlay.onSaveEdits.mock.calls[0]
       return (features[0].geometry as GeoJSON.Polygon).coordinates[0]
     }

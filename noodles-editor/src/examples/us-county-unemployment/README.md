@@ -5,13 +5,20 @@ _Adapted from [Kepler.gl examples](https://kepler.gl/)_
 ## Overview
 This example creates a choropleth map of all US counties where each county's color represents its unemployment rate. Counties with higher unemployment appear in one color (typically darker or more intense) while lower unemployment counties appear in another, creating a visual map of economic health across the entire United States.
 
-## Key Techniques
-- **Data source**: `FileOp` loads county boundaries with unemployment statistics
-- **Polygon layer**: `GeoJsonLayerOp` renders county shapes
-- **Unemployment accessor**: `AccessorOp` with expression `d.properties.unemployment_rate ?? 0`
-- **Data range**: `ExtentOp` finds the highest unemployment rate across `d.features` and feeds it to `MapRangeOp` as `inMax`
-- **Color mapping**: `MapRangeOp` scales the rate to 0-1, then `ColorRampOp` creates a sequential scale from low to high unemployment
-- **Basemap**: `MaplibreBasemapOp` with voyager style, showing continental United States
+## Nodes
+- **`data-source`** (GeoJSON) loads the county boundaries from `@/data.geojson`
+- **`unemployment`** (Attribute Create) writes `unemployment` as `coalesce(unemployment_rate, 0)`
+- **`extent`** (Extent) finds the highest rate; its `max` drives `map-range`'s `inMax`
+- **`map-range`** (Map Range) scales `unemployment` from `inMin: 0.1` up to that maximum into 0 to 1, written as `map_range`
+- **`unemployment-color`** (Color Ramp) maps `map_range` through the `viridis` ramp into `unemployment_color`
+- **`geojson-layer`** (Polygon Layer) fills counties with `color: "unemployment_color"`
+- **`deck`** (Deck) holds the Carto Voyager basemap and the camera
+
+## Pipeline
+```
+data-source → unemployment → map-range → unemployment-color → geojson-layer → deck
+            → extent (max) ↗ (inMax)
+```
 
 ## Data Structure
 The GeoJSON file contains county features with:

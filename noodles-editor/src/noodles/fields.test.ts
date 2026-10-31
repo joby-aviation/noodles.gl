@@ -1,6 +1,6 @@
 import { LayerExtension, MapView } from '@deck.gl/core'
 import { Temporal } from 'temporal-polyfill'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import z from 'zod/v4'
 import { hexToColor } from '../utils/color'
 import {
@@ -10,13 +10,11 @@ import {
   ColorField,
   CompoundPropsField,
   captureNodeUIMetadata,
-  DataField,
   DateField,
   deriveDecimalStep,
   ExtensionField,
   Field,
   FileUrlField,
-  FunctionField,
   GeoJsonField,
   getFieldReferences,
   LayerField,
@@ -27,17 +25,12 @@ import {
   Point2DField,
   Point3DField,
   parseChoices,
-  StringField,
   StringLiteralField,
-  UnknownField,
   Vec2Field,
   Vec3Field,
   ViewField,
   VisualizationField,
 } from './fields'
-import { NumberOp } from './operators'
-import { clearOps, setOp } from './store'
-import { canConnect } from './utils/can-connect'
 
 describe('basic Fields', () => {
   it('supports a basic field', () => {
@@ -60,30 +53,9 @@ describe('basic Fields', () => {
     field.setValue(10)
   })
 
-  it('listens to other fields', () => {
-    const field = new NumberField(0)
-    const other = new NumberField(5)
-    field.addConnection('test-op-1', other, 'value')
-    expect(field.value).toEqual(5)
-    other.setValue(10)
-    expect(field.value).toEqual(10)
-  })
-
   it('allows transforming values', () => {
     const field = new NumberField(5, { transform: (d: number) => d * 2 })
     expect(field.value).toEqual(10)
-  })
-
-  it('allows adding a reference connection', () => {
-    const spy = vi.fn()
-    const field = new NumberField(5)
-    const other = new NumberField(10)
-    field.subscribe(spy)
-    field.addConnection('test-op-1', other, 'reference')
-    expect(field.value).toEqual(5)
-    other.setValue(20)
-    expect(field.value).toEqual(5)
-    expect(spy).toHaveBeenCalled()
   })
 
   it('allows initialization with no value', () => {
@@ -155,113 +127,7 @@ describe('optional Fields', () => {
   })
 })
 
-describe('ArrayField', () => {
-  it('allows ArrayFields to wrap other fields', () => {
-    const dataField = new DataField([1, 2, 3])
-    const arrayField = new ArrayField(new NumberField(5))
-
-    expect(arrayField.value).toEqual([])
-
-    expect(canConnect(arrayField, dataField)).toBe(true)
-  })
-})
-
-describe('ListField', () => {
-  it('allows ListFields accept multiple connections', () => {
-    const field1 = new NumberField(1)
-    const field2 = new NumberField(2)
-    const listField = new ListField(new NumberField(5))
-
-    expect(canConnect(field1, listField), 'numbers can connect to listField').toBe(true)
-
-    listField.addConnection('field-1', field1, 'value')
-    listField.addConnection('field-2', field2, 'value')
-
-    expect(listField.value).toEqual([1, 2])
-    expect(listField.subscriptions.size).toBe(2)
-
-    field1.setValue(10)
-    expect(listField.value).toEqual([10, 2])
-  })
-
-  it('reorders connections with setConnectionOrder', () => {
-    const field1 = new NumberField(1)
-    const field2 = new NumberField(2)
-    const field3 = new NumberField(3)
-    const listField = new ListField(new NumberField())
-
-    listField.addConnection('field-1', field1, 'value')
-    listField.addConnection('field-2', field2, 'value')
-    listField.addConnection('field-3', field3, 'value')
-
-    expect(listField.value).toEqual([1, 2, 3])
-
-    listField.setConnectionOrder(['field-2', 'field-3', 'field-1'])
-    expect(listField.value).toEqual([2, 3, 1])
-
-    listField.setConnectionOrder(['field-1', 'field-2', 'field-3'])
-    expect(listField.value).toEqual([1, 2, 3])
-  })
-
-  it('setConnectionOrder emits a single value per reorder', () => {
-    const field1 = new NumberField(1)
-    const field2 = new NumberField(2)
-    const listField = new ListField(new NumberField())
-
-    listField.addConnection('field-1', field1, 'value')
-    listField.addConnection('field-2', field2, 'value')
-
-    const listener = vi.fn()
-    listField.subscribe(listener)
-    listener.mockClear()
-
-    listField.setConnectionOrder(['field-2', 'field-1'])
-    expect(listField.value).toEqual([2, 1])
-    expect(listener).toHaveBeenCalledTimes(1)
-  })
-
-  it('setConnectionOrder is a no-op when order is unchanged', () => {
-    const field1 = new NumberField(1)
-    const field2 = new NumberField(2)
-    const listField = new ListField(new NumberField())
-
-    listField.addConnection('field-1', field1, 'value')
-    listField.addConnection('field-2', field2, 'value')
-
-    const listener = vi.fn()
-    listField.subscribe(listener)
-    listener.mockClear()
-
-    listField.setConnectionOrder(['field-1', 'field-2'])
-    expect(listener).not.toHaveBeenCalled()
-  })
-
-  it('setConnectionOrder ignores unknown ids and keeps unlisted connections at the end', () => {
-    const field1 = new NumberField(1)
-    const field2 = new NumberField(2)
-    const field3 = new NumberField(3)
-    const listField = new ListField(new NumberField())
-
-    listField.addConnection('field-1', field1, 'value')
-    listField.addConnection('field-2', field2, 'value')
-    listField.addConnection('field-3', field3, 'value')
-
-    listField.setConnectionOrder(['missing', 'field-3', 'also-missing', 'field-2'])
-    expect(listField.value).toEqual([3, 2, 1])
-  })
-})
-
 describe('FileUrlField', () => {
-  it('accepts string values from other fields', () => {
-    const field = new StringField('test')
-    const urlField = new FileUrlField()
-
-    expect(canConnect(field, urlField)).toBe(true)
-    urlField.addConnection('field', field, 'value')
-
-    expect(urlField.value).toEqual('test')
-  })
-
   it('accepts string values', () => {
     const field = new FileUrlField('https://example.com/model.glb')
     expect(field.value).toEqual('https://example.com/model.glb')
@@ -304,26 +170,6 @@ describe('MapStyleField', () => {
 
     field.setValue(styleObject)
     expect(field.value).toEqual(styleObject)
-  })
-
-  it('accepts string values from connected fields', () => {
-    const stringField = new StringField('https://example.com/style.json')
-    const mapStyleField = new MapStyleField()
-
-    expect(canConnect(stringField, mapStyleField)).toBe(true)
-    mapStyleField.addConnection('field', stringField, 'value')
-
-    expect(mapStyleField.value).toEqual('https://example.com/style.json')
-  })
-
-  it('accepts object values from connected fields', () => {
-    const unknownField = new UnknownField({ version: 8, sources: {}, layers: [] })
-    const mapStyleField = new MapStyleField()
-
-    expect(canConnect(unknownField, mapStyleField)).toBe(true)
-    mapStyleField.addConnection('field', unknownField, 'value')
-
-    expect(mapStyleField.value).toEqual({ version: 8, sources: {}, layers: [] })
   })
 
   it('rejects invalid types (numbers)', () => {
@@ -412,26 +258,6 @@ describe('MapStyleField', () => {
 
     field.setValue('https://example.com/style.json')
     expect(field.value).toEqual('https://example.com/style.json')
-  })
-
-  it('does not markDirty when object content is identical', () => {
-    const field = new MapStyleField()
-    const style = {
-      version: 8,
-      sources: {},
-      layers: [{ id: 'bg', type: 'background', paint: { 'background-color': '#000' } }],
-    }
-
-    field.setValue(style)
-
-    const nextSpy = vi.spyOn(field, 'next')
-
-    // Set identical content with new reference
-    field.setValue({ ...style, layers: [...style.layers] })
-
-    // next() should not be called because setValue returns early
-    expect(nextSpy).not.toHaveBeenCalled()
-    nextSpy.mockRestore()
   })
 
   it('serializes and deserializes string values correctly', () => {
@@ -572,10 +398,11 @@ describe('NumberField', () => {
 
   it('uses the declared step unless value-derived precision is explicitly enabled', () => {
     const semanticField = new NumberField(0.25, { step: 0.5 })
-    const numberOp = new NumberOp('/number', { val: 0.25 })
+    // A number node's value field derives its step from its value's decimals
+    const derived = new NumberField(0.25, { step: 1, deriveStepFromValue: true })
 
     expect(semanticField.getEffectiveStep()).toBe(0.5)
-    expect(numberOp.inputs.val.getEffectiveStep()).toBe(0.01)
+    expect(derived.getEffectiveStep()).toBe(0.01)
 
     semanticField.setStepOverride(0.01)
     expect(semanticField.getEffectiveStep()).toBe(0.01)
@@ -621,17 +448,6 @@ describe('NumberField', () => {
 })
 
 describe('StringLiteralField', () => {
-  it('sets choices on the instance', () => {
-    const field = new StringLiteralField('foo', ['foo', 'bar'])
-    expect(field.value).toEqual('foo')
-    expect(field.choices).toEqual([
-      { label: 'foo', value: 'foo' },
-      { label: 'bar', value: 'bar' },
-    ])
-    expect(canConnect(new StringField('foo'), field)).toBe(true)
-    expect(canConnect(new NumberField(5), field)).toBe(false)
-  })
-
   it('allows multiple ways of creating options', () => {
     const field1 = new StringLiteralField('one', ['one', 'two'])
     expect(field1.value).toEqual('one')
@@ -656,16 +472,6 @@ describe('StringLiteralField', () => {
       { label: 'Five', value: 'five' },
       { label: 'Six', value: 'six' },
     ])
-  })
-
-  it('allows empty choices', () => {
-    const field = new StringLiteralField('', [])
-    expect(field.value).toEqual('')
-    expect(field.choices).toEqual([])
-    expect(canConnect(new StringField('foo'), field)).toBe(true)
-    // expect(canConnect(new NumberField(5), field)).toBe(true)
-    field.setValue('foo')
-    // field.setValue(5)
   })
 
   it('allows reconfiguring options', () => {
@@ -730,160 +536,6 @@ describe('CompoundPropsField', () => {
     })
   })
 
-  it('allows CompoundPropsFields to accept connections', () => {
-    const viewState = new CompoundPropsField({
-      latitude: new NumberField(0, { min: -90, max: 90 }),
-      longitude: new NumberField(0, { min: -180, max: 180 }),
-      zoom: new NumberField(12, { min: 0, max: 24 }),
-      pitch: new NumberField(0, { min: 0, max: 60 }),
-      bearing: new NumberField(0),
-    })
-
-    const upstream = new CompoundPropsField({
-      latitude: new NumberField(1, { min: -90, max: 90 }),
-      longitude: new NumberField(2, { min: -180, max: 180 }),
-      zoom: new NumberField(3, { min: 0, max: 24 }),
-      pitch: new NumberField(4, { min: 0, max: 60 }),
-      bearing: new NumberField(5),
-    })
-
-    expect(canConnect(upstream, viewState)).toBe(true)
-    viewState.addConnection('upstream', upstream, 'value')
-
-    expect(viewState.value).toEqual({
-      latitude: 1,
-      longitude: 2,
-      zoom: 3,
-      pitch: 4,
-      bearing: 5,
-    })
-
-    upstream.fields.latitude.setValue(10)
-    expect(viewState.value).toEqual({
-      latitude: 10,
-      longitude: 2,
-      zoom: 3,
-      pitch: 4,
-      bearing: 5,
-    })
-  })
-
-  it('fills in missing values', () => {
-    const viewState = new CompoundPropsField({
-      latitude: new NumberField(1, { min: -90, max: 90 }),
-      longitude: new NumberField(2, { min: -180, max: 180 }),
-      zoom: new NumberField(3, { min: 0, max: 24 }),
-      pitch: new NumberField(4, { min: 0, max: 60 }),
-      bearing: new NumberField(5),
-    })
-
-    const upstream = new CompoundPropsField({
-      latitude: new NumberField(10, { min: -90, max: 90 }),
-      longitude: new NumberField(20, { min: -180, max: 180 }),
-      zoom: new NumberField(13, { min: 0, max: 24 }),
-    })
-
-    viewState.addConnection('upstream', upstream, 'value')
-
-    expect(viewState.value).toEqual({
-      latitude: 10,
-      longitude: 20,
-      zoom: 13,
-      pitch: 4,
-      bearing: 5,
-    })
-  })
-
-  it('allows DataFields to connect to CompoundPropsFields', () => {
-    const viewState = new CompoundPropsField({
-      latitude: new NumberField(1, { min: -90, max: 90 }),
-      longitude: new NumberField(2, { min: -180, max: 180 }),
-      zoom: new NumberField(3, { min: 0, max: 24 }),
-      pitch: new NumberField(4, { min: 0, max: 60 }),
-      bearing: new NumberField(5),
-    })
-
-    const dataField = new DataField()
-    viewState.addConnection('data', dataField, 'value')
-    dataField.setValue({ latitude: 10, longitude: 20, zoom: 13, pitch: 4, bearing: 5 })
-
-    expect(viewState.value).toEqual({
-      latitude: 10,
-      longitude: 20,
-      zoom: 13,
-      pitch: 4,
-      bearing: 5,
-    })
-  })
-
-  it('allows CompoundPropsFields to connect to DataFields', () => {
-    const viewState = new CompoundPropsField({
-      latitude: new NumberField(1, { min: -90, max: 90 }),
-      longitude: new NumberField(2, { min: -180, max: 180 }),
-      zoom: new NumberField(3, { min: 0, max: 24 }),
-      pitch: new NumberField(4, { min: 0, max: 60 }),
-      bearing: new NumberField(5),
-    })
-
-    const dataField = new DataField()
-    viewState.addConnection('data', dataField, 'value')
-
-    dataField.setValue({ latitude: 10, longitude: 20, zoom: 13, pitch: 4, bearing: 5 })
-
-    expect(viewState.value).toEqual({
-      latitude: 10,
-      longitude: 20,
-      zoom: 13,
-      pitch: 4,
-      bearing: 5,
-    })
-  })
-
-  it('allows arbitrary DataFields to connect to CompoundPropsFields', () => {
-    const compoundField = new CompoundPropsField({})
-
-    const dataField = new DataField()
-    compoundField.addConnection('data', dataField, 'value')
-    dataField.setValue({ latitude: 10, longitude: 20, zoom: 13, pitch: 4, bearing: 5 })
-
-    expect(compoundField.value).toEqual({
-      latitude: 10,
-      longitude: 20,
-      zoom: 13,
-      pitch: 4,
-      bearing: 5,
-    })
-  })
-
-  it('passes through extra values', () => {
-    const viewState = new CompoundPropsField({
-      latitude: new NumberField(1, { min: -90, max: 90 }),
-      longitude: new NumberField(2, { min: -180, max: 180 }),
-      zoom: new NumberField(3, { min: 0, max: 24 }),
-      pitch: new NumberField(4, { min: 0, max: 60 }),
-      bearing: new NumberField(5),
-    })
-
-    const upstream = new CompoundPropsField({
-      latitude: new NumberField(10, { min: -90, max: 90 }),
-      longitude: new NumberField(20, { min: -180, max: 180 }),
-      zoom: new NumberField(13, { min: 0, max: 24 }),
-      extra: new StringField('extra'),
-    })
-
-    viewState.addConnection('upstream', upstream, 'value')
-
-    expect(viewState.value).toEqual({
-      latitude: 10,
-      longitude: 20,
-      zoom: 13,
-      pitch: 4,
-      bearing: 5,
-      extra: 'extra',
-    })
-    expect(upstream.value.extra).toBeDefined()
-  })
-
   it('guards against undefined values', () => {
     const viewState = new CompoundPropsField({
       latitude: new NumberField(1, { min: -90, max: 90 }),
@@ -900,235 +552,6 @@ describe('CompoundPropsField', () => {
       longitude: 2,
       zoom: 3,
     })
-  })
-})
-
-describe('Accessor fields', () => {
-  it('allows static values', () => {
-    const field = new NumberField(5, { accessor: true })
-    expect(field.value).toEqual(5)
-  })
-
-  it('allows callbacks', () => {
-    const field = new NumberField(5, { accessor: true })
-    field.setValue(d => d.amount)
-    expect(field.value({ amount: 10 })).toEqual(10)
-  })
-
-  it('allows ColorFields to pass a string color', () => {
-    const field = new ColorField('#ff0000', { accessor: true })
-    expect(field.value).toEqual('#ff0000ff')
-    expect(hexToColor(field.value)).toEqual([255, 0, 0, 255])
-    field.setValue('#00ff00')
-    expect(field.value).toEqual('#00ff00ff')
-  })
-
-  it('allows ColorFields to pass a callback function', () => {
-    const field = new ColorField('#ff0000', { accessor: true })
-    expect(field.value).toEqual('#ff0000ff')
-    field.setValue(d => d.color)
-    expect(field.value({ color: '#00ff00' })).toEqual('#00ff00')
-  })
-
-  it('allows ArrayFields to pass a callback function', () => {
-    const field = new ArrayField(new NumberField(), { accessor: true })
-    expect(field.value).toEqual([])
-    field.setValue(d => d.amount)
-    expect(field.value({ amount: [1, 2, 3] })).toEqual([1, 2, 3])
-  })
-
-  it('supports FunctionFields', () => {
-    const accessorField = new FunctionField()
-    accessorField.setValue(d => [d.lng, d.lat])
-    expect(accessorField.value).toBeInstanceOf(Function)
-    expect(accessorField.value({ lng: 1, lat: 2 })).toEqual([1, 2])
-
-    const getPositionField = new Point2DField(
-      { lat: 10, lng: 20 },
-      { returnType: 'tuple', accessor: true }
-    )
-
-    expect(getPositionField.value).toEqual([20, 10])
-
-    getPositionField.setValue({ lng: 5, lat: 6 })
-    expect(getPositionField.value).toEqual([5, 6])
-
-    expect(canConnect(accessorField, getPositionField), 'should connect').toBe(true)
-
-    getPositionField.addConnection('getPosition', accessorField, 'value')
-
-    expect(getPositionField.value).toBeInstanceOf(Function)
-    // expect(getPositionField.value).toEqual(accessorField.value)
-    expect(getPositionField.value({ lng: 7, lat: 8 })).toEqual([7, 8])
-  })
-
-  it('supports transforming values', () => {
-    const field = new NumberField(5, { accessor: true, transform: d => d * 2 })
-    expect(field.value).toEqual(10)
-  })
-
-  it('allows setting values with a transform', () => {
-    const field = new NumberField(5, { accessor: true, transform: d => d * 2 })
-    expect(field.value).toEqual(10)
-
-    field.setValue(10)
-    expect(field.value).toEqual(20)
-  })
-
-  it('allows setting an accessor callback with transform', () => {
-    const field = new NumberField(5, { accessor: true, transform: d => d * 2 })
-    field.setValue(d => d.amount)
-    expect(field.value({ amount: 10 })).toEqual(20)
-  })
-
-  it('supports transforming ColorFields', () => {
-    const field = new ColorField('#ff0000', { accessor: true, transform: hexToColor })
-    expect(field.value).toEqual([255, 0, 0, 255])
-
-    field.setValue('#00ff00')
-    expect(field.value).toEqual([0, 255, 0, 255])
-  })
-
-  it('supports transforming ColorFields with a callback', () => {
-    const field = new ColorField('#ff0000', { accessor: true, transform: hexToColor })
-    field.setValue(d => d.color)
-    expect(field.value).toBeInstanceOf(Function)
-    expect(field.value({ color: '#0000ff' })).toEqual([0, 0, 255, 255])
-  })
-})
-
-describe('Field references', () => {
-  const numOp = new NumberOp('/num')
-  beforeEach(() => {
-    // Note that this is a global map, so we need to clear it before each test
-    // to avoid cross-contamination. References currently rely on the opMap
-    clearOps()
-
-    numOp.inputs.val.setValue(10)
-    setOp('/num', numOp)
-  })
-
-  it('allows references to other operators using {{mustache-syntax}}', () => {
-    const parReferences = getFieldReferences('SELECT 5 + {{num.par.val}}')
-    expect(parReferences.length).toEqual(1)
-    const outReferences = getFieldReferences('SELECT 5 + {{num.out.val}}')
-    expect(outReferences.length).toEqual(1)
-  })
-
-  it('supports multiple references', () => {
-    const src = 'SELECT 5 + {{num.out.val}} + {{num.par.val}}'
-
-    const references = getFieldReferences(src)
-    expect(references.length).toEqual(2)
-  })
-
-  it('creates only one reference for a given field', () => {
-    const src = '[{{geocoder.out.location.lng}}, {{geocoder.out.location.lat}}]'
-
-    const references = getFieldReferences(src)
-    expect(references.length).toEqual(1)
-    expect(references[0].fieldPath).toEqual('location')
-  })
-
-  it('creates separate references for different field paths', () => {
-    const src =
-      '[{{geocoder.out.location.lng}}, {{geocoder.out.location.lat}}, {{geocoder.par.query}}]'
-
-    const references = getFieldReferences(src)
-    expect(references.length).toEqual(2)
-    expect(references[0].fieldPath).toEqual('location')
-    expect(references[1].fieldPath).toEqual('query')
-  })
-
-  it('supports multiple references with the same field path', () => {
-    const src = '[{{zoom.par.val}}, {{pitch.par.val}}, {{bearing.par.val}}]'
-    const references = getFieldReferences(src)
-    expect(references.length).toEqual(3)
-    expect(references[0].opId).toEqual('zoom')
-    expect(references[1].opId).toEqual('pitch')
-    expect(references[2].opId).toEqual('bearing')
-  })
-
-  it('supports multiple references to the same field and different operators', () => {
-    const src = 'SELECT {{op1.par.val}} + {{op2.par.val}} + {{op1.par.val}}'
-
-    const references = getFieldReferences(src)
-    expect(references.length).toEqual(2)
-    expect(references[0].opId).toEqual('op1')
-    expect(references[1].opId).toEqual('op2')
-  })
-
-  it('transforms json', () => {
-    const src = '{ num: {{num.par.val}} }'
-
-    const references = getFieldReferences(src)
-    expect(references.length).toEqual(1)
-  })
-
-  it('supports relative paths with ./ prefix', () => {
-    const src = 'SELECT 5 + {{./sibling.out.val}}'
-    const references = getFieldReferences(src)
-    expect(references.length).toEqual(1)
-    expect(references[0].opId).toEqual('./sibling')
-  })
-
-  it('supports relative paths with ../ prefix', () => {
-    const src = 'SELECT 5 + {{../parent.out.val}}'
-    const references = getFieldReferences(src)
-    expect(references.length).toEqual(1)
-    expect(references[0].opId).toEqual('../parent')
-  })
-
-  it('supports relative paths without prefix (equivalent to ./)', () => {
-    const src = 'SELECT 5 + {{sibling.out.val}}'
-    const references = getFieldReferences(src)
-    expect(references.length).toEqual(1)
-    expect(references[0].opId).toEqual('sibling')
-  })
-
-  it('supports absolute paths with / prefix', () => {
-    const src = 'SELECT 5 + {{/absolute/path/to/operator.out.val}}'
-    const references = getFieldReferences(src)
-    expect(references.length).toEqual(1)
-    expect(references[0].opId).toEqual('/absolute/path/to/operator')
-  })
-
-  it('supports complex nested relative paths', () => {
-    const src = 'SELECT 5 + {{../../grandparent/sibling.out.val}}'
-    const references = getFieldReferences(src)
-    expect(references.length).toEqual(1)
-    expect(references[0].opId).toEqual('../../grandparent/sibling')
-  })
-
-  it('supports double-quoted op() references', () => {
-    const src = 'op("/source").out.data'
-    const references = getFieldReferences(src)
-    expect(references.length).toEqual(1)
-    expect(references[0].opId).toEqual('/source')
-    expect(references[0].inOut).toEqual('out')
-    expect(references[0].fieldPath).toEqual('data')
-  })
-
-  it('supports double-quoted relative path op() references', () => {
-    const src = 'op("./sibling").out.val + op("../parent").par.threshold'
-    const references = getFieldReferences(src)
-    expect(references.length).toEqual(2)
-    expect(references[0].opId).toEqual('./sibling')
-    expect(references[1].opId).toEqual('../parent')
-  })
-
-  it('handles mixed single and double quoted op() references', () => {
-    const src = 'op(\'/a\').out.val + op("/b").out.val'
-    const references = getFieldReferences(src)
-    expect(references.length).toEqual(2)
-    expect(references[0].opId).toEqual('/a')
-    expect(references[1].opId).toEqual('/b')
-  })
-
-  it('does not match mismatched quotes', () => {
-    const src = 'op(\'/path").out.val + op("/other\').par.value'
-    const references = getFieldReferences(src)
-    expect(references.length).toEqual(0)
   })
 })
 

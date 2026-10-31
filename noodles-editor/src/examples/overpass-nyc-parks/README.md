@@ -3,15 +3,14 @@
 _Query real-time OpenStreetMap data using Overpass API_
 
 ## Overview
-This example demonstrates how to query and visualize parks in New York City using the Overpass API. Unlike pre-processed datasets, Overpass provides real-time access to OpenStreetMap data, reflecting the latest edits and contributions from the OSM community. The query uses Overpass QL (Query Language) with a dynamic bounding box to fetch park features.
+This example demonstrates how to query and visualize parks in New York City using the Overpass API. Unlike pre-processed datasets, Overpass provides real-time access to OpenStreetMap data, reflecting the latest edits and contributions from the OSM community. The query uses Overpass QL (Query Language) with a bounding box to fetch park features.
 
-## Key Techniques
-- **Bounding box**: `BoundsOp` defines the geographic area (SW Brooklyn to NE Manhattan)
-- **Overpass query**: `OverpassOp` fetches live OSM data with Overpass QL syntax
-- **Template replacement**: `{{bbox}}` automatically replaced with coordinates
-- **Automatic conversion**: OSM JSON converted to GeoJSON by the operator
-- **GeoJSON layer**: `GeoJsonLayerOp` renders parks with emerald green styling
-- **Basemap**: `MaplibreBasemapOp` with positron style
+## Nodes
+- **`overpass-query`** (Overpass) runs the Overpass QL query against `endpoint` and converts the OSM result to features. Its `west`, `south`, `east` and `north` params (-74.05, 40.68, -73.9, 40.82) set the bounding box, SW Brooklyn to NE Manhattan
+- **`overpass-query-rows`** (GeoJSON) turns those features into rows with a `geom` column
+- **`geojson-layer`** (Polygon Layer) fills parks in emerald green (`fillColor: [16, 185, 129]`) with a darker outline (`lineColor: [5, 150, 105]`, `lineWidthScale: 2`) at `opacity: 0.7`
+- **`geojson-layer-lines`** (Path Layer) and **`geojson-layer-points`** (Scatterplot Layer) draw any line and point features in the same colors
+- **`deck`** (Deck) holds the Carto Positron basemap and the camera over Manhattan
 
 ## Data Source
 [Overpass API](https://wiki.openstreetmap.org/wiki/Overpass_API) provides:
@@ -31,30 +30,27 @@ out geom;
 ```
 
 **Query Components:**
-- `[out:json]` - Return results as JSON format
-- `[timeout:25]` - Query timeout in seconds
-- `way["leisure"="park"]` - Ways (polygons/lines) tagged as parks
-- `relation["leisure"="park"]` - Relations (complex geometries) tagged as parks
-- `({{bbox}})` - Bounding box template replaced with coordinates
-- `out geom;` - Include full geometry in output
+- `[out:json]`: Return results as JSON format
+- `[timeout:25]`: Query timeout in seconds
+- `way["leisure"="park"]`: Ways (polygons/lines) tagged as parks
+- `relation["leisure"="park"]`: Relations (complex geometries) tagged as parks
+- `({{bbox}})`: Bounding box placeholder
+- `out geom;`: Include full geometry in output
 
 **Bounding Box Format:**
-The `{{bbox}}` template is replaced with `(south,west,north,east)` format automatically by the OverpassOp when connected to a BoundsOp.
+`overpass-query` replaces `{{bbox}}` with its bounds params in `south,west,north,east` order.
 
-## Node Graph Flow
+## Pipeline
 ```
-[BoundsOp] → [OverpassOp] → [GeoJsonLayerOp] → [DeckRendererOp] → [OutOp]
-  Define        Query OSM      Render Parks        Compose         Display
-  NYC Area      Real-time      (Green Fill)        Layers
-                   ↓
-            [MaplibreBasemapOp]
-                (Basemap)
+overpass-query → overpass-query-rows → geojson-layer        → deck
+                                     → geojson-layer-lines  → deck
+                                     → geojson-layer-points → deck
 ```
 
 ## Customization
 
 ### Query Different Features
-Modify the Overpass QL query to search for other features:
+Edit the `query` param to search for other features:
 
 **Restaurants and Cafes:**
 ```
@@ -107,32 +103,30 @@ For specific named features, you can query without a bbox:
 );
 out geom;
 ```
-**Note:** Remove the bbox connection from the BoundsOp when using queries without `{{bbox}}`.
+**Note:** Without `{{bbox}}` in the query, the bounds params have no effect.
 
 ### Adjust Bounding Box
-Modify `BoundsOp` inputs to query different areas:
-- **San Francisco**: `[-122.5, 37.7]` to `[-122.35, 37.82]`
-- **London**: `[-0.2, 51.45]` to `[0.05, 51.6]`
-- **Paris**: `[2.25, 48.81]` to `[2.42, 48.9]`
+Change `west`, `south`, `east` and `north` on `overpass-query` to query different areas:
+- **San Francisco**: west -122.5, south 37.7, east -122.35, north 37.82
+- **London**: west -0.2, south 51.45, east 0.05, north 51.6
+- **Paris**: west 2.25, south 48.81, east 2.42, north 48.9
 
 ### Style Changes
-Modify `GeoJsonLayerOp` inputs:
-- **Fill color**: Change `#10b981` to any hex color
-- **Opacity**: Adjust `0.7` for transparency (0-1)
-- **Line width**: Change `2` for thicker/thinner borders
+Change the params on `geojson-layer`:
+- **Fill color**: Change `fillColor` (`[16, 185, 129]`, or `#10b981`)
+- **Opacity**: Adjust `opacity` (`0.7`) for transparency (0 to 1)
+- **Line width**: Change `lineWidthScale` (`2`) for thicker or thinner borders
 
 ## Performance Tips
 - **Small areas**: Overpass works best for city-block to city-scale queries
 - **Timeout**: Increase `[timeout:60]` for large queries
-- **Rate limiting**: Avoid rapid-fire queries - Overpass API has rate limits
-- **Alternative endpoints**: Set a mirror in Settings > API Keys > Overpass:
-  - `https://overpass.kumi.systems/api/interpreter`
-  - `https://overpass.openstreetmap.fr/api/interpreter`
+- **Rate limiting**: Avoid rapid-fire queries, since the Overpass API has rate limits
+- **Alternative endpoints**: Set `endpoint` on `overpass-query` to a mirror. It uses `https://overpass.openstreetmap.fr/api/interpreter`; another is `https://overpass.kumi.systems/api/interpreter`
 - **Test queries**: Use [overpass-turbo.eu](https://overpass-turbo.eu/) to test before implementing
 
 ## Data Quality Notes
 - **Freshness**: Usually updates within minutes of OSM edits
-- **Coverage**: Varies by region - urban areas generally have better data
+- **Coverage**: Varies by region; urban areas generally have better data
 - **Tags**: Check [OSM Wiki](https://wiki.openstreetmap.org/wiki/Map_features) for tag definitions
 - **Completeness**: Not all parks may be tagged consistently
 
@@ -158,4 +152,3 @@ This pattern is useful for:
 ## Related Examples
 - **Overture NYC Parks**: Large-scale data via DuckDB
 - **GeoJSON BART Stations**: Transit system visualization
-- **SF Street Trees**: City-scale point data

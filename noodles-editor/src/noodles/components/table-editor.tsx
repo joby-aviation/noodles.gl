@@ -17,7 +17,6 @@ import { InputSwitch } from 'primereact/inputswitch'
 import { InputText } from 'primereact/inputtext'
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { analytics } from '../../utils/analytics'
-import type { TableEditorOp } from '../operators'
 import {
   type AnchoredTablePastePlan,
   inferTableData,
@@ -49,7 +48,18 @@ import { ColorSwatch } from './color-swatch'
 import { DraggableNumberInput, type InitialNumberDrag } from './draggable-number-input'
 import { GeocodingDialog } from './geocoding-dialog'
 import { type SchemaChangeMetadata, SchemaEditorDialog } from './schema-editor-dialog'
-import { TableCellKeyframe } from './table-cell-keyframe'
+import {
+  ClipboardPasteDialog,
+  type SchemaOverlayDecisions,
+  SchemaOverlayDialog,
+} from './schema-overlay-dialog'
+import { type CellKeys, TableCellKeyframe } from './table-cell-keyframe'
+import s from './table-editor.module.css'
+import {
+  createTableImportRequest as createTableImportDialogRequest,
+  TableImportDialog,
+  type TableImportRequest,
+} from './table-import-dialog'
 import {
   type ActiveEdit,
   coordinateInRect,
@@ -61,17 +71,6 @@ import {
   useActiveEdit,
   useTableGridNavigation,
 } from './use-table-grid-navigation'
-import {
-  ClipboardPasteDialog,
-  type SchemaOverlayDecisions,
-  SchemaOverlayDialog,
-} from './schema-overlay-dialog'
-import s from './table-editor.module.css'
-import {
-  createTableImportRequest as createTableImportDialogRequest,
-  TableImportDialog,
-  type TableImportRequest,
-} from './table-import-dialog'
 
 const TABLE_ROW_HEIGHT = 36
 const TABLE_HEADER_HEIGHT = 36
@@ -93,7 +92,7 @@ declare module '@tanstack/react-table' {
     initialNumberDrag?: InitialNumberDrag
     finishEditing?: (coordinate: TableCellCoordinate, advance?: EditAdvance) => void
     cancelEditing?: (coordinate: TableCellCoordinate) => void
-    opId?: string
+    cellKeys?: CellKeys
   }
 }
 
@@ -1036,7 +1035,7 @@ function EditableCell({ getValue, row, column, table }: EditableCellProps) {
   const editorHandlesTab = ['number', 'point2d', 'point3d', 'vec2', 'vec3', 'dateTime'].includes(
     colSchema.type
   )
-  const opId = table.options.meta?.opId
+  const cellKeys = table.options.meta?.cellKeys
 
   if (isEditing) {
     const editorCell = (
@@ -1073,11 +1072,11 @@ function EditableCell({ getValue, row, column, table }: EditableCellProps) {
         </div>
       </div>
     )
-    if (!opId) return editorCell
+    if (!cellKeys) return editorCell
 
     return (
       <TableCellKeyframe
-        opId={opId}
+        keys={cellKeys}
         rowIndex={row.index}
         column={colSchema.name}
         value={currentValue}
@@ -1100,11 +1099,11 @@ function EditableCell({ getValue, row, column, table }: EditableCellProps) {
     ) : (
       <div className={s.cell}>{renderedValue}</div>
     )
-  if (!opId) return cellContent
+  if (!cellKeys) return cellContent
 
   return (
     <TableCellKeyframe
-      opId={opId}
+      keys={cellKeys}
       rowIndex={row.index}
       column={colSchema.name}
       value={currentValue}
@@ -1394,7 +1393,6 @@ interface TablePreviewTarget {
 }
 
 interface TableEditorProps {
-  op: TableEditorOp
   data: unknown[]
   schema: TableSchema
   onDataChange: (data: unknown[], description?: string) => void
@@ -1402,16 +1400,18 @@ interface TableEditorProps {
   onDataPastePreview?: (request: TableDataPastePreviewRequest) => void
   /** Injectable for deterministic tests and non-browser hosts. */
   clipboard?: ClipboardTextApi
+  // A keyframe diamond on each cell that can be animated
+  cellKeys?: CellKeys
 }
 
 export function TableEditor({
-  op,
   data,
   schema,
   onDataChange,
   onSchemaChange,
   onDataPastePreview,
   clipboard: clipboardOverride,
+  cellKeys,
 }: TableEditorProps) {
   const [tableData, setTableData] = useState(() => validateTableData(data, schema))
   const [schemaEditorOpen, setSchemaEditorOpen] = useState(false)
@@ -2385,7 +2385,7 @@ export function TableEditor({
       },
       schema,
       activeEdit,
-      opId: op?.id,
+      cellKeys,
       columnIndexById,
       editingCell,
       editingSeed,

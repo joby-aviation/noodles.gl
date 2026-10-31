@@ -1,9 +1,9 @@
 import type { Map as MapLibre } from 'maplibre-gl'
 import { type RefObject, useEffect, useMemo } from 'react'
+import { docStore } from '../../../editor/doc-store'
+import { useUIStore } from '../../../editor/ui-store'
 import { useMapToolGraph } from '../../hooks/use-map-tool-graph'
-import { getOp, useUIStore } from '../../store'
-import { getBaseName } from '../../utils/path-utils'
-import { type EditableOp, readTargetFeatures } from './edit-target'
+import { readTargetFeatures, targetLabel } from './edit-target'
 import { type EditSession, MapToolOverlay } from './map-tool-overlay'
 import { useMapToolStore } from './map-tool-store'
 
@@ -27,12 +27,12 @@ export function MapToolLayer({ mapRef, basemapEnabled, isRendering }: MapToolLay
   // Read once when editing starts: the overlay owns the shapes until they are saved
   const editSession = useMemo<EditSession | null>(() => {
     if (!editTarget) return null
-    const op = getOp(editTarget.opId) as unknown as EditableOp | undefined
-    if (!op) return null
+    const doc = docStore().get().doc
+    if (!doc.nodes.some(n => n.id === editTarget.nodeId)) return null
     return {
       ...editTarget,
-      label: getBaseName(editTarget.opId) || editTarget.opId,
-      features: readTargetFeatures(op, editTarget.kind),
+      label: targetLabel(doc, editTarget),
+      features: readTargetFeatures(doc, editTarget),
     }
   }, [editTarget])
 

@@ -1,310 +1,273 @@
 {
-  "edges": [
-    {
-      "id": "/deck.out.vis->/out.par.vis",
-      "source": "/deck",
-      "target": "/out",
-      "sourceHandle": "out.vis",
-      "targetHandle": "par.vis"
-    },
-    {
-      "id": "/data-source.out.data->/geojson-layer.par.data",
-      "source": "/data-source",
-      "target": "/geojson-layer",
-      "sourceHandle": "out.data",
-      "targetHandle": "par.data"
-    },
-    {
-      "source": "/population-color",
-      "sourceHandle": "out.color",
-      "target": "/geojson-layer",
-      "targetHandle": "par.getFillColor",
-      "id": "/population-color.out.color->/geojson-layer.par.getFillColor"
-    },
-    {
-      "source": "/population-to-elevation",
-      "sourceHandle": "out.scaled",
-      "target": "/geojson-layer",
-      "targetHandle": "par.getElevation",
-      "id": "/population-to-elevation.out.scaled->/geojson-layer.par.getElevation"
-    },
-    {
-      "source": "/map-range",
-      "sourceHandle": "out.scaled",
-      "target": "/population-color",
-      "targetHandle": "par.value",
-      "id": "/map-range.out.scaled->/population-color.par.value"
-    },
-    {
-      "id": "/maplibre-basemap.out.maplibre->/deck.par.basemap",
-      "source": "/maplibre-basemap",
-      "target": "/deck",
-      "sourceHandle": "out.maplibre",
-      "targetHandle": "par.basemap"
-    },
-    {
-      "id": "/geojson-layer.out.layer->/deck.par.layers",
-      "source": "/geojson-layer",
-      "target": "/deck",
-      "sourceHandle": "out.layer",
-      "targetHandle": "par.layers"
-    },
-    {
-      "source": "/population-accessor",
-      "sourceHandle": "out.accessor",
-      "target": "/map-range",
-      "targetHandle": "par.val",
-      "id": "/population-accessor.out.accessor->/map-range.par.val"
-    },
-    {
-      "source": "/elevation-accessor",
-      "sourceHandle": "out.accessor",
-      "target": "/population-to-elevation",
-      "targetHandle": "par.val",
-      "id": "/elevation-accessor.out.accessor->/population-to-elevation.par.val"
-    }
-  ],
-  "version": 21,
+  "version": 1,
   "name": "NYC Census",
-  "editorSettings": {
-    "layoutMode": "noodles-on-top",
-    "showOverlay": true
-  },
   "nodes": [
     {
-      "id": "/deck",
-      "type": "DeckRendererOp",
-      "data": {
-        "inputs": {},
-        "locked": false
-      },
-      "position": {
-        "x": 1200,
-        "y": 150
+      "id": "deck",
+      "op": "deck",
+      "name": "deck",
+      "x": 1367,
+      "y": 195,
+      "params": {
+        "mapStyle": "https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json",
+        "projection": "mercator",
+        "longitude": -73.91554,
+        "latitude": 40.70103,
+        "zoom": 11.98,
+        "pitch": 59.11,
+        "bearing": -91.5,
+        "display": "fixed",
+        "width": 1920,
+        "height": 1080,
+        "lod": 2,
+        "scaleMode": "fit",
+        "waitForData": true,
+        "codec": "avc",
+        "bitrateMbps": 10,
+        "bitrateMode": "constant",
+        "scaleControl": 0.3,
+        "framerate": 30,
+        "captureDelay": 50,
+        "rendersDirectory": "renders"
       }
     },
     {
-      "id": "/out",
-      "type": "OutOp",
-      "data": {
-        "inputs": {
-          "display": "fixed",
-          "width": 1920,
-          "height": 1080,
-          "lod": 2,
-          "waitForData": true,
-          "codec": "avc",
-          "bitrateMbps": 10,
-          "bitrateMode": "constant",
-          "scaleControl": 0.3,
-          "framerate": 30,
-          "captureDelay": 50
-        },
-        "locked": false
-      },
-      "position": {
-        "x": 1500,
-        "y": 150
+      "id": "data-source",
+      "op": "geojson",
+      "name": "data-source",
+      "x": 0,
+      "y": 85,
+      "params": {
+        "url": "@/data.json"
       }
     },
     {
-      "id": "/data-source",
-      "type": "FileOp",
-      "data": {
-        "inputs": {
-          "url": "@/data.json"
-        },
-        "locked": false
-      },
-      "position": {
-        "x": 108.52630719568747,
-        "y": -122.97570510099875
+      "id": "geojson-layer",
+      "op": "polygon",
+      "name": "geojson-layer",
+      "x": 1073,
+      "y": 121,
+      "params": {
+        "opacity": 0.7,
+        "blend": "normal",
+        "position": "geom",
+        "color": "population_color",
+        "lineColorChannel": "",
+        "lineColor": [
+          0,
+          0,
+          0
+        ],
+        "filled": true,
+        "stroked": false,
+        "lineWidthScale": 1,
+        "lineWidthUnits": "meters",
+        "lineWidthMinPixels": 0,
+        "extruded": true,
+        "elevation": "population_to_elevation",
+        "elevationScale": 11
       }
     },
     {
-      "id": "/geojson-layer",
-      "type": "GeoJsonLayerOp",
-      "data": {
-        "inputs": {
-          "opacity": 0.7,
-          "stroked": false,
-          "getLineColor": "#000000ff",
-          "extruded": true,
-          "elevationScale": 11
-        },
-        "locked": false
-      },
-      "position": {
-        "x": 863.7581300813008,
-        "y": -94.96747967479675
+      "id": "geojson-layer-lines",
+      "op": "path",
+      "name": "geojson-layer-lines",
+      "x": 1073,
+      "y": 231,
+      "params": {
+        "opacity": 0.7,
+        "blend": "normal",
+        "position": "geom",
+        "color": "",
+        "lineColor": [
+          0,
+          0,
+          0
+        ],
+        "widthScale": 1,
+        "widthUnits": "meters",
+        "widthMinPixels": 0
       }
     },
     {
-      "id": "/population-color",
-      "type": "ColorRampOp",
-      "data": {
-        "inputs": {
-          "colorScheme": "turbo"
-        },
-        "locked": false
-      },
-      "position": {
-        "x": 442.56042758935484,
-        "y": 253.73756330259326
+      "id": "geojson-layer-points",
+      "op": "scatter",
+      "name": "geojson-layer-points",
+      "x": 1073,
+      "y": 341,
+      "params": {
+        "opacity": 0.7,
+        "blend": "normal",
+        "position": "geom",
+        "color": "population_color",
+        "radius": "",
+        "radiusScale": 1,
+        "radiusUnits": "meters"
       }
     },
     {
-      "id": "/population-accessor",
-      "type": "AccessorOp",
-      "data": {
-        "inputs": {
-          "expression": "d.properties.Population"
-        },
-        "locked": false
-      },
-      "position": {
-        "x": -253.33131274420933,
-        "y": 249.151944688691
+      "id": "map-range",
+      "op": "map-range",
+      "name": "map-range",
+      "x": 284,
+      "y": 121,
+      "params": {
+        "input": "Population",
+        "name": "map_range",
+        "kind": "linear",
+        "clamp": false,
+        "inMin": 0,
+        "inMax": 10000,
+        "outMin": 0,
+        "outMax": 1
       }
     },
     {
-      "id": "/elevation-accessor",
-      "type": "AccessorOp",
-      "data": {
-        "inputs": {
-          "expression": "d.properties.Population"
-        },
-        "locked": false
-      },
-      "position": {
-        "x": -199.29590867423792,
-        "y": 549.2119133097201
+      "id": "population-color",
+      "op": "color-ramp",
+      "name": "population-color",
+      "x": 521,
+      "y": 121,
+      "params": {
+        "input": "map_range",
+        "ramp": "turbo",
+        "min": 0,
+        "max": 1,
+        "name": "population_color"
       }
     },
     {
-      "type": "MaplibreBasemapOp",
-      "id": "/maplibre-basemap",
-      "position": {
-        "x": 847.2845528455284,
-        "y": 902.3536585365853
-      },
-      "data": {
-        "inputs": {
-          "mapStyle": "https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json",
-          "viewState": {
-            "latitude": 40.70103,
-            "longitude": -73.91554,
-            "zoom": 11.98,
-            "pitch": 59.11,
-            "bearing": -91.5
-          }
-        },
-        "locked": false
+      "id": "population-to-elevation",
+      "op": "map-range",
+      "name": "population-to-elevation",
+      "x": 779,
+      "y": 121,
+      "params": {
+        "input": "Population",
+        "name": "population_to_elevation",
+        "kind": "linear",
+        "clamp": false,
+        "inMin": 0,
+        "inMax": 10000,
+        "outMin": 0,
+        "outMax": 200
       }
     },
     {
-      "type": "MapRangeOp",
-      "id": "/map-range",
-      "position": {
-        "x": 94.11925250078963,
-        "y": 260.9424297076135
-      },
-      "data": {
-        "inputs": {
-          "inMax": 10000
-        },
-        "locked": false
+      "id": "data-note",
+      "op": "comment",
+      "name": "data-note",
+      "x": 0,
+      "y": 0,
+      "params": {
+        "text": "This loads New York City census tracts, each with its population.",
+        "width": 220,
+        "height": 77
       }
     },
     {
-      "type": "MapRangeOp",
-      "id": "/population-to-elevation",
-      "position": {
-        "x": 418.01764914528434,
-        "y": 519.3400164575731
-      },
-      "data": {
-        "inputs": {
-          "inMax": 10000,
-          "outMax": 200
-        },
-        "locked": false
+      "id": "layer-note",
+      "op": "comment",
+      "name": "layer-note",
+      "x": 1073,
+      "y": 17,
+      "params": {
+        "text": "This layer draws each tract, colored and raised by its population. Click it and change Elevation scale.",
+        "width": 230,
+        "height": 96
       }
     },
     {
-      "id": "/data-note",
-      "type": "CommentOp",
-      "position": {
-        "x": 109,
-        "y": -230
-      },
-      "data": {
-        "inputs": {
-          "text": "This loads New York City census tracts, each with its population."
-        },
-        "locked": false
-      },
-      "width": 300,
-      "height": 80
+      "id": "height-note",
+      "op": "comment",
+      "name": "height-note",
+      "x": 779,
+      "y": 17,
+      "params": {
+        "text": "population-to-elevation turns population into a height. Change Out max to make the tallest tracts taller.",
+        "width": 230,
+        "height": 96
+      }
     },
     {
-      "id": "/layer-note",
-      "type": "CommentOp",
-      "position": {
-        "x": 864,
-        "y": -215
-      },
-      "data": {
-        "inputs": {
-          "text": "This layer draws each tract, colored and raised by its population. Click it and change elevationScale."
-        },
-        "locked": false
-      },
-      "width": 320,
-      "height": 90
-    },
-    {
-      "id": "/height-note",
-      "type": "CommentOp",
-      "position": {
-        "x": 418,
-        "y": 750
-      },
-      "data": {
-        "inputs": {
-          "text": "This turns population into a height. Change outMax to make the tallest tracts taller."
-        },
-        "locked": false
-      },
-      "width": 333,
-      "height": 80
-    },
-    {
-      "id": "/try-next-note",
-      "type": "CommentOp",
-      "position": {
-        "x": 1500,
-        "y": 280
-      },
-      "data": {
-        "inputs": {
-          "text": "Try next:\n- Click population-color and pick a different colorScheme.\n- Click the diamond next to elevationScale on geojson-layer, pick a later time in the Timeline, and change it again.\n- Press Export and pick Video (MP4) to save the animation."
-        },
-        "locked": false
-      },
-      "width": 340,
-      "height": 190
+      "id": "try-next-note",
+      "op": "comment",
+      "name": "try-next-note",
+      "x": 1581,
+      "y": 195,
+      "params": {
+        "text": "Try next:\n- Click population-color and pick a different Ramp.\n- Click the diamond next to Elevation scale on geojson-layer, pick a later time in the Timeline, and change it again.\n- Press Export and pick Video (MP4) to save the animation.",
+        "width": 340,
+        "height": 175
+      }
     }
   ],
-  "timeline": {
-    "sheetsById": {
-      "Noodles": {
-        "staticOverrides": {
-          "byObject": {}
-        }
-      }
+  "edges": [
+    {
+      "id": "geojson-layer.out->deck.layers",
+      "source": "geojson-layer",
+      "sourcePort": "out",
+      "target": "deck",
+      "targetPort": "layers",
+      "index": 0
     },
-    "definitionVersion": "0.4.0",
-    "revisionHistory": []
-  }
+    {
+      "id": "geojson-layer-lines.out->deck.layers.1",
+      "source": "geojson-layer-lines",
+      "sourcePort": "out",
+      "target": "deck",
+      "targetPort": "layers",
+      "index": 1
+    },
+    {
+      "id": "geojson-layer-points.out->deck.layers.2",
+      "source": "geojson-layer-points",
+      "sourcePort": "out",
+      "target": "deck",
+      "targetPort": "layers",
+      "index": 2
+    },
+    {
+      "id": "data-source.features->map-range.in",
+      "source": "data-source",
+      "sourcePort": "features",
+      "target": "map-range",
+      "targetPort": "in"
+    },
+    {
+      "id": "map-range.out->population-color.in",
+      "source": "map-range",
+      "sourcePort": "out",
+      "target": "population-color",
+      "targetPort": "in"
+    },
+    {
+      "id": "population-color.out->population-to-elevation.in",
+      "source": "population-color",
+      "sourcePort": "out",
+      "target": "population-to-elevation",
+      "targetPort": "in"
+    },
+    {
+      "id": "population-to-elevation.out->geojson-layer.in",
+      "source": "population-to-elevation",
+      "sourcePort": "out",
+      "target": "geojson-layer",
+      "targetPort": "in"
+    },
+    {
+      "id": "population-to-elevation.out->geojson-layer-lines.in",
+      "source": "population-to-elevation",
+      "sourcePort": "out",
+      "target": "geojson-layer-lines",
+      "targetPort": "in"
+    },
+    {
+      "id": "population-to-elevation.out->geojson-layer-points.in",
+      "source": "population-to-elevation",
+      "sourcePort": "out",
+      "target": "geojson-layer-points",
+      "targetPort": "in"
+    }
+  ]
 }

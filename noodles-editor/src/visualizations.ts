@@ -2,9 +2,7 @@ import type { DeckProps, FirstPersonViewState, MapViewState } from '@deck.gl/cor
 import type { RefObject } from 'react'
 
 import type { MapProps } from 'react-map-gl/maplibre'
-import type { CopyControlsRef } from './noodles/components/copy-controls'
-import type { UndoRedoHandlerRef } from './noodles/components/UndoRedoHandler'
-import type { GraphEdge } from './noodles/utils/map-camera-control'
+import type { CopyControlsRef, UndoRedoHandlerRef } from './editor/edit-menu'
 import type { RenderSettings } from './noodles/utils/serialization'
 
 export type ViewState =
@@ -29,6 +27,7 @@ export type Visualization = {
   flowGraph?: React.ReactNode
   nodeSidebar?: React.ReactNode
   propertiesPanel?: React.ReactNode
+  chatPanel?: React.ReactNode
   showOverlay?: boolean
   onChangeShowOverlay?: (show: boolean) => void
   showDebugInfo?: boolean
@@ -39,7 +38,8 @@ export type Visualization = {
   onChangeSpreadsheetVisible?: (visible: boolean) => void
   selectedNodeIds?: string[]
   // Every value edge in the project (all containers), for tracing what drives the view
-  edges?: GraphEdge[]
+  /** The version history panel, while it is open (mod+shift+h). */
+  gitHistoryPanel?: React.ReactNode
   // Noodles props for creating menu in timeline-editor
   projectName?: string
   versionedProjectName?: string | null
@@ -61,6 +61,11 @@ export type Visualization = {
   // Render settings for video export
   renderSettings?: RenderSettings
   setRenderSettings?: (settings: RenderSettings) => void
+  /**
+   * Bring the visualization to `time` and resolve once it is on screen: export awaits it after
+   * moving the playhead, so no frame is captured before its data is drawn.
+   */
+  settle?: (time: number) => Promise<void>
   // Visualization props
   mapProps?: BetterMapProps
   deckProps: BetterDeckProps

@@ -78,12 +78,15 @@ export const useRenderer = ({
   bitrate = 10_000_000, // 10mbps
   bitrateMode,
   redraw,
+  settle,
 }: {
   projectName?: string
   fps?: number
   bitrate?: number
   bitrateMode: 'variable' | 'constant'
   redraw: () => void
+  /** Resolves once the visualization at a time is drawn; see `Visualization.settle`. */
+  settle?: (time: number) => Promise<void>
 }) => {
   // Get sequence length from the appropriate timeline system
   const sequenceLength = useSequenceLength()
@@ -405,6 +408,7 @@ export const useRenderer = ({
         // at a different position when render started.
         const warmupSimTime = startFrame / fps
         setPosition(warmupSimTime)
+        await settle?.(warmupSimTime)
         redraw()
 
         const warmupResult = await guardFrameStep(
@@ -430,6 +434,7 @@ export const useRenderer = ({
           if (captureMode === 'preview') maplibregl.setNow(simTime * 1000)
 
           setPosition(simTime)
+          await settle?.(simTime)
           redraw()
 
           currentFrame.current = i
@@ -556,7 +561,17 @@ export const useRenderer = ({
         setIsRendering(false)
       }
     },
-    [projectName, sequenceLength, fps, bitrate, bitrateMode, canvasFrameReady, redraw, setPosition]
+    [
+      projectName,
+      sequenceLength,
+      fps,
+      bitrate,
+      bitrateMode,
+      canvasFrameReady,
+      redraw,
+      setPosition,
+      settle,
+    ]
   )
 
   // Image sequence export — same frame loop as video capture, writes one PNG or EXR per frame.
@@ -665,6 +680,7 @@ export const useRenderer = ({
           const frameIterationStart = performance.now()
           const simTime = i / fps
           setPosition(simTime)
+          await settle?.(simTime)
           redraw()
 
           currentFrame.current = i
@@ -785,7 +801,7 @@ export const useRenderer = ({
         setIsRendering(false)
       }
     },
-    [projectName, sequenceLength, fps, redraw, canvasFrameReady, captureFrame, setPosition]
+    [projectName, sequenceLength, fps, redraw, canvasFrameReady, captureFrame, setPosition, settle]
   )
 
   const [isRendering, setIsRendering] = useState(false)

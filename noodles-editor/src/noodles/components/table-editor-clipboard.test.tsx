@@ -1,6 +1,5 @@
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { TableEditorOp } from '../operators'
 import { serializeTableRangeClipboard, TABLE_RANGE_CLIPBOARD_MIME } from '../table-data-clipboard'
 import type { TableSchema } from '../table-schema'
 import { keyboardManager } from '../utils/keyboard-manager'
@@ -60,7 +59,6 @@ function renderTable(
   const onSchemaChange = overrides.onSchemaChange ?? vi.fn()
   const result = render(
     <TableEditor
-      op={new TableEditorOp('/clipboard-table')}
       data={overrides.data ?? data}
       schema={overrides.schema ?? schema}
       onDataChange={onDataChange}
@@ -87,7 +85,6 @@ describe('TableEditor spreadsheet clipboard', () => {
     render(
       <div onCopy={graphCopy}>
         <TableEditor
-          op={new TableEditorOp('/clipboard-table')}
           data={data}
           schema={schema}
           onDataChange={vi.fn()}
@@ -131,7 +128,6 @@ describe('TableEditor spreadsheet clipboard', () => {
     render(
       <div onCopy={graphCopy} onPaste={graphPaste}>
         <TableEditor
-          op={new TableEditorOp('/clipboard-table')}
           data={data}
           schema={schema}
           onDataChange={vi.fn()}
@@ -179,7 +175,6 @@ describe('TableEditor spreadsheet clipboard', () => {
     }
     render(
       <TableEditor
-        op={new TableEditorOp('/clipboard-table')}
         data={data}
         schema={schema}
         onDataChange={vi.fn()}
@@ -291,7 +286,6 @@ describe('TableEditor spreadsheet clipboard', () => {
   it('rejects a menu paste when the table changes during the clipboard read', async () => {
     let resolveRead: (value: string) => void = () => undefined
     clipboard.readText.mockImplementation(() => new Promise(resolve => (resolveRead = resolve)))
-    const op = new TableEditorOp('/clipboard-race')
     const onDataChange = vi.fn()
     const onSchemaChange = vi.fn()
     const initialSchema: TableSchema = {
@@ -302,7 +296,6 @@ describe('TableEditor spreadsheet clipboard', () => {
     }
     const view = render(
       <TableEditor
-        op={op}
         data={[]}
         schema={initialSchema}
         onDataChange={onDataChange}
@@ -314,7 +307,6 @@ describe('TableEditor spreadsheet clipboard', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Paste Data' }))
     view.rerender(
       <TableEditor
-        op={op}
         data={[]}
         schema={renamedSchema}
         onDataChange={onDataChange}
@@ -425,10 +417,8 @@ describe('TableEditor spreadsheet clipboard', () => {
   })
 
   it('refuses to apply a paste preview after the target table changes', () => {
-    const op = new TableEditorOp('/changing-clipboard-table')
     const onSchemaChange = vi.fn()
     const props = {
-      op,
       schema,
       onDataChange: vi.fn(),
       onSchemaChange,

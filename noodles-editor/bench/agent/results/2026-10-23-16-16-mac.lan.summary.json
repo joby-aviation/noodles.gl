@@ -1,0 +1,40 @@
+{
+  "runId": "2026-10-23-16-16-mac.lan",
+  "startedAt": "2026-10-23T16:16:30.210Z",
+  "environment": {
+    "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/155.0.0.0 Safari/537.36",
+    "gpu": {
+      "vendor": "apple",
+      "architecture": "metal-3",
+      "device": "",
+      "description": ""
+    },
+    "deviceMemoryGb": 32,
+    "cpuCores": 16,
+    "gitSha": "5272c5e3",
+    "dirty": true,
+    "machine": "mac.lan"
+  },
+  "rows": [
+    {
+      "taskId": "t3-scatterplot-from-url",
+      "tier": "T3",
+      "provider": "anthropic",
+      "model": "claude-sonnet-5",
+      "contextWindow": 200000,
+      "knobs": "",
+      "repeat": 0,
+      "score": 4,
+      "pass": true,
+      "mechanicalFailure": false,
+      "steps": 5,
+      "toolCalls": 6,
+      "inputTokens": 9020,
+      "outputTokens": 1102,
+      "diagnostics": {},
+      "ms": 16119.100000023842,
+      "loadMs": 17.700000047683716,
+      "timedOut": false
+    }
+  ]
+}

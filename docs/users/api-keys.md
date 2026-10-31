@@ -13,7 +13,7 @@ App Settings → API Keys shows each source and marks the one in use as **Active
 
 When you open a project whose Mapbox, Google Maps or Cesium Ion key differs from your own, a prompt asks which to use. **Keep** uses the project's key and stops asking, and **Use mine** switches to yours. While your key is in use, a prompt says so and offers the project's key back. If Google rejects the project's key on this site, the prompt offers your key instead. Google search and directions keep the key they first loaded with, so reload the page after switching that key. **Dismiss** hides a prompt until you reload the page.
 
-Operators that use a key, such as Geocoder, Directions, Overpass and Tile3DLayer, run again with the new key once you stop typing it or switch to another key. Locked operators keep their output until you unlock them. Browser keys and choices made in another tab apply in this one too.
+Nodes that use a key, such as Geocoder, Directions and Tile 3D Layer, run again with the new key once you stop typing it or switch to another key. Browser keys and choices made in another tab apply in this one too.
 
 AI provider keys (Anthropic and OpenRouter) are the exception: they come only from the browser or the environment, never from a project file. See [AI keys stay out of project files](#ai-keys-stay-out-of-project-files).
 
@@ -21,7 +21,7 @@ AI provider keys (Anthropic and OpenRouter) are the exception: they come only fr
 
 | Key | Purpose | Required For |
 |-----|---------|--------------|
-| Mapbox Access Token | Basemaps, directions | MaplibreBasemapOp with Mapbox styles |
+| Mapbox Access Token | Basemaps, directions | Mapbox styles in the deck node's Map style URL |
 | Google Maps API Key | Places and routing | Create Point wizard, traffic-aware driving, transit directions |
 | Anthropic API Key | Claude AI assistant | [AI chat features](./ai-assistant.md) |
 | OpenRouter API Key | AI assistant via OpenRouter | [AI chat features](./ai-assistant.md) |

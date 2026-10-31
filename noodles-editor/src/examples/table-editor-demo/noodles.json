@@ -1,338 +1,172 @@
 {
-  "version": 21,
+  "version": 1,
   "name": "Table Editor Demo",
   "nodes": [
     {
-      "id": "/cities-table",
-      "type": "TableEditorOp",
-      "position": {
-        "x": 0,
-        "y": 200
-      },
-      "data": {
-        "inputs": {
-          "schema": {
-            "columns": [
-              {
-                "name": "city",
-                "type": "string",
-                "defaultValue": ""
-              },
-              {
-                "name": "position",
-                "type": "point2d",
-                "defaultValue": [
-                  0,
-                  0
-                ],
-                "options": {
-                  "geocoder": true
-                }
-              },
-              {
-                "name": "population",
-                "type": "number",
-                "defaultValue": 0,
-                "options": {
-                  "min": 0,
-                  "step": 1
-                }
-              },
-              {
-                "name": "color",
-                "type": "color",
-                "defaultValue": "#3b82f6"
-              },
-              {
-                "name": "active",
-                "type": "boolean",
-                "defaultValue": true
-              }
-            ]
-          },
-          "data": [
-            {
-              "city": "New York City",
-              "position": [
-                -74.006,
-                40.7128
-              ],
-              "population": 8336817,
-              "color": "#ff5733",
-              "active": true
-            },
-            {
-              "city": "San Francisco",
-              "position": [
-                -122.4194,
-                37.7749
-              ],
-              "population": 873965,
-              "color": "#33ff57",
-              "active": true
-            },
-            {
-              "city": "Los Angeles",
-              "position": [
-                -118.2437,
-                34.0522
-              ],
-              "population": 3979576,
-              "color": "#3357ff",
-              "active": true
-            },
-            {
-              "city": "Chicago",
-              "position": [
-                -87.6298,
-                41.8781
-              ],
-              "population": 2693976,
-              "color": "#ff33f5",
-              "active": false
-            },
-            {
-              "city": "Seattle",
-              "position": [
-                -122.3321,
-                47.6062
-              ],
-              "population": 753675,
-              "color": "#f5ff33",
-              "active": true
-            }
-          ]
-        },
-        "locked": false
+      "id": "deck",
+      "op": "deck",
+      "name": "deck",
+      "x": 1136,
+      "y": 19,
+      "params": {
+        "mapStyle": "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json",
+        "projection": "mercator",
+        "longitude": -97,
+        "latitude": 39,
+        "zoom": 5,
+        "pitch": 0,
+        "bearing": 0,
+        "display": "fixed",
+        "width": 1920,
+        "height": 1080,
+        "lod": 2,
+        "scaleMode": "fit",
+        "waitForData": true,
+        "codec": "avc",
+        "bitrateMbps": 10,
+        "bitrateMode": "constant",
+        "scaleControl": 0.3,
+        "framerate": 30,
+        "captureDelay": 50,
+        "rendersDirectory": "renders"
       }
     },
     {
-      "id": "/city-position",
-      "type": "AccessorOp",
-      "position": {
-        "x": 0,
-        "y": 500
-      },
-      "data": {
-        "inputs": {
-          "expression": "d.position"
-        },
-        "locked": false
+      "id": "cities-table",
+      "op": "table",
+      "name": "cities-table",
+      "x": 0,
+      "y": 9,
+      "params": {
+        "rows": "[\n  {\n    \"city\": \"New York City\",\n    \"position\": [\n      -74.006,\n      40.7128\n    ],\n    \"population\": 8336817,\n    \"color\": \"#ff5733\",\n    \"active\": true\n  },\n  {\n    \"city\": \"San Francisco\",\n    \"position\": [\n      -122.4194,\n      37.7749\n    ],\n    \"population\": 873965,\n    \"color\": \"#33ff57\",\n    \"active\": true\n  },\n  {\n    \"city\": \"Los Angeles\",\n    \"position\": [\n      -118.2437,\n      34.0522\n    ],\n    \"population\": 3979576,\n    \"color\": \"#3357ff\",\n    \"active\": true\n  },\n  {\n    \"city\": \"Chicago\",\n    \"position\": [\n      -87.6298,\n      41.8781\n    ],\n    \"population\": 2693976,\n    \"color\": \"#ff33f5\",\n    \"active\": false\n  },\n  {\n    \"city\": \"Seattle\",\n    \"position\": [\n      -122.3321,\n      47.6062\n    ],\n    \"population\": 753675,\n    \"color\": \"#f5ff33\",\n    \"active\": true\n  }\n]",
+        "schema": "{\"columns\":[{\"name\":\"city\",\"type\":\"string\",\"defaultValue\":\"\"},{\"name\":\"position\",\"type\":\"point2d\",\"defaultValue\":[0,0],\"options\":{\"geocoder\":true}},{\"name\":\"population\",\"type\":\"number\",\"defaultValue\":0,\"options\":{\"min\":0,\"step\":1}},{\"name\":\"color\",\"type\":\"color\",\"defaultValue\":\"#3b82f6\"},{\"name\":\"active\",\"type\":\"boolean\",\"defaultValue\":true}]}"
       }
     },
     {
-      "id": "/city-radius",
-      "type": "AccessorOp",
-      "position": {
-        "x": 0,
-        "y": 650
-      },
-      "data": {
-        "inputs": {
-          "expression": "Math.sqrt(d.population) * 25"
-        },
-        "locked": false
+      "id": "cities-layer",
+      "op": "scatter",
+      "name": "cities-layer",
+      "x": 882,
+      "y": 0,
+      "params": {
+        "opacity": 1,
+        "blend": "normal",
+        "position": "city_position",
+        "color": "(color) / 255.0",
+        "radius": "city_radius",
+        "radiusScale": 1,
+        "radiusUnits": "meters"
       }
     },
     {
-      "id": "/city-color",
-      "type": "AccessorOp",
-      "position": {
-        "x": 0,
-        "y": 800
-      },
-      "data": {
-        "inputs": {
-          "expression": "d.color"
-        },
-        "locked": false
+      "id": "labels-layer",
+      "op": "text",
+      "name": "labels-layer",
+      "x": 882,
+      "y": 110,
+      "params": {
+        "opacity": 1,
+        "blend": "normal",
+        "position": "city_position",
+        "text": "city",
+        "color": "",
+        "textColor": [
+          255,
+          255,
+          255
+        ],
+        "sizeBy": "",
+        "size": 14,
+        "sizeUnits": "pixels",
+        "angle": 0,
+        "offsetX": 0,
+        "offsetY": -20,
+        "anchor": "middle",
+        "baseline": "center",
+        "fontFamily": "Inter",
+        "fontWeight": 600,
+        "billboard": true,
+        "outlineWidth": 0,
+        "outlineColor": [
+          0,
+          0,
+          0
+        ],
+        "background": false,
+        "backgroundColor": [
+          255,
+          255,
+          255
+        ]
       }
     },
     {
-      "id": "/city-name",
-      "type": "AccessorOp",
-      "position": {
-        "x": 0,
-        "y": 950
-      },
-      "data": {
-        "inputs": {
-          "expression": "d.city"
-        },
-        "locked": false
+      "id": "city-position",
+      "op": "attribute",
+      "name": "city-position",
+      "x": 294,
+      "y": 0,
+      "params": {
+        "name": "city_position",
+        "expression": "[item(position, 0.0), item(position, 1.0)]"
       }
     },
     {
-      "id": "/cities-layer",
-      "type": "ScatterplotLayerOp",
-      "position": {
-        "x": 350,
-        "y": 200
-      },
-      "data": {
-        "inputs": {
-          "radiusUnits": "meters",
-          "getLineColor": "#ffffffff"
-        },
-        "locked": false
-      }
-    },
-    {
-      "id": "/labels-layer",
-      "type": "TextLayerOp",
-      "position": {
-        "x": 350,
-        "y": 600
-      },
-      "data": {
-        "inputs": {
-          "getSize": 14,
-          "getColor": "#ffffffff",
-          "getPixelOffset": {
-            "x": 0,
-            "y": -20
-          },
-          "fontWeight": 600
-        },
-        "locked": false
-      }
-    },
-    {
-      "id": "/basemap",
-      "type": "MaplibreBasemapOp",
-      "position": {
-        "x": 350,
-        "y": 950
-      },
-      "data": {
-        "inputs": {
-          "mapStyle": "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json",
-          "viewState": {
-            "latitude": 39,
-            "longitude": -97,
-            "zoom": 5,
-            "pitch": 0,
-            "bearing": 0
-          }
-        },
-        "locked": false
-      }
-    },
-    {
-      "id": "/deck",
-      "type": "DeckRendererOp",
-      "position": {
-        "x": 700,
-        "y": 400
-      },
-      "data": {
-        "inputs": {},
-        "locked": false
-      }
-    },
-    {
-      "id": "/out",
-      "type": "OutOp",
-      "position": {
-        "x": 1050,
-        "y": 400
-      },
-      "data": {
-        "inputs": {},
-        "locked": false
+      "id": "city-radius",
+      "op": "attribute",
+      "name": "city-radius",
+      "x": 588,
+      "y": 0,
+      "params": {
+        "name": "city_radius",
+        "expression": "sqrt(population) * 25"
       }
     }
   ],
   "edges": [
     {
-      "id": "/cities-table.out.data->/cities-layer.par.data",
-      "source": "/cities-table",
-      "sourceHandle": "out.data",
-      "target": "/cities-layer",
-      "targetHandle": "par.data"
+      "id": "cities-layer.out->deck.layers",
+      "source": "cities-layer",
+      "sourcePort": "out",
+      "target": "deck",
+      "targetPort": "layers",
+      "index": 0
     },
     {
-      "id": "/city-position.out.accessor->/cities-layer.par.getPosition",
-      "source": "/city-position",
-      "sourceHandle": "out.accessor",
-      "target": "/cities-layer",
-      "targetHandle": "par.getPosition"
+      "id": "labels-layer.out->deck.layers.10",
+      "source": "labels-layer",
+      "sourcePort": "out",
+      "target": "deck",
+      "targetPort": "layers",
+      "index": 10
     },
     {
-      "id": "/city-radius.out.accessor->/cities-layer.par.getRadius",
-      "source": "/city-radius",
-      "sourceHandle": "out.accessor",
-      "target": "/cities-layer",
-      "targetHandle": "par.getRadius"
+      "id": "cities-table.out->city-position.in",
+      "source": "cities-table",
+      "sourcePort": "out",
+      "target": "city-position",
+      "targetPort": "in"
     },
     {
-      "id": "/city-color.out.accessor->/cities-layer.par.getFillColor",
-      "source": "/city-color",
-      "sourceHandle": "out.accessor",
-      "target": "/cities-layer",
-      "targetHandle": "par.getFillColor"
+      "id": "city-position.out->city-radius.in",
+      "source": "city-position",
+      "sourcePort": "out",
+      "target": "city-radius",
+      "targetPort": "in"
     },
     {
-      "id": "/cities-table.out.data->/labels-layer.par.data",
-      "source": "/cities-table",
-      "sourceHandle": "out.data",
-      "target": "/labels-layer",
-      "targetHandle": "par.data"
+      "id": "city-radius.out->cities-layer.in",
+      "source": "city-radius",
+      "sourcePort": "out",
+      "target": "cities-layer",
+      "targetPort": "in"
     },
     {
-      "id": "/city-position.out.accessor->/labels-layer.par.getPosition",
-      "source": "/city-position",
-      "sourceHandle": "out.accessor",
-      "target": "/labels-layer",
-      "targetHandle": "par.getPosition"
-    },
-    {
-      "id": "/city-name.out.accessor->/labels-layer.par.getText",
-      "source": "/city-name",
-      "sourceHandle": "out.accessor",
-      "target": "/labels-layer",
-      "targetHandle": "par.getText"
-    },
-    {
-      "id": "/cities-layer.out.layer->/deck.par.layers",
-      "source": "/cities-layer",
-      "sourceHandle": "out.layer",
-      "target": "/deck",
-      "targetHandle": "par.layers"
-    },
-    {
-      "id": "/labels-layer.out.layer->/deck.par.layers",
-      "source": "/labels-layer",
-      "sourceHandle": "out.layer",
-      "target": "/deck",
-      "targetHandle": "par.layers"
-    },
-    {
-      "id": "/basemap.out.maplibre->/deck.par.basemap",
-      "source": "/basemap",
-      "sourceHandle": "out.maplibre",
-      "target": "/deck",
-      "targetHandle": "par.basemap"
-    },
-    {
-      "id": "/deck.out.vis->/out.par.vis",
-      "source": "/deck",
-      "sourceHandle": "out.vis",
-      "target": "/out",
-      "targetHandle": "par.vis"
+      "id": "city-radius.out->labels-layer.in",
+      "source": "city-radius",
+      "sourcePort": "out",
+      "target": "labels-layer",
+      "targetPort": "in"
     }
-  ],
-  "editorSettings": {
-    "layoutMode": "noodles-on-top",
-    "showOverlay": true
-  },
-  "timeline": {
-    "sheetsById": {
-      "Noodles": {
-        "staticOverrides": {
-          "byObject": {}
-        }
-      }
-    }
-  }
+  ]
 }

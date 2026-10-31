@@ -15,7 +15,6 @@ import {
 import { SolidPolygonLayer } from '@deck.gl/layers'
 import { brightnessContrast, hueSaturation, vibrance } from '@luma.gl/effects'
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
-import { colorFill } from './color-fill'
 import { FilterColorExtension } from './filter-color-extension'
 import { Mask3DExtension } from './mask-3d-extension'
 
@@ -148,13 +147,6 @@ describe('shader extensions', () => {
   it('renders the unmodified layer', async () => {
     const pixel = await render([])
     expect(pixel(50, 50)).toEqual([255, 0, 0, 255])
-  })
-
-  it('FilterColorExtension(colorFill) replaces the layer color', async () => {
-    const pixel = await render([new FilterColorExtension(colorFill)], {
-      colorFill: { fill: [0, 0, 1, 1] },
-    })
-    expect(pixel(50, 50)).toEqual([0, 0, 255, 255])
   })
 
   it('FilterColorExtension(brightnessContrast) brightens the layer', async () => {

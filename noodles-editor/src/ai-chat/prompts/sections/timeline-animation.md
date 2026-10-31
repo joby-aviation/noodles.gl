@@ -1,34 +1,23 @@
-# Animating fields on the timeline
+# Animation and the timeline
 
-Any animatable field can be keyframed. Values interpolate between keyframes, so an animation is just two or more keyframes on the same track.
+Any number parameter can be keyframed: its value at each moment comes from the timeline instead of the document. The camera, a filter threshold, a layer's opacity or a trips layer's `currentTime` all animate the same way.
 
-1. `get_timeline` — returns the existing tracks and keyframes plus the sequence length and FPS. Read this first; keyframe positions are in seconds and only make sense against the sequence length.
-2. `set_keyframe` — adds or updates one keyframe on one field.
-3. `set_playback_position` — scrubs to a given time so you can inspect or screenshot that frame.
+## Keyframes
 
-## Track IDs
+- `get_timeline` returns the length, frame rate, playhead, and each keyframed parameter as `target: "node.param"` with its keyframes.
+- `set_keyframe` adds or updates one: `{ "target": "dots.opacity", "time": 2, "value": 0.5 }`. Interpolation is `bezier` (smooth, the default), `linear` or `hold` (a step). A keyframe already at that time is updated.
+- `delete_keyframe` removes one: `{ "target": "dots.opacity", "time": 2 }` or by `keyframeId`.
+- A `table` node's cells keyframe one by one: the target is `node.rows.<row>.<column>`, rows from 0, e.g. `{ "target": "cities.rows.0.population", "time": 2, "value": 750 }`. A text cell takes a text value, which holds until the next key.
+- `set_playback_position` moves the playhead to inspect a moment: `{ "position": 1.5 }`.
 
-A track ID is `"operator-name / fieldName"` — the operator's name, a space-slash-space, then the field. For example `"my-layer / opacity"` or `"threshold / value"`. Note it uses the bare operator name, not the leading-slash path.
+A fly-over is keyframes on the deck's camera: `deck.longitude`, `deck.latitude`, `deck.zoom`, `deck.pitch`, `deck.bearing`, two or more each.
 
-A TableEditor cell has its own track: `"table-name / data / <rowIndex> / <column>"`, for example `"cities / data / 0 / population"`. Row indices start at 0.
+## Animating data
 
-## Interpolation
+A `trips` layer draws paths over time: its `timestamp` expression names a column, and `currentTime` is the time drawn, usually wired from a `time` node (`par:currentTime`) or keyframed. Time-sampled positions (where each vehicle is now) come from a `time-series` node over vertex rows, with its `time` wired or keyframed the same way.
 
-- `"bezier"` — smooth easing between keyframes. The default, and what you want for most motion.
-- `"hold"` — steps to the new value and stays there until the next keyframe. Use it for discrete changes such as toggling `visible` or switching a category.
+A keyframed `currentTime` costs no query while playing; a keyframed SQL parameter re-runs its query each frame, which is slower for large tables.
 
-## Example: fade a layer in over two seconds
+## Checking
 
-Two keyframes on one track:
-
-- t = 0, value = 0
-- t = 2, value = 1
-
-with `bezier` interpolation, on track `"my-layer / opacity"`.
-
-## Practical notes
-
-- Animating a value that drives a `DuckDbOp` mustache reference re-runs the query every frame. Correct, but expensive on a large table — prefer animating presentation properties (`opacity`, radius, color, camera) over query parameters.
-- Animating a camera means keyframing the view state operator's fields (longitude, latitude, zoom, pitch, bearing), not the layer.
-- Keyframes past the sequence length never play. If a requested time exceeds it, extend the sequence or place the keyframe inside the existing range and say so.
-- A field with exactly one keyframe is pinned to that value for the whole sequence rather than animated. Two keyframes are the minimum for motion.
+Move the playhead with `set_playback_position` and take a screenshot to see a moment. Export to video from the Export menu.

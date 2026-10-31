@@ -1,6 +1,6 @@
 ---
 id: t1-explain-map-range
-taskVersion: 1
+taskVersion: 3
 family: knowledge
 tier: T1
 tags: [knowledge, inspection]
@@ -14,8 +14,8 @@ grader:
       patterns: ['magnitude', '2\.5', '\b7\b']
     # Answering must not change the project
     - type: nodeCount
-      min: 11
-      max: 11
+      min: 12
+      max: 12
 ---
 
 What does the /map-range node do in this project, and what input range does it use?

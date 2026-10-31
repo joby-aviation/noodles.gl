@@ -1,31 +1,26 @@
 import { cleanup, render, screen } from '@testing-library/react'
-import { ReactFlowProvider } from '@xyflow/react'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { GeoEditorOp, type IOperator, type Operator } from '../../operators'
-import { clearOps, getOpStore } from '../../store'
+import { docStore } from '../../../editor/doc-store'
 import { EditOnMapButton } from './edit-on-map-button'
 import { useMapToolStore } from './map-tool-store'
 
 function renderButton() {
-  render(
-    <ReactFlowProvider>
-      <EditOnMapButton nodeId="/geo-editor" from="properties" />
-    </ReactFlowProvider>
-  )
+  render(<EditOnMapButton nodeId="shapes" from="properties" />)
   return screen.getByText('Edit on map').closest('button') as HTMLButtonElement
 }
 
 describe('EditOnMapButton', () => {
   beforeEach(() => {
-    getOpStore().setOp(
-      '/geo-editor',
-      new GeoEditorOp('/geo-editor') as unknown as Operator<IOperator>
-    )
+    docStore().load({
+      version: 1,
+      name: 'edit',
+      nodes: [{ id: 'shapes', op: 'features', x: 0, y: 0, params: {} }],
+      edges: [],
+    })
   })
 
   afterEach(() => {
     cleanup()
-    clearOps()
     useMapToolStore.setState({ mapReady: false, editTarget: null, activeTool: null })
   })
 
@@ -34,10 +29,7 @@ describe('EditOnMapButton', () => {
     const button = renderButton()
     expect(button.disabled).toBe(false)
     button.click()
-    expect(useMapToolStore.getState().editTarget).toEqual({
-      opId: '/geo-editor',
-      kind: 'geo-editor',
-    })
+    expect(useMapToolStore.getState().editTarget).toEqual({ nodeId: 'shapes', kind: 'features' })
     expect(useMapToolStore.getState().activeTool).toBe('draw')
   })
 

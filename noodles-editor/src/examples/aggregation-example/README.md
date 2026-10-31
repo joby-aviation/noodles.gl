@@ -3,14 +3,14 @@
 ## Overview
 This example transforms individual bike parking locations into 3D aggregated visualizations using either square grid cells or hexagonal cells. Each point location is grouped into cells, with the cell's height and color indicating the total number of parking spaces in that area. You can toggle between grid and hexagon views to see how different aggregation shapes reveal density patterns differently.
 
-## Key Techniques
-- **Data source**: `FileOp` loads bike parking data from JSON
-- **Position accessor**: `AccessorOp` with expression `d.COORDINATES` extracts location
-- **Weight accessor**: `AccessorOp` with expression `d.SPACES` extracts parking space count
-- **Grid layer**: `GridLayerOp` with 200m cells and `elevationScale: 4`
-- **Hexagon layer**: `HexagonLayerOp` with 200m radius and `elevationScale: 4`
-- **Layer switching**: `SwitchOp` toggles between grid and hexagon views
-- **Basemap**: `MaplibreBasemapOp` with positron style
+## Nodes
+- **`data-source`** (File) loads the bike parking JSON from the deck.gl data repo
+- **`position`** (Attribute Create) writes `position` as `[item(COORDINATES, 0.0), item(COORDINATES, 1.0)]`
+- **`hexagon-layer`** (Hexagon Layer) bins rows into hexagons with `radius: 200` and `elevationScale: 4`
+- **`grid-layer`** (Grid Layer) bins rows into square cells with `cellSize: 200` and `elevationScale: 4`
+- Both layers read `position` and use the `SPACES` column for `colorWeight` and `elevationWeight`, summed per bin (`SUM`)
+- **`switch`** (Switch) picks one layer: `index: 0` is the hexagons, `1` the grid
+- **`deck`** (Deck) holds the Carto Positron basemap and the camera (zoom 13, pitch 30)
 
 ## Data Structure
 The JSON file contains bike parking facility records with fields:
@@ -19,11 +19,10 @@ The JSON file contains bike parking facility records with fields:
 - `SPACES`: Number of parking spaces
 - `COORDINATES`: Array of [longitude, latitude]
 
-## Node Graph Flow
+## Pipeline
 ```
-Data → Position Accessor → Grid Layer → Switch → Deck
-                         ↘ Hexagon Layer ↗
-     → Spaces Accessor → Both Layers (getColorWeight, getElevationWeight)
+data-source → position → hexagon-layer → switch → deck
+                       ↘ grid-layer    ↗
 ```
 
 ## Use Cases

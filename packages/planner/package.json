@@ -1,0 +1,41 @@
+{
+  "name": "@noodles.gl/planner",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Cost-based query planner for DuckDB -> WebGPU data graphs. One expression IR, three backends (SQL, WGSL, JS), and an exact optimizer that decides which engine runs each node.",
+  "license": "MIT",
+  "sideEffects": false,
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./fixtures": {
+      "types": "./dist/fixtures.d.ts",
+      "import": "./dist/fixtures.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run"
+  },
+  "peerDependencies": {
+    "apache-arrow": ">=15"
+  },
+  "peerDependenciesMeta": {
+    "apache-arrow": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "apache-arrow": "^17.0.0"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

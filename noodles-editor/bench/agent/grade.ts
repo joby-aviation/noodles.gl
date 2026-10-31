@@ -6,50 +6,54 @@
 // 40% (1.6) when a mechanical check fails — a run that left the graph broken is
 // not rescued by a good answer.
 
+import { type DocEdge, nodePath } from '@noodles.gl/planner'
 import type { BenchResult } from '../../src/ai-chat/bench/bench-hook'
 
-// A node is selected by id, or by type when the agent was free to name it.
-// With a type, the check passes if any node of that type satisfies it.
+// A node is selected by id or path (`/pickup-layer`), or by operator type when the agent was
+// free to name it. With a type, the check passes if any node of that type satisfies it.
 interface NodeSelector {
   node?: string
-  nodeType?: string
+  op?: string
 }
 
 export type Check =
   // Regexes (case-insensitive) against every reply of the run joined together
   | { type: 'answerMatches'; patterns: string[]; any?: boolean }
   | { type: 'answerExcludes'; patterns: string[] }
-  | { type: 'nodeTypesPresent'; types: string[] }
-  // Every edge points at a node that exists and a handle that node has
+  | { type: 'opsPresent'; ops: string[] }
+  // Every edge joins nodes that exist, at ports their operators have
   | { type: 'edgesValid' }
+  // Ends named by node (id or path) or by operator type; a port left out matches any
   | {
       type: 'edgeExists'
       source?: string
-      sourceType?: string
-      sourceHandle?: string
+      sourceOp?: string
+      sourcePort?: string
       target?: string
-      targetType?: string
-      targetHandle: string
+      targetOp?: string
+      targetPort?: string
     }
   // tolerance is per channel for colors, absolute for numbers
-  | ({ type: 'inputEquals'; input: string; value: unknown; tolerance?: number } & NodeSelector)
-  // Regex (case-insensitive) against a string input, e.g. an accessor expression
-  | ({ type: 'inputMatches'; input: string; pattern: string } & NodeSelector)
+  | ({ type: 'paramEquals'; param: string; value: unknown; tolerance?: number } & NodeSelector)
+  // Regex (case-insensitive) against a string parameter, e.g. an attribute's expression
+  | ({ type: 'paramMatches'; param: string; pattern: string } & NodeSelector)
   | { type: 'nodeCount'; min?: number; max?: number }
+  // The agent changed the document, and nothing it changed was rejected at the end
   | { type: 'applySucceeded' }
-  // No operator is in error that was not already before the first turn
-  | { type: 'noNewOperatorErrors' }
-  // Every operator that was in error before the first turn is no longer
-  | { type: 'operatorErrorsFixed' }
+  // No node is in error that was not already before the first turn
+  | { type: 'noNewErrors' }
+  // Every node that was in error before the first turn is no longer
+  | { type: 'errorsFixed' }
   | { type: 'noConsoleErrors' }
   | { type: 'anyOf'; checks: Check[] }
+  | { type: 'allOf'; checks: Check[] }
 
 // Checks that describe whether the graph still works rather than whether the
 // task was done. Failing one caps the score.
 const MECHANICAL = new Set<Check['type']>([
   'edgesValid',
   'applySucceeded',
-  'noNewOperatorErrors',
+  'noNewErrors',
   'noConsoleErrors',
 ])
 
@@ -121,8 +125,8 @@ function runCheck(check: Check, input: GradeInput): CheckResult {
 type Outcome = [pass: boolean, detail: string]
 
 function evaluate(check: Check, { result, consoleErrors = [] }: GradeInput): Outcome {
-  const nodes = result.finalProject?.nodes ?? []
-  const edges = result.finalProject?.edges ?? []
+  const nodes = result.finalDoc?.nodes ?? []
+  const edges = result.finalDoc?.edges ?? []
 
   switch (check.type) {
     case 'answerMatches': {
@@ -138,9 +142,9 @@ function evaluate(check: Check, { result, consoleErrors = [] }: GradeInput): Out
       return [found.length === 0, found.length ? `found ${found.join(', ')}` : 'none found']
     }
 
-    case 'nodeTypesPresent': {
-      const types = new Set(nodes.map(n => n.type))
-      const missing = check.types.filter(t => !types.has(t))
+    case 'opsPresent': {
+      const types = new Set(nodes.map(n => n.op))
+      const missing = check.ops.filter(t => !types.has(t))
       return [
         missing.length === 0,
         missing.length ? `missing ${missing.join(', ')}` : 'all present',
@@ -156,31 +160,31 @@ function evaluate(check: Check, { result, consoleErrors = [] }: GradeInput): Out
     }
 
     case 'edgeExists': {
-      const typeOf = (id: string) => nodes.find(n => n.id === id)?.type
+      const ends = (id: string, node?: string, op?: string) =>
+        (!node || selectNodes({ node }, result).includes(id)) &&
+        (!op || nodes.find(n => n.id === id)?.op === op)
       const found = edges.some(
         edge =>
-          (!check.source || edge.source === check.source) &&
-          (!check.sourceType || typeOf(edge.source) === check.sourceType) &&
-          (!check.sourceHandle || edge.sourceHandle === check.sourceHandle) &&
-          (!check.target || edge.target === check.target) &&
-          (!check.targetType || typeOf(edge.target) === check.targetType) &&
-          edge.targetHandle === check.targetHandle
+          ends(edge.source, check.source, check.sourceOp) &&
+          (!check.sourcePort || edge.sourcePort === check.sourcePort) &&
+          ends(edge.target, check.target, check.targetOp) &&
+          (!check.targetPort || edge.targetPort === check.targetPort)
       )
       return [found, found ? 'found' : 'no matching edge']
     }
 
-    case 'inputEquals': {
+    case 'paramEquals': {
       const candidates = selectNodes(check, result)
       if (candidates.length === 0) return [false, 'no matching node']
-      const values = candidates.map(id => result.finalOps[id]?.inputs[check.input])
+      const values = candidates.map(id => result.finalParams[id]?.[check.param])
       const pass = values.some(value => valuesMatch(value, check.value, check.tolerance ?? 0))
       return [pass, pass ? 'matched' : `got ${values.map(v => JSON.stringify(v)).join(', ')}`]
     }
 
-    case 'inputMatches': {
+    case 'paramMatches': {
       const candidates = selectNodes(check, result)
       if (candidates.length === 0) return [false, 'no matching node']
-      const values = candidates.map(id => result.finalOps[id]?.inputs[check.input])
+      const values = candidates.map(id => result.finalParams[id]?.[check.param])
       const pattern = new RegExp(check.pattern, 'i')
       const pass = values.some(value => typeof value === 'string' && pattern.test(value))
       return [pass, pass ? 'matched' : `got ${values.map(v => JSON.stringify(v)).join(', ')}`]
@@ -193,24 +197,26 @@ function evaluate(check: Check, { result, consoleErrors = [] }: GradeInput): Out
     }
 
     case 'applySucceeded': {
-      const applies = result.turns.map(t => t.apply).filter(a => a !== null)
-      const failed = applies.filter(a => !a.success)
-      if (applies.length === 0) return [false, 'nothing was applied']
-      return [
-        failed.length === 0,
-        failed.map(a => a.error).join('; ') || `${applies.length} applied`,
-      ]
+      // Edit tools apply as they run, so a call the editor rejected and the model then fixed
+      // is not a failure; JSON the model wrote out instead is applied after the turn
+      const edits = result.turns.flatMap(t => t.toolCalls).filter(c => EDIT_TOOLS.has(c.name))
+      const applied = edits.filter(c => c.success).length
+      const late = result.turns.map(t => t.apply).filter(a => a !== null)
+      const failed = late.filter(a => !a.success)
+      const total = applied + late.length - failed.length
+      if (total === 0 && failed.length === 0) return [false, 'nothing was applied']
+      return [failed.length === 0, failed.map(a => a.error).join('; ') || `${total} applied`]
     }
 
-    case 'noNewOperatorErrors': {
-      const before = new Set(result.initialOperatorErrors.map(e => e.id))
-      const added = result.operatorErrors.filter(e => !before.has(e.id))
+    case 'noNewErrors': {
+      const before = new Set(result.initialErrors.map(e => e.id))
+      const added = result.errors.filter(e => !before.has(e.id))
       return [added.length === 0, added.map(e => `${e.id}: ${e.error}`).join('; ') || 'none']
     }
 
-    case 'operatorErrorsFixed': {
-      const after = new Set(result.operatorErrors.map(e => e.id))
-      const remaining = result.initialOperatorErrors.filter(e => after.has(e.id))
+    case 'errorsFixed': {
+      const after = new Set(result.errors.map(e => e.id))
+      const remaining = result.initialErrors.filter(e => after.has(e.id))
       return [remaining.length === 0, remaining.map(e => e.id).join(', ') || 'all fixed']
     }
 
@@ -222,6 +228,12 @@ function evaluate(check: Check, { result, consoleErrors = [] }: GradeInput): Out
       const pass = outcomes.some(([ok]) => ok)
       return [pass, outcomes.map(([, detail]) => detail).join(' | ')]
     }
+
+    case 'allOf': {
+      const outcomes = check.checks.map(c => evaluate(c, { result, consoleErrors }))
+      const pass = outcomes.every(([ok]) => ok)
+      return [pass, outcomes.map(([, detail]) => detail).join(' & ')]
+    }
   }
 }
 
@@ -229,39 +241,36 @@ function replies(result: BenchResult) {
   return result.turns.map(t => t.reply).join('\n')
 }
 
+// The tools that change the document
+const EDIT_TOOLS = new Set(['apply_modifications', 'set_keyframe', 'delete_keyframe'])
+
 function selectNodes(selector: NodeSelector, result: BenchResult): string[] {
-  const nodes = result.finalProject?.nodes ?? []
-  if (selector.node) return nodes.some(n => n.id === selector.node) ? [selector.node] : []
-  return nodes.filter(n => n.type === selector.nodeType).map(n => n.id)
+  const doc = result.finalDoc
+  if (!doc) return []
+  if (selector.node) {
+    const hit = doc.nodes.find(n => n.id === selector.node || nodePath(doc, n) === selector.node)
+    return hit ? [hit.id] : []
+  }
+  return doc.nodes.filter(n => n.op === selector.op).map(n => n.id)
 }
 
-type Edge = NonNullable<NonNullable<BenchResult['finalProject']>['edges']>[number]
+// Subnets' ports are their input and output nodes, which the registry cannot list
+const OPEN_PORTS = new Set(['subnet', 'subnet-input', 'subnet-output'])
 
-function edgeProblems(edge: Edge, result: BenchResult): string[] {
-  const nodes = result.finalProject?.nodes ?? []
+function edgeProblems(edge: DocEdge, result: BenchResult): string[] {
+  const nodes = result.finalDoc?.nodes ?? []
   const problems: string[] = []
-  const end = (id: string, handle: string | null | undefined, side: 'inputs' | 'outputs') => {
+  const end = (id: string, port: string, side: 'inputs' | 'outputs') => {
     const node = nodes.find(n => n.id === id)
     if (!node) return problems.push(`${edge.id}: no node ${id}`)
-    const field = fieldName(handle)
-    if (!field) return problems.push(`${edge.id}: malformed handle ${handle}`)
-    const live = result.finalOps[id]
-    const names = side === 'inputs' ? Object.keys(live?.inputs ?? {}) : (live?.outputs ?? [])
-    const known = [...names, ...(result.registry[node.type]?.[side] ?? [])]
-    if (!known.includes(field))
-      problems.push(`${edge.id}: ${node.type} has no ${side.slice(0, -1)} ${field}`)
+    if (OPEN_PORTS.has(node.op)) return
+    const known = result.registry[node.op]?.[side] ?? []
+    if (!known.includes(port))
+      problems.push(`${edge.id}: ${node.op} has no ${side.slice(0, -1)} ${port}`)
   }
-  end(edge.source, edge.sourceHandle, 'outputs')
-  end(edge.target, edge.targetHandle, 'inputs')
+  end(edge.source, edge.sourcePort, 'outputs')
+  end(edge.target, edge.targetPort, 'inputs')
   return problems
-}
-
-// 'par.getFillColor' -> 'getFillColor'. The graph looks up everything after the
-// prefix, so 'par.viewState.zoom' names a field 'viewState.zoom' and connects
-// nothing on an operator that has only viewState.
-function fieldName(handle: string | null | undefined): string | null {
-  const match = /^(par|out)\.(.+)$/.exec(handle ?? '')
-  return match ? match[2] : null
 }
 
 function valuesMatch(actual: unknown, expected: unknown, tolerance: number): boolean {

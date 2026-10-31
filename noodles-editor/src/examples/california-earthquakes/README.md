@@ -5,15 +5,15 @@ _Adapted from [Kepler.gl example](https://kepler.gl/demo/earthquakes)_
 ## Overview
 This example visualizes California earthquake data where both the size and color of each point are driven by magnitude values. Larger earthquakes appear as bigger circles with more intense colors, using a radius that grows with the square root of magnitude and a normalized color ramp to map magnitude values to a gradient. This demonstrates data-driven styling where a single metric (magnitude) controls multiple visual properties.
 
-## Key Techniques
-- **Data source**: `FileOp` loads earthquake data from CSV
-- **Position accessor**: `AccessorOp` with expression `[d.Longitude, d.Latitude]` extracts coordinates
-- **Magnitude accessor**: `AccessorOp` with expression `d.Magnitude` extracts magnitude value
-- **Radius calculation**: `MathOp` nodes take the square root of magnitude (`sqrt`), then scale it to meters (`multiply`, `b: 1700`)
-- **Value normalization**: `MapRangeOp` scales magnitude from the 2.5-7 range to 0-1
-- **Color mapping**: `ColorRampOp` with the `turbo` scheme maps normalized values to a color gradient
-- **Layer**: `ScatterplotLayerOp` displays the circles with `radiusUnits: "meters"`
-- **Basemap**: `MaplibreBasemapOp` with voyager style
+## Nodes
+- **`data-source`** (File) loads `@/data.csv`
+- **`position`** (Attribute Create) writes `position` as `[Longitude, Latitude]`
+- **`map-range`** (Map Range) scales `Magnitude` from 2.5 to 7 into 0 to 1, written as `map_range`
+- **`magnitude-color`** (Color Ramp) maps `map_range` through the `turbo` ramp into `magnitude_color`
+- **`sqrt`** (Attribute Create) writes `sqrt(Magnitude)`
+- **`multiply`** (Attribute Create) writes `sqrt * 1700.0`, the radius in meters
+- **`scatterplot-layer`** (Scatterplot Layer) draws circles with `position: "position"`, `color: "magnitude_color"`, `radius: "multiply"` and `radiusUnits: "meters"`
+- **`deck`** (Deck) holds the Carto Voyager basemap and the camera over California
 
 ## Data Structure
 The CSV file contains earthquake records with fields:
@@ -25,12 +25,10 @@ The CSV file contains earthquake records with fields:
 - `NbStations`, `Gap`, `Distance`, `RMS`: Seismic measurement metadata
 - `Source`, `EventID`: Data source and unique identifier
 
-## Node Graph Flow
+## Pipeline
+Each node adds a column to the rows and passes them on:
 ```
-Data → Magnitude Accessor → MapRange → ColorRamp → Layer (getFillColor)
-                          ↘
-                           Sqrt → Multiply → Layer (getRadius)
-     → Position Accessor → Layer (getPosition)
+data-source → position → map-range → magnitude-color → sqrt → multiply → scatterplot-layer → deck
 ```
 
 ## Use Cases

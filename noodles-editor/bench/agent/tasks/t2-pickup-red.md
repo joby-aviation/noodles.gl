@@ -1,6 +1,6 @@
 ---
 id: t2-pickup-red
-taskVersion: 1
+taskVersion: 2
 family: single-edit
 tier: T2
 tags: [styling, color]
@@ -10,14 +10,14 @@ budget:
   maxWallClockSeconds: 240
 grader:
   checks:
-    # Either recolor the shared ColorOp or override the layer directly
+    # Either recolor the shared Color node or override the layer's fill directly
     - type: anyOf
       checks:
-        - { type: inputEquals, node: /pickup, input: color, value: '#ff0000', tolerance: 60 }
-        - { type: inputEquals, node: /pickup-layer, input: getFillColor, value: '#ff0000', tolerance: 60 }
+        - { type: paramEquals, node: /pickup, param: color, value: '#ff0000', tolerance: 60 }
+        - { type: paramEquals, node: /pickup-layer, param: fillColor, value: '#ff0000', tolerance: 60 }
     - type: applySucceeded
     - type: edgesValid
-    - type: noNewOperatorErrors
+    - type: noNewErrors
 ---
 
 Make the pickup points red.

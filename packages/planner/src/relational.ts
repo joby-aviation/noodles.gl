@@ -1,0 +1,627 @@
+/**
+ * Relational lowering: each node that changes the row set becomes one DuckDB SELECT.
+ *
+ * These are the nodes `plan()` cannot take — it has one source and emits one statement — so
+ * `compileProgram` splits a graph at them. Each lowers to a SELECT over its inputs' relations,
+ * referenced as a temp table when the input is materialized and as a subquery when it is not.
+ *
+ * Two rules hold for every function here, and both are about what a relation is *for*:
+ *
+ *   - **Parameters are inlined as literals, never bound.** A relation is memoized under a hash
+ *     that already includes the values it read, so a changed value is a different relation,
+ *     not a rebind of the same one. Binds would also have nowhere to live: a
+ *     `CREATE TABLE … AS` is executed once, not prepared.
+ *   - **Computed numbers are DOUBLE, not FLOAT.** A relation is read again by SQL, so it keeps
+ *     full precision; only the final layer query narrows to f32 for the buffer.
+ */
+
+import { type Expr, parseExpr, columnsOf, enginesFor } from './expr.js';
+import { toSql, toSqlColumns, castToDouble, quoteIdent, SqlParams } from './backends/sql.js';
+import { escapeLiteral } from './source.js';
+import type {
+  SourceNode, JoinNode, UnionNode, SortNode, LimitNode, SqlNode, GenerateNode, UnnestNode, VerticesNode,
+  Graph, GraphNode,
+} from './types.js';
+import { analyze, PlanError, type ColumnType, type AnalyzedNode, type PathColumnKind } from './analyze.js';
+import { GEO_PRELUDE } from './geo.js';
+import { RAMP_STOPS } from './types.js';
+
+/** One column of a relation, as DuckDB describes it. */
+export interface RelColumn {
+  name: string;
+  type: ColumnType;
+  /** DuckDB's own type name, for display. */
+  duckType: string;
+}
+
+/**
+ * A vector attribute stored as scalar component columns (`P_0, P_1, P_2`). SQL columns are
+ * scalars, so this is how a `vec3` survives a relation; the layer planner re-packs it.
+ */
+export interface RelVector {
+  name: string;
+  width: number;
+}
+
+export interface RelShape {
+  columns: RelColumn[];
+  vectors: RelVector[];
+}
+
+/** Numeric DuckDB types: everything a buffer can hold after a cast. */
+const NUMERIC = /^(TINYINT|SMALLINT|INTEGER|BIGINT|HUGEINT|UTINYINT|USMALLINT|UINTEGER|UBIGINT|FLOAT|REAL|DOUBLE|DECIMAL|BOOLEAN)/i;
+const STRING = /^(VARCHAR|TEXT|STRING|CHAR|BPCHAR|ENUM|UUID)/i;
+
+/** Classify a DuckDB type name. A list or array is 'other' whatever it holds. */
+export function columnTypeOf(duckType: string): ColumnType {
+  if (/\]\s*$/.test(duckType)) return 'other';
+  if (NUMERIC.test(duckType)) return 'num';
+  if (STRING.test(duckType)) return 'str';
+  return 'other';
+}
+
+/**
+ * A column that holds a whole path per row, for vertex layers: a list of positions
+ * (`DOUBLE[3][]`, `DOUBLE[][]`), a list of numbers (`DOUBLE[]`, a path's timestamps), or a
+ * geometry. Anything else is undefined.
+ */
+export function pathColumnOf(duckType: string): PathColumnKind | undefined {
+  const t = duckType.trim();
+  if (/^GEOMETRY\b/i.test(t)) return 'geometry';
+  // The element type, then its dimensions: split at the first bracket rather than with a lazy
+  // group, which backtracks polynomially on long input
+  const at = t.indexOf('[');
+  if (at < 0 || !NUMERIC.test(t.slice(0, at)) || !/^(?:\[\d*\])+$/.test(t.slice(at))) return undefined;
+  const dims = t.slice(at).match(/\[\d*\]/g) ?? [];
+  // The outer dimension is the list of vertices; a point is a fixed array or a list inside it
+  if (dims.length === 2 && dims[1] === '[]') return 'points';
+  if (dims.length === 1 && dims[0] === '[]') return 'numbers';
+  return undefined;
+}
+
+/**
+ * A list or array of numbers, `DOUBLE[]` or `FLOAT[3]`: something a vector can be read from.
+ * `length` is an array's fixed length; a list's is only known from its rows.
+ */
+export function numericListOf(duckType: string): { length?: number } | undefined {
+  const m = /^(.*)\[(\d*)\]\s*$/.exec(duckType.trim());
+  if (!m || m[1].includes('[') || !NUMERIC.test(m[1])) return undefined;
+  return m[2] ? { length: Number(m[2]) } : {};
+}
+
+/** Shortest and longest list in each column, over rows where it is not NULL. */
+export function listLengthsSql(relation: string, columns: string[]): string {
+  const items = columns.flatMap((c, i) => [
+    `min(len(${quoteIdent(c)})) AS "min_${i}"`,
+    `max(len(${quoteIdent(c)})) AS "max_${i}"`,
+  ]);
+  return `SELECT ${items.join(', ')} FROM ${relation}`;
+}
+
+export function parseListLengths(
+  row: Record<string, unknown>,
+  columns: string[],
+): Record<string, { min: number; max: number }> {
+  const out: Record<string, { min: number; max: number }> = {};
+  columns.forEach((c, i) => {
+    const min = row[`min_${i}`];
+    const max = row[`max_${i}`];
+    // All NULL: no length to go by.
+    if (min == null || max == null) return;
+    out[c] = { min: Number(min), max: Number(max) };
+  });
+  return out;
+}
+
+/** Lengths a list can have and still be read as a vector. */
+export const LIST_VECTOR_WIDTHS = { min: 2, max: 4 };
+
+/**
+ * Numeric list columns that can be vectors: every row's list has the same length, 2 to 4.
+ * A vector is component columns (`RelVector`), so these are what `listComponentsSql` adds.
+ * A list already a vector, or whose component names are taken, is left a list.
+ */
+export function listVectors(
+  columns: RelColumn[],
+  lengths: Record<string, { min: number; max: number }>,
+  vectors: RelVector[],
+): RelVector[] {
+  const names = new Set(columns.map((c) => c.name));
+  const taken = new Set(vectors.map((v) => v.name));
+  const out: RelVector[] = [];
+  for (const c of columns) {
+    const list = numericListOf(c.duckType);
+    if (!list || taken.has(c.name)) continue;
+    const seen = lengths[c.name];
+    const width = list.length ?? (seen && seen.min === seen.max ? seen.min : undefined);
+    if (width === undefined || width < LIST_VECTOR_WIDTHS.min || width > LIST_VECTOR_WIDTHS.max) continue;
+    const comps = Array.from({ length: width }, (_, i) => `${c.name}_${i}`);
+    if (comps.some((n) => names.has(n))) continue;
+    out.push({ name: c.name, width });
+  }
+  return out;
+}
+
+/** The relation with each list vector's items as columns `name_0, name_1, …`, in DOUBLE. */
+export function listComponentsSql(relation: string, vectors: RelVector[]): string {
+  const items = vectors.flatMap((v) => Array.from({ length: v.width }, (_, i) =>
+    `${castToDouble(`${quoteIdent(v.name)}[${i + 1}]`)} AS ${quoteIdent(`${v.name}_${i}`)}`));
+  return `SELECT *, ${items.join(', ')} FROM ${relation}`;
+}
+
+/**
+ * Component columns of the vectors read from list columns: the ones whose list is still a
+ * column of `shape`. A table view shows the list and hides these.
+ */
+export function listComponentColumns(shape: RelShape, vectors: RelVector[] = shape.vectors): string[] {
+  const names = new Set(shape.columns.map((c) => c.name));
+  return vectors
+    .filter((v) => names.has(v.name))
+    .flatMap((v) => Array.from({ length: v.width }, (_, i) => `${v.name}_${i}`));
+}
+
+/** A literal for an inlined parameter. Numbers are cast so DuckDB never infers DECIMAL. */
+export function sqlLiteral(value: number | string): string {
+  if (typeof value === 'string') return `'${escapeLiteral(value)}'`;
+  if (!Number.isFinite(value)) return 'CAST(NULL AS DOUBLE)';
+  return `CAST(${value} AS DOUBLE)`;
+}
+
+/** Replace every `{{name}}` in literal SQL text with its value. */
+export function inlineParamsInText(
+  text: string,
+  values: Record<string, number | string>,
+  where: string,
+  skip: ReadonlySet<string> = new Set(),
+): { text: string; params: string[] } {
+  const used = new Set<string>();
+  const out = text.replace(/\{\{\s*([A-Za-z_][A-Za-z0-9_]*)\s*\}\}/g, (m, name: string) => {
+    if (skip.has(name)) return m;
+    const v = values[name];
+    if (v === undefined) throw new PlanError(`${where}: parameter '${name}' is not declared`);
+    used.add(name);
+    return sqlLiteral(v);
+  });
+  return { text: out, params: [...used] };
+}
+
+/** Substitute parameter values into a tree, so it emits with no binds. */
+function inlineParams(e: Expr, values: Record<string, number | string>, used: Set<string>, where: string): Expr {
+  const go = (n: Expr): Expr => {
+    switch (n.kind) {
+      case 'param': {
+        const v = values[n.name];
+        if (v === undefined) throw new PlanError(`${where}: parameter '${n.name}' is not declared`);
+        used.add(n.name);
+        return typeof v === 'string' ? { kind: 'str', value: v } : { kind: 'num', value: v };
+      }
+      case 'unary': return { ...n, operand: go(n.operand) };
+      case 'binary': return { ...n, left: go(n.left), right: go(n.right) };
+      case 'call': return { ...n, args: n.args.map(go) };
+      case 'vec': return { ...n, components: n.components.map(go) };
+      case 'swizzle': return { ...n, target: go(n.target) };
+      case 'cond': return { ...n, test: go(n.test), then: go(n.then), else: go(n.else) };
+      default: return n;
+    }
+  };
+  return go(e);
+}
+
+function renderOption(value: string | number | boolean | string[]): string {
+  if (Array.isArray(value)) return `[${value.map((v) => `'${escapeLiteral(v)}'`).join(', ')}]`;
+  if (typeof value === 'string') return `'${escapeLiteral(value)}'`;
+  return String(value);
+}
+
+// ---------------------------------------------------------------------------
+// One function per relational node
+// ---------------------------------------------------------------------------
+
+export function sourceSql(node: SourceNode): string {
+  const file = node.file;
+  if (!file) {
+    throw new PlanError(`Source ${node.id}: a program source needs 'file' (format and url)`);
+  }
+  if (file.format === 'spatial') return `SELECT * FROM ST_Read('${escapeLiteral(file.url)}')`;
+  const reader = file.format === 'csv' ? 'read_csv_auto'
+    : file.format === 'json' ? 'read_json_auto'
+    : 'read_parquet';
+  const options = Object.entries(file.options ?? {}).map(([k, v]) => `, ${k} = ${renderOption(v)}`).join('');
+  return `SELECT * FROM ${reader}('${escapeLiteral(file.url)}'${options})`;
+}
+
+const SPATIAL: Record<NonNullable<JoinNode['spatial']>, string> = {
+  intersects: 'ST_Intersects', within: 'ST_Within', contains: 'ST_Contains',
+};
+
+export function joinSql(
+  node: JoinNode,
+  left: string,
+  right: string,
+  leftShape: RelShape,
+  rightShape: RelShape,
+): { sql: string; vectors: RelVector[] } {
+  const how = node.how ?? 'inner';
+  const prefix = node.prefix ?? '';
+  const leftNames = new Set(leftShape.columns.map((c) => c.name));
+  const rightNames = new Set(rightShape.columns.map((c) => c.name));
+  if (node.spatial) {
+    if (!leftNames.has('geom') || !rightNames.has('geom')) {
+      throw new PlanError(`Join ${node.id}: a spatial join needs a 'geom' column on both sides`);
+    }
+  }
+  const keys = (node.on ?? []).map(([l, r]) => {
+    if (!leftNames.has(l)) throw new PlanError(`Join ${node.id}: left side has no column '${l}'`);
+    if (!rightNames.has(r)) throw new PlanError(`Join ${node.id}: right side has no column '${r}'`);
+    return `"l".${quoteIdent(l)} = "r".${quoteIdent(r)}`;
+  });
+  const conditions = [...(node.spatial ? [`${SPATIAL[node.spatial]}("l"."geom", "r"."geom")`] : []), ...keys];
+
+  if (how === 'semi' || how === 'anti') {
+    if (!conditions.length) throw new PlanError(`Join ${node.id}: '${how}' needs 'on' pairs or a spatial predicate`);
+    return {
+      sql: `SELECT "l".* FROM ${left} AS "l" WHERE ${how === 'anti' ? 'NOT ' : ''}EXISTS (SELECT 1 FROM ${right} AS "r" WHERE ${conditions.join(' AND ')})`,
+      vectors: leftShape.vectors,
+    };
+  }
+
+  // A spatial join keeps the left geometry; the right one matched it and is dropped.
+  const rightColumns = rightShape.columns.filter((c) => !(node.spatial && c.name === 'geom'));
+  const replaced: string[] = [];
+  const rightItems: string[] = [];
+  for (const c of rightColumns) {
+    const out = `${prefix}${c.name}`;
+    if (leftNames.has(out)) {
+      if (!node.overwrite) {
+        throw new PlanError(
+          `Join ${node.id}: both sides have a column '${out}'. Set 'prefix' to name the right side's columns apart.`,
+        );
+      }
+      // Where nothing matched, a left join keeps the left value.
+      replaced.push(out);
+      rightItems.push(`CASE WHEN "r"."__hit" THEN "r".${quoteIdent(c.name)} ELSE "l".${quoteIdent(out)} END AS ${quoteIdent(out)}`);
+      continue;
+    }
+    rightItems.push(`"r".${quoteIdent(c.name)} AS ${quoteIdent(out)}`);
+  }
+  const leftItem = replaced.length ? `"l".* EXCLUDE (${replaced.map(quoteIdent).join(', ')})` : '"l".*';
+  const select = [leftItem, ...rightItems].join(', ');
+  const vectors = [
+    ...leftShape.vectors,
+    ...rightShape.vectors.map((v) => ({ name: `${prefix}${v.name}`, width: v.width })),
+  ];
+  const marked = replaced.length ? `(SELECT *, true AS "__hit" FROM ${right})` : right;
+
+  if (how === 'cross') {
+    if (conditions.length) throw new PlanError(`Join ${node.id}: a cross join takes no 'on' keys`);
+    return { sql: `SELECT ${select} FROM ${left} AS "l" CROSS JOIN ${marked} AS "r"`, vectors };
+  }
+  if (!conditions.length) throw new PlanError(`Join ${node.id}: '${how}' needs at least one 'on' pair`);
+  const clause = how === 'left' ? 'LEFT JOIN' : 'JOIN';
+  if (node.first) {
+    // The first match only, found per left row
+    const match = `SELECT * FROM ${marked} AS "r" WHERE ${conditions.join(' AND ')} LIMIT 1`;
+    return { sql: `SELECT ${select} FROM ${left} AS "l" ${clause} LATERAL (${match}) AS "r" ON true`, vectors };
+  }
+  return { sql: `SELECT ${select} FROM ${left} AS "l" ${clause} ${marked} AS "r" ON ${conditions.join(' AND ')}`, vectors };
+}
+
+export function unionSql(node: UnionNode, inputs: string[], shapes: RelShape[]): { sql: string; vectors: RelVector[] } {
+  if (inputs.length < 2) throw new PlanError(`Union ${node.id}: needs at least two inputs`);
+  const op = node.distinct ? 'UNION BY NAME' : 'UNION ALL BY NAME';
+  // A vector survives only if every input carries it at the same width.
+  const vectors = shapes[0].vectors.filter((v) =>
+    shapes.every((s) => s.vectors.some((w) => w.name === v.name && w.width === v.width)));
+  return { sql: inputs.map((r) => `SELECT * FROM ${r}`).join(` ${op} `), vectors };
+}
+
+export function sortSql(node: SortNode, input: string, shape: RelShape): string {
+  const names = new Set(shape.columns.map((c) => c.name));
+  const by = node.by.map((term) => {
+    const m = /^\s*(\S+?)(?:\s+(asc|desc))?\s*$/i.exec(term);
+    if (!m || !names.has(m[1])) throw new PlanError(`Sort ${node.id}: no column '${term}'`);
+    return `${quoteIdent(m[1])}${m[2] ? ` ${m[2].toUpperCase()}` : ''}`;
+  });
+  if (by.length === 0) throw new PlanError(`Sort ${node.id}: 'by' is empty`);
+  const limit = node.limit !== undefined ? ` LIMIT ${Math.max(0, Math.floor(node.limit))}` : '';
+  return `SELECT * FROM ${input} ORDER BY ${by.join(', ')}${limit}`;
+}
+
+export function limitSql(node: LimitNode, input: string): string {
+  const offset = node.offset ? ` OFFSET ${Math.max(0, Math.floor(node.offset))}` : '';
+  return `SELECT * FROM ${input} LIMIT ${Math.max(0, Math.floor(node.count))}${offset}`;
+}
+
+export function sqlNodeSql(
+  node: SqlNode,
+  inputs: string[],
+  values: Record<string, number | string>,
+): { sql: string; params: string[] } {
+  const inputNames = new Set(['input', ...inputs.map((_, i) => `input${i}`)]);
+  let text = node.query.replace(/\{\{\s*(input\d*)\s*\}\}/g, (_m, name: string) => {
+    const index = name === 'input' ? 0 : Number(name.slice(5));
+    const ref = inputs[index];
+    if (ref === undefined) throw new PlanError(`SQL ${node.id}: {{${name}}} but only ${inputs.length} input(s) are connected`);
+    return ref;
+  });
+  const inlined = inlineParamsInText(text, values, `SQL ${node.id}`, inputNames);
+  text = inlined.text.trim().replace(/;+\s*$/, '');
+  if (!/^\s*(select|with|from|values|\()/i.test(text)) {
+    throw new PlanError(`SQL ${node.id}: the query must be a single SELECT (or WITH … SELECT)`);
+  }
+  return { sql: text, params: inlined.params };
+}
+
+export function generateSql(node: GenerateNode, values: Record<string, number | string>): { sql: string; params: string[] } {
+  const name = node.name ?? 'i';
+  let count: number;
+  const params: string[] = [];
+  if (typeof node.count === 'string') {
+    const m = /^\{\{\s*([A-Za-z_][A-Za-z0-9_]*)\s*\}\}$/.exec(node.count);
+    const v = m ? values[m[1]] : Number(node.count);
+    if (m) params.push(m[1]);
+    count = Number(v);
+  } else {
+    count = node.count;
+  }
+  if (!Number.isFinite(count) || count < 0) throw new PlanError(`Generate ${node.id}: count must be a non-negative number`);
+  return {
+    sql: `SELECT CAST("range" AS DOUBLE) AS ${quoteIdent(name)} FROM range(${Math.floor(count)})`,
+    params,
+  };
+}
+
+/**
+ * Unnest in lockstep by indexing rather than by `unnest()` on each list: `unnest` of two
+ * lists in one SELECT zips them, but pads the shorter with NULL, and pairing a vertex with the
+ * wrong timestamp is worse than dropping it. One `generate_series` over the first list's
+ * length gives each row an index; every list is read at that index.
+ */
+export function unnestSql(node: UnnestNode, input: string, shape: RelShape): { sql: string; vectors: RelVector[] } {
+  if (node.lists.length === 0) throw new PlanError(`Unnest ${node.id}: 'lists' is empty`);
+  const names = new Set(shape.columns.map((c) => c.name));
+  for (const l of node.lists) {
+    if (!names.has(l)) throw new PlanError(`Unnest ${node.id}: no column '${l}'`);
+  }
+  const rowId = node.rowId ?? 'row';
+  const index = node.index ?? 'index';
+  const first = quoteIdent(node.lists[0]);
+  const items: string[] = [];
+  for (const l of node.lists) {
+    const at = `${quoteIdent(l)}[${quoteIdent(index)}]`;
+    const split = node.split?.[l];
+    if (split?.length) {
+      split.forEach((component, c) => items.push(`${castToDouble(`${at}[${c + 1}]`)} AS ${quoteIdent(component)}`));
+    } else {
+      items.push(`${at} AS ${quoteIdent(node.as?.[l] ?? l)}`);
+    }
+  }
+  const exclude = node.lists.map(quoteIdent).join(', ');
+  const numbered = `SELECT *, CAST(row_number() OVER () AS DOUBLE) AS ${quoteIdent(rowId)} FROM ${input}`;
+  const expanded = `SELECT *, unnest(generate_series(1, len(${first}))) AS ${quoteIdent(index)} FROM (${numbered})`;
+  return {
+    sql: `SELECT * EXCLUDE (${exclude}), ${items.join(', ')} FROM (${expanded})`,
+    vectors: [],
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Row-wise chains lowered into a relation
+// ---------------------------------------------------------------------------
+
+/**
+ * Lower row-wise nodes to SQL, for when they feed a relational node.
+ *
+ * A filter ahead of a join has to run *in* SQL, because the join reads a relation. So the
+ * chain between the nearest relation and the join's input is analyzed exactly as `plan()`
+ * would analyze it — same parser, same function inlining, same width and string tracking —
+ * and then every node is emitted as SQL. A node with no SQL form (a `ramp()`, a swizzle) is
+ * an error here with the reason, not a surprise at execution.
+ */
+export function rowwiseSql(
+  chain: GraphNode[],
+  input: string,
+  shape: RelShape,
+  values: Record<string, number | string>,
+  graph: Pick<Graph, 'functions' | 'params' | 'udfs'>,
+  label: string,
+): { sql: string; vectors: RelVector[]; params: string[] } {
+  if (chain.length === 0) return { sql: `SELECT * FROM ${input}`, vectors: shape.vectors, params: [] };
+  const schema = new Map<string, number>();
+  const types = new Map<string, ColumnType>();
+  for (const c of shape.columns) {
+    types.set(c.name, c.type);
+    if (c.type === 'num') schema.set(c.name, 1);
+  }
+  const last = chain[chain.length - 1];
+  const sourceId = '__rel';
+  const rewire = (n: GraphNode): GraphNode => {
+    const copy = structuredClone(n) as GraphNode & { input?: string; inputs?: string[] };
+    const ids = new Set(chain.map((c) => c.id));
+    const fix = (id: string) => (ids.has(id) ? id : sourceId);
+    if (typeof copy.input === 'string') copy.input = fix(copy.input);
+    if (copy.inputs) copy.inputs = copy.inputs.map(fix);
+    return copy;
+  };
+  const sub: Graph = {
+    params: graph.params,
+    functions: graph.functions, udfs: graph.udfs,
+    nodes: [
+      { id: sourceId, type: 'source', dataset: { ref: sourceId } },
+      ...chain.map(rewire),
+      { id: '__out', type: 'render', input: last.id, mode: 'points' },
+    ],
+    output: '__out',
+  };
+  // Parameters are inlined as literals below, and DuckDB folds a literal subexpression itself.
+  const analysis = analyze(sub, schema, undefined, types, { hoist: false });
+  const used = new Set<string>();
+  const vectors = [...shape.vectors];
+  const vectorNames = new Set(vectors.map((v) => v.name));
+  let columns = new Set(shape.columns.map((c) => c.name));
+  let sql = `SELECT * FROM ${input}`;
+
+  const excluding = (names: string[]) => {
+    const shadowed = names.filter((n) => columns.has(n));
+    return shadowed.length ? `* EXCLUDE (${shadowed.map(quoteIdent).join(', ')})` : '*';
+  };
+  const noVectorReads = (node: AnalyzedNode) => {
+    const read = node.expr ? columnsOf(node.expr).filter((c) => vectorNames.has(c)) : [];
+    if (read.length) {
+      throw new PlanError(
+        `Node ${node.id}: reads vector '${read[0]}' inside ${label}; SQL sees only its components (${read[0]}_0, …)`,
+      );
+    }
+  };
+
+  for (const node of analysis.order) {
+    // A color ramp's `ramp(t)` samples a LUT on the GPU and the CPU; inside a relation it is
+    // three columns read from the ramp's stops instead (see rampColumns)
+    const ramped = rampedArg(node, analysis.ramps);
+    if (!node.feasible.has('sql') && !ramped) {
+      throw new PlanError(`Node ${node.id}: feeds ${label}, so it must run in SQL, and it has no SQL form`);
+    }
+    noVectorReads(node);
+    switch (node.kind) {
+      case 'filter': {
+        const e = inlineParams(node.expr!, values, used, `Node ${node.id}`);
+        sql = `SELECT * FROM (${sql}) WHERE ${toSql(e, new SqlParams()).code}`;
+        break;
+      }
+      case 'attribute': {
+        const e = inlineParams(node.expr!, values, used, `Node ${node.id}`);
+        const name = node.name!;
+        if (analysis.strings.has(name)) {
+          sql = `SELECT ${excluding([name])}, ${toSql(e, new SqlParams()).code} AS ${quoteIdent(name)} FROM (${sql})`;
+          columns.add(name);
+          break;
+        }
+        const { items } = ramped
+          ? { items: rampColumns(toSql(inlineParams(ramped.t, values, used, `Node ${node.id}`), new SqlParams()).code, ramped.ramp, name) }
+          : toSqlColumns(e, name, new SqlParams(), castToDouble);
+        const outNames = node.width === 1 ? [name] : Array.from({ length: node.width }, (_, i) => `${name}_${i}`);
+        sql = `SELECT ${excluding(outNames)}, ${items.join(', ')} FROM (${sql})`;
+        for (const n of outNames) columns.add(n);
+        if (node.width > 1 && !vectorNames.has(name)) {
+          vectors.push({ name, width: node.width });
+          vectorNames.add(name);
+        }
+        break;
+      }
+      case 'aggregate': {
+        const groups = node.groupBy!.map(quoteIdent);
+        const aggs = node.aggs!.map((a) => {
+          const e = inlineParams(a.expr, values, used, `Node ${node.id}`);
+          return `${castToDouble(toSql(e, new SqlParams()).code)} AS ${quoteIdent(a.name)}`;
+        });
+        sql = `SELECT ${[...groups, ...aggs].join(', ')} FROM (${sql}) GROUP BY ${groups.join(', ')}`;
+        columns = new Set([...node.groupBy!, ...node.aggs!.map((a) => a.name)]);
+        vectors.length = 0;
+        vectorNames.clear();
+        break;
+      }
+      default:
+        throw new PlanError(`Node ${node.id}: a ${node.kind} node cannot feed ${label}`);
+    }
+  }
+  if (analysis.statsNodes.length) {
+    throw new PlanError(`${label}: stats nodes publish parameters to layers and cannot feed a relation`);
+  }
+  return { sql, vectors, params: [...used] };
+}
+
+/**
+ * The argument of an attribute that is `ramp(t)` or `ramp(t, k)` and nothing else, when `t`
+ * itself has a SQL form: a color ramp's output, which a relation can compute from the stops of
+ * ramp k of the graph's ramps (the first, without k).
+ */
+function rampedArg(node: AnalyzedNode, ramps: readonly string[]): { t: Expr; ramp: string } | undefined {
+  const e = node.expr;
+  if (node.kind !== 'attribute' || e?.kind !== 'call' || e.fn !== 'ramp') return undefined;
+  if (e.args.length === 2 && e.args[1].kind !== 'num') return undefined;
+  const k = e.args.length === 2 && e.args[1].kind === 'num' ? e.args[1].value : 0;
+  const ramp = ramps[k];
+  if (!ramp || !RAMP_STOPS[ramp] || e.args.length > 2) return undefined;
+  return enginesFor(e.args[0]).has('sql') ? { t: e.args[0], ramp } : undefined;
+}
+
+/**
+ * `ramp(t)` as three DOUBLE columns `<name>_0..2`: the stops are evenly spaced over t in
+ * [0, 1], and each channel is linear between the two stops around t, as `sampleRamp` and
+ * `rampAt` are between their LUT entries.
+ */
+export function rampColumns(t: string, ramp: string, name: string): string[] {
+  const stops = RAMP_STOPS[ramp];
+  const last = stops.length - 1;
+  const x = `(greatest(0.0, least(1.0, CAST(${t} AS DOUBLE))) * ${last}.0)`;
+  const lo = `CAST(least(floor(${x}), ${last - 1}.0) AS INTEGER)`;
+  return [0, 1, 2].map((c) => {
+    const list = `[${stops.map((s) => (Number.isInteger(s[c]) ? `${s[c]}.0` : String(s[c]))).join(', ')}]::DOUBLE[]`;
+    const at = (k: number) => `list_extract(${list}, ${lo} + ${k + 1})`;
+    return `(${at(0)} + (${at(1)} - ${at(0)}) * (${x} - ${lo})) AS ${quoteIdent(`${name}_${c}`)}`;
+  });
+}
+
+/** Parse check for editor feedback: the error text for an expression, or undefined. */
+export function exprError(src: string): string | undefined {
+  try {
+    // The prelude is in every graph's scope (`desugar`), so the editor must accept it too.
+    parseExpr(src, { functions: GEO_PRELUDE });
+    return undefined;
+  } catch (err) {
+    return (err as Error).message;
+  }
+}
+
+/** Vertex column names; a property with one of them is renamed `p_<name>`. */
+const VERTEX_COLUMNS = new Set(['feature', 'kind', 'id', 'ring', 'vertex', 'lng', 'lat']);
+
+/** Geometry to vertex rows. See `VerticesNode` for the row shapes. */
+export function verticesSql(node: VerticesNode, input: string, shape: RelShape): string {
+  const geom = node.geometry ?? 'geom';
+  if (!shape.columns.some((c) => c.name === geom)) {
+    throw new PlanError(`Vertices ${node.id}: the input has no geometry column '${geom}'`);
+  }
+  const props = shape.columns
+    .filter((c) => c.name !== geom)
+    .map((c) => (VERTEX_COLUMNS.has(c.name)
+      ? `f.${quoteIdent(c.name)} AS ${quoteIdent(`p_${c.name}`)}`
+      : `f.${quoteIdent(c.name)}`));
+  const features =
+    `SELECT (row_number() OVER () - 1)::INTEGER AS "feature"${props.map((p) => `, ${p}`).join('')}, ` +
+    `f.${quoteIdent(geom)} AS __geom FROM ${input} f`;
+  // Multi-part geometries and collections become one row per part.
+  const parts = `SELECT g.* EXCLUDE (__geom), unnest(ST_Dump(g.__geom)).geom AS __part FROM (${features}) g`;
+  const numbered = (type: string) =>
+    `SELECT *, (row_number() OVER () - 1)::INTEGER AS "id" FROM (${parts}) WHERE ST_GeometryType(__part) = '${type}'`;
+  // Vertices unnest in the projection, never by a LATERAL join: a join copies each row's whole
+  // geometry once per vertex, which for a large file is gigabytes. Coordinates come from the
+  // geometry cast to spatial's native LINESTRING_2D / POLYGON_2D lists: ST_Points and ST_Dump
+  // make a geometry per vertex, some 3 times slower (world-flights' 1.5M vertices). len() on
+  // those types is the length of their text, so counts come from the geometry; a polygon's
+  // rings unnest as plain lists.
+  const vertexColumns = '__v::INTEGER AS "vertex", __pt.x AS "lng", __pt.y AS "lat"';
+  const rings =
+    'SELECT * EXCLUDE (__poly, __nr), unnest(__poly) AS __ring, unnest(range(__nr))::INTEGER AS "ring" ' +
+    `FROM (SELECT * EXCLUDE (__part), ST_Force2D(__part)::POLYGON_2D AS __poly, ST_NInteriorRings(__part) + 1 AS __nr FROM (${numbered('POLYGON')}))`;
+  // A ring's points without the closing one, which repeats the first.
+  const polygons =
+    `SELECT * EXCLUDE (__pt, __v, __n), ${vertexColumns} FROM (` +
+    `SELECT * EXCLUDE (__ring), len(__ring) AS __n, unnest(__ring) AS __pt, unnest(range(len(__ring))) AS __v FROM (${rings})` +
+    ') WHERE __v < __n - 1';
+  const lines =
+    `SELECT * EXCLUDE (__pt, __v), ${vertexColumns} FROM (` +
+    'SELECT * EXCLUDE (__line, __n), unnest(__line) AS __pt, unnest(range(__n)) AS __v FROM (' +
+    `SELECT * EXCLUDE (__part), ST_Force2D(__part)::LINESTRING_2D AS __line, ST_NPoints(__part) AS __n FROM (${numbered('LINESTRING')})))`;
+  const points =
+    `SELECT * EXCLUDE (__part), ST_X(__part) AS "lng", ST_Y(__part) AS "lat" FROM (${numbered('POINT')})`;
+  switch (node.kind) {
+    case 'polygons': return polygons;
+    case 'lines': return lines;
+    case 'points': return points;
+    case 'all':
+      return `SELECT 'polygon' AS "kind", * FROM (${polygons}) UNION ALL BY NAME ` +
+        `SELECT 'line' AS "kind", * FROM (${lines}) UNION ALL BY NAME ` +
+        `SELECT 'point' AS "kind", * FROM (${points})`;
+  }
+}

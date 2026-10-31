@@ -1,19 +1,13 @@
 // ChatPanel - Main UI component for Claude AI integration
 
-import { useReactFlow } from '@xyflow/react'
 import { type FC, useEffect, useRef, useState } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import {
-  type ModificationResult,
-  type ProjectModification,
-  useProjectModifications,
-} from '../noodles/hooks/use-project-modifications'
+import { docStore, useEditor } from '../editor/doc-store'
+import { useUIStore } from '../editor/ui-store'
 import type { CustomEndpointConfig, ProviderPreference } from '../noodles/keys-store'
 import { useKeysStore } from '../noodles/keys-store'
-import { useUIStore } from '../noodles/store'
 import { useOpenRouterConnect } from '../noodles/use-openrouter-connect'
-import { recordGraphMutation } from '../noodles/utils/graph-history'
 import { analytics } from '../utils/analytics'
 import { debugAiChat } from '../utils/debug'
 import { useAgentModelStore } from './agent/model-store'
@@ -57,35 +51,15 @@ import {
   onDeviceNoticeDismissed,
   SLOW_REPLY_MS,
 } from './on-device-notice'
-import type { Message, NoodlesProject } from './types'
+import type { Message } from './types'
 
 interface ChatPanelProps {
-  project: NoodlesProject
-  // Changes whenever another project replaces the graph. A proposal planned
-  // against the old graph must not be applied to the new one.
-  projectKey?: number
   onClose: () => void
   isVisible: boolean
   initialMessage?: string
 }
 
-export const ChatPanel: FC<ChatPanelProps> = ({
-  project,
-  projectKey,
-  onClose,
-  isVisible,
-  initialMessage,
-}) => {
-  // Get ReactFlow state for the modification hook
-  const { getNodes, getEdges, setNodes, setEdges } = useReactFlow()
-
-  // Use project modifications hook with ReactFlow state
-  const { applyModifications } = useProjectModifications({
-    getNodes,
-    getEdges,
-    setNodes,
-    setEdges,
-  })
+export const ChatPanel: FC<ChatPanelProps> = ({ onClose, isVisible, initialMessage }) => {
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
@@ -128,7 +102,28 @@ export const ChatPanel: FC<ChatPanelProps> = ({
   // Bumped when the conversation or the project changes. A run that finishes
   // after that belongs to neither, so its reply and proposal are dropped.
   const generationRef = useRef(0)
-  const projectKeyRef = useRef(projectKey)
+  // Another project replaced the document: stop the run planning against the old one and drop
+  // its proposal, which belongs to that document
+  const loadId = useEditor(st => st.loadId)
+  const loadIdRef = useRef(loadId)
+  useEffect(() => {
+    if (loadIdRef.current === loadId) return
+    loadIdRef.current = loadId
+    generationRef.current += 1
+    abortRef.current?.abort()
+    setPendingProposal(prev => {
+      if (prev) {
+        setMessages(m => [
+          ...m,
+          {
+            role: 'assistant',
+            content: 'Another project was opened, so the proposed graph update was dropped.',
+          },
+        ])
+      }
+      return null
+    })
+  }, [loadId])
 
   // Get API keys directly from store (reactive)
   const apiKey = useKeysStore(state => state.getKey('anthropic'))
@@ -386,32 +381,6 @@ export const ChatPanel: FC<ChatPanelProps> = ({
     }
   }, [providerId, providerKey, providerReady, model, apiKey, openRouterKey, customEndpoint])
 
-  // Update MCPTools with current project whenever it changes
-  useEffect(() => {
-    if (mcpTools && project) {
-      mcpTools.setProject(project)
-    }
-  }, [mcpTools, project])
-
-  // Another project replaced the graph: stop the run planning against the old
-  // one and drop its proposal
-  useEffect(() => {
-    if (projectKeyRef.current === projectKey) return
-    projectKeyRef.current = projectKey
-    generationRef.current += 1
-    abortRef.current?.abort()
-    if (pendingProposal) {
-      setPendingProposal(null)
-      setMessages(prev => [
-        ...prev,
-        {
-          role: 'assistant',
-          content: 'Another project was opened, so the proposed graph update was not applied.',
-        },
-      ])
-    }
-  }, [projectKey, pendingProposal])
-
   // Handle initial message from quick start modal
   useEffect(() => {
     if (initialMessage && isVisible && messages.length === 0) {
@@ -445,7 +414,7 @@ export const ChatPanel: FC<ChatPanelProps> = ({
   }, [])
 
   const handleSend = async () => {
-    if (!input.trim() || !session || !project || pendingProposal) return
+    if (!input.trim() || !session || pendingProposal) return
 
     const userMessage: Message = {
       role: 'user',
@@ -466,6 +435,8 @@ export const ChatPanel: FC<ChatPanelProps> = ({
     const controller = new AbortController()
     abortRef.current = controller
     const generation = generationRef.current
+    // Where the run's edits start: Reject comes back here, Accept folds them into one undo step
+    const runMark = docStore().mark()
 
     try {
       const response = await session.send({
@@ -498,15 +469,20 @@ export const ChatPanel: FC<ChatPanelProps> = ({
 
       setMessages(prev => [...prev, assistantMessage])
 
-      // apply_modifications validated these against the project; they land only
-      // once the user accepts them
-      if (response.projectModifications && response.projectModifications.length > 0) {
-        debugAiChat('Proposing project modifications:', response.projectModifications)
-        setPendingProposal(createProposal(response.projectModifications))
-        analytics.track('ai_modification_proposed', {
-          provider: providerId,
-          modificationCount: response.projectModifications.length,
-        })
+      // The run's edits are on the document already, so the assistant could read what they
+      // did; they stay only once the user accepts them
+      const after = docStore().get().doc
+      if (runMark && after !== runMark.doc) {
+        const proposal = createProposal(runMark, after)
+        if (proposal.lines.length > 0) {
+          setPendingProposal(proposal)
+          analytics.track('ai_modification_proposed', {
+            provider: providerId,
+            modificationCount: proposal.lines.length,
+          })
+        } else {
+          docStore().squash(runMark)
+        }
       }
     } catch (error) {
       debugAiChat('Error sending message:', error)
@@ -571,30 +547,14 @@ export const ChatPanel: FC<ChatPanelProps> = ({
 
   const acceptProposal = () => {
     if (!pendingProposal) return
-    const { modifications } = pendingProposal
     setPendingProposal(null)
-
-    // One undo entry for the whole batch, even when it fails partway
-    let result: ModificationResult = { success: false, error: 'not applied' }
-    recordGraphMutation('Apply assistant proposal', () => {
-      result = applyModifications(modifications as ProjectModification[])
-    })
+    // One undo entry for the whole run
+    docStore().squash(pendingProposal.mark)
     analytics.track('ai_modification_proposal_resolved', {
       provider: providerId,
-      outcome: result.success ? 'accepted' : 'failed',
-      modificationCount: modifications.length,
+      outcome: 'accepted',
+      modificationCount: pendingProposal.lines.length,
     })
-
-    if (!result.success) {
-      // Surface the failure to the user and, through the history, to the model
-      const errorMessage = `Failed to apply modifications: ${result.error}`
-      debugAiChat(errorMessage)
-      setMessages(prev => [...prev, { role: 'assistant', content: errorMessage }])
-    } else if (result.warnings && result.warnings.length > 0) {
-      debugAiChat('Modification warnings:', result.warnings)
-      const warningMessage = `⚠️ Modifications applied with warnings:\n${result.warnings.map(w => `• ${w}`).join('\n')}`
-      setMessages(prev => [...prev, { role: 'assistant', content: warningMessage }])
-    }
   }
 
   // Recorded in the conversation so the next turn knows the edit did not land
@@ -603,14 +563,13 @@ export const ChatPanel: FC<ChatPanelProps> = ({
     analytics.track('ai_modification_proposal_resolved', {
       provider: providerId,
       outcome: 'rejected',
-      modificationCount: pendingProposal.modifications.length,
+      modificationCount: pendingProposal.lines.length,
     })
     setPendingProposal(null)
-    // Only the proposed batch is known not to have landed: a run_code call in the
-    // same run may already have changed field values
+    docStore().revert(pendingProposal.mark)
     setMessages(prev => [
       ...prev,
-      { role: 'assistant', content: 'Proposal rejected. Its changes were not applied.' },
+      { role: 'assistant', content: 'Proposal rejected. Its changes were undone.' },
     ])
   }
 
@@ -649,6 +608,8 @@ export const ChatPanel: FC<ChatPanelProps> = ({
     generationRef.current += 1
     abortRef.current?.abort()
     setMessages([])
+    // An undecided proposal is not accepted by leaving its conversation
+    if (pendingProposal) docStore().revert(pendingProposal.mark)
     setPendingProposal(null)
     setCurrentConversationId(null)
     setShowHistory(false)
@@ -687,6 +648,7 @@ export const ChatPanel: FC<ChatPanelProps> = ({
       generationRef.current += 1
       abortRef.current?.abort()
       setMessages(conversation.messages)
+      if (pendingProposal) docStore().revert(pendingProposal.mark)
       setPendingProposal(null)
       setCurrentConversationId(id)
       setShowHistory(false)
@@ -989,7 +951,7 @@ export const ChatPanel: FC<ChatPanelProps> = ({
         {pendingProposal && (
           <section className={styles.proposalCard} aria-label="Proposed graph update">
             <div className={styles.proposalTitle}>Review graph update</div>
-            <p>These changes are not applied yet.</p>
+            <p>The map shows these changes. Accept keeps them; Reject undoes them.</p>
             <ul className={styles.proposalDiff}>
               {pendingProposal.lines.map((line, idx) => (
                 <li key={`${idx}-${line.text}`}>
