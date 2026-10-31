@@ -21,10 +21,12 @@ import {
   OPERATOR_INDEX,
   parameterValues,
   type RelShape as RelationShape,
+  type ResolvedProp,
   type SqlEngine,
   targetCaps,
 } from '@noodles.gl/planner'
 import { DeckLayerBuilder } from './deck-layers'
+import { parseStyleChanges, styleWithChanges } from './map-style'
 import { flatRow, isFeatureCollection } from './plain-rows'
 import {
   type NodeSql,
@@ -134,13 +136,42 @@ export interface RuntimeLike {
   /** Rows of a query as plain objects. */
   query(sql: string): Promise<Record<string, unknown>[]>
   /** A relation's rows as plain objects, decimals and 64-bit integers as numbers. */
-  relationRows(relation: string): Promise<Record<string, unknown>[]>
+  relationRows(
+    relation: string,
+    vectors?: readonly { name: string; width: number }[]
+  ): Promise<Record<string, unknown>[]>
   onUpdate(listener: (report: UpdateReport) => void): () => void
 }
 
 /** A runtime in this thread, over an SQL engine. */
 export function localRuntime(sql: SqlEngine): RuntimeLike {
   return new ProgramRuntime(sql, { caps: targetCaps('deck-webgl2', undefined) })
+}
+
+// A deck's own style with its Style changes applied, or why it couldn't be
+interface ChangedStyle {
+  key: string
+  deck: string
+  style?: Record<string, unknown>
+  error?: string
+  failedAt?: number
+}
+
+const STYLE_RETRY_MS = 5000
+
+const CAMERA = ['longitude', 'latitude', 'zoom', 'pitch', 'bearing']
+
+/**
+ * A view without the camera values that didn't evaluate: a reference to a deleted node reads
+ * NaN, and MapLibre throws on a NaN pitch, taking the editor down with the map. The parameter's
+ * error says what is wrong; the map keeps drawing meanwhile.
+ */
+export function finiteCamera(view: Record<string, unknown>): Record<string, unknown> {
+  const out = { ...view }
+  for (const k of CAMERA) {
+    if (k in out && !(typeof out[k] === 'number' && Number.isFinite(out[k]))) delete out[k]
+  }
+  return out
 }
 
 export class Engine {
@@ -166,6 +197,8 @@ export class Engine {
   private readonly hostTables = new Map<string, string>()
   private readonly tableFiles = new WeakMap<object, string>()
   private tableCount = 0
+  /** `@/name` layer props (an icon atlas, a mesh) as object URLs deck can fetch, or why not. */
+  private readonly assetUrls = new Map<string, { url?: string; error?: string }>()
 
   constructor(
     backend: SqlEngine | RuntimeLike,
@@ -196,9 +229,14 @@ export class Engine {
     return this.options.host?.runner.output(nodeId, port)
   }
 
-  /** Host operators that failed on the last run. */
+  /**
+   * Host operators that failed on the last run, project files a layer names that didn't read,
+   * and Style changes whose style didn't load.
+   */
   errors(): { nodeId: string; message: string }[] {
-    return this.hostErrors
+    const style = this.changedStyle
+    const errors = [...this.hostErrors, ...this.assetErrors()]
+    return style?.error ? [...errors, { nodeId: style.deck, message: style.error }] : errors
   }
 
   /**
@@ -209,6 +247,7 @@ export class Engine {
   async openProject(): Promise<void> {
     await this.pending.catch(() => undefined)
     this.registered.clear()
+    this.revokeAssetUrls()
     this.structure = undefined
     this.built.clear()
     this.extended.clear()
@@ -225,6 +264,8 @@ export class Engine {
   /** Show a document: a structural edit recompiles, a value edit only rebinds. */
   setDoc(doc: EditorDoc, time = this.time): Promise<void> {
     this.doc = doc
+    // A file that failed to read may have been added since: an edit tries it again
+    for (const [name, asset] of this.assetUrls) if (asset.error) this.assetUrls.delete(name)
     this.time = time
     this.lower()
     return this.update()
@@ -295,13 +336,14 @@ export class Engine {
     // A deck with its own views and no map (an OrbitView, say) keeps the view's own camera:
     // the deck node's longitude and latitude mean nothing to it.
     const geographic = !!(deck && styleOf(deck)) || into('views').length === 0
-    const view = { ...(geographic ? this.runtime.view() : {}), ...(hostView ?? {}) }
+    const view = finiteCamera({ ...(geographic ? this.runtime.view() : {}), ...(hostView ?? {}) })
     // A style wired into the deck (a configured one, an object) wins over its URL
     const wiredStyle = into('par:mapStyle')[0]
     const configured = wiredStyle
       ? host?.runner.output(wiredStyle.source, wiredStyle.sourcePort)
       : undefined
-    const mapStyle = (configured ?? (deck ? styleOf(deck) : undefined)) as
+    if (configured !== undefined || !deck) this.changedStyle = undefined
+    const mapStyle = (configured ?? (deck ? this.styleWithChanges(deck) : undefined)) as
       | string
       | Record<string, unknown>
       | undefined
@@ -364,9 +406,79 @@ export class Engine {
         kind: l.plan.kind,
         data: l.data,
         bindings: l.plan.plan.layer?.bindings ?? [],
-        props: l.props,
+        props: this.withAssetUrls(l.props),
       }))
     )
+  }
+
+  // A project file deck would otherwise fetch as the page-relative path `@/plane.png`, and
+  // draw nothing. Unread yet, or unreadable, it is no URL at all.
+  private withAssetUrls(props: Record<string, ResolvedProp>): Record<string, ResolvedProp> {
+    if (!Object.values(props).some(isProjectFile)) return props
+    const out = { ...props }
+    for (const [k, v] of Object.entries(props)) {
+      if (isProjectFile(v)) out[k] = this.assetUrls.get(v)?.url ?? ''
+    }
+    return out
+  }
+
+  /**
+   * A project file was written: a layer that names it reads it again, and draws the new
+   * bytes, on this refresh.
+   */
+  assetChanged(name: string): Promise<void> {
+    const asset = this.assetUrls.get(`@/${name}`)
+    if (!asset) return Promise.resolve()
+    this.forgetAsset(`@/${name}`)
+    // Only a prop changed: nothing in the runtime announces it
+    return this.update().then(() => this.emit())
+  }
+
+  /** Read the project files planner layer props name, once each, as object URLs. */
+  private async loadLayerAssets(): Promise<void> {
+    const { readAsset } = this.options
+    const named = new Set<string>()
+    for (const l of this.runtime.layers()) {
+      for (const v of Object.values(l.props)) {
+        if (!isProjectFile(v)) continue
+        named.add(v)
+        if (this.assetUrls.has(v)) continue
+        if (!readAsset) {
+          this.assetUrls.set(v, { error: 'no project files to read' })
+          continue
+        }
+        try {
+          const bytes = await readAsset(v.slice(2))
+          this.assetUrls.set(v, { url: assetObjectUrl(v.slice(2), bytes) })
+        } catch (error) {
+          this.assetUrls.set(v, { error: (error as Error).message })
+        }
+      }
+    }
+    // A file no layer names any more gives its bytes back
+    for (const name of [...this.assetUrls.keys()]) if (!named.has(name)) this.forgetAsset(name)
+  }
+
+  private assetErrors(): { nodeId: string; message: string }[] {
+    const errors: { nodeId: string; message: string }[] = []
+    for (const l of this.runtime.layers()) {
+      for (const v of Object.values(l.props)) {
+        const error = isProjectFile(v) ? this.assetUrls.get(v)?.error : undefined
+        if (error) errors.push({ nodeId: l.id, message: `Couldn't read ${v}: ${error}` })
+      }
+    }
+    return errors
+  }
+
+  private forgetAsset(name: string): void {
+    const url = this.assetUrls.get(name)?.url
+    // Without the fragment: the store holds the bare URL
+    if (url) URL.revokeObjectURL(url.split('#')[0])
+    this.assetUrls.delete(name)
+  }
+
+  private revokeAssetUrls(): void {
+    for (const name of [...this.assetUrls.keys()]) this.forgetAsset(name)
   }
 
   private deckNode(): DocNode | undefined {
@@ -407,6 +519,7 @@ export class Engine {
         await this.runtime.setValues(values)
       }
       await this.runtime.idle()
+      await this.loadLayerAssets()
       await this.runHost(true)
       // Host and deck operators that read planner output (a camera fit to the rows) ran
       // just now: values that read them are evaluated again, once
@@ -434,12 +547,24 @@ export class Engine {
       OPERATOR_INDEX.get(this.doc?.nodes.find(n => n.id === id)?.op ?? '')
     const isHost = (id: string) => !!opOf(id) && !opOf(id)?.lower
     // Only a planner node's table input reads rows; a deck's layers port takes the host's layers.
-    const readsRows = (id: string, port: string) =>
-      opOf(id)?.inputs.find(p => p.name === port)?.type === 'table'
+    // A port of any type (a Switch's) reads rows when what's wired in is a table.
+    const readsRows = (e: {
+      source: string
+      sourcePort: string
+      target: string
+      targetPort: string
+    }) => {
+      const into = opOf(e.target)?.inputs.find(p => p.name === e.targetPort)?.type
+      if (into === 'table') return true
+      return (
+        into === 'any' &&
+        opOf(e.source)?.outputs.find(p => p.name === e.sourcePort)?.type === 'table'
+      )
+    }
     let changed = false
     const live = new Set<string>()
     for (const e of this.doc.edges) {
-      if (!isHost(e.source) || isHost(e.target) || !readsRows(e.target, e.targetPort)) continue
+      if (!isHost(e.source) || isHost(e.target) || !readsRows(e)) continue
       const key = `${e.source}.${e.sourcePort}`
       if (live.has(key)) continue
       live.add(key)
@@ -597,7 +722,7 @@ export class Engine {
     if (!rel) return PENDING
     let rows = this.rows.get(rel.hash)
     if (!rows) {
-      rows = this.runtime.relationRows(rel.ref)
+      rows = this.runtime.relationRows(rel.ref, rel.shape.vectors)
       this.rows.set(rel.hash, rows)
     }
     return rows
@@ -653,6 +778,42 @@ export class Engine {
     }
   }
 
+  // The deck's own style with its Style changes, once fetched: the base style draws until then.
+  // A fetch that failed says so on the deck and is tried again a few seconds later.
+  private changedStyle?: ChangedStyle
+
+  private styleWithChanges(deck: DocNode): string | Record<string, unknown> | undefined {
+    const base = styleOf(deck)
+    const changes = parseStyleChanges(deck.params.styleOverrides)
+    if (!base || !changes) {
+      this.changedStyle = undefined
+      return base
+    }
+    const key = `${typeof base === 'string' ? base : JSON.stringify(base)}\n${JSON.stringify(changes)}`
+    const last = this.changedStyle?.key === key ? this.changedStyle : undefined
+    const retry = last?.failedAt !== undefined && Date.now() - last.failedAt > STYLE_RETRY_MS
+    if (!last || retry) {
+      const pending: ChangedStyle = { key, deck: deck.id, error: last?.error }
+      this.changedStyle = pending
+      styleWithChanges(base, changes)
+        .then(style => {
+          if (this.changedStyle !== pending) return
+          pending.style = style
+          pending.error = undefined
+          this.emit()
+        })
+        .catch((err: Error) => {
+          if (this.changedStyle !== pending) return
+          pending.error = `Style changes not applied: ${err.message}`
+          pending.failedAt = Date.now()
+          this.emit()
+          // Drawing again is what tries again
+          setTimeout(() => this.changedStyle === pending && this.emit(), STYLE_RETRY_MS + 50)
+        })
+    }
+    return this.changedStyle?.style ?? base
+  }
+
   private emit(report?: UpdateReport): void {
     if (this.listeners.size === 0) return
     const vis = this.vis()
@@ -660,12 +821,57 @@ export class Engine {
   }
 }
 
-function styleOf(deck: DocNode): string | undefined {
-  const url = String(deck.params.mapStyle ?? '')
-  if (url) return url
+// A deck's map style: a style URL, style JSON pasted in (or a raster basemap from the gallery),
+// or a named basemap. JSON parses once per text, so the map keeps one style object and doesn't
+// re-diff it every frame.
+const parsedStyles = new Map<string, Record<string, unknown> | undefined>()
+
+function styleOf(deck: DocNode): string | Record<string, unknown> | undefined {
+  const text = String(deck.params.mapStyle ?? '').trim()
+  if (text.startsWith('{')) {
+    if (!parsedStyles.has(text)) {
+      let style: Record<string, unknown> | undefined
+      try {
+        style = JSON.parse(text)
+      } catch {
+        style = undefined
+      }
+      if (parsedStyles.size > 16) parsedStyles.clear()
+      parsedStyles.set(text, style)
+    }
+    return parsedStyles.get(text)
+  }
+  if (text) return text
   const named = String(deck.params.basemap ?? 'dark-matter')
   return named in BASEMAPS ? BASEMAPS[named] : named
 }
 
 // NaN is NaN: a value that is still missing has not changed
 const sameValue = (a: unknown, b: unknown) => Object.is(a, b) || a === b
+
+const isProjectFile = (v: unknown): v is string => typeof v === 'string' && v.startsWith('@/')
+
+const ASSET_TYPES: Record<string, string> = {
+  png: 'image/png',
+  jpg: 'image/jpeg',
+  jpeg: 'image/jpeg',
+  gif: 'image/gif',
+  webp: 'image/webp',
+  svg: 'image/svg+xml',
+  json: 'application/json',
+  glb: 'model/gltf-binary',
+  gltf: 'model/gltf+json',
+}
+
+/**
+ * An object URL of a project file's bytes, typed by its extension. The file name rides along
+ * as the fragment, which a fetch ignores, so a loader picked by extension (a `.ply` mesh)
+ * still sees it.
+ */
+function assetObjectUrl(name: string, bytes: Uint8Array): string {
+  const ext = /\.([^./]+)$/.exec(name)?.[1]?.toLowerCase() ?? ''
+  const blob = new Blob([bytes as BlobPart], {
+    type: ASSET_TYPES[ext] ?? 'application/octet-stream',
+  })
+  return `${URL.createObjectURL(blob)}#${encodeURIComponent(name.split('/').pop() ?? name)}`
+}

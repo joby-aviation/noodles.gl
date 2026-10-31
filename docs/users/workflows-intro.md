@@ -142,17 +142,27 @@ Add a **Comment** to explain part of a graph in place. Open the Add Node menu an
 
 Comments sit behind other nodes, have no inputs or outputs, and don't change what the graph does. Their text and size are saved with the project, and the parameter pane edits them too.
 
-### Node Tree Sidebar
+### Layer Stack
 
-The left sidebar's **Nodes** tab shows every node in the project as a tree, a subnet's nodes under it:
+The Layers editor's **Layers** tab lists what the deck draws, top layer first, as in Kepler or Cavalry. Open a layer to see the nodes that feed it, data sources first, without opening the node graph:
 
-- **Toggle visibility**: Click the chevron button on the sidebar edge to collapse or expand
+- **Select**: Click a layer or node to edit it in the Properties Panel
+- **Reorder**: Drag a layer up or down, or press Alt+Up or Alt+Down on its name
+- **Hide**: Click the eye. A hidden layer is bypassed, so its settings stay
+- **Shared nodes**: A node that feeds more than one layer is listed under each, with a link icon. Hover it to see the other layers
+- **Show in graph**: Hover a row and click the graph icon to open the node graph on it
+- **Find**: Type in the search box, or press Cmd+F, to filter by name or node type
+
+**Scene** lists the deck and what feeds its other ports, such as views and widgets. **Not drawn** lists nodes nothing reads.
+
+### Node Tree
+
+The Layers editor's **Nodes** tab shows every node in the project as a tree, a subnet's nodes under it:
+
 - **Select nodes**: Click a node name to select it on the canvas
 - **Navigate to node**: Click the compass icon to zoom the canvas to that node
 - **Navigate into subnets**: Click the arrow icon on a subnet to enter it
 - **Rename nodes**: Double-click a node name to edit it (press Enter to confirm, Escape to cancel)
-
-The **Layers** tab lists what the deck draws.
 
 ### Best Practices
 
@@ -278,5 +288,5 @@ Now that you understand workflows, explore:
 | Lay out the network, left to right | `L` |
 | Search operators | Type after pressing `Tab` |
 | Play animation | `Space` |
-| Rename node | Double-click its name in the sidebar |
+| Rename node | Double-click its name in the Nodes tab |
 | Insert node into wire | Right-click the wire |

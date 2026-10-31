@@ -23,7 +23,7 @@
 import type { GraphNode, LayerNode, DeckNode } from './types.js';
 import type { LayerKind, LayerPropValue } from './layers.js';
 import type { ParamValue } from './doc.js';
-import { RAMP_STOPS, type RampName } from './types.js';
+import { RAMP_STOPS, type RampName, statParamName } from './types.js';
 import { parseGeometry } from './geometry.js';
 import { GIS_OPERATORS } from './gis.js';
 
@@ -35,9 +35,22 @@ export type PortType = 'table' | 'layer' | 'number' | 'value'
   /** A subnet's boundary: it carries whatever is wired through it. */
   | 'any';
 
+/**
+ * What a `value` port carries, when it is one kind of thing: a camera (a View State's), a map
+ * style, a view, a widget, an extension. Two ports of different shapes don't connect, so a
+ * View State dropped on a deck goes to its view state, never its map style. A port without a
+ * shape (a Switch Value's, a Merge's, a Code node's) takes and gives anything.
+ */
+export type ValueShape = 'viewState' | 'mapStyle' | 'view' | 'widget' | 'extension';
+
+/** Whether a value of shape `a` fits a port of shape `b`: either is any value, or they match. */
+export const shapesFit = (a?: ValueShape, b?: ValueShape): boolean => !a || !b || a === b;
+
 export interface PortSpec {
   name: string;
   type: PortType;
+  /** For a `value` port, the one kind of value it carries. */
+  shape?: ValueShape;
   label?: string;
   /** Takes several edges, in order: a deck's layers, a union's inputs. */
   multi?: boolean;
@@ -72,6 +85,8 @@ export interface ParamDef {
   port?: boolean;
   /** What a `par:` handle accepts. Defaults to `number`. */
   portType?: PortType;
+  /** For a `value` parameter handle, the one kind of value it takes (a map style's). */
+  portShape?: ValueShape;
   /** For `kind: 'field'`: the host's description of its widget. Opaque to the planner. */
   field?: unknown;
   /** Show only when another parameter has one of these values. */
@@ -89,6 +104,11 @@ export interface LowerCtx {
   input(port: string): string;
   maybeInput(port: string): string | undefined;
   inputs(port: string): string[];
+  /**
+   * What is wired into a port, in order, `inputs` or not: each source's operator and the type
+   * of the output it reads. What `inputs` leaves out (a number, a host operator's value) is here.
+   */
+  sources(port: string): { op: string; type: PortType | undefined }[];
   /** Structural reads. An expression or reference in a structural parameter is an error. */
   str(param: string): string;
   num(param: string): number;
@@ -199,7 +219,7 @@ const blendParam: ParamDef = {
  * in as values; the planner never reads them, and the application attaches them to the layer.
  */
 const extensionsParam: ParamDef = {
-  name: 'extensions', label: 'Extensions', kind: 'field', default: [], folder: 'Style', port: true, portType: 'value',
+  name: 'extensions', label: 'Extensions', kind: 'field', default: [], folder: 'Style', port: true, portType: 'value', portShape: 'extension',
   field: { list: 'extensions' },
 };
 const rampParam: ParamDef = { name: 'ramp', label: 'Color ramp', kind: 'menu', default: 'viridis', options: RAMPS, folder: 'Channels', help: 'Used by ramp() in any channel expression.' };
@@ -226,10 +246,19 @@ function geometryLiteral(ctx: LowerCtx, dims: number[], what: string): string {
   return `'${text.replace(/'/g, "''")}'`;
 }
 
+// `colmin(mag)` and `colmax(mag)` in a channel: the column's minimum and maximum over the
+// layer's rows
+const COLUMN_STAT = /\bcol(min|max)\(\s*([A-Za-z_][A-Za-z0-9_]*)\s*\)/g;
+
 /**
  * A layer: channel expressions, then the layer node. A channel that names an attribute binds
  * it directly; anything else — `sqrt(mag) * 2`, `ramp(fit(depth, 0, 700, 0, 1))` — becomes one
  * statement of a wrangle in front of the layer, so the planner places it like any attribute.
+ *
+ * `colmin(col)` and `colmax(col)` read the column's extent over the layer's input, so a ramp
+ * can fit its domain to the data: `ramp(fit(mag, colmin(mag), colmax(mag), 0, 1))`. Each
+ * column gets one stats node, computed in SQL as an Extent node's is, and the calls become
+ * the parameters it publishes; a change to the data requeries it, a slider does not.
  */
 function lowerLayer(
   ctx: LowerCtx,
@@ -241,8 +270,16 @@ function lowerLayer(
   const base = ctx.input('in');
   const bound: Record<string, string> = {};
   const lines: string[] = [];
+  const extents = new Map<string, string>();
   for (const { channel, param } of channels) {
-    const text = ctx.expr(param).trim();
+    const text = ctx.expr(param).trim().replace(COLUMN_STAT, (_m, op: 'min' | 'max', column: string) => {
+      let id = extents.get(column);
+      if (!id) {
+        id = safeId(`${ctx.id}__${column}_extent`);
+        extents.set(column, id);
+      }
+      return `{{${statParamName(id, op)}}}`;
+    });
     if (!text) continue;
     if (BARE.test(text)) { bound[channel] = text; continue; }
     const name = `${safeId(ctx.id)}_${channel}`;
@@ -250,6 +287,9 @@ function lowerLayer(
     bound[channel] = name;
   }
   const nodes: GraphNode[] = [];
+  for (const [column, id] of extents) {
+    nodes.push({ id, type: 'stats', input: base, column, ops: ['min', 'max'] });
+  }
   let input = base;
   if (lines.length) {
     const wid = `${ctx.id}__ch`;
@@ -286,7 +326,10 @@ function modelLayer(kind: 'mesh' | 'scenegraph', label: string, urlParam: string
           { name: 'sizeMinPixels', label: 'Min size (px)', kind: 'float', default: 0, min: 0, max: 100, step: 1, bind: 'prop', folder: 'Style' } as ParamDef,
           { name: 'sizeMaxPixels', label: 'Max size (px)', kind: 'float', default: 100, min: 0, max: 10000, step: 1, bind: 'prop', folder: 'Style' } as ParamDef,
         ]
-        : [{ name: 'wireframe', label: 'Wireframe', kind: 'toggle', default: false, folder: 'Style' } as ParamDef]),
+        : [
+          { name: 'wireframe', label: 'Wireframe', kind: 'toggle', default: false, folder: 'Style' } as ParamDef,
+          { name: 'texture', label: 'Texture URL', kind: 'url', default: '', folder: 'Style', help: 'An image the mesh is painted with, by its texture coordinates.' } as ParamDef,
+        ]),
       { name: 'modelColor', label: 'Color', kind: 'color', default: [255, 255, 255], folder: 'Style' },
       rampParam,
       opacity,
@@ -299,7 +342,7 @@ function modelLayer(kind: 'mesh' | 'scenegraph', label: string, urlParam: string
         model: ctx.str(urlParam), sizeScale: ctx.bind('sizeScale'), color: ctx.bindColor('modelColor'),
         ...(kind === 'scenegraph'
           ? { sizeMinPixels: ctx.bind('sizeMinPixels'), sizeMaxPixels: ctx.bind('sizeMaxPixels') }
-          : { wireframe: ctx.bool('wireframe') }),
+          : { wireframe: ctx.bool('wireframe'), texture: ctx.str('texture') }),
         opacity: ctx.bind('opacity'),
       }),
   };
@@ -325,10 +368,18 @@ function binLayer(
       { ...aggregation('colorAggregation', 'Color') },
       { name: 'upperPercentile', label: 'Upper percentile', kind: 'float', default: 100, min: 0, max: 100, step: 1, bind: 'prop', folder: 'Color' },
       { name: 'lowerPercentile', label: 'Lower percentile', kind: 'float', default: 0, min: 0, max: 100, step: 1, bind: 'prop', folder: 'Color' },
+      { name: 'colorScaleType', label: 'Color scale', kind: 'menu', default: 'quantize', options: [{ value: 'quantize', label: 'Quantize' }, { value: 'linear', label: 'Linear' }, { value: 'quantile', label: 'Quantile' }, { value: 'ordinal', label: 'Ordinal' }], folder: 'Color' },
+      { name: 'colorDomain', label: 'Color domain', kind: 'string', default: '', folder: 'Color', help: 'Two numbers, min, max: the weights the color range spans. Empty fits the data.' },
       colorRangeParam,
       { name: 'extruded', label: 'Extruded', kind: 'toggle', default: kind === 'grid', folder: 'Elevation' },
       { ...aggregation('elevationAggregation', 'Elevation') },
       { name: 'elevationScale', label: 'Elevation scale', kind: 'float', default: 1, min: 0, max: 1000, step: 0.5, bind: 'prop', folder: 'Elevation', port: true },
+      { name: 'elevationScaleType', label: 'Elevation scale type', kind: 'menu', default: 'linear', options: [{ value: 'linear', label: 'Linear' }, { value: 'quantile', label: 'Quantile' }], folder: 'Elevation' },
+      { name: 'elevationRange', label: 'Elevation range', kind: 'string', default: '0, 1000', folder: 'Elevation', help: 'Two numbers, min, max: the heights in meters bins rise to.' },
+      { name: 'elevationDomain', label: 'Elevation domain', kind: 'string', default: '', folder: 'Elevation', help: 'Two numbers, min, max: the weights the elevation range spans. Empty fits the data.' },
+      { name: 'elevationUpperPercentile', label: 'Upper percentile', kind: 'float', default: 100, min: 0, max: 100, step: 1, bind: 'prop', folder: 'Elevation' },
+      { name: 'elevationLowerPercentile', label: 'Lower percentile', kind: 'float', default: 0, min: 0, max: 100, step: 1, bind: 'prop', folder: 'Elevation' },
+      { name: 'coverage', label: 'Coverage', kind: 'float', default: 1, min: 0, max: 1, step: 0.01, bind: 'prop', folder: 'Style', help: 'The share of each bin its shape fills.' },
       rampParam,
       opacity,
       blendParam,
@@ -343,7 +394,10 @@ function binLayer(
         [size]: ctx.bind(size), colorAggregation: ctx.str('colorAggregation'), upperPercentile: ctx.bind('upperPercentile'),
         lowerPercentile: ctx.bind('lowerPercentile'), colorRange: ctx.str('colorRange'), extruded: ctx.bool('extruded'),
         elevationAggregation: ctx.str('elevationAggregation'), elevationScale: ctx.bind('elevationScale'),
-        opacity: ctx.bind('opacity'),
+        colorScaleType: ctx.str('colorScaleType'), colorDomain: ctx.str('colorDomain'), elevationScaleType: ctx.str('elevationScaleType'),
+        elevationRange: ctx.str('elevationRange'), elevationDomain: ctx.str('elevationDomain'),
+        elevationUpperPercentile: ctx.bind('elevationUpperPercentile'), elevationLowerPercentile: ctx.bind('elevationLowerPercentile'),
+        coverage: ctx.bind('coverage'), opacity: ctx.bind('opacity'),
       }),
   };
 }
@@ -1020,17 +1074,32 @@ export const OPERATORS: OpDef[] = [
       channel('position', 'Position', 'P', '[lng, lat] or [lng, lat, meters], or an attribute holding one.'),
       channel('color', 'Color', '', 'An RGB attribute or expression in 0–1, e.g. ramp(fit(mag, 0, 7, 0, 1)). Empty uses Fill color.'),
       channel('radius', 'Radius', '', 'Per-row radius, multiplied by Radius scale. Empty is 1.'),
+      channel('lineColorChannel', 'Outline color', '', 'Per-row outline color in 0–1. Empty uses the constant Outline color.'),
+      channel('lineWidth', 'Outline width', '', 'Per-row outline width, times Outline width scale. Empty is 1.'),
       rampParam,
       { name: 'radiusScale', label: 'Radius scale', kind: 'float', default: 4, min: 0, max: 100, step: 0.1, bind: 'prop', folder: 'Style', port: true },
       { name: 'radiusUnits', label: 'Units', kind: 'menu', default: 'pixels', options: [{ value: 'pixels', label: 'Pixels' }, { value: 'meters', label: 'Meters' }], folder: 'Style' },
       { name: 'fillColor', label: 'Fill color', kind: 'color', default: [255, 140, 0], folder: 'Style' },
+      { name: 'stroked', label: 'Outline', kind: 'toggle', default: false, folder: 'Style' },
+      { name: 'lineColor', label: 'Outline color', kind: 'color', default: [255, 255, 255], folder: 'Style' },
+      { name: 'lineWidthScale', label: 'Outline width scale', kind: 'float', default: 1, min: 0, max: 100, step: 0.1, bind: 'prop', folder: 'Style' },
+      { name: 'lineWidthUnits', label: 'Outline units', kind: 'menu', default: 'pixels', options: [{ value: 'pixels', label: 'Pixels' }, { value: 'meters', label: 'Meters' }], folder: 'Style' },
+      { name: 'billboard', label: 'Face the camera', kind: 'toggle', default: false, folder: 'Style' },
+      { name: 'antialiasing', label: 'Antialiasing', kind: 'toggle', default: true, folder: 'Style' },
       opacity,
       blendParam,
       extensionsParam,
     ],
     lower: (ctx) => lowerLayer(ctx, 'scatter',
-      [{ channel: 'position', param: 'position' }, { channel: 'color', param: 'color' }, { channel: 'radius', param: 'radius' }],
-      { radiusScale: ctx.bind('radiusScale'), radiusUnits: ctx.str('radiusUnits'), fillColor: ctx.bindColor('fillColor'), opacity: ctx.bind('opacity') }),
+      [
+        { channel: 'position', param: 'position' }, { channel: 'color', param: 'color' }, { channel: 'radius', param: 'radius' },
+        { channel: 'lineColor', param: 'lineColorChannel' }, { channel: 'lineWidth', param: 'lineWidth' },
+      ],
+      {
+        radiusScale: ctx.bind('radiusScale'), radiusUnits: ctx.str('radiusUnits'), fillColor: ctx.bindColor('fillColor'), opacity: ctx.bind('opacity'),
+        stroked: ctx.bool('stroked'), lineColor: ctx.bindColor('lineColor'), lineWidthScale: ctx.bind('lineWidthScale'),
+        lineWidthUnits: ctx.str('lineWidthUnits'), billboard: ctx.bool('billboard'), antialiasing: ctx.bool('antialiasing'),
+      }),
   },
   {
     type: 'arc', label: 'Arc Layer', category: 'layer',
@@ -1042,13 +1111,18 @@ export const OPERATORS: OpDef[] = [
       channel('sourceColor', 'Source color', ''),
       channel('targetColor', 'Target color', ''),
       channel('width', 'Width', ''),
+      channel('tiltBy', 'Tilt', '', 'Per-row tilt in degrees, -90 to 90. Empty uses Tilt angle.'),
       rampParam,
       { name: 'widthScale', label: 'Width scale', kind: 'float', default: 1.5, min: 0, max: 20, step: 0.1, bind: 'prop', folder: 'Style', port: true },
       { name: 'widthUnits', label: 'Width units', kind: 'menu', default: 'pixels', options: [{ value: 'pixels', label: 'Pixels' }, { value: 'meters', label: 'Meters' }, { value: 'common', label: 'Common' }], folder: 'Style' },
       { name: 'height', label: 'Height', kind: 'float', default: 1, min: 0, max: 5, step: 0.05, bind: 'prop', folder: 'Style', port: true },
+      { name: 'tilt', label: 'Tilt angle', kind: 'float', default: 0, min: -90, max: 90, step: 1, bind: 'prop', folder: 'Style', port: true, help: 'Degrees the arc leans from vertical.' },
       { name: 'greatCircle', label: 'Great circle', kind: 'toggle', default: false, folder: 'Style' },
       { name: 'fromColor', label: 'From color', kind: 'color', default: [0, 180, 255], folder: 'Style' },
       { name: 'toColor', label: 'To color', kind: 'color', default: [255, 60, 120], folder: 'Style' },
+      { name: 'numSegments', label: 'Segments', kind: 'int', default: 50, min: 2, max: 200, step: 1, bind: 'prop', folder: 'Style' },
+      { name: 'widthMinPixels', label: 'Min width (px)', kind: 'float', default: 0, min: 0, max: 20, step: 0.5, bind: 'prop', folder: 'Style' },
+      { name: 'widthMaxPixels', label: 'Max width (px)', kind: 'float', default: 0, min: 0, max: 200, step: 1, bind: 'prop', folder: 'Style', help: '0 for no limit.' },
       opacity,
       blendParam,
       extensionsParam,
@@ -1057,10 +1131,11 @@ export const OPERATORS: OpDef[] = [
       [
         { channel: 'sourcePosition', param: 'source' }, { channel: 'targetPosition', param: 'target' },
         { channel: 'sourceColor', param: 'sourceColor' }, { channel: 'targetColor', param: 'targetColor' },
-        { channel: 'width', param: 'width' },
+        { channel: 'width', param: 'width' }, { channel: 'tilt', param: 'tiltBy' },
       ],
       {
-        widthScale: ctx.bind('widthScale'), widthUnits: ctx.str('widthUnits'), height: ctx.bind('height'), greatCircle: ctx.bool('greatCircle'),
+        widthScale: ctx.bind('widthScale'), widthUnits: ctx.str('widthUnits'), height: ctx.bind('height'), tilt: ctx.bind('tilt'), greatCircle: ctx.bool('greatCircle'),
+        numSegments: ctx.bind('numSegments'), widthMinPixels: ctx.bind('widthMinPixels'), widthMaxPixels: ctx.bind('widthMaxPixels'),
         sourceColor: ctx.bindColor('fromColor'), targetColor: ctx.bindColor('toColor'), opacity: ctx.bind('opacity'),
       }),
   },
@@ -1079,13 +1154,22 @@ export const OPERATORS: OpDef[] = [
       { name: 'widthMinPixels', label: 'Min width (px)', kind: 'float', default: 1, min: 0, max: 20, step: 0.5, bind: 'prop', folder: 'Style' },
       { name: 'widthUnits', label: 'Width units', kind: 'menu', default: 'pixels', options: [{ value: 'pixels', label: 'Pixels' }, { value: 'meters', label: 'Meters' }], folder: 'Style' },
       { name: 'lineColor', label: 'Line color', kind: 'color', default: [120, 200, 255], folder: 'Style' },
+      { name: 'capRounded', label: 'Rounded ends', kind: 'toggle', default: true, folder: 'Style' },
+      { name: 'jointRounded', label: 'Rounded joints', kind: 'toggle', default: true, folder: 'Style' },
+      { name: 'miterLimit', label: 'Miter limit', kind: 'float', default: 4, min: 1, max: 20, step: 0.5, bind: 'prop', folder: 'Style', help: 'How far a sharp joint may extend, in widths, when joints are not rounded.' },
+      { name: 'billboard', label: 'Face the camera', kind: 'toggle', default: false, folder: 'Style' },
+      { name: 'wrapLongitude', label: 'Wrap longitude', kind: 'toggle', default: false, folder: 'Style', help: 'Split a path where it crosses the antimeridian.' },
       opacity,
       blendParam,
       extensionsParam,
     ],
     lower: (ctx) => lowerLayer(ctx, 'path',
       [{ channel: 'position', param: 'position' }, { channel: 'color', param: 'color' }, { channel: 'width', param: 'width' }],
-      { widthScale: ctx.bind('widthScale'), widthMinPixels: ctx.bind('widthMinPixels'), widthUnits: ctx.str('widthUnits'), color: ctx.bindColor('lineColor'), opacity: ctx.bind('opacity') },
+      {
+        widthScale: ctx.bind('widthScale'), widthMinPixels: ctx.bind('widthMinPixels'), widthUnits: ctx.str('widthUnits'), color: ctx.bindColor('lineColor'), opacity: ctx.bind('opacity'),
+        capRounded: ctx.bool('capRounded'), jointRounded: ctx.bool('jointRounded'), miterLimit: ctx.bind('miterLimit'),
+        billboard: ctx.bool('billboard'), wrapLongitude: ctx.bool('wrapLongitude'),
+      },
       { pathId: ctx.str('pathId'), orderBy: [ctx.str('order')].filter(Boolean) }),
   },
   {
@@ -1098,24 +1182,34 @@ export const OPERATORS: OpDef[] = [
       { name: 'pathId', label: 'Path id', kind: 'column', default: 'row', of: 'in', folder: 'Channels', help: 'Unused when Position reads a list or geometry: each row is a path.' },
       { name: 'order', label: 'Vertex order', kind: 'column', default: 'index', of: 'in', folder: 'Channels', help: 'Unused when Position reads a list or geometry: each row is a path.' },
       channel('color', 'Color', ''),
+      channel('width', 'Width', '', 'Per-row width, times Width scale. Empty is 1.'),
       rampParam,
       { name: 'currentTime', label: 'Current time', kind: 'float', default: 0, min: 0, max: 86400, step: 1, bind: 'prop', folder: 'Animation', port: true },
       { name: 'trailLength', label: 'Trail length', kind: 'float', default: 180, min: 1, max: 20000, step: 1, bind: 'prop', folder: 'Animation', port: true },
       { name: 'fadeTrail', label: 'Fade trail', kind: 'toggle', default: true, folder: 'Animation' },
       { name: 'widthMinPixels', label: 'Width (px)', kind: 'float', default: 2, min: 0, max: 20, step: 0.5, bind: 'prop', folder: 'Style' },
-      { name: 'widthScale', label: 'Width', kind: 'float', default: 1, min: 0, max: 10000, step: 1, bind: 'prop', folder: 'Style' },
+      { name: 'widthScale', label: 'Width scale', kind: 'float', default: 1, min: 0, max: 10000, step: 1, bind: 'prop', folder: 'Style' },
       { name: 'widthUnits', label: 'Width units', kind: 'menu', default: 'meters', options: [{ value: 'pixels', label: 'Pixels' }, { value: 'meters', label: 'Meters' }], folder: 'Style' },
       { name: 'lineColor', label: 'Trail color', kind: 'color', default: [253, 128, 93], folder: 'Style' },
+      { name: 'capRounded', label: 'Rounded ends', kind: 'toggle', default: true, folder: 'Style' },
+      { name: 'jointRounded', label: 'Rounded joints', kind: 'toggle', default: true, folder: 'Style' },
+      { name: 'miterLimit', label: 'Miter limit', kind: 'float', default: 4, min: 1, max: 20, step: 0.5, bind: 'prop', folder: 'Style', help: 'How far a sharp joint may extend, in widths, when joints are not rounded.' },
+      { name: 'billboard', label: 'Face the camera', kind: 'toggle', default: false, folder: 'Style' },
       opacity,
       blendParam,
       extensionsParam,
     ],
     lower: (ctx) => lowerLayer(ctx, 'trips',
-      [{ channel: 'position', param: 'position' }, { channel: 'timestamp', param: 'timestamp' }, { channel: 'color', param: 'color' }],
+      [
+        { channel: 'position', param: 'position' }, { channel: 'timestamp', param: 'timestamp' }, { channel: 'color', param: 'color' },
+        { channel: 'width', param: 'width' },
+      ],
       {
         currentTime: ctx.bind('currentTime'), trailLength: ctx.bind('trailLength'), fadeTrail: ctx.bool('fadeTrail'),
         widthMinPixels: ctx.bind('widthMinPixels'), widthScale: ctx.bind('widthScale'), widthUnits: ctx.str('widthUnits'),
         color: ctx.bindColor('lineColor'), opacity: ctx.bind('opacity'),
+        capRounded: ctx.bool('capRounded'), jointRounded: ctx.bool('jointRounded'), miterLimit: ctx.bind('miterLimit'),
+        billboard: ctx.bool('billboard'),
       },
       { pathId: ctx.str('pathId'), orderBy: [ctx.str('order')].filter(Boolean) }),
   },
@@ -1125,19 +1219,42 @@ export const OPERATORS: OpDef[] = [
     inputs: [table()], outputs: [out('layer')],
     params: [
       channel('position', 'Position', 'P'),
-      channel('elevation', 'Elevation', 'n'),
+      channel('elevation', 'Elevation', '', 'Per-row height. Empty: every column is 1 × Elevation scale tall.'),
       channel('color', 'Color', ''),
+      channel('lineColorChannel', 'Outline color', '', 'Per-row outline color in 0–1. Empty uses the constant Outline color.'),
+      channel('lineWidth', 'Outline width', '', 'Per-row outline width, times Outline width scale. Empty is 1.'),
       rampParam,
-      { name: 'radius', label: 'Radius (m)', kind: 'float', default: 250, min: 1, max: 50000, step: 1, bind: 'prop', folder: 'Style', port: true },
+      { name: 'radius', label: 'Radius', kind: 'float', default: 250, min: 1, max: 50000, step: 1, bind: 'prop', folder: 'Style', port: true },
+      { name: 'radiusUnits', label: 'Radius units', kind: 'menu', default: 'meters', options: [{ value: 'meters', label: 'Meters' }, { value: 'pixels', label: 'Pixels' }, { value: 'common', label: 'Common' }], folder: 'Style' },
       { name: 'elevationScale', label: 'Elevation scale', kind: 'float', default: 20, min: 0, max: 5000, step: 1, bind: 'prop', folder: 'Style', port: true },
       { name: 'columnColor', label: 'Column color', kind: 'color', default: [255, 170, 60], folder: 'Style' },
+      { name: 'diskResolution', label: 'Sides', kind: 'int', default: 12, min: 3, max: 60, step: 1, bind: 'prop', folder: 'Style' },
+      { name: 'coverage', label: 'Coverage', kind: 'float', default: 1, min: 0, max: 1, step: 0.01, bind: 'prop', folder: 'Style' },
+      { name: 'offsetX', label: 'Offset X', kind: 'float', default: 0, min: -1, max: 1, step: 0.05, bind: 'prop', folder: 'Style', help: 'In radii.' },
+      { name: 'offsetY', label: 'Offset Y', kind: 'float', default: 0, min: -1, max: 1, step: 0.05, bind: 'prop', folder: 'Style', help: 'In radii.' },
+      { name: 'extruded', label: 'Extruded', kind: 'toggle', default: true, folder: 'Style' },
+      { name: 'filled', label: 'Filled', kind: 'toggle', default: true, folder: 'Style' },
+      { name: 'wireframe', label: 'Wireframe', kind: 'toggle', default: false, folder: 'Style' },
+      { name: 'flatShading', label: 'Flat shading', kind: 'toggle', default: false, folder: 'Style' },
+      { name: 'stroked', label: 'Outline', kind: 'toggle', default: false, folder: 'Style' },
+      { name: 'lineColor', label: 'Outline color', kind: 'color', default: [255, 255, 255], folder: 'Style' },
+      { name: 'lineWidthScale', label: 'Outline width scale', kind: 'float', default: 1, min: 0, max: 1000, step: 0.1, bind: 'prop', folder: 'Style' },
+      { name: 'lineWidthUnits', label: 'Outline units', kind: 'menu', default: 'meters', options: [{ value: 'meters', label: 'Meters' }, { value: 'pixels', label: 'Pixels' }], folder: 'Style' },
       opacity,
       blendParam,
       extensionsParam,
     ],
     lower: (ctx) => lowerLayer(ctx, 'column',
-      [{ channel: 'position', param: 'position' }, { channel: 'elevation', param: 'elevation' }, { channel: 'color', param: 'color' }],
-      { radius: ctx.bind('radius'), elevationScale: ctx.bind('elevationScale'), fillColor: ctx.bindColor('columnColor'), opacity: ctx.bind('opacity') }),
+      [
+        { channel: 'position', param: 'position' }, { channel: 'elevation', param: 'elevation' }, { channel: 'color', param: 'color' },
+        { channel: 'lineColor', param: 'lineColorChannel' }, { channel: 'lineWidth', param: 'lineWidth' },
+      ],
+      {
+        radius: ctx.bind('radius'), radiusUnits: ctx.str('radiusUnits'), elevationScale: ctx.bind('elevationScale'), fillColor: ctx.bindColor('columnColor'), opacity: ctx.bind('opacity'),
+        diskResolution: ctx.bind('diskResolution'), coverage: ctx.bind('coverage'), offsetX: ctx.bind('offsetX'), offsetY: ctx.bind('offsetY'),
+        extruded: ctx.bool('extruded'), filled: ctx.bool('filled'), wireframe: ctx.bool('wireframe'), flatShading: ctx.bool('flatShading'),
+        stroked: ctx.bool('stroked'), lineColor: ctx.bindColor('lineColor'), lineWidthScale: ctx.bind('lineWidthScale'), lineWidthUnits: ctx.str('lineWidthUnits'),
+      }),
   },
   {
     type: 'polygon', label: 'Polygon Layer', category: 'layer',
@@ -1150,16 +1267,21 @@ export const OPERATORS: OpDef[] = [
       { name: 'order', label: 'Vertex order', kind: 'column', default: 'index', of: 'in', folder: 'Channels' },
       channel('color', 'Color', ''),
       channel('lineColorChannel', 'Outline color', '', 'Per-row outline color in 0–1. Empty uses the constant Outline color.'),
+      channel('lineWidth', 'Outline width', '', 'Per-row outline width, times Outline width scale. Empty is 1.'),
       channel('elevation', 'Elevation', '', 'Per-row height when extruded. Empty uses 1 × Elevation scale.'),
       rampParam,
       { name: 'filled', label: 'Fill', kind: 'toggle', default: true, folder: 'Style' },
       { name: 'fillColor', label: 'Fill color', kind: 'color', default: [80, 160, 220], folder: 'Style' },
       { name: 'stroked', label: 'Outline', kind: 'toggle', default: false, folder: 'Style' },
       { name: 'lineColor', label: 'Outline color', kind: 'color', default: [255, 255, 255], folder: 'Style' },
-      { name: 'lineWidthScale', label: 'Outline width', kind: 'float', default: 1, min: 0, max: 1000, step: 0.1, bind: 'prop', folder: 'Style' },
+      { name: 'lineWidthScale', label: 'Outline width scale', kind: 'float', default: 1, min: 0, max: 1000, step: 0.1, bind: 'prop', folder: 'Style' },
       { name: 'lineWidthUnits', label: 'Outline units', kind: 'menu', default: 'pixels', options: [{ value: 'pixels', label: 'Pixels' }, { value: 'meters', label: 'Meters' }], folder: 'Style' },
       { name: 'lineWidthMinPixels', label: 'Outline min width (px)', kind: 'float', default: 1, min: 0, max: 20, step: 0.1, bind: 'prop', folder: 'Style' },
+      { name: 'lineWidthMaxPixels', label: 'Outline max width (px)', kind: 'float', default: 0, min: 0, max: 200, step: 1, bind: 'prop', folder: 'Style', help: '0 for no limit.' },
+      { name: 'lineJointRounded', label: 'Rounded outline joints', kind: 'toggle', default: false, folder: 'Style' },
+      { name: 'lineMiterLimit', label: 'Outline miter limit', kind: 'float', default: 4, min: 1, max: 20, step: 0.5, bind: 'prop', folder: 'Style' },
       { name: 'extruded', label: 'Extruded', kind: 'toggle', default: false, folder: 'Style' },
+      { name: 'wireframe', label: 'Wireframe', kind: 'toggle', default: false, folder: 'Style', help: 'Draw the edges of extruded polygons.' },
       { name: 'elevationScale', label: 'Elevation scale', kind: 'float', default: 1, min: 0, max: 10000, step: 1, bind: 'prop', folder: 'Style', port: true },
       opacity,
       blendParam,
@@ -1168,13 +1290,15 @@ export const OPERATORS: OpDef[] = [
     lower: (ctx) => lowerLayer(ctx, 'polygon',
       [
         { channel: 'position', param: 'position' }, { channel: 'color', param: 'color' },
-        { channel: 'lineColor', param: 'lineColorChannel' }, { channel: 'elevation', param: 'elevation' },
+        { channel: 'lineColor', param: 'lineColorChannel' }, { channel: 'lineWidth', param: 'lineWidth' },
+        { channel: 'elevation', param: 'elevation' },
       ],
       {
         fillColor: ctx.bindColor('fillColor'), filled: ctx.bool('filled'), stroked: ctx.bool('stroked'),
         lineColor: ctx.bindColor('lineColor'), lineWidthScale: ctx.bind('lineWidthScale'),
         lineWidthUnits: ctx.str('lineWidthUnits'), lineWidthMinPixels: ctx.bind('lineWidthMinPixels'),
-        extruded: ctx.bool('extruded'), elevationScale: ctx.bind('elevationScale'), opacity: ctx.bind('opacity'),
+        lineWidthMaxPixels: ctx.bind('lineWidthMaxPixels'), lineJointRounded: ctx.bool('lineJointRounded'), lineMiterLimit: ctx.bind('lineMiterLimit'),
+        extruded: ctx.bool('extruded'), wireframe: ctx.bool('wireframe'), elevationScale: ctx.bind('elevationScale'), opacity: ctx.bind('opacity'),
       },
       {
         pathId: ctx.str('pathId'),
@@ -1191,10 +1315,15 @@ export const OPERATORS: OpDef[] = [
       { name: 'text', label: 'Text', kind: 'column', default: 'name', of: 'in', columnType: 'str', folder: 'Channels' },
       channel('color', 'Color', '', 'Per-row color in 0–1. Empty uses Text color.'),
       channel('sizeBy', 'Size', '', 'Per-row size, times Size. Empty: every label is Size.'),
+      channel('borderColorChannel', 'Border color', '', 'Per-row background border color in 0–1. Empty uses the constant Border color.'),
+      channel('borderWidthBy', 'Border width', '', 'Per-row background border width in pixels. Empty uses Border width (px).'),
       rampParam,
       { name: 'size', label: 'Size (px)', kind: 'float', default: 12, min: 4, max: 64, step: 1, bind: 'prop', folder: 'Style', port: true },
       { name: 'sizeUnits', label: 'Size units', kind: 'menu', default: 'pixels', options: [{ value: 'pixels', label: 'Pixels' }, { value: 'meters', label: 'Meters' }, { value: 'common', label: 'Common' }], folder: 'Style' },
       { name: 'textColor', label: 'Text color', kind: 'color', default: [230, 230, 230], folder: 'Style' },
+      { name: 'sizeScale', label: 'Size scale', kind: 'float', default: 1, min: 0, max: 100, step: 0.1, bind: 'prop', folder: 'Style' },
+      { name: 'sizeMinPixels', label: 'Min size (px)', kind: 'float', default: 0, min: 0, max: 100, step: 1, bind: 'prop', folder: 'Style' },
+      { name: 'sizeMaxPixels', label: 'Max size (px)', kind: 'float', default: 0, min: 0, max: 500, step: 1, bind: 'prop', folder: 'Style', help: '0 for no limit.' },
       { name: 'offsetX', label: 'Offset X (px)', kind: 'float', default: 0, min: -64, max: 64, step: 1, bind: 'prop', folder: 'Style' },
       { name: 'offsetY', label: 'Offset Y (px)', kind: 'float', default: -12, min: -64, max: 64, step: 1, bind: 'prop', folder: 'Style' },
       { name: 'angle', label: 'Angle', kind: 'float', default: 0, min: -360, max: 360, step: 1, bind: 'prop', folder: 'Style', port: true },
@@ -1203,10 +1332,17 @@ export const OPERATORS: OpDef[] = [
       { name: 'fontFamily', label: 'Font', kind: 'string', default: 'ui-monospace, SF Mono, Menlo, monospace', folder: 'Font' },
       { name: 'fontWeight', label: 'Weight', kind: 'float', default: 400, min: 100, max: 900, step: 100, folder: 'Font' },
       { name: 'billboard', label: 'Face the camera', kind: 'toggle', default: true, folder: 'Font' },
+      { name: 'lineHeight', label: 'Line height', kind: 'float', default: 1, min: 0.5, max: 3, step: 0.05, bind: 'prop', folder: 'Font' },
+      { name: 'wordBreak', label: 'Word break', kind: 'menu', default: 'break-word', options: [{ value: 'break-word', label: 'Between words' }, { value: 'break-all', label: 'Anywhere' }], folder: 'Font' },
+      { name: 'maxWidth', label: 'Wrap width', kind: 'float', default: 0, min: 0, max: 100, step: 0.5, bind: 'prop', folder: 'Font', help: 'Wrap lines longer than this many times the size; 0 never wraps.' },
       { name: 'outlineWidth', label: 'Outline width', kind: 'float', default: 2, min: 0, max: 10, step: 0.5, folder: 'Font' },
       { name: 'outlineColor', label: 'Outline color', kind: 'color', default: [8, 9, 13], folder: 'Font' },
       { name: 'background', label: 'Background', kind: 'toggle', default: false, folder: 'Background' },
       { name: 'backgroundColor', label: 'Background color', kind: 'color', default: [255, 255, 255], folder: 'Background' },
+      { name: 'backgroundPadding', label: 'Padding (px)', kind: 'float', default: 0, min: 0, max: 50, step: 1, bind: 'prop', folder: 'Background' },
+      { name: 'borderColor', label: 'Border color', kind: 'color', default: [0, 0, 0], folder: 'Background' },
+      { name: 'borderWidth', label: 'Border width (px)', kind: 'float', default: 0, min: 0, max: 20, step: 0.5, bind: 'prop', folder: 'Background', help: 'The border around each background box; 0 hides it.' },
+      { name: 'backgroundBorderRadius', label: 'Corner radius (px)', kind: 'float', default: 0, min: 0, max: 50, step: 1, bind: 'prop', folder: 'Background' },
       opacity,
       blendParam,
       extensionsParam,
@@ -1215,13 +1351,20 @@ export const OPERATORS: OpDef[] = [
       const text = ctx.str('text');
       if (!text) ctx.error('Text Layer needs a text column');
       const r = lowerLayer(ctx, 'text',
-        [{ channel: 'position', param: 'position' }, { channel: 'color', param: 'color' }, { channel: 'size', param: 'sizeBy' }],
+        [
+          { channel: 'position', param: 'position' }, { channel: 'color', param: 'color' }, { channel: 'size', param: 'sizeBy' },
+          { channel: 'borderColor', param: 'borderColorChannel' }, { channel: 'borderWidth', param: 'borderWidthBy' },
+        ],
         {
           size: ctx.bind('size'), sizeUnits: ctx.str('sizeUnits'), color: ctx.bindColor('textColor'),
           offsetX: ctx.bind('offsetX'), offsetY: ctx.bind('offsetY'), angle: ctx.bind('angle'),
           anchor: ctx.str('anchor'), baseline: ctx.str('baseline'), fontFamily: ctx.str('fontFamily'), fontWeight: ctx.num('fontWeight'),
           billboard: ctx.bool('billboard'), outlineWidth: ctx.num('outlineWidth'), outlineColor: ctx.bindColor('outlineColor'),
           background: ctx.bool('background'), backgroundColor: ctx.bindColor('backgroundColor'), opacity: ctx.bind('opacity'),
+          sizeScale: ctx.bind('sizeScale'), sizeMinPixels: ctx.bind('sizeMinPixels'), sizeMaxPixels: ctx.bind('sizeMaxPixels'),
+          lineHeight: ctx.bind('lineHeight'), wordBreak: ctx.str('wordBreak'), maxWidth: ctx.bind('maxWidth'),
+          backgroundPadding: ctx.bind('backgroundPadding'), backgroundBorderRadius: ctx.bind('backgroundBorderRadius'),
+          borderColor: ctx.bindColor('borderColor'), borderWidth: ctx.bind('borderWidth'),
         });
       const layer = r.nodes[r.nodes.length - 1] as LayerNode;
       layer.channels = { ...layer.channels, text };
@@ -1242,6 +1385,7 @@ export const OPERATORS: OpDef[] = [
       { name: 'widthScale', label: 'Width scale', kind: 'float', default: 1, min: 0, max: 50, step: 0.1, bind: 'prop', folder: 'Style', port: true },
       { name: 'widthUnits', label: 'Width units', kind: 'menu', default: 'pixels', options: [{ value: 'pixels', label: 'Pixels' }, { value: 'meters', label: 'Meters' }, { value: 'common', label: 'Common' }], folder: 'Style' },
       { name: 'widthMinPixels', label: 'Min width (px)', kind: 'float', default: 0, min: 0, max: 20, step: 0.5, bind: 'prop', folder: 'Style' },
+      { name: 'widthMaxPixels', label: 'Max width (px)', kind: 'float', default: 0, min: 0, max: 200, step: 1, bind: 'prop', folder: 'Style', help: '0 for no limit.' },
       { name: 'lineColor', label: 'Line color', kind: 'color', default: [255, 255, 255], folder: 'Style' },
       opacity,
       blendParam,
@@ -1252,7 +1396,10 @@ export const OPERATORS: OpDef[] = [
         { channel: 'sourcePosition', param: 'source' }, { channel: 'targetPosition', param: 'target' },
         { channel: 'color', param: 'color' }, { channel: 'width', param: 'width' },
       ],
-      { widthScale: ctx.bind('widthScale'), widthUnits: ctx.str('widthUnits'), widthMinPixels: ctx.bind('widthMinPixels'), color: ctx.bindColor('lineColor'), opacity: ctx.bind('opacity') }),
+      {
+        widthScale: ctx.bind('widthScale'), widthUnits: ctx.str('widthUnits'), widthMinPixels: ctx.bind('widthMinPixels'),
+        widthMaxPixels: ctx.bind('widthMaxPixels'), color: ctx.bindColor('lineColor'), opacity: ctx.bind('opacity'),
+      }),
   },
   {
     type: 'point-cloud', label: 'Point Cloud Layer', category: 'layer',
@@ -1290,6 +1437,8 @@ export const OPERATORS: OpDef[] = [
       { name: 'sizeScale', label: 'Size scale', kind: 'float', default: 1, min: 0, max: 100, step: 0.1, bind: 'prop', folder: 'Style', port: true },
       { name: 'sizeUnits', label: 'Size units', kind: 'menu', default: 'pixels', options: [{ value: 'pixels', label: 'Pixels' }, { value: 'meters', label: 'Meters' }, { value: 'common', label: 'Common' }], folder: 'Style' },
       { name: 'sizeMinPixels', label: 'Min size (px)', kind: 'float', default: 0, min: 0, max: 100, step: 1, bind: 'prop', folder: 'Style' },
+      { name: 'sizeMaxPixels', label: 'Max size (px)', kind: 'float', default: 0, min: 0, max: 500, step: 1, bind: 'prop', folder: 'Style', help: '0 for no limit.' },
+      { name: 'sizeBasis', label: 'Size by', kind: 'menu', default: 'height', options: [{ value: 'height', label: 'Height' }, { value: 'width', label: 'Width' }], folder: 'Style' },
       { name: 'billboard', label: 'Face the camera', kind: 'toggle', default: true, folder: 'Style' },
       { name: 'iconColor', label: 'Icon color', kind: 'color', default: [0, 0, 0], folder: 'Style' },
       { name: 'offsetX', label: 'Offset X (px)', kind: 'float', default: 0, min: -128, max: 128, step: 1, bind: 'prop', folder: 'Style' },
@@ -1305,7 +1454,8 @@ export const OPERATORS: OpDef[] = [
         [{ channel: 'position', param: 'position' }, { channel: 'color', param: 'color' }, { channel: 'size', param: 'size' }, { channel: 'angle', param: 'angle' }],
         {
           iconAtlas: ctx.str('iconAtlas'), iconMapping: ctx.str('iconMapping'), sizeScale: ctx.bind('sizeScale'), sizeUnits: ctx.str('sizeUnits'),
-          sizeMinPixels: ctx.bind('sizeMinPixels'), billboard: ctx.bool('billboard'), color: ctx.bindColor('iconColor'),
+          sizeMinPixels: ctx.bind('sizeMinPixels'), sizeMaxPixels: ctx.bind('sizeMaxPixels'), sizeBasis: ctx.str('sizeBasis'),
+          billboard: ctx.bool('billboard'), color: ctx.bindColor('iconColor'),
           offsetX: ctx.bind('offsetX'), offsetY: ctx.bind('offsetY'), opacity: ctx.bind('opacity'),
         });
       const layer = r.nodes[r.nodes.length - 1] as LayerNode;
@@ -1321,21 +1471,35 @@ export const OPERATORS: OpDef[] = [
       channel('position', 'Position', 'P'),
       channel('elevation', 'Elevation', ''),
       channel('color', 'Color', '', 'Per-row color in 0–1. Empty uses Cell color.'),
+      channel('lineColorChannel', 'Outline color', '', 'Per-row outline color in 0–1. Empty uses the constant Outline color.'),
+      channel('lineWidth', 'Outline width', '', 'Per-row outline width, times Outline width scale. Empty is 1.'),
       rampParam,
       { name: 'cellSize', label: 'Cell size (m)', kind: 'float', default: 1000, min: 1, max: 100000, step: 1, bind: 'prop', folder: 'Style', port: true },
       { name: 'coverage', label: 'Coverage', kind: 'float', default: 1, min: 0, max: 1, step: 0.01, bind: 'prop', folder: 'Style' },
       { name: 'elevationScale', label: 'Elevation scale', kind: 'float', default: 1, min: 0, max: 5000, step: 1, bind: 'prop', folder: 'Style', port: true },
       { name: 'extruded', label: 'Extruded', kind: 'toggle', default: true, folder: 'Style' },
       { name: 'cellColor', label: 'Cell color', kind: 'color', default: [255, 170, 60], folder: 'Style' },
+      { name: 'filled', label: 'Filled', kind: 'toggle', default: true, folder: 'Style' },
+      { name: 'wireframe', label: 'Wireframe', kind: 'toggle', default: false, folder: 'Style' },
+      { name: 'flatShading', label: 'Flat shading', kind: 'toggle', default: false, folder: 'Style' },
+      { name: 'stroked', label: 'Outline', kind: 'toggle', default: false, folder: 'Style' },
+      { name: 'lineColor', label: 'Outline color', kind: 'color', default: [255, 255, 255], folder: 'Style' },
+      { name: 'lineWidthScale', label: 'Outline width scale', kind: 'float', default: 1, min: 0, max: 1000, step: 0.1, bind: 'prop', folder: 'Style' },
+      { name: 'lineWidthUnits', label: 'Outline units', kind: 'menu', default: 'meters', options: [{ value: 'meters', label: 'Meters' }, { value: 'pixels', label: 'Pixels' }], folder: 'Style' },
       opacity,
       blendParam,
       extensionsParam,
     ],
     lower: (ctx) => lowerLayer(ctx, 'column',
-      [{ channel: 'position', param: 'position' }, { channel: 'elevation', param: 'elevation' }, { channel: 'color', param: 'color' }],
+      [
+        { channel: 'position', param: 'position' }, { channel: 'elevation', param: 'elevation' }, { channel: 'color', param: 'color' },
+        { channel: 'lineColor', param: 'lineColorChannel' }, { channel: 'lineWidth', param: 'lineWidth' },
+      ],
       {
         cellSize: ctx.bind('cellSize'), coverage: ctx.bind('coverage'), elevationScale: ctx.bind('elevationScale'), extruded: ctx.bool('extruded'),
         fillColor: ctx.bindColor('cellColor'), opacity: ctx.bind('opacity'),
+        filled: ctx.bool('filled'), wireframe: ctx.bool('wireframe'), flatShading: ctx.bool('flatShading'),
+        stroked: ctx.bool('stroked'), lineColor: ctx.bindColor('lineColor'), lineWidthScale: ctx.bind('lineWidthScale'), lineWidthUnits: ctx.str('lineWidthUnits'),
       }),
   },
   {
@@ -1348,6 +1512,7 @@ export const OPERATORS: OpDef[] = [
       { name: 'cellSizePixels', label: 'Cell size (px)', kind: 'float', default: 100, min: 1, max: 500, step: 1, bind: 'prop', folder: 'Style', port: true },
       { name: 'cellMarginPixels', label: 'Cell margin (px)', kind: 'float', default: 2, min: 0, max: 20, step: 1, bind: 'prop', folder: 'Style' },
       { name: 'aggregation', label: 'Aggregation', kind: 'menu', default: 'SUM', options: ['SUM', 'MEAN', 'MIN', 'MAX'].map((v) => ({ value: v, label: v })), folder: 'Style' },
+      { name: 'colorDomain', label: 'Color domain', kind: 'string', default: '', folder: 'Style', help: 'Two numbers, min, max: the weights the color range spans. Empty fits the data.' },
       colorRangeParam,
       opacity,
       blendParam,
@@ -1355,7 +1520,10 @@ export const OPERATORS: OpDef[] = [
     ],
     lower: (ctx) => lowerLayer(ctx, 'screen-grid',
       [{ channel: 'position', param: 'position' }, { channel: 'weight', param: 'weight' }],
-      { cellSizePixels: ctx.bind('cellSizePixels'), cellMarginPixels: ctx.bind('cellMarginPixels'), aggregation: ctx.str('aggregation'), colorRange: ctx.str('colorRange'), opacity: ctx.bind('opacity') }),
+      {
+        cellSizePixels: ctx.bind('cellSizePixels'), cellMarginPixels: ctx.bind('cellMarginPixels'), aggregation: ctx.str('aggregation'),
+        colorRange: ctx.str('colorRange'), colorDomain: ctx.str('colorDomain'), opacity: ctx.bind('opacity'),
+      }),
   },
   {
     type: 'contour', label: 'Contour Layer', category: 'layer',
@@ -1416,10 +1584,10 @@ export const OPERATORS: OpDef[] = [
     inputs: [
       { name: 'layers', type: 'layer', label: 'layers', multi: true },
       // Host values the planner passes through to deck and MapLibre untouched.
-      { name: 'views', type: 'value', label: 'views', multi: true, optional: true },
+      { name: 'views', type: 'value', shape: 'view', label: 'views', multi: true, optional: true },
       { name: 'effects', type: 'value', label: 'effects', multi: true, optional: true },
-      { name: 'widgets', type: 'value', label: 'widgets', multi: true, optional: true },
-      { name: 'viewState', type: 'value', label: 'view state', optional: true },
+      { name: 'widgets', type: 'value', shape: 'widget', label: 'widgets', multi: true, optional: true },
+      { name: 'viewState', type: 'value', shape: 'viewState', label: 'view state', optional: true },
       { name: 'maplibreLayers', type: 'value', label: 'MapLibre layers', multi: true, optional: true },
     ], outputs: [],
     params: [
@@ -1431,8 +1599,8 @@ export const OPERATORS: OpDef[] = [
       { name: 'zoom', label: 'Zoom', kind: 'float', default: 1.5, min: 0, max: 22, step: 0.05, bind: 'prop', folder: 'Camera', port: true },
       { name: 'pitch', label: 'Pitch', kind: 'float', default: 0, min: 0, max: 85, step: 0.5, bind: 'prop', folder: 'Camera', port: true },
       { name: 'bearing', label: 'Bearing', kind: 'float', default: 0, min: -180, max: 180, step: 0.5, bind: 'prop', folder: 'Camera', port: true },
-      { name: 'follow', label: 'Drive the map camera', kind: 'toggle', default: false, folder: 'Camera', help: 'On: the camera parameters (and their keyframes) move the map. Off: the map is free to pan.' },
-      { name: 'mapStyle', label: 'Map style URL', kind: 'url', default: '', help: 'A MapLibre style. Overrides Basemap when set; a style wired in (from a style configurator) overrides both.', port: true, portType: 'value' },
+      { name: 'mapStyle', label: 'Map style URL', kind: 'url', default: '', help: 'A MapLibre style URL, or style JSON. Overrides Basemap when set; a style wired in (a Map Style node, a Code node returning style JSON) overrides both.', port: true, portType: 'value', portShape: 'mapStyle' },
+      { name: 'styleOverrides', label: 'Style changes', kind: 'text', default: '', help: 'Changes made in the style editor (layers hidden or recolored), as JSON, applied to the style above. A wired style ignores them.' },
       { name: 'projection', label: 'Projection', kind: 'menu', default: 'mercator', options: [{ value: 'mercator', label: 'Mercator' }, { value: 'globe', label: 'Globe' }] },
       // Video export. Read by the renderer, never lowered.
       { name: 'display', label: 'Display', kind: 'menu', default: 'fixed', options: [{ value: 'fixed', label: 'Fixed size' }, { value: 'responsive', label: 'Responsive' }], folder: 'Export' },
@@ -1528,15 +1696,22 @@ export const OPERATORS: OpDef[] = [
   // --- structure ------------------------------------------------------------
   {
     type: 'switch', label: 'Switch', category: 'structure',
-    description: 'Pass one of several layers through, chosen by index. A change re-plans, and the memo keeps every layer it is not showing, so switching back costs at most that layer\'s query.',
-    inputs: [{ name: 'in', type: 'layer', label: 'layers', multi: true }],
-    outputs: [out('layer')],
+    description: 'Pass one of several tables or layers through, chosen by index. A change re-plans, and the memo keeps every input it is not showing, so switching back costs at most that input\'s query. For numbers, cameras and other values, use Switch Value.',
+    inputs: [{ name: 'in', type: 'any', label: 'inputs', multi: true }],
+    outputs: [out('any')],
     params: [{ name: 'index', label: 'Index', kind: 'int', default: 0, min: 0, max: 16, step: 1, bind: 'structural' }],
     lower(ctx) {
-      const layers = ctx.inputs('in');
-      if (layers.length === 0) ctx.error('Switch needs a layer');
-      const i = Math.max(0, Math.min(layers.length - 1, Math.floor(ctx.num('index') || 0)));
-      return { nodes: [], outputs: { out: layers[i] } };
+      // A number (an Extent's min) or a value (a camera) isn't a table or a layer, whatever its
+      // operator: the output's own type says so. A host operator's table passes.
+      const values = ctx.sources('in').filter((s) => s.type === 'number' || s.type === 'value');
+      if (values.length > 0) {
+        const names = [...new Set(values.map((s) => OPERATOR_INDEX.get(s.op)?.label ?? s.op))].join(', ');
+        ctx.error(`Switch passes tables and layers; ${names} is a value: wire it into a Switch Value instead`);
+      }
+      const inputs = ctx.inputs('in');
+      if (inputs.length === 0) ctx.error('Switch needs a table or a layer');
+      const i = Math.max(0, Math.min(inputs.length - 1, Math.floor(ctx.num('index') || 0)));
+      return { nodes: [], outputs: { out: inputs[i] } };
     },
   },
   {

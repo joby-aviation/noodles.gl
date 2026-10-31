@@ -16,7 +16,10 @@ import {
   type PortType,
   resolveRef,
   setKeyframe,
+  shapesFit,
+  type ValueShape,
 } from '@noodles.gl/planner'
+import { DECK_OP_INDEX } from '../runtime/deck-ops'
 
 let counter = 0
 export const newId = (prefix: string): string =>
@@ -71,8 +74,27 @@ export function portType(
   return (side === 'in' ? def.inputs : def.outputs).find(p => p.name === port)?.type
 }
 
+/** What one kind of value a port carries (a View State's camera), or undefined for any value. */
+export function portShape(
+  doc: EditorDoc,
+  nodeId: string,
+  port: string,
+  side: 'in' | 'out'
+): ValueShape | undefined {
+  const def = OPERATOR_INDEX.get(doc.nodes.find(n => n.id === nodeId)?.op ?? '')
+  if (!def) return undefined
+  if (side === 'in' && port.startsWith('par:'))
+    return def.params.find(p => p.name === port.slice(4))?.portShape
+  return (side === 'in' ? def.inputs : def.outputs).find(p => p.name === port)?.shape
+}
+
+/** A deck operator's list parameter, which takes several wires in order: a Switch Value's values. */
+export const isListParam = (op: string, param: string): boolean =>
+  !!DECK_OP_INDEX.get(op)?.lists?.includes(param)
+
 export function isMulti(doc: EditorDoc, nodeId: string, port: string): boolean {
   const node = doc.nodes.find(n => n.id === nodeId)
+  if (node && port.startsWith('par:')) return isListParam(node.op, port.slice(4))
   return !!(node && OPERATOR_INDEX.get(node.op)?.inputs.find(p => p.name === port)?.multi)
 }
 
@@ -87,6 +109,11 @@ export function validConnection(
   const from = portType(doc, source, sourcePort, 'out')
   const to = portType(doc, target, targetPort, 'in')
   if (!from || !to || !canConnect(from as PortType, to)) return false
+  // A camera into a camera, a map style into a map style: a View State never feeds a map style
+  if (
+    !shapesFit(portShape(doc, source, sourcePort, 'out'), portShape(doc, target, targetPort, 'in'))
+  )
+    return false
   // No cycles.
   const downstream = new Set<string>([target])
   let grew = true
@@ -190,6 +217,7 @@ export function removeNodes(doc: EditorDoc, ids: string[]): void {
       }
     }
   }
+  keepReadValues(doc, drop)
   doc.nodes = doc.nodes.filter(n => !drop.has(n.id))
   removeEdges(
     doc,
@@ -197,6 +225,46 @@ export function removeNodes(doc: EditorDoc, ids: string[]): void {
   )
   if (doc.timeline) {
     doc.timeline.tracks = doc.timeline.tracks.filter(t => !drop.has(trackNode(t.target)))
+  }
+}
+
+/**
+ * A parameter referencing a node about to go keeps the value it read: a deck's pitch reading a
+ * Number stays at that number, rather than pointing at nothing (which reads NaN). A value the
+ * document doesn't hold as it is (a reference, an expression, one a wire or keyframes drive)
+ * can't be carried over, so the parameter goes back to its default.
+ */
+function keepReadValues(doc: EditorDoc, drop: Set<string>): void {
+  // The node a key names: the longest id it starts with, since an id may hold dots (`a.b`)
+  const nodeOf = (key: string) => {
+    let best: DocNode | undefined
+    for (const n of doc.nodes) {
+      if (key.startsWith(`${n.id}.`) && (!best || n.id.length > best.id.length)) best = n
+    }
+    return best
+  }
+  for (const node of doc.nodes) {
+    if (drop.has(node.id)) continue
+    for (const [param, value] of Object.entries(node.params)) {
+      if (!isRef(value)) continue
+      let key: string
+      try {
+        key = resolveRef(doc, node, value.ref)
+      } catch {
+        continue
+      }
+      const source = nodeOf(key)
+      if (!source || !drop.has(source.id)) continue
+      const name = key.slice(source.id.length + 1)
+      const driven =
+        doc.edges.some(e => e.target === source.id && e.targetPort === `par:${name}`) ||
+        !!doc.timeline?.tracks.some(t => t.target === key && t.keyframes.length > 0)
+      const read =
+        source.params[name] ??
+        OPERATOR_INDEX.get(source.op)?.params.find(p => p.name === name)?.default
+      if (driven || read === undefined || isRef(read) || isExpr(read)) delete node.params[param]
+      else node.params[param] = read
+    }
   }
 }
 

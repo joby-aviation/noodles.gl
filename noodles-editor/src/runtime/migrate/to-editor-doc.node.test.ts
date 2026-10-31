@@ -431,7 +431,8 @@ describe('toEditorDoc with time', () => {
 
   it('converts world-flights: trails and heads from a code node, colored by category', async () => {
     const { doc, warnings } = toEditorDoc(example('world-flights'))
-    expect(warnings).toEqual(["/scatterplot-layer: dropped 'getLineColor'"])
+    // Its outline color converts too; with Noodles' default width of 0 it draws no outline
+    expect(warnings).toEqual([])
     // The keyframed clock is a planner track on the number it drove.
     expect(doc.timeline?.tracks.map(t => t.target)).toEqual(['/time.value'])
     // The CodeOp runs in the engine, reading the GeoJSON file whole as FileOp parsed it

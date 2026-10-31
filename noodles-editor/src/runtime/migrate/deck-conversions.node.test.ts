@@ -135,6 +135,118 @@ describe('values', () => {
     expect(doc.nodes.map(n => n.id)).not.toContain('/xy')
   })
 
+  it('converts a SwitchOp choosing the camera to a Switch Value of View States', () => {
+    const { doc } = toEditorDoc(
+      deck(
+        [
+          op('/sf', 'MapViewStateOp', { longitude: -122.4, latitude: 37.8, zoom: 10 }),
+          op('/ny', 'MapViewStateOp', { longitude: -74, latitude: 40.7, zoom: 11 }),
+          op('/shots', 'SwitchOp', { index: 1, blend: true }),
+        ],
+        [
+          wire('/sf', 'viewState', '/shots', 'values'),
+          wire('/ny', 'viewState', '/shots', 'values'),
+          wire('/shots', 'value', '/deck', 'viewState'),
+        ]
+      )
+    )
+    const shots = doc.nodes.find(n => n.id === '/shots')
+    expect(shots).toMatchObject({ op: 'switch-value', params: { index: 1, blend: true } })
+    const into = (target: string, port: string) =>
+      doc.edges
+        .filter(e => e.target === target && e.targetPort === port)
+        .sort((a, b) => (a.index ?? 0) - (b.index ?? 0))
+        .map(e => e.source)
+    expect(into('/shots', 'par:values')).toEqual(['/sf', '/ny'])
+    expect(into(doc.nodes.find(n => n.op === 'deck')?.id ?? '', 'viewState')).toEqual(['/shots'])
+  })
+
+  it('converts a switch between tables into the planner’s Switch, in wiring order', () => {
+    const { doc, warnings } = toEditorDoc(
+      deck(
+        [
+          op('/small', 'DuckDbOp', { query: 'SELECT 1.0 AS lng, 2.0 AS lat' }),
+          op('/big', 'DuckDbOp', { query: 'SELECT 3.0 AS lng, 4.0 AS lat' }),
+          op('/pick', 'SwitchOp', { index: 1 }),
+          op('/where', 'AccessorOp', { expression: '[d.lng, d.lat]' }),
+          op('/points', 'ScatterplotLayerOp'),
+        ],
+        [
+          wire('/small', 'data', '/pick', 'values'),
+          wire('/big', 'data', '/pick', 'values'),
+          wire('/pick', 'value', '/points', 'data'),
+          wire('/where', 'accessor', '/points', 'getPosition'),
+          wire('/points', 'layer', '/deck', 'layers'),
+        ]
+      )
+    )
+    expect(doc.nodes.find(n => n.id === '/pick')).toMatchObject({
+      op: 'switch',
+      params: { index: 1 },
+    })
+    const into = doc.edges.filter(e => e.target === '/pick').map(e => [e.source, e.index])
+    expect(into).toEqual([
+      ['/small', 0],
+      ['/big', 1],
+    ])
+    const lowered = lowerDocument(doc)
+    expect(lowered.errors).toEqual([])
+    expect(lowered.outputs['/pick'].out).toBe('/big')
+    expect(warnings).toEqual([])
+  })
+
+  it('refuses a switch blending tables, which rows can’t do', () => {
+    const project = deck(
+      [
+        op('/small', 'DuckDbOp', { query: 'SELECT 1.0 AS lng, 2.0 AS lat' }),
+        op('/big', 'DuckDbOp', { query: 'SELECT 3.0 AS lng, 4.0 AS lat' }),
+        op('/pick', 'SwitchOp', { index: 0.5, blend: true }),
+        op('/where', 'AccessorOp', { expression: '[d.lng, d.lat]' }),
+        op('/points', 'ScatterplotLayerOp'),
+      ],
+      [
+        wire('/small', 'data', '/pick', 'values'),
+        wire('/big', 'data', '/pick', 'values'),
+        wire('/pick', 'value', '/points', 'data'),
+        wire('/where', 'accessor', '/points', 'getPosition'),
+        wire('/points', 'layer', '/deck', 'layers'),
+      ]
+    )
+    expect(() => toEditorDoc(project)).toThrow(/blending between tables is not converted/)
+  })
+
+  it('converts a camera SwitchOp feeding another as two Switch Values', () => {
+    const { doc } = toEditorDoc(
+      deck(
+        [
+          op('/a', 'MapViewStateOp', { zoom: 3 }),
+          op('/b', 'MapViewStateOp', { zoom: 6 }),
+          op('/c', 'MapViewStateOp', { zoom: 9 }),
+          op('/inner', 'SwitchOp', { index: 1 }),
+          op('/outer', 'SwitchOp', { index: 0 }),
+        ],
+        [
+          wire('/a', 'viewState', '/inner', 'values'),
+          wire('/b', 'viewState', '/inner', 'values'),
+          wire('/inner', 'value', '/outer', 'values'),
+          wire('/c', 'viewState', '/outer', 'values'),
+          wire('/outer', 'value', '/deck', 'viewState'),
+        ]
+      )
+    )
+    expect(doc.nodes.filter(n => n.id === '/inner' || n.id === '/outer').map(n => n.op)).toEqual([
+      'switch-value',
+      'switch-value',
+    ])
+    const into = (target: string) =>
+      doc.edges
+        .filter(e => e.target === target && e.targetPort === 'par:values')
+        .sort((a, b) => (a.index ?? 0) - (b.index ?? 0))
+        .map(e => e.source)
+    expect(into('/inner')).toEqual(['/a', '/b'])
+    expect(into('/outer')).toEqual(['/inner', '/c'])
+  })
+
   it('make an opaque color from RGBA channels, each clamped to a whole 0 to 255', () => {
     const color = (inputs: Record<string, unknown>) =>
       toEditorDoc(
@@ -262,6 +374,210 @@ describe('the small Noodles values, as planner and deck operators', () => {
       ['/a', 0],
       ['/b', 1],
     ])
+  })
+
+  it('keeps a Number wired into a carried style input, and refuses any other wire', () => {
+    const path = (wired: NoodlesNode, field: string) =>
+      deck(
+        [
+          op('/rows', 'DuckDbOp', { query: 'SELECT [[0.0, 0.0], [1.0, 1.0]] AS path' }),
+          op('/where', 'AccessorOp', { expression: 'd.path' }),
+          wired,
+          op('/lines', 'PathLayerOp', { jointRounded: false }),
+        ],
+        [
+          wire('/rows', 'data', '/lines', 'data'),
+          wire('/where', 'accessor', '/lines', 'getPath'),
+          wire(wired.id, 'val', '/lines', field),
+          wire('/lines', 'layer', '/deck', 'layers'),
+        ]
+      )
+    const { doc } = toEditorDoc(path(op('/miter', 'NumberOp', { val: 6 }), 'miterLimit'))
+    expect(doc.edges).toContainEqual(
+      expect.objectContaining({ source: '/miter', target: '/lines', targetPort: 'par:miterLimit' })
+    )
+    expect(() => toEditorDoc(path(op('/flag', 'NumberOp', { val: 1 }), 'billboard'))).toThrow(
+      /a wired billboard is not converted/
+    )
+  })
+
+  it('converts a scatterplot outline of one color and width, facing and antialiasing', () => {
+    const { doc, warnings } = toEditorDoc(
+      deck(
+        [
+          op('/rows', 'DuckDbOp', { query: 'SELECT 1.0 AS lng, 2.0 AS lat' }),
+          op('/where', 'AccessorOp', { expression: '[d.lng, d.lat]' }),
+          op('/points', 'ScatterplotLayerOp', {
+            getLineWidth: 2,
+            getLineColor: '#ff0000',
+            billboard: true,
+            antialiasing: false,
+          }),
+        ],
+        [
+          wire('/rows', 'data', '/points', 'data'),
+          wire('/where', 'accessor', '/points', 'getPosition'),
+          wire('/points', 'layer', '/deck', 'layers'),
+        ]
+      )
+    )
+    expect(doc.nodes.find(n => n.id === '/points')?.params).toMatchObject({
+      stroked: true,
+      lineWidthScale: 2,
+      // deck's own unit, which Noodles never set
+      lineWidthUnits: 'meters',
+      lineColor: [255, 0, 0],
+      billboard: true,
+      antialiasing: false,
+    })
+    expect(warnings.filter(w => w.includes('dropped'))).toEqual([])
+  })
+
+  it('converts a per-row outline width and color into the outline channels', () => {
+    const { doc, warnings } = toEditorDoc(
+      deck(
+        [
+          op('/rows', 'DuckDbOp', { query: 'SELECT 1.0 AS lng, 2.0 AS lat' }),
+          op('/where', 'AccessorOp', { expression: '[d.lng, d.lat]' }),
+          op('/width', 'AccessorOp', { expression: 'd.lng * 3' }),
+          op('/tint', 'AccessorOp', { expression: '[d.lng * 255, 0, 0]' }),
+          op('/points', 'ScatterplotLayerOp', { getLineWidth: 1 }),
+        ],
+        [
+          wire('/rows', 'data', '/points', 'data'),
+          wire('/where', 'accessor', '/points', 'getPosition'),
+          wire('/width', 'accessor', '/points', 'getLineWidth'),
+          wire('/tint', 'accessor', '/points', 'getLineColor'),
+          wire('/points', 'layer', '/deck', 'layers'),
+        ]
+      )
+    )
+    const params = doc.nodes.find(n => n.id === '/points')?.params
+    expect(params).toMatchObject({ stroked: true, lineWidthScale: 1 })
+    expect(params?.lineWidth).toEqual(expect.any(String))
+    expect(params?.lineColorChannel).toEqual(expect.any(String))
+    expect(warnings).toEqual([])
+    expect(lowerDocument(doc).errors).toEqual([])
+  })
+
+  it('converts a per-row trail width, an arc tilt and a label border', () => {
+    const { doc, warnings } = toEditorDoc(
+      deck(
+        [
+          op('/rows', 'DuckDbOp', {
+            query:
+              'SELECT [[0.0, 0.0], [1.0, 1.0]] AS path, [0.0, 1.0] AS ts, 1.0 AS lng, 2.0 AS lat, 4.0 AS w',
+          }),
+          op('/path', 'AccessorOp', { expression: 'd.path' }),
+          op('/times', 'AccessorOp', { expression: 'd.ts' }),
+          op('/width', 'AccessorOp', { expression: 'd.w' }),
+          op('/trips', 'TripsLayerOp', { widthScale: 2 }),
+          op('/from', 'AccessorOp', { expression: '[d.lng, d.lat]' }),
+          op('/arcs', 'ArcLayerOp', { getTilt: 30 }),
+          op('/names', 'AccessorOp', { expression: 'd.lng' }),
+          op('/labels', 'TextLayerOp', {
+            background: true,
+            getBorderWidth: 2,
+            getBorderColor: '#00ff00ff',
+          }),
+        ],
+        [
+          wire('/rows', 'data', '/trips', 'data'),
+          wire('/path', 'accessor', '/trips', 'getPath'),
+          wire('/times', 'accessor', '/trips', 'getTimestamps'),
+          wire('/width', 'accessor', '/trips', 'getWidth'),
+          wire('/trips', 'layer', '/deck', 'layers'),
+          wire('/rows', 'data', '/arcs', 'data'),
+          wire('/from', 'accessor', '/arcs', 'getSourcePosition'),
+          wire('/from', 'accessor', '/arcs', 'getTargetPosition'),
+          wire('/arcs', 'layer', '/deck', 'layers'),
+          wire('/rows', 'data', '/labels', 'data'),
+          wire('/from', 'accessor', '/labels', 'getPosition'),
+          wire('/names', 'accessor', '/labels', 'getText'),
+          wire('/labels', 'layer', '/deck', 'layers'),
+        ]
+      )
+    )
+    const params = (id: string) => doc.nodes.find(n => n.id === id)?.params
+    expect(params('/trips')).toMatchObject({ widthScale: 2 })
+    expect(params('/trips')?.width).toEqual(expect.any(String))
+    expect(params('/arcs')).toMatchObject({ tilt: 30 })
+    expect(params('/labels')).toMatchObject({ borderWidth: 2, borderColor: [0, 255, 0] })
+    expect(warnings.filter(w => w.includes('dropped'))).toEqual([])
+  })
+
+  it('converts a label border whose color was left at Noodles’ black', () => {
+    const { doc } = toEditorDoc(
+      deck(
+        [
+          op('/rows', 'DuckDbOp', { query: "SELECT 1.0 AS lng, 2.0 AS lat, 'a' AS name" }),
+          op('/where', 'AccessorOp', { expression: '[d.lng, d.lat]' }),
+          op('/names', 'AccessorOp', { expression: 'd.name' }),
+          op('/labels', 'TextLayerOp', { background: true, getBorderWidth: 2 }),
+        ],
+        [
+          wire('/rows', 'data', '/labels', 'data'),
+          wire('/where', 'accessor', '/labels', 'getPosition'),
+          wire('/names', 'accessor', '/labels', 'getText'),
+          wire('/labels', 'layer', '/deck', 'layers'),
+        ]
+      )
+    )
+    expect(doc.nodes.find(n => n.id === '/labels')?.params).toMatchObject({
+      borderWidth: 2,
+      borderColor: [0, 0, 0],
+    })
+  })
+
+  it('carries a hexagon layer’s scales, and leaves defaults out of the document', () => {
+    const { doc } = toEditorDoc(
+      deck(
+        [
+          op('/rows', 'DuckDbOp', { query: 'SELECT 1.0 AS lng, 2.0 AS lat' }),
+          op('/where', 'AccessorOp', { expression: '[d.lng, d.lat]' }),
+          op('/bins', 'HexagonLayerOp', {
+            colorDomain: [0, 10],
+            elevationRange: [0, 5000],
+            colorScaleType: 'quantile',
+            coverage: 1,
+          }),
+        ],
+        [
+          wire('/rows', 'data', '/bins', 'data'),
+          wire('/where', 'accessor', '/bins', 'getPosition'),
+          wire('/bins', 'layer', '/deck', 'layers'),
+        ]
+      )
+    )
+    const params = doc.nodes.find(n => n.id === '/bins')?.params
+    expect(params).toMatchObject({
+      colorDomain: '0, 10',
+      elevationRange: '0, 5000',
+      colorScaleType: 'quantile',
+    })
+    expect(params).not.toHaveProperty('coverage')
+  })
+
+  it('gives a path Noodles’ defaults where they differ from the planner’s', () => {
+    const { doc } = toEditorDoc(
+      deck(
+        [
+          op('/rows', 'DuckDbOp', { query: 'SELECT [[0.0, 0.0], [1.0, 1.0]] AS path' }),
+          op('/where', 'AccessorOp', { expression: 'd.path' }),
+          op('/lines', 'PathLayerOp'),
+        ],
+        [
+          wire('/rows', 'data', '/lines', 'data'),
+          wire('/where', 'accessor', '/lines', 'getPath'),
+          wire('/lines', 'layer', '/deck', 'layers'),
+        ]
+      )
+    )
+    // Noodles' path faced the camera and had square joints
+    expect(doc.nodes.find(n => n.id === '/lines')?.params).toMatchObject({
+      billboard: true,
+      jointRounded: false,
+    })
   })
 
   it('converts LayerProps into props on the planner layer it wraps', () => {

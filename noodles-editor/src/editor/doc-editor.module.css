@@ -92,6 +92,16 @@
   opacity: 0.6;
 }
 
+.menu .menuParent {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.menu .menuParentOpen {
+  background: var(--color-accent-muted, #2b3550);
+}
+
 .panel {
   padding: 8px;
   font-size: 12px;
@@ -134,15 +144,21 @@
 /* --- the parameter pane: d-d-d's layout, Noodles' widgets ---------------------------- */
 
 .pane {
+  /* Labels take this column; controls fill the rest, then the link and keyframe gutter */
+  /* A share of the pane, not of each row: a row with a units menu after its value is narrower,
+     and its value must still start where every other row's does */
+  container-type: inline-size;
+  --pane-label: minmax(72px, 36cqw);
+  --pane-gutter: 34px;
   display: flex;
   flex-direction: column;
   height: 100%;
   overflow-y: auto;
-  font-size: 12px;
+  font-size: 11.5px;
 }
 
 .paneHead {
-  padding: 10px 12px 8px;
+  padding: 8px 10px 6px;
   border-bottom: 1px solid var(--color-border, #333);
 }
 
@@ -218,18 +234,34 @@
 }
 
 .paneDesc {
+  display: -webkit-box;
+  width: 100%;
+  margin-top: 4px;
+  padding: 0;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  border: 0;
+  background: transparent;
   color: var(--color-text-secondary, #888);
-  margin-top: 5px;
-  font-size: 11.5px;
+  font: inherit;
+  font-size: 11px;
+  line-height: 1.4;
+  text-align: left;
+  cursor: pointer;
+}
+
+.paneDescOpen {
+  display: block;
 }
 
 .params {
-  padding: 4px 8px 12px;
+  padding: 0 0 12px;
 }
 
 /* A folder: an uppercase heading, as the old properties panel titled its sections */
-.folder + .folder {
-  margin-top: 6px;
+.folder {
+  padding-bottom: 4px;
 }
 
 .folderHead {
@@ -237,36 +269,42 @@
   align-items: center;
   gap: 6px;
   width: 100%;
-  margin: 6px 0 2px;
-  padding: 4px 6px;
+  margin: 0;
+  padding: 8px 10px 4px;
   border: 0;
-  border-radius: 4px;
   background: transparent;
   color: rgb(255 255 255 / 50%);
   font: inherit;
   font-size: 11px;
   font-weight: 600;
-  text-transform: uppercase;
   letter-spacing: 0.5px;
   text-align: left;
+  text-transform: uppercase;
   cursor: pointer;
 }
 
 .folderHead:hover {
-  background: rgb(255 255 255 / 4%);
   color: rgb(255 255 255 / 75%);
+}
+
+/* A heading that doesn't fold, lined up with the folders' text */
+.folderHeadStatic,
+.folderHeadStatic:hover {
+  padding-left: 25px;
+  color: rgb(255 255 255 / 50%);
+  cursor: default;
 }
 
 .folderChevron {
   width: 10px;
+  color: var(--color-text-secondary, #888);
   font-size: 9px;
 }
 
 .paramRow {
   position: relative;
-  padding: 2px 6px;
-  border-radius: 4px;
-  transition: background 0.1s;
+  /* Room for the input port on the left and the output port on the right */
+  padding: 1px 16px 1px 16px;
 }
 
 .paramRow:hover {
@@ -277,20 +315,401 @@
    rest, as Houdini's parameter pane lines them up */
 .paramRow :global(.field-row) {
   display: grid;
-  grid-template-columns: minmax(64px, 36%) minmax(0, 1fr);
+  grid-template-columns: var(--pane-label) minmax(0, 1fr);
   gap: 8px;
-  min-height: 26px;
+  min-height: 22px;
 }
 
 .paramRow :global(.field-label) {
-  text-align: right;
-  color: var(--color-text-secondary, #9a9a9a);
-  white-space: nowrap;
   overflow: hidden;
+  color: var(--color-text-secondary, #9a9a9a);
+  text-align: left;
   text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.paramRow :global(.field-input) {
+/* Every widget's control lines up at the left of its column and ends at the same edge. Values
+   stay flat, as Noodles draws them, and show a box only on hover and while editing. */
+.paramRow
+  :global(.field-row)
+  > :last-child
+  input:not([type="checkbox"]):not([type="color"]):not([type="range"]),
+.paramRow :global(.field-row) > :last-child select,
+.paramRow :global(.field-row) > :last-child textarea {
+  width: 100%;
+  min-width: 0;
+  max-width: none;
+  min-height: 20px;
+  padding: 0 6px;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  background: transparent;
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+  line-height: 18px;
+  text-align: left;
+}
+
+.paramRow
+  :global(.field-row)
+  > :last-child
+  input:not([type="checkbox"]):not([type="color"]):not([type="range"]):hover,
+.paramRow :global(.field-row) > :last-child select:hover,
+.paramRow :global(.field-row) > :last-child textarea:hover {
+  background: var(--node-input-hover-color, rgb(255 255 255 / 5%));
+}
+
+.paramRow
+  :global(.field-row)
+  > :last-child
+  input:not([type="checkbox"]):not([type="color"]):not([type="range"]):focus,
+.paramRow :global(.field-row) > :last-child select:focus,
+.paramRow :global(.field-row) > :last-child textarea:focus {
+  border-color: var(--color-text-accent, #4a9eff);
+  background: rgb(0 0 0 / 25%);
+}
+
+/* A code parameter: its editor was sized for a canvas node, absolutely filling at least
+   400 by 200 pixels. In the pane it takes the row's width at its own height. */
+.paramRow :global(.field-row:has(.monaco-editor)) {
+  display: block;
+  width: auto;
+  height: auto;
+  min-width: 0;
+  min-height: 0;
+  padding: 2px 0;
+}
+
+.paramRow :global(.field-row:has(.monaco-editor)) > :last-child {
+  position: relative;
+  inset: auto;
+  height: auto;
+  min-height: 0;
+  max-height: 260px;
+  overflow: auto;
+  border-radius: 3px;
+  background: rgb(0 0 0 / 20%);
+}
+
+/* A channel's value, marked by what it holds: an attribute (teal, after a column glyph), a row
+   expression (violet, monospace, after ƒ), or nothing, so the layer's own value applies */
+.channel {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  height: 20px;
+  padding: 0 6px;
+  border: 1px solid transparent;
+  border-radius: 3px;
+}
+
+.channel:hover {
+  background: var(--node-input-hover-color, rgb(255 255 255 / 5%));
+}
+
+.channel:focus-within {
+  border-color: var(--color-text-accent, #4a9eff);
+  background: rgb(0 0 0 / 25%);
+}
+
+.channel input {
+  flex: 1;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+}
+
+.channel input::placeholder {
+  color: var(--color-text-disabled, #666);
+  font-style: italic;
+}
+
+.channelBadge {
+  flex: none;
+  font-size: 10px;
+  opacity: 0.8;
+}
+
+.channel_attribute {
+  color: #7fd6c8;
+}
+
+.channel_attribute .channelBadge {
+  font-size: 11px;
+}
+
+.channel_expression {
+  color: #c9a8ff;
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 11px;
+}
+
+.channel_expression .channelBadge {
+  font-family: Georgia, serif;
+  font-style: italic;
+}
+
+/* A compound control (compound-rows.tsx): a color's mode, with the rows for that mode nested
+   under it, and a value's units on the value's row */
+.compound {
+  padding-bottom: 2px;
+}
+
+/* The group's own row lines up with the rows around it */
+.compound > .paramDriven {
+  padding: 1px calc(var(--pane-gutter) + 4px) 1px 16px;
+}
+
+.compoundBody {
+  /* Rows inside start 11px further right, so their labels give up the same 11px and their
+     controls line up with the rows outside */
+  --pane-label: minmax(61px, calc(36cqw - 11px));
+  margin-left: 10px;
+  border-left: 1px solid rgb(255 255 255 / 8%);
+}
+
+.compoundBody > .paramRow,
+.compoundBody > .paramDriven {
+  /* The same room for the port before the label as every other row */
+  padding-left: 16px;
+}
+
+.compoundBody > .paramDriven {
+  padding-right: calc(var(--pane-gutter) + 4px);
+}
+
+.compoundNote {
+  margin: 2px 0 4px 22px;
+  color: var(--color-text-secondary, #888);
+  font-size: 11px;
+}
+
+.segmented {
+  display: flex;
+  min-width: 0;
+  margin: 0;
+  padding: 1px;
+  border: 1px solid var(--color-border, #333);
+  border-radius: 4px;
+}
+
+.segment {
+  flex: 1;
+  min-width: 0;
+  height: 18px;
+  padding: 0 4px;
+  overflow: hidden;
+  border: 0;
+  border-radius: 3px;
+  background: transparent;
+  color: var(--color-text-secondary, #888);
+  font: inherit;
+  font-size: 10.5px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  cursor: pointer;
+}
+
+.segment:hover {
+  color: var(--color-text-primary, #ddd);
+}
+
+.segmentOn,
+.segmentOn:hover {
+  background: rgb(255 255 255 / 10%);
+  color: var(--color-text-primary, #ddd);
+}
+
+.compoundSelect,
+.rangeInput,
+.unitsSelect {
+  min-width: 0;
+  height: 20px;
+  padding: 0 4px;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+}
+
+.compoundSelect:hover,
+.rangeInput:hover,
+.unitsSelect:hover {
+  background: var(--node-input-hover-color, rgb(255 255 255 / 5%));
+}
+
+.compoundSelect:focus,
+.rangeInput:focus,
+.unitsSelect:focus {
+  border-color: var(--color-text-accent, #4a9eff);
+  outline: none;
+}
+
+.range {
+  display: flex;
+  gap: 4px;
+  min-width: 0;
+}
+
+.rangeInput {
+  flex: 1;
+  width: 0;
+}
+
+.rangeInput:disabled {
+  background: transparent;
+  color: var(--color-text-disabled, #666);
+  cursor: default;
+}
+
+.autoToggle {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 4px;
+  padding-right: 2px;
+  color: var(--color-text-secondary, #888);
+  font-size: 11px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.autoToggle input {
+  /* The editor's global styles hide native checkboxes; this one is drawn as the browser's */
+  appearance: auto;
+  width: 12px;
+  height: 12px;
+  margin: 0;
+  accent-color: var(--color-text-accent, #4a9eff);
+}
+
+/* A value's units sit after the value, before the link and keyframe gutter */
+.unitsSelect {
+  flex: none;
+  max-width: 72px;
+  color: var(--color-text-secondary, #888);
+}
+
+/* A color ramp parameter, drawn as its colors (ramp-picker.tsx) */
+.rampTrigger {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  height: 20px;
+  padding: 0 6px;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 11.5px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.rampTrigger:hover,
+.rampTrigger[data-state="open"] {
+  background: var(--node-input-hover-color, rgb(255 255 255 / 5%));
+}
+
+.rampTrigger i {
+  margin-left: auto;
+  font-size: 9px;
+  color: var(--color-text-secondary, #888);
+}
+
+.rampSwatch {
+  flex: none;
+  width: 64px;
+  height: 10px;
+  border-radius: 2px;
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 10%);
+}
+
+.rampSwatchNone {
+  background: repeating-linear-gradient(-45deg, rgb(255 255 255 / 6%) 0 4px, transparent 4px 8px);
+}
+
+.rampName {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rampMenu {
+  min-width: 200px;
+  max-height: 320px;
+  overflow-y: auto;
+  padding: 4px;
+  background: var(--color-bg-base);
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  box-shadow: 0 10px 38px -10px rgba(0, 0, 0, 0.35);
+  z-index: var(--z-index-chrome);
+}
+
+.rampItem {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 5px 8px;
+  border-radius: 3px;
+  font-size: 12px;
+  color: var(--color-text-primary);
+  cursor: pointer;
+  outline: none;
+  user-select: none;
+}
+
+.rampItem[data-highlighted] {
+  background: var(--color-bg-hover);
+}
+
+.rampItem .rampSwatch {
+  width: 96px;
+  height: 12px;
+}
+
+.rampItemOn {
+  font-weight: 600;
+}
+
+/* A one-line text parameter (a column, an expression) stays one line, with no resize grip */
+/* One line high, except a text parameter whose value has several lines: that grows with them */
+.paramRow
+  :global(.field-row)
+  > :last-child
+  input:not([type="checkbox"]):not([type="color"]):not([type="range"]),
+.paramRow :global(.field-row) > :last-child select,
+.paramRow :global(.field-row) > :last-child textarea[rows="1"] {
+  height: 20px;
+}
+
+.paramRow :global(.field-row) > :last-child textarea:not([rows="1"]) {
+  height: auto;
+  padding: 1px 6px;
+  /* Its rows follow the value's line count; sized to content it would also shrink in width */
+  field-sizing: fixed;
+}
+
+.paramRow :global(.field-row) > :last-child textarea[rows="1"] {
+  overflow: hidden;
+  resize: none;
+  white-space: nowrap;
+  field-sizing: fixed;
+}
+
+.paramRow :global(.field-row) > :last-child {
   justify-content: stretch;
   min-width: 0;
 }
@@ -299,6 +718,105 @@
 .paramRow :global(.field-input) > :global(.p-inputtext) {
   width: 100%;
   min-width: 0;
+}
+
+/* A property's ports, as Cavalry's: the input at the row's left edge reads something, the
+   output at its right edge is read. Hollow until connected; filled blue when connected. */
+.port {
+  position: absolute;
+  /* The middle of the row's first line (1px padding, a 22px line), not of the whole row: a
+     reference chip below would pull it off the label */
+  top: 12px;
+  left: 5px;
+  width: 7px;
+  height: 7px;
+  box-sizing: border-box;
+  transform: translateY(-50%);
+  border: 1.5px solid var(--color-text-disabled, #555);
+  border-radius: 50%;
+  background: var(--color-bg-base, #1b1d21);
+  cursor: grab;
+  opacity: 0.6;
+  /* A touch drags a line from the port rather than scrolling the panel */
+  touch-action: none;
+}
+
+.paramRow:hover .port {
+  opacity: 1;
+}
+
+.port:hover {
+  border-color: #9fc0ff;
+  transform: translateY(-50%) scale(1.3);
+}
+
+.portOut {
+  right: 5px;
+  left: auto;
+}
+
+.portOn {
+  border-color: #9fc0ff;
+  background: #9fc0ff;
+  opacity: 1;
+}
+
+/* What a hovered port is connected to */
+.portTip {
+  position: fixed;
+  z-index: 10000;
+  box-sizing: border-box;
+  padding: 4px;
+  border: 1px solid var(--color-border, #333);
+  border-radius: 4px;
+  background: var(--color-bg-elevated, #23262b);
+  box-shadow: 0 4px 16px rgb(0 0 0 / 40%);
+  font-size: 11px;
+  overflow-y: auto;
+}
+
+.portTipHead {
+  padding: 2px 6px 4px;
+  color: rgb(255 255 255 / 50%);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+
+.portTipItem {
+  display: block;
+  width: 100%;
+  padding: 3px 6px;
+  overflow: hidden;
+  border: 0;
+  border-radius: 3px;
+  background: transparent;
+  color: #9fc0ff;
+  font: inherit;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.portTipItem:hover {
+  background: rgb(159 192 255 / 14%);
+}
+
+.portTipEmpty {
+  padding: 2px 6px 4px;
+  color: var(--color-text-secondary, #888);
+}
+
+/* A property that can take the link being dragged */
+.paramRowLinkTarget {
+  background: rgb(159 192 255 / 10%);
+  box-shadow: inset 2px 0 0 #9fc0ff;
+}
+
+.paramRowLinkTarget:hover {
+  background: rgb(159 192 255 / 22%);
 }
 
 /* Linking a parameter to another: the button appears on hover */
@@ -370,21 +888,6 @@
   opacity: 1;
 }
 
-.readers {
-  padding: 0 6px 2px calc(36% + 8px);
-  color: var(--color-text-secondary, #888);
-  font-size: 10.5px;
-}
-
-.readers button {
-  padding: 0;
-  border: 0;
-  background: transparent;
-  color: #9fc0ff;
-  font: inherit;
-  cursor: pointer;
-}
-
 .refPicker {
   position: fixed;
   z-index: 10000;
@@ -449,7 +952,16 @@
 .paramMain {
   display: flex;
   align-items: center;
+  gap: 0;
+}
+
+.paramGutter {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: flex-end;
   gap: 4px;
+  width: var(--pane-gutter);
 }
 
 .paramMain > :first-child {
@@ -459,24 +971,24 @@
 
 .paramDriven {
   display: grid;
-  grid-template-columns: minmax(64px, 36%) minmax(0, 1fr) auto;
-  gap: 6px;
+  grid-template-columns: var(--pane-label) minmax(0, 1fr) auto;
+  gap: 8px;
   align-items: center;
-  padding: 3px 8px;
+  min-height: 22px;
 }
 
 .paramLabel {
-  text-align: right;
-  color: var(--color-text-secondary, #888);
-  white-space: nowrap;
   overflow: hidden;
+  color: var(--color-text-secondary, #888);
+  text-align: left;
   text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .wired {
   font-family: ui-monospace, "SF Mono", Menlo, monospace;
   font-size: 11px;
-  color: #ff9d9d;
+  color: #9fc0ff;
 }
 
 .evaluated {
@@ -508,10 +1020,10 @@
 }
 
 .diamond {
-  width: 10px;
-  height: 10px;
+  width: 9px;
+  height: 9px;
   flex: none;
-  margin-right: 6px;
+  margin: 0 4px 0 2px;
   transform: rotate(45deg);
   border: 1.5px solid var(--color-text-disabled, #555);
   background: transparent;
@@ -526,6 +1038,26 @@
 .diamondOn {
   background: #e6b53d;
   border-color: #e6b53d;
+}
+
+/* Changed but not keyed, as Blender's orange */
+.diamondChanged {
+  background: #ff8a3d;
+  border-color: #ff8a3d;
+}
+
+.paramChanged {
+  background: rgb(255 138 61 / 12%);
+  box-shadow: inset 2px 0 0 #ff8a3d;
+}
+
+/* The changed value beside the keyed one the widget still shows */
+.pendingValue {
+  flex: none;
+  margin-right: 6px;
+  color: #ff8a3d;
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 11px;
 }
 
 .routes {
@@ -651,12 +1183,81 @@
 
 /* Shown under the header for the node an example selects when it opens */
 .starterHint {
-  margin: 0 6px 12px;
-  padding: 6px 8px;
+  margin: 6px 10px;
+  padding: 5px 8px;
   border-left: 2px solid var(--color-primary, #3b82f6);
   border-radius: 3px;
   background: rgba(59, 130, 246, 0.1);
   color: var(--color-text-secondary);
-  font-size: 12px;
+  font-size: 11.5px;
   line-height: 1.4;
+}
+
+/* A deck's map style control: the basemap picker and the style's actions on one row */
+.styleActions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+
+.stylePick {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  padding: 3px 8px;
+  border: 1px solid var(--color-border, #444);
+  border-radius: 4px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.stylePick span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.stylePick:hover:not(:disabled) {
+  border-color: var(--color-accent, #6b8cff);
+}
+
+.styleAction {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 1px solid var(--color-border, #444);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--color-text-secondary, #aaa);
+  cursor: pointer;
+}
+
+.styleAction:hover:not(:disabled) {
+  border-color: var(--color-accent, #6b8cff);
+  color: var(--color-text-primary, #fff);
+}
+
+.stylePick:disabled,
+.styleAction:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.styleChanges {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #ff8a3d;
+  font-size: 12px;
 }

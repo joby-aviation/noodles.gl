@@ -15,7 +15,7 @@
  *     full precision; only the final layer query narrows to f32 for the buffer.
  */
 
-import { type Expr, parseExpr, columnsOf, enginesFor } from './expr.js';
+import { type Expr, parseExpr, columnsOf, componentColumns, enginesFor } from './expr.js';
 import { toSql, toSqlColumns, castToDouble, quoteIdent, SqlParams } from './backends/sql.js';
 import { escapeLiteral } from './source.js';
 import type {
@@ -332,6 +332,47 @@ export function limitSql(node: LimitNode, input: string): string {
   return `SELECT * FROM ${input} LIMIT ${Math.max(0, Math.floor(node.count))}${offset}`;
 }
 
+/**
+ * A query without the comments, whitespace and semicolons around it. A header comment would
+ * hide the SELECT from the check, and the query is inlined as `(…)`, where a trailing `--`
+ * comment would swallow the closing paren. Strings and quoted names are skipped whole, so a
+ * `--` inside one is not taken for a comment; comments inside the query are left alone.
+ */
+export function trimSqlEnds(text: string): string {
+  let start = -1;
+  let end = 0;
+  let i = 0;
+  let dollar: RegExpExecArray | null;
+  while (i < text.length) {
+    const c = text[i];
+    if (c === '-' && text[i + 1] === '-') {
+      const nl = text.indexOf('\n', i);
+      i = nl < 0 ? text.length : nl + 1;
+      continue;
+    }
+    if (c === '/' && text[i + 1] === '*') {
+      const close = text.indexOf('*/', i + 2);
+      i = close < 0 ? text.length : close + 2;
+      continue;
+    }
+    if (/\s/.test(c) || c === ';') { i++; continue; }
+    if (start < 0) start = i;
+    if (c === "'" || c === '"') {
+      // A doubled quote is an escaped one; scanning on past it reads the same
+      const close = text.indexOf(c, i + 1);
+      i = close < 0 ? text.length : close + 1;
+    } else if (c === '$' && (dollar = /^\$(?:[A-Za-z_][A-Za-z0-9_]*)?\$/.exec(text.slice(i)))) {
+      // A dollar string, $$…$$ or tagged $tag$…$tag$, ends only at the same delimiter
+      const close = text.indexOf(dollar[0], i + dollar[0].length);
+      i = close < 0 ? text.length : close + dollar[0].length;
+    } else {
+      i++;
+    }
+    end = i;
+  }
+  return start < 0 ? '' : text.slice(start, end);
+}
+
 export function sqlNodeSql(
   node: SqlNode,
   inputs: string[],
@@ -345,7 +386,7 @@ export function sqlNodeSql(
     return ref;
   });
   const inlined = inlineParamsInText(text, values, `SQL ${node.id}`, inputNames);
-  text = inlined.text.trim().replace(/;+\s*$/, '');
+  text = trimSqlEnds(inlined.text);
   if (!/^\s*(select|with|from|values|\()/i.test(text)) {
     throw new PlanError(`SQL ${node.id}: the query must be a single SELECT (or WITH … SELECT)`);
   }
@@ -418,6 +459,11 @@ export function unnestSql(node: UnnestNode, input: string, shape: RelShape): { s
  * and then every node is emitted as SQL. A node with no SQL form (a `ramp()`, a swizzle) is
  * an error here with the reason, not a surprise at execution.
  */
+const REPACK = '__repack:';
+
+/** A column name as a regular expression's literal text: any valid name, `v[` say, is safe. */
+export const escapeRegExp = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
 export function rowwiseSql(
   chain: GraphNode[],
   input: string,
@@ -435,10 +481,22 @@ export function rowwiseSql(
   }
   const last = chain[chain.length - 1];
   const sourceId = '__rel';
+  // Vectors the relation stores as components, re-packed for the chain that reads them, as a
+  // layer's are: `c = [c_0, c_1, c_2]`, so `c`, `c[0]` and `c.r` read those columns in SQL
+  const chainText = JSON.stringify(chain);
+  const repack = shape.vectors.filter((v) => new RegExp(`\\b${escapeRegExp(v.name)}\\b`).test(chainText));
+  const repacked = repack.map((v, i) => ({
+    id: `${REPACK}${i}`,
+    type: 'attribute' as const,
+    input: i === 0 ? sourceId : `${REPACK}${i - 1}`,
+    name: v.name,
+    expr: `[${Array.from({ length: v.width }, (_, k) => `${v.name}_${k}`).join(', ')}]`,
+  }));
+  const head = repacked.at(-1)?.id ?? sourceId;
   const rewire = (n: GraphNode): GraphNode => {
     const copy = structuredClone(n) as GraphNode & { input?: string; inputs?: string[] };
     const ids = new Set(chain.map((c) => c.id));
-    const fix = (id: string) => (ids.has(id) ? id : sourceId);
+    const fix = (id: string) => (ids.has(id) ? id : head);
     if (typeof copy.input === 'string') copy.input = fix(copy.input);
     if (copy.inputs) copy.inputs = copy.inputs.map(fix);
     return copy;
@@ -448,6 +506,7 @@ export function rowwiseSql(
     functions: graph.functions, udfs: graph.udfs,
     nodes: [
       { id: sourceId, type: 'source', dataset: { ref: sourceId } },
+      ...repacked,
       ...chain.map(rewire),
       { id: '__out', type: 'render', input: last.id, mode: 'points' },
     ],
@@ -457,7 +516,8 @@ export function rowwiseSql(
   const analysis = analyze(sub, schema, undefined, types, { hoist: false });
   const used = new Set<string>();
   const vectors = [...shape.vectors];
-  const vectorNames = new Set(vectors.map((v) => v.name));
+  // A vector the chain reads is re-packed above; any other would be read as a whole, which SQL can't
+  const vectorNames = new Set(vectors.map((v) => v.name).filter((n) => !repack.some((v) => v.name === n)));
   let columns = new Set(shape.columns.map((c) => c.name));
   let sql = `SELECT * FROM ${input}`;
 
@@ -465,8 +525,8 @@ export function rowwiseSql(
     const shadowed = names.filter((n) => columns.has(n));
     return shadowed.length ? `* EXCLUDE (${shadowed.map(quoteIdent).join(', ')})` : '*';
   };
-  const noVectorReads = (node: AnalyzedNode) => {
-    const read = node.expr ? columnsOf(node.expr).filter((c) => vectorNames.has(c)) : [];
+  const noVectorReads = (node: AnalyzedNode, expr: Expr | undefined) => {
+    const read = expr ? columnsOf(expr).filter((c) => vectorNames.has(c)) : [];
     if (read.length) {
       throw new PlanError(
         `Node ${node.id}: reads vector '${read[0]}' inside ${label}; SQL sees only its components (${read[0]}_0, …)`,
@@ -475,21 +535,27 @@ export function rowwiseSql(
   };
 
   for (const node of analysis.order) {
+    // A re-packed vector's components are columns already
+    if (node.id.startsWith(REPACK)) continue;
     // A color ramp's `ramp(t)` samples a LUT on the GPU and the CPU; inside a relation it is
     // three columns read from the ramp's stops instead (see rampColumns)
     const ramped = rampedArg(node, analysis.ramps);
-    if (!node.feasible.has('sql') && !ramped) {
+    // A vector this query holds as components (re-packed, or computed above it) is read as
+    // those columns: `mc.r` is `mc_0`
+    const expr = node.expr && componentColumns(node.expr, new Map(vectors.map((v) => [v.name, v.width])));
+    const sqlForm = node.feasible.has('sql') || (!!expr && expr !== node.expr && enginesFor(expr).has('sql'));
+    if (!sqlForm && !ramped) {
       throw new PlanError(`Node ${node.id}: feeds ${label}, so it must run in SQL, and it has no SQL form`);
     }
-    noVectorReads(node);
+    noVectorReads(node, expr);
     switch (node.kind) {
       case 'filter': {
-        const e = inlineParams(node.expr!, values, used, `Node ${node.id}`);
+        const e = inlineParams(expr!, values, used, `Node ${node.id}`);
         sql = `SELECT * FROM (${sql}) WHERE ${toSql(e, new SqlParams()).code}`;
         break;
       }
       case 'attribute': {
-        const e = inlineParams(node.expr!, values, used, `Node ${node.id}`);
+        const e = inlineParams(expr!, values, used, `Node ${node.id}`);
         const name = node.name!;
         if (analysis.strings.has(name)) {
           sql = `SELECT ${excluding([name])}, ${toSql(e, new SqlParams()).code} AS ${quoteIdent(name)} FROM (${sql})`;

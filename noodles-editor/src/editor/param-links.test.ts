@@ -1,0 +1,207 @@
+import type { DocNode, EditorDoc } from '@noodles.gl/planner'
+import { describe, expect, it } from 'vitest'
+import {
+  canLink,
+  connections,
+  linkParam,
+  outputKey,
+  sourcesOn,
+  targetsOn,
+  valueOutputs,
+} from './param-links'
+
+const node = (
+  id: string,
+  op: string,
+  params: DocNode['params'] = {},
+  extra: Partial<DocNode> = {}
+) => ({ id, op, x: 0, y: 0, params, ...extra }) satisfies DocNode
+
+// Two layers and two controls: a number and a color
+function fixture(): EditorDoc {
+  return {
+    version: 1,
+    name: 'links',
+    nodes: [
+      node('size', 'number', { value: 4 }),
+      node('tint', 'color', { color: [255, 0, 0] }),
+      node('dots', 'scatter'),
+      node('rings', 'scatter'),
+    ],
+    edges: [],
+  }
+}
+
+describe('linkParam', () => {
+  it('makes the target read the source by a relative reference', () => {
+    const doc = fixture()
+    expect(linkParam(doc, 'size.value', 'dots.radiusScale')).toBe(true)
+    expect(doc.nodes.find(n => n.id === 'dots')?.params.radiusScale).toEqual({ ref: 'size/value' })
+  })
+
+  it('writes an absolute path across networks', () => {
+    const doc = fixture()
+    doc.nodes.push(node('group', 'subnet'), node('inner', 'scatter', {}, { parent: 'group' }))
+    expect(linkParam(doc, 'size.value', 'inner.opacity')).toBe(true)
+    expect(doc.nodes.find(n => n.id === 'inner')?.params.opacity).toEqual({ ref: '/size/value' })
+  })
+
+  it('refuses a different kind of value, itself, and a wired parameter', () => {
+    const doc = fixture()
+    expect(canLink(doc, 'tint.color', 'dots.radiusScale')).toBe(false)
+    expect(canLink(doc, 'dots.opacity', 'dots.opacity')).toBe(false)
+    doc.edges.push({
+      id: 'w',
+      source: 'size',
+      sourcePort: 'out',
+      target: 'dots',
+      targetPort: 'par:radiusScale',
+    })
+    expect(canLink(doc, 'size.value', 'dots.radiusScale')).toBe(false)
+  })
+
+  it('refuses a link that would make a reference loop', () => {
+    const doc = fixture()
+    expect(linkParam(doc, 'dots.opacity', 'rings.opacity')).toBe(true)
+    expect(linkParam(doc, 'rings.opacity', 'dots.opacity')).toBe(false)
+    expect(doc.nodes.find(n => n.id === 'dots')?.params.opacity).toBeUndefined()
+  })
+})
+
+describe('loops through expressions', () => {
+  it('refuses a link that would loop through a ch() expression', () => {
+    const doc = fixture()
+    doc.nodes.find(n => n.id === 'dots')!.params.opacity = { expr: "ch('rings/opacity') * 2" }
+    expect(canLink(doc, 'dots.opacity', 'rings.opacity')).toBe(false)
+    expect(linkParam(doc, 'dots.opacity', 'rings.opacity')).toBe(false)
+    expect(doc.nodes.find(n => n.id === 'rings')?.params.opacity).toBeUndefined()
+  })
+
+  it('follows a reference into an expression further along', () => {
+    const doc = fixture()
+    doc.nodes.find(n => n.id === 'dots')!.params.opacity = { ref: 'size/value' }
+    doc.nodes.find(n => n.id === 'size')!.params.value = { expr: "ch('rings/radiusScale') + 1" }
+    expect(canLink(doc, 'dots.opacity', 'rings.radiusScale')).toBe(false)
+    expect(canLink(doc, 'dots.opacity', 'rings.opacity')).toBe(true)
+  })
+})
+
+describe('targetsOn and sourcesOn', () => {
+  it('lists the parameters of one node a number can drive', () => {
+    const keys = targetsOn(fixture(), 'dots', 'size.value').map(c => c.key)
+    expect(keys).toContain('dots.radiusScale')
+    expect(keys).toContain('dots.opacity')
+    expect(keys).not.toContain('dots.fillColor')
+  })
+
+  it('lists the parameters of one node a color can read', () => {
+    expect(sourcesOn(fixture(), 'tint', 'dots.fillColor').map(c => c.key)).toEqual(['tint.color'])
+    expect(sourcesOn(fixture(), 'size', 'dots.fillColor')).toEqual([])
+  })
+})
+
+// An Extent's min and max are value outputs a parameter reads over a wire
+const withExtent = () => {
+  const doc = fixture()
+  doc.nodes.push(node('range', 'extent'))
+  return doc
+}
+
+describe('value outputs', () => {
+  it('lists the outputs a parameter can read, not rows or layers', () => {
+    const doc = withExtent()
+    const outputs = (id: string) =>
+      valueOutputs(doc.nodes.find(n => n.id === id) as DocNode).map(o => o.name)
+    expect(outputs('range')).toEqual(['min', 'max'])
+    expect(outputs('dots')).toEqual([])
+  })
+
+  it('wires an output into a number parameter, as the graph does', () => {
+    const doc = withExtent()
+    expect(linkParam(doc, outputKey('range', 'max'), 'dots.radiusScale')).toBe(true)
+    expect(doc.edges).toEqual([
+      expect.objectContaining({
+        source: 'range',
+        sourcePort: 'max',
+        target: 'dots',
+        targetPort: 'par:radiusScale',
+      }),
+    ])
+  })
+
+  it('refuses a number into a color, and a parameter into an output', () => {
+    const doc = withExtent()
+    expect(canLink(doc, outputKey('range', 'max'), 'dots.fillColor')).toBe(false)
+    expect(canLink(doc, 'size.value', outputKey('range', 'max'))).toBe(false)
+  })
+
+  it('offers a node’s outputs beside its parameters', () => {
+    const keys = sourcesOn(withExtent(), 'range', 'dots.opacity').map(c => c.key)
+    expect(keys).toEqual([outputKey('range', 'min'), outputKey('range', 'max')])
+    expect(targetsOn(withExtent(), 'dots', outputKey('range', 'min')).map(c => c.key)).toContain(
+      'dots.opacity'
+    )
+  })
+})
+
+describe('connections', () => {
+  it('lists what a parameter reads and what reads it', () => {
+    const doc = withExtent()
+    linkParam(doc, 'size.value', 'dots.radiusScale')
+    doc.nodes.find(n => n.id === 'rings')!.params.opacity = { expr: "ch('/size/value') / 10" }
+    linkParam(doc, outputKey('range', 'max'), 'dots.opacity')
+
+    const size = connections(doc, 'size.value')
+    expect(size.reads).toEqual([])
+    expect(size.readBy.map(c => c.key)).toEqual(['dots.radiusScale', 'rings.opacity'])
+    expect(connections(doc, 'dots.radiusScale').reads.map(c => c.label)).toEqual(['size › Value'])
+    expect(connections(doc, 'dots.opacity').reads.map(c => c.key)).toEqual([
+      outputKey('range', 'max'),
+    ])
+    expect(connections(doc, outputKey('range', 'max')).readBy.map(c => c.key)).toEqual([
+      'dots.opacity',
+    ])
+  })
+
+  it('lists nothing for an unconnected parameter', () => {
+    expect(connections(fixture(), 'dots.opacity')).toEqual({ reads: [], readBy: [] })
+  })
+})
+
+describe('loops through wires and references together', () => {
+  // Two Number nodes: a Number's output is its value
+  const numbers = () => {
+    const doc = fixture()
+    doc.nodes.push(node('a', 'number', { value: { ref: '/b/value' } }), node('b', 'number'))
+    return doc
+  }
+
+  it('refuses a wire from an output into what that output reads', () => {
+    expect(canLink(numbers(), outputKey('a', 'out'), 'b.value')).toBe(false)
+    expect(canLink(numbers(), outputKey('b', 'out'), 'size.value')).toBe(true)
+  })
+
+  it('refuses a reference back through a wire', () => {
+    const doc = fixture()
+    doc.nodes.push(node('a', 'number'), node('b', 'number'))
+    expect(linkParam(doc, outputKey('a', 'out'), 'b.value')).toBe(true)
+    expect(canLink(doc, 'b.value', 'a.value')).toBe(false)
+  })
+})
+
+describe('connections of an output wired into an input', () => {
+  it('lists a node input an output feeds, as a camera view feeds the deck', () => {
+    const doc = fixture()
+    doc.nodes.push(node('camera', 'orbit-view'), node('map', 'deck'))
+    doc.edges.push({
+      id: 'v',
+      source: 'camera',
+      sourcePort: 'view',
+      target: 'map',
+      targetPort: 'views',
+    })
+    expect(connections(doc, outputKey('camera', 'view')).readBy.map(c => c.label)).toEqual([
+      'map › views',
+    ])
+  })
+})

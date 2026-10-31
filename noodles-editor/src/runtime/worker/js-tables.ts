@@ -26,7 +26,7 @@ export class JsTables {
     if (!js || this.made.has(js.table)) return
     let d: unknown = []
     if (js.input) {
-      d = await this.readInput(js.input)
+      d = await this.readInput(js.input, js.vectors ?? [])
     } else if (js.url) {
       // A JSON file read whole, as CodeOp's input from a JSON FileOp was the parsed file
       d = await this.readJson(js.url)
@@ -82,15 +82,19 @@ export class JsTables {
 
   // An input with a geometry column is features, so `d` is a FeatureCollection turf can take;
   // any other input is its rows as plain objects
-  private async readInput(relation: string): Promise<unknown> {
+  private async readInput(
+    relation: string,
+    vectors: readonly { name: string; width: number }[]
+  ): Promise<unknown> {
     const columns = await this.sql.rows(`DESCRIBE SELECT * FROM ${relation}`)
     const geom = columns.find(c => c.column_name === 'geom' && c.column_type === 'GEOMETRY')
-    if (!geom) return readPlainRows(this.sql, relation)
+    if (!geom) return readPlainRows(this.sql, relation, vectors)
     // As WKB, read in JS: ST_AsGeoJSON drops m (a path's timestamps, say), and parsing a JSON
     // text per feature is slower
     const rows = await readPlainRows(
       this.sql,
-      `(SELECT * EXCLUDE (geom), ST_AsWKB(geom) AS "__wkb" FROM ${relation})`
+      `(SELECT * EXCLUDE (geom), ST_AsWKB(geom) AS "__wkb" FROM ${relation})`,
+      vectors
     )
     return {
       type: 'FeatureCollection',

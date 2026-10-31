@@ -34,6 +34,8 @@ import {
   RELATIONAL_TYPES,
 } from './types.js';
 import { plan, type PhysicalPlan } from './planner.js';
+import { type Expr, parseExpr, widthOf } from './expr.js';
+import { expandWrangle, parseWrangle } from './wrangle.js';
 import { PlanError, type ColumnType, type PathColumnKind } from './analyze.js';
 import type { Policy } from './optimizer.js';
 import type { CostConstants } from './cost.js';
@@ -45,7 +47,7 @@ import { sourceParams } from './hoist.js';
 import { propParam, type LayerKind } from './layers.js';
 import { quoteIdent } from './backends/sql.js';
 import {
-  type RelShape, type RelColumn,
+  type RelShape, type RelColumn, type RelVector, escapeRegExp,
   numericListOf, listVectors, listComponentsSql,
   pathColumnOf, sourceSql, verticesSql, joinSql, unionSql, sortSql, limitSql, sqlNodeSql, generateSql, unnestSql, rowwiseSql,
 } from './relational.js';
@@ -74,7 +76,8 @@ export interface RelationPlan {
   stats?: SourceStats;
   rows?: number;
   /** For a JS table: what the catalog runs, and the table it loads the result into. */
-  js?: { code: string; table: string; input?: string; url?: string };
+  /** A code node's table: its code, and its input with the vectors the input stores as components. */
+  js?: { code: string; table: string; input?: string; url?: string; vectors?: RelVector[] };
 }
 
 export interface LayerPlan {
@@ -191,23 +194,54 @@ function structural(node: GraphNode): Record<string, unknown> {
   return rest;
 }
 
-/** Columns a row-wise node adds, for editor column pickers. Best-effort; plan() is authoritative. */
+/** A listed column's width: `FLOAT[3]`, as a relation lists a vector, is three wide. */
+const widthIn = (cols: RelColumn[]) => (name: string): number => {
+  const m = /\[(\d+)\]$/.exec(cols.find((c) => c.name === name)?.duckType ?? '');
+  return m ? Number(m[1]) : 1;
+};
+
+/** An expression's width over `cols`, or 1 when it cannot be read here (plan() will say why). */
+function exprWidth(src: string | Expr, cols: RelColumn[]): number {
+  try {
+    return widthOf(typeof src === 'string' ? parseExpr(src) : src, widthIn(cols));
+  } catch {
+    return 1;
+  }
+}
+
+/**
+ * Columns a row-wise node adds, for editor column pickers. Best-effort; plan() is
+ * authoritative. A vector is listed as `FLOAT[w]`, so a picker that wants one number per row
+ * can leave positions and colors out.
+ */
 function columnsAfter(node: GraphNode, before: RelColumn[]): RelColumn[] {
-  const add = (name: string, type: ColumnType = 'num'): RelColumn[] =>
-    [...before.filter((c) => c.name !== name), { name, type, duckType: type === 'str' ? 'VARCHAR' : 'FLOAT' }];
+  const add = (name: string, type: ColumnType = 'num', width = 1): RelColumn[] => [
+    ...before.filter((c) => c.name !== name),
+    { name, type, duckType: type === 'str' ? 'VARCHAR' : width > 1 ? `FLOAT[${width}]` : 'FLOAT' },
+  ];
   switch (node.type) {
     case 'attribute':
+      return add(node.name, 'num', exprWidth(node.expr, before));
     case 'scale':
       return add(node.name);
     case 'colorscale':
-      return add(node.name ?? 'Cd');
+      return add(node.name ?? 'Cd', 'num', 3);
     case 'project':
-      return add('P');
+      return add('P', 'num', 3);
     case 'raw':
-      return node.writes.reduce((cols, w) => [...cols.filter((c) => c.name !== w.name), { name: w.name, type: 'num' as const, duckType: 'FLOAT' }], before);
+      return node.writes.reduce((cols, w) => [...cols.filter((c) => c.name !== w.name), { name: w.name, type: 'num' as const, duckType: w.width > 1 ? `FLOAT[${w.width}]` : 'FLOAT' }], before);
     case 'wrangle': {
       let cols = before;
-      for (const m of node.body.matchAll(/@([A-Za-z_][A-Za-z0-9_]*)\s*=/g)) cols = [...cols.filter((c) => c.name !== m[1]), { name: m[1], type: 'num', duckType: 'FLOAT' }];
+      try {
+        // Each statement's width over the columns before it, as the planner will compute it
+        for (const s of expandWrangle(node.id, parseWrangle(node.body))) {
+          if (s.internal) continue;
+          const width = exprWidth(s.expr, cols);
+          cols = [...cols.filter((c) => c.name !== s.name), { name: s.name, type: 'num', duckType: width > 1 ? `FLOAT[${width}]` : 'FLOAT' }];
+        }
+      } catch {
+        for (const m of node.body.matchAll(/@([A-Za-z_][A-Za-z0-9_]*)\s*=/g)) cols = [...cols.filter((c) => c.name !== m[1]), { name: m[1], type: 'num', duckType: 'FLOAT' }];
+      }
       return cols;
     }
     case 'aggregate':
@@ -427,7 +461,10 @@ export async function compileProgram(
         materialize, inputs: inputIds, params: used, consumers: cons,
         shape: { columns: [], vectors },
         ...(node.type === 'js' && jsTable
-          ? { js: { code: node.code, table: jsTable, ...(refs[0] ? { input: refs[0] } : {}), ...(node.url ? { url: node.url } : {}) } }
+          ? { js: {
+              code: node.code, table: jsTable, ...(refs[0] ? { input: refs[0] } : {}), ...(node.url ? { url: node.url } : {}),
+              ...(shapes[0]?.vectors.length ? { vectors: shapes[0].vectors } : {}),
+            } }
           : {}),
       };
       const described = await catalog.describe(rel);
@@ -497,7 +534,7 @@ export async function compileProgram(
           : [],
       );
       const repack = rel.shape.vectors.filter(
-        (v) => !listChannels.has(v.name) && new RegExp(`\\b${v.name}\\b`).test(tailText),
+        (v) => !listChannels.has(v.name) && new RegExp(`\\b${escapeRegExp(v.name)}\\b`).test(tailText),
       );
       const sourceId = root;
       const subNodes: GraphNode[] = [

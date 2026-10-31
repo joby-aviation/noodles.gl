@@ -71,6 +71,8 @@ interface TextRow {
   color?: number[]
   size?: number
   angle?: number
+  borderColor?: number[]
+  borderWidth?: number
 }
 
 type Binary = {
@@ -191,6 +193,8 @@ function toBinary(input: ProgramLayerInput): Binary {
       put('getPosition', pos('position'), 3)
       put('getFillColor', colors(attr(input, 'color'), n), 4, true)
       put('getRadius', scalar('radius'), 1)
+      put('getLineColor', colors(attr(input, 'lineColor'), n), 4, true)
+      put('getLineWidth', scalar('lineWidth'), 1)
       return { length: n, attributes: at }
     case 'arc':
       put('getSourcePosition', pos('sourcePosition'), 3)
@@ -198,19 +202,22 @@ function toBinary(input: ProgramLayerInput): Binary {
       put('getSourceColor', colors(attr(input, 'sourceColor'), n), 4, true)
       put('getTargetColor', colors(attr(input, 'targetColor'), n), 4, true)
       put('getWidth', scalar('width'), 1)
+      put('getTilt', scalar('tilt'), 1)
       return { length: n, attributes: at }
     case 'column':
       put('getPosition', pos('position'), 3)
       put('getElevation', scalar('elevation'), 1)
       put('getFillColor', colors(attr(input, 'color'), n), 4, true)
+      put('getLineColor', colors(attr(input, 'lineColor'), n), 4, true)
+      put('getLineWidth', scalar('lineWidth'), 1)
       return { length: n, attributes: at }
     case 'path':
     case 'trips': {
       const starts = d.starts ?? new Uint32Array([0])
       put('getPath', pos('position'), 3)
       put('getColor', colors(attr(input, 'color'), n), 4, true)
-      if (input.kind === 'path') put('getWidth', scalar('width'), 1)
-      else put('getTimestamps', scalar('timestamp'), 1)
+      put('getWidth', scalar('width'), 1)
+      if (input.kind === 'trips') put('getTimestamps', scalar('timestamp'), 1)
       return { length: starts.length, startIndices: starts, attributes: at }
     }
     case 'polygon': {
@@ -221,6 +228,7 @@ function toBinary(input: ProgramLayerInput): Binary {
       put('getFillColor', colors(attr(input, 'color'), n), 4, true)
       put('getElevation', scalar('elevation'), 1)
       const lineColor = colors(attr(input, 'lineColor'), n)
+      const lineWidth = scalar('lineWidth')
       const tri = p ? triangulate(p, 3, n, starts, rings) : undefined
       if (tri) at.indices = tri.indices
       return {
@@ -235,6 +243,7 @@ function toBinary(input: ProgramLayerInput): Binary {
               attributes: {
                 getPath: { value: p, size: 3 },
                 ...(lineColor ? { getColor: { value: lineColor, size: 4, normalized: true } } : {}),
+                ...(lineWidth ? { getWidth: { value: lineWidth, size: 1 } } : {}),
               },
             }
           : undefined,
@@ -297,6 +306,8 @@ function toBinary(input: ProgramLayerInput): Binary {
       const color = colors(attr(input, 'color'), n)
       const size = scalar('size')
       const angle = scalar('angle')
+      const borderColor = colors(attr(input, 'borderColor'), n)
+      const borderWidth = scalar('borderWidth')
       const texts = Array.from(
         { length: count },
         (_, i): TextRow => ({
@@ -311,6 +322,10 @@ function toBinary(input: ProgramLayerInput): Binary {
           ...(color ? { color: Array.from(color.subarray(i * 4, i * 4 + 4)) } : {}),
           ...(size ? { size: size[i] } : {}),
           ...(angle ? { angle: angle[i] } : {}),
+          ...(borderColor
+            ? { borderColor: Array.from(borderColor.subarray(i * 4, i * 4 + 4)) }
+            : {}),
+          ...(borderWidth ? { borderWidth: borderWidth[i] } : {}),
         })
       )
       return { length: count, attributes: {}, texts }
@@ -361,7 +376,10 @@ function buildLayers(input: ProgramLayerInput, binary: Binary, pickable = false)
         widthUnits: p.lineWidthUnits === 'meters' ? 'meters' : 'pixels',
         widthScale: num(p.lineWidthScale, 1),
         widthMinPixels: num(p.lineWidthMinPixels, 1),
-        getWidth: 1,
+        widthMaxPixels: maxPixels(p.lineWidthMaxPixels),
+        jointRounded: p.lineJointRounded === true,
+        miterLimit: num(p.lineMiterLimit, 4),
+        getWidth: 'getWidth' in binary.outline.attributes ? undefined : 1,
         ...(perRowColor
           ? {}
           : {
@@ -452,6 +470,108 @@ function colorRange(name: ResolvedProp | undefined): { colorRange?: number[][] }
 const widthUnits = (v: ResolvedProp | undefined) =>
   v === 'meters' || v === 'common' ? v : 'pixels'
 
+// A pixel cap where 0 means none, as deck's own default is the largest safe integer
+const maxPixels = (v: ResolvedProp | undefined) =>
+  num(v, 0) > 0 ? num(v, 0) : Number.MAX_SAFE_INTEGER
+
+// "min, max" as a domain or range, or undefined (deck fits it to the data) when empty
+const pair = (v: ResolvedProp | undefined): [number, number] | undefined => {
+  const parts = String(v ?? '')
+    .split(',')
+    .map(x => Number(x.trim()))
+  return parts.length === 2 && parts.every(Number.isFinite) ? [parts[0], parts[1]] : undefined
+}
+
+const units = (v: ResolvedProp | undefined, fallback: 'pixels' | 'meters' = 'pixels') =>
+  v === 'meters' || v === 'pixels' || v === 'common' ? v : fallback
+
+// A path's ends, joints and facing, shared by the path and trips layers
+const pathShape = (p: Record<string, ResolvedProp>) => ({
+  capRounded: p.capRounded !== false,
+  jointRounded: p.jointRounded !== false,
+  miterLimit: num(p.miterLimit, 4),
+  billboard: p.billboard === true,
+})
+
+// A column's fill, outline and shading, shared by the column and grid cell layers
+const columnShape = (
+  p: Record<string, ResolvedProp>,
+  has: (deckName: string) => boolean,
+  constant: (deckName: string, value: [number, number, number, number]) => object
+) => ({
+  filled: p.filled !== false,
+  stroked: p.stroked === true,
+  wireframe: p.wireframe === true,
+  flatShading: p.flatShading === true,
+  lineWidthUnits: units(p.lineWidthUnits, 'meters'),
+  lineWidthScale: num(p.lineWidthScale, 1),
+  getLineWidth: has('getLineWidth') ? undefined : 1,
+  ...constant('getLineColor', rgb(p.lineColor, [255, 255, 255])),
+})
+
+// Paths cut where they cross the antimeridian, once per binary. deck's own wrapLongitude needs
+// its path normalization, which `_pathType` skips and binary per-vertex attributes can't take.
+const wrapped = new WeakMap<Binary, Binary>()
+
+type Column = { value: ArrayLike<number>; size: number }
+
+/**
+ * A path binary with each path cut where a segment crosses ±180° longitude: the first part
+ * ends on the edge it leaves by, the next starts on the opposite one. The point where it
+ * crosses is interpolated in every per-vertex attribute (color, width), so nothing jumps.
+ */
+function wrapLongitudes(binary: Binary): Binary {
+  const known = wrapped.get(binary)
+  if (known) return known
+  const path = binary.attributes.getPath as Column | undefined
+  const starts = binary.startIndices
+  if (!path || !starts) return binary
+  const names = Object.keys(binary.attributes)
+  const columns = names.map(k => binary.attributes[k] as Column & { normalized?: boolean })
+  const at = names.indexOf('getPath')
+  const out: number[][] = names.map(() => [])
+  const cut: number[] = []
+  const P = path.value
+  const vertices = P.length / 3
+  let count = 0
+  // Vertex i, or the point a fraction t of the way from i to j, with its longitude replaced
+  const push = (i: number, j = i, t = 0, lng?: number) => {
+    columns.forEach(({ value, size }, k) => {
+      for (let c = 0; c < size; c++) {
+        const a = value[i * size + c]
+        out[k].push(a + (value[j * size + c] - a) * t)
+      }
+    })
+    if (lng !== undefined) out[at][count * 3] = lng
+    count++
+  }
+  for (let p = 0; p < starts.length; p++) {
+    const end = p + 1 < starts.length ? starts[p + 1] : vertices
+    cut.push(count)
+    for (let i = starts[p]; i < end; i++) {
+      const a = P[(i - 1) * 3]
+      const b = P[i * 3]
+      if (i > starts[p] && Math.abs(b - a) > 180) {
+        // Leaving by the east edge when coming from the east half
+        const edge = a > 0 ? 180 : -180
+        const t = (edge - a) / (b + 2 * edge - a)
+        push(i - 1, i, t, edge)
+        cut.push(count)
+        push(i - 1, i, t, -edge)
+      }
+      push(i)
+    }
+  }
+  const attributes: Record<string, unknown> = {}
+  columns.forEach((column, k) => {
+    const Typed = column.value.constructor as new (values: number[]) => ArrayLike<number>
+    attributes[names[k]] = { ...column, value: new Typed(out[k]) }
+  })
+  const result = { ...binary, length: cut.length, startIndices: Uint32Array.from(cut), attributes }
+  wrapped.set(binary, result)
+  return result
+}
+
 function buildLayer(
   input: ProgramLayerInput,
   binary: Binary,
@@ -465,9 +585,14 @@ function buildLayer(
   // changes (scatter to column, say) must start fresh rather than inherit the old layer's state.
   const common = { id: `${input.id}:${input.kind}`, opacity, pickable, parameters }
   // A constant color is an accessor too; its trigger is its value, so deck re-reads it only
-  // when the color actually changes.
-  const constant = (deckName: string, value: [number, number, number, number]) =>
-    has(deckName) ? {} : { [deckName]: value, updateTriggers: { [deckName]: value.join(',') } }
+  // when the color actually changes. Every constant shares one triggers object, so a layer
+  // with two (an arc's ends, a fill and an outline) keeps both rather than the last one spread.
+  const triggers: Record<string, string> = {}
+  const constant = (deckName: string, value: [number, number, number, number]) => {
+    if (has(deckName)) return {}
+    triggers[deckName] = value.join(',')
+    return { [deckName]: value, updateTriggers: triggers }
+  }
 
   switch (input.kind) {
     case 'scatter':
@@ -479,6 +604,13 @@ function buildLayer(
         radiusMinPixels: 0.5,
         getRadius: has('getRadius') ? undefined : 1,
         ...constant('getFillColor', rgb(p.fillColor, [255, 140, 0])),
+        billboard: p.billboard === true,
+        antialiasing: p.antialiasing !== false,
+        stroked: p.stroked === true,
+        lineWidthUnits: units(p.lineWidthUnits),
+        lineWidthScale: num(p.lineWidthScale, 1),
+        getLineWidth: has('getLineWidth') ? undefined : 1,
+        ...constant('getLineColor', rgb(p.lineColor, [255, 255, 255])),
       } as never)
     case 'arc':
       return new ArcLayer({
@@ -488,7 +620,11 @@ function buildLayer(
         widthUnits: widthUnits(p.widthUnits),
         getWidth: has('getWidth') ? undefined : 1,
         getHeight: num(p.height, 1),
+        getTilt: has('getTilt') ? undefined : num(p.tilt, 0),
         greatCircle: p.greatCircle === true,
+        numSegments: Math.max(2, Math.round(num(p.numSegments, 50))),
+        widthMinPixels: num(p.widthMinPixels, 0),
+        widthMaxPixels: maxPixels(p.widthMaxPixels),
         ...constant('getSourceColor', rgb(p.sourceColor, [0, 180, 255])),
         ...constant('getTargetColor', rgb(p.targetColor, [255, 60, 120])),
       } as never)
@@ -504,29 +640,33 @@ function buildLayer(
           extruded: p.extruded !== false,
           getElevation: has('getElevation') ? undefined : 1,
           ...constant('getFillColor', rgb(p.fillColor, [255, 170, 60])),
+          ...columnShape(p, has, constant),
         } as never)
       }
       return new ColumnLayer({
         ...common,
         data: binary as never,
         radius: num(p.radius, 100),
+        radiusUnits: units(p.radiusUnits, 'meters'),
         elevationScale: num(p.elevationScale, 1),
-        extruded: true,
-        diskResolution: 12,
+        extruded: p.extruded !== false,
+        diskResolution: Math.max(3, Math.round(num(p.diskResolution, 12))),
+        coverage: num(p.coverage, 1),
+        offset: [num(p.offsetX, 0), num(p.offsetY, 0)],
         getElevation: has('getElevation') ? undefined : 1,
         ...constant('getFillColor', rgb(p.fillColor, [255, 170, 60])),
+        ...columnShape(p, has, constant),
       } as never)
     case 'path':
       return new PathLayer({
         ...common,
-        data: binary as never,
+        data: (p.wrapLongitude === true ? wrapLongitudes(binary) : binary) as never,
         _pathType: 'open',
         widthScale: num(p.widthScale, 1),
         widthMinPixels: num(p.widthMinPixels, 1),
         widthUnits: widthUnits(p.widthUnits),
         getWidth: has('getWidth') ? undefined : 1,
-        jointRounded: true,
-        capRounded: true,
+        ...pathShape(p),
         ...constant('getColor', rgb(p.color, [120, 200, 255])),
       } as never)
     case 'trips':
@@ -541,8 +681,8 @@ function buildLayer(
         widthMinPixels: num(p.widthMinPixels, 2),
         widthScale: num(p.widthScale, 1),
         widthUnits: widthUnits(p.widthUnits ?? 'meters'),
-        jointRounded: true,
-        capRounded: true,
+        getWidth: has('getWidth') ? undefined : 1,
+        ...pathShape(p),
         ...constant('getColor', rgb(p.color, [253, 128, 93])),
       } as never)
     case 'polygon':
@@ -554,6 +694,7 @@ function buildLayer(
         _normalize: false,
         filled: p.filled !== false,
         extruded: p.extruded === true,
+        wireframe: p.wireframe === true,
         elevationScale: num(p.elevationScale, 1),
         getElevation: has('getElevation') ? undefined : 1,
         ...constant('getFillColor', rgb(p.fillColor, [80, 160, 220])),
@@ -582,8 +723,16 @@ function buildLayer(
         elevationAggregation: String(p.elevationAggregation ?? 'SUM'),
         upperPercentile: num(p.upperPercentile, 100),
         lowerPercentile: num(p.lowerPercentile, 0),
+        colorScaleType: String(p.colorScaleType ?? 'quantize'),
+        ...(pair(p.colorDomain) ? { colorDomain: pair(p.colorDomain) } : {}),
         extruded: p.extruded === true,
         elevationScale: num(p.elevationScale, 1),
+        elevationScaleType: String(p.elevationScaleType ?? 'linear'),
+        elevationRange: pair(p.elevationRange) ?? [0, 1000],
+        ...(pair(p.elevationDomain) ? { elevationDomain: pair(p.elevationDomain) } : {}),
+        elevationUpperPercentile: num(p.elevationUpperPercentile, 100),
+        elevationLowerPercentile: num(p.elevationLowerPercentile, 0),
+        coverage: num(p.coverage, 1),
         // deck's GPU aggregator bins nothing from binary float32 attributes (its domain stays
         // empty); the CPU aggregator reads them directly.
         gpuAggregation: false,
@@ -618,6 +767,7 @@ function buildLayer(
         ...placement,
         mesh: model,
         wireframe: p.wireframe === true,
+        ...(p.texture ? { texture: String(p.texture) } : {}),
         loaders: [/\.ply(\?|$)/i.test(model) ? PLYLoader : OBJLoader],
       } as never)
     }
@@ -625,6 +775,7 @@ function buildLayer(
       const size = num(p.size, 12)
       const color = rgb(p.color, [230, 230, 230])
       const outline = num(p.outlineWidth, 2)
+      const border = rgb(p.borderColor, [0, 0, 0])
       return new TextLayer({
         ...common,
         data: binary.texts ?? [],
@@ -644,6 +795,8 @@ function buildLayer(
           getSize: String(p.size),
           getAngle: String(p.angle),
           getPixelOffset: `${p.offsetX},${p.offsetY}`,
+          getBorderColor: String(p.borderColor),
+          getBorderWidth: String(p.borderWidth),
         },
         fontFamily: String(p.fontFamily ?? 'ui-monospace, SF Mono, Menlo, monospace'),
         fontWeight: num(p.fontWeight, 400),
@@ -651,11 +804,23 @@ function buildLayer(
         outlineColor: [...rgb(p.outlineColor, [8, 9, 13]).slice(0, 3), 220],
         background: p.background === true,
         getBackgroundColor: rgb(p.backgroundColor, [255, 255, 255]),
+        getBorderColor: (d: TextRow) => d.borderColor ?? border,
+        getBorderWidth: (d: TextRow) => d.borderWidth ?? num(p.borderWidth, 0),
         fontSettings: { sdf: outline > 0 },
+        sizeScale: num(p.sizeScale, 1),
+        sizeMinPixels: num(p.sizeMinPixels, 0),
+        sizeMaxPixels: maxPixels(p.sizeMaxPixels),
+        backgroundPadding: [num(p.backgroundPadding, 0), num(p.backgroundPadding, 0)],
+        backgroundBorderRadius: num(p.backgroundBorderRadius, 0),
+        lineHeight: num(p.lineHeight, 1),
+        wordBreak: p.wordBreak === 'break-all' ? 'break-all' : 'break-word',
+        // 0 lets a label run on; deck's own "no limit" is -1
+        maxWidth: num(p.maxWidth, 0) > 0 ? num(p.maxWidth, 0) : -1,
       } as never)
     }
     case 'icon': {
-      const mapping = String(p.iconMapping ?? '{}').trim()
+      // Empty: an `@/` mapping file not read yet
+      const mapping = String(p.iconMapping ?? '').trim() || '{}'
       const color = rgb(p.color, [0, 0, 0])
       return new IconLayer({
         ...common,
@@ -672,6 +837,8 @@ function buildLayer(
         sizeScale: num(p.sizeScale, 1),
         sizeUnits: widthUnits(p.sizeUnits),
         sizeMinPixels: num(p.sizeMinPixels, 0),
+        sizeMaxPixels: maxPixels(p.sizeMaxPixels),
+        sizeBasis: p.sizeBasis === 'width' ? 'width' : 'height',
         billboard: p.billboard !== false,
         updateTriggers: { getColor: String(p.color) },
       } as never)
@@ -683,6 +850,7 @@ function buildLayer(
         widthScale: num(p.widthScale, 1),
         widthUnits: widthUnits(p.widthUnits),
         widthMinPixels: num(p.widthMinPixels, 0),
+        widthMaxPixels: maxPixels(p.widthMaxPixels),
         getWidth: has('getWidth') ? undefined : 1,
         ...constant('getColor', rgb(p.color, [255, 255, 255])),
       } as never)
@@ -702,6 +870,7 @@ function buildLayer(
         cellSizePixels: num(p.cellSizePixels, 100),
         cellMarginPixels: num(p.cellMarginPixels, 2),
         aggregation: String(p.aggregation ?? 'SUM'),
+        ...(pair(p.colorDomain) ? { colorDomain: pair(p.colorDomain) } : {}),
         // As for the grid and hexagon layers, the CPU aggregator reads binary attributes
         gpuAggregation: false,
         getWeight: has('getWeight') ? undefined : 1,

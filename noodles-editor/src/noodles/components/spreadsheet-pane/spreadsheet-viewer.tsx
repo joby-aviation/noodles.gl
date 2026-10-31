@@ -14,6 +14,51 @@ import s from './spreadsheet-viewer.module.css'
 
 const columnHelper = createColumnHelper<Record<string, unknown>>()
 
+/**
+ * Columns grouped as the vectors they store: the planner keeps a vector as numbered component
+ * columns (`magnitude_color_0, _1, _2`), shown here under the vector's own name, each component
+ * by the name an expression reads it with (`magnitude_color.r`, `position.x`).
+ */
+export function vectorGroups(
+  columns: ColumnSchema[]
+): (ColumnSchema | { name: string; components: { column: ColumnSchema; label: string }[] })[] {
+  const names = new Set(columns.map(c => c.name))
+  const family = (name: string) => {
+    const m = /^(.+)_([0-3])$/.exec(name)
+    return m && !names.has(m[1]) ? { base: m[1], index: Number(m[2]) } : undefined
+  }
+  const counts = new Map<string, number[]>()
+  for (const c of columns) {
+    const f = family(c.name)
+    if (f && c.type === 'number') counts.set(f.base, [...(counts.get(f.base) ?? []), f.index])
+  }
+  const vectors = new Set(
+    [...counts]
+      .filter(([, ks]) => ks.length >= 2 && ks.every((_, i) => ks.includes(i)))
+      .map(([base]) => base)
+  )
+  const out: ReturnType<typeof vectorGroups> = []
+  for (const c of columns) {
+    const f = family(c.name)
+    if (!f || !vectors.has(f.base) || c.type !== 'number') {
+      out.push(c)
+      continue
+    }
+    // A vector joins the list where its first component was
+    if (f.index !== 0) continue
+    const width = counts.get(f.base)?.length ?? 0
+    const letters = /colou?r/i.test(f.base) ? 'rgba' : 'xyzw'
+    out.push({
+      name: f.base,
+      components: Array.from({ length: width }, (_, i) => ({
+        column: columns.find(x => x.name === `${f.base}_${i}`) as ColumnSchema,
+        label: letters[i],
+      })),
+    })
+  }
+  return out
+}
+
 export function SpreadsheetViewer({ data, operatorId }: { data: unknown; operatorId: string }) {
   const [sorting, setSorting] = useState<SortingState>([])
   const [columnVisibility, setColumnVisibility] = useState<Record<string, boolean>>({})
@@ -38,15 +83,38 @@ export function SpreadsheetViewer({ data, operatorId }: { data: unknown; operato
     }
   }, [data])
 
-  const columns = useMemo(() => {
-    if (!schema) return []
-    return schema.columns.map(col =>
-      columnHelper.accessor(col.name, {
-        header: col.name,
-        cell: info => formatCellValue(info.getValue(), col),
-      })
-    )
-  }, [schema])
+  const groups = useMemo(() => (schema ? vectorGroups(schema.columns) : []), [schema])
+  const columns = useMemo(
+    () =>
+      groups.map(g =>
+        'components' in g
+          ? columnHelper.group({
+              id: g.name,
+              header: () => (
+                <span
+                  title={`${g.name}: read it whole, or as ${g.name}[0] or ${g.name}.${g.components[0].label}`}
+                >
+                  {g.name}
+                </span>
+              ),
+              columns: g.components.map(({ column, label }) =>
+                columnHelper.accessor(column.name, {
+                  header: () => (
+                    <span className={s.component} title={`${g.name}.${label}`}>
+                      {label}
+                    </span>
+                  ),
+                  cell: info => formatCellValue(info.getValue(), column),
+                })
+              ),
+            })
+          : columnHelper.accessor(g.name, {
+              header: g.name,
+              cell: info => formatCellValue(info.getValue(), g),
+            })
+      ),
+    [groups]
+  )
 
   const table = useReactTable({
     data: rows,
@@ -111,45 +179,63 @@ export function SpreadsheetViewer({ data, operatorId }: { data: unknown; operato
         </button>
         {visibilityMenuOpen && (
           <div ref={menuRef} className={s.visibilityMenu}>
-            {schema.columns.map(col => (
-              <label key={col.name} className={s.visibilityItem}>
-                <input
-                  type="checkbox"
-                  checked={columnVisibility[col.name] !== false}
-                  onChange={e =>
-                    setColumnVisibility(prev => ({ ...prev, [col.name]: e.target.checked }))
-                  }
-                />
-                <span>{col.name}</span>
-              </label>
-            ))}
+            {groups.map(g => {
+              // A vector shows or hides with all its components
+              const ids = 'components' in g ? g.components.map(c => c.column.name) : [g.name]
+              return (
+                <label key={g.name} className={s.visibilityItem}>
+                  <input
+                    type="checkbox"
+                    checked={columnVisibility[ids[0]] !== false}
+                    onChange={e =>
+                      setColumnVisibility(prev => ({
+                        ...prev,
+                        ...Object.fromEntries(ids.map(id => [id, e.target.checked])),
+                      }))
+                    }
+                  />
+                  <span>{g.name}</span>
+                </label>
+              )
+            })}
           </div>
         )}
       </div>
       <div ref={tableContainerRef} className={s.tableWrapper}>
         <table className={s.table}>
           <thead>
-            {table.getHeaderGroups().map(headerGroup => (
+            {table.getHeaderGroups().map((headerGroup, row, groups) => (
               <tr key={headerGroup.id}>
-                {headerGroup.headers.map(header => (
-                  <th
-                    key={header.id}
-                    className={header.column.getCanSort() ? s.sortableHeader : undefined}
-                    onClick={header.column.getToggleSortingHandler()}
-                  >
-                    {flexRender(header.column.columnDef.header, header.getContext())}
-                    {header.column.getIsSorted() && (
-                      <i
-                        className={
-                          header.column.getIsSorted() === 'asc'
-                            ? 'pi pi-sort-up'
-                            : 'pi pi-sort-down'
-                        }
-                        style={{ marginLeft: '4px', fontSize: '10px' }}
-                      />
-                    )}
-                  </th>
-                ))}
+                {headerGroup.headers.map(header => {
+                  // A column outside any vector spans the header rows from the top, drawn
+                  // once where its placeholder is; a vector's name sits over its components
+                  if (!header.isPlaceholder && row > 0 && !header.column.parent) return null
+                  const group = header.subHeaders.length > 0
+                  const sorted = header.column.getIsSorted()
+                  return (
+                    <th
+                      key={header.id}
+                      colSpan={header.colSpan}
+                      rowSpan={header.isPlaceholder ? groups.length - row : undefined}
+                      className={
+                        group
+                          ? s.groupHeader
+                          : header.column.getCanSort()
+                            ? s.sortableHeader
+                            : undefined
+                      }
+                      onClick={group ? undefined : header.column.getToggleSortingHandler()}
+                    >
+                      {flexRender(header.column.columnDef.header, header.getContext())}
+                      {!group && sorted && (
+                        <i
+                          className={sorted === 'asc' ? 'pi pi-sort-up' : 'pi pi-sort-down'}
+                          style={{ marginLeft: '4px', fontSize: '10px' }}
+                        />
+                      )}
+                    </th>
+                  )
+                })}
               </tr>
             ))}
           </thead>

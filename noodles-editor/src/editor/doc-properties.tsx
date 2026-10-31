@@ -10,17 +10,24 @@ import {
   nodePath,
   OPERATOR_INDEX,
   type OpDef,
+  outputKey as slotOfOutput,
 } from '@noodles.gl/planner'
 import cx from 'classnames'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { EditOnMapButton } from '../noodles/components/tools/edit-on-map-button'
+import { compoundsFor } from './compound-params'
+import { ColorGroupRows, UnitsSelect } from './compound-rows'
 import s from './doc-editor.module.css'
 import { type EngineState, useEngineState } from './doc-engine'
 import { headerOf } from './doc-node'
 import { renameNode, unpromote } from './doc-ops'
 import { docStore, useEditor } from './doc-store'
+import { useOutputLinkTarget } from './link-drag'
+import { MapStyleRows } from './map-style-rows'
 import { PANE_EDITORS, PaneEditorFor } from './pane-editors'
-import { ParamRow, shown, useNodeFields } from './param-row'
+import { connections, outputKey, valueOutputs } from './param-links'
+import { fmt, ParamRow, shown, useNodeFields } from './param-row'
+import { Port } from './port'
 import { dismissStarterHint, getUIStore, useUIStore } from './ui-store'
 
 export const STARTER_HINT_TEXT =
@@ -87,11 +94,19 @@ function NodeParams({ node, doc, multi }: { node: DocNode; doc: EditorDoc; multi
   const [folded, setFolded] = useState<Set<string>>(new Set())
   const [name, setName] = useState(nameOf(node))
   useEffect(() => setName(nameOf(node)), [node])
+  // A long description shows two lines until clicked
+  const [descOpen, setDescOpen] = useState(false)
   if (!op) return <div className={s.empty}>Unknown operator {node.op}</div>
 
   const replaced = PANE_EDITORS[node.op]?.replaces ?? []
   const visible = op.params.filter(p => shown(p, node, op) && !replaced.includes(p.name))
-  const folders = [...new Set(visible.map(p => p.folder ?? 'Parameters'))]
+  // Units, solid colors and the ramp are drawn inside the control they belong to
+  const compounds = compoundsFor(op, node.params)
+  const folders = [
+    ...new Set(
+      visible.filter(p => !compounds.absorbed.has(p.name)).map(p => p.folder ?? 'Parameters')
+    ),
+  ]
   const wired = new Set(doc.edges.filter(e => e.target === node.id).map(e => e.targetPort))
   const errors = errorsFor(node.id, engine)
 
@@ -154,7 +169,17 @@ function NodeParams({ node, doc, multi }: { node: DocNode; doc: EditorDoc; multi
           {nodePath(doc, node)}
           {multi ? '  · first of the selection' : ''}
         </div>
-        {op.description && <div className={s.paneDesc}>{op.description}</div>}
+        {op.description && (
+          <button
+            type="button"
+            className={cx(s.paneDesc, descOpen && s.paneDescOpen)}
+            aria-expanded={descOpen}
+            title={descOpen ? undefined : op.description}
+            onClick={() => setDescOpen(o => !o)}
+          >
+            {op.description}
+          </button>
+        )}
       </div>
       {showStarterHint && (
         <div className={s.starterHint} role="status">
@@ -194,9 +219,36 @@ function NodeParams({ node, doc, multi }: { node: DocNode; doc: EditorDoc; multi
                 )}
                 {open &&
                   visible
-                    .filter(p => (p.folder ?? 'Parameters') === f)
+                    .filter(
+                      p => (p.folder ?? 'Parameters') === f && !compounds.absorbed.has(p.name)
+                    )
                     .map(def => {
+                      if (compounds.style?.url === def.name)
+                        return (
+                          <MapStyleRows
+                            key={def.name}
+                            node={node}
+                            group={compounds.style}
+                            fields={fields}
+                            wired={wired}
+                          />
+                        )
+                      const color = compounds.colors.find(c => c.channel === def.name)
+                      if (color)
+                        return (
+                          <ColorGroupRows
+                            key={def.name}
+                            node={node}
+                            doc={doc}
+                            group={color}
+                            fields={fields}
+                            wired={wired}
+                            showRamp={compounds.rampIn === color.channel}
+                          />
+                        )
                       const b = fields.bindings.get(def.name)
+                      const units = compounds.units.find(u => u.value === def.name)
+                      const unitsDef = units && op.params.find(p => p.name === units.units)
                       return b ? (
                         <ParamRow
                           key={def.name}
@@ -204,6 +256,7 @@ function NodeParams({ node, doc, multi }: { node: DocNode; doc: EditorDoc; multi
                           def={def}
                           field={b.field}
                           wired={wired.has(`par:${def.name}`)}
+                          inline={unitsDef && <UnitsSelect node={node} def={unitsDef} />}
                         />
                       ) : null
                     })}
@@ -211,8 +264,59 @@ function NodeParams({ node, doc, multi }: { node: DocNode; doc: EditorDoc; multi
             )
           })}
         {node.op === 'subnet' && <Promoted subnet={node} doc={doc} />}
+        <Outputs node={node} doc={doc} engine={engine} />
       </div>
       {debug && <NodeInfo node={node} op={op} engine={engine} />}
+    </div>
+  )
+}
+
+/** A node's value outputs, which a property reads over a wire: drag one onto it. */
+function Outputs({ node, doc, engine }: { node: DocNode; doc: EditorDoc; engine: EngineState }) {
+  const outputs = valueOutputs(node)
+  if (outputs.length === 0) return null
+  return (
+    <section className={s.folder}>
+      <div className={cx(s.folderHead, s.folderHeadStatic)}>Outputs</div>
+      {outputs.map(o => (
+        <OutputRow key={o.name} node={node} port={o.name} doc={doc} engine={engine} />
+      ))}
+    </section>
+  )
+}
+
+function OutputRow({
+  node,
+  port,
+  doc,
+  engine,
+}: {
+  node: DocNode
+  port: string
+  doc: EditorDoc
+  engine: EngineState
+}) {
+  const key = outputKey(node.id, port)
+  const target = useOutputLinkTarget(node.id, port)
+  const readBy = useMemo(() => connections(doc, key).readBy, [doc, key])
+  // Outputs computed in SQL, such as an Extent's, have no value here
+  const value = engine.slots.get(slotOfOutput(OPERATOR_INDEX.get(node.op), node.id, port))
+  return (
+    <div
+      className={cx(s.paramRow, target.accepts && s.paramRowLinkTarget)}
+      data-output={port}
+      {...target.props}
+    >
+      <div className={s.paramDriven}>
+        <span className={s.paramLabel}>{port}</span>
+        <span className={s.evaluated}>{fmt(value)}</span>
+      </div>
+      <Port
+        side="out"
+        drag={{ kind: 'source', key }}
+        connections={readBy}
+        hint="Drag onto a property or a layer to drive it"
+      />
     </div>
   )
 }

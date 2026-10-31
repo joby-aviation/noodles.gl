@@ -40,8 +40,8 @@ An edge into it ends at `"targetPort": "layers"`; a parameter is set in `params`
 | `zoom` | `float` | `1.5` |  |
 | `pitch` | `float` | `0` |  |
 | `bearing` | `float` | `0` |  |
-| `follow` | `toggle` | `false` |  |
 | `mapStyle` | `url` | `""` |  |
+| `styleOverrides` | `text` | `""` |  |
 | `projection` | `menu` | `"mercator"` | `mercator`, `globe` |
 | `display` | `menu` | `"fixed"` | `fixed`, `responsive` |
 | `width` | `int` | `1920` |  |

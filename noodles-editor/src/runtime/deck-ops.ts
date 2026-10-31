@@ -18,7 +18,7 @@ import {
 } from '@noodles.gl/planner'
 import * as d3 from 'd3'
 import type { KeyType } from '../noodles/keys-store'
-import { applyStyleOverrides } from '../utils/map-style-utils'
+import { styleWithChanges } from './map-style'
 import { registerValueOperators } from './value-ops'
 
 export interface DeckOp {
@@ -181,7 +181,7 @@ const viewOp = (
     category: 'output',
     description,
     inputs: [],
-    outputs: [{ name: 'view', type: 'value' }],
+    outputs: [{ name: 'view', type: 'value', shape: 'view' }],
     params: [...viewBase(noodles), ...params, field(noodles, 'viewState', viewState, true)],
   },
   build: build ?? ((p, id) => ({ type: deckType, id, ...p })),
@@ -203,7 +203,7 @@ const widgetOp = (
     category: 'output',
     description,
     inputs: [],
-    outputs: [{ name: 'widget', type: 'value' }],
+    outputs: [{ name: 'widget', type: 'value', shape: 'widget' }],
     params: [menu('placement', placement, PLACEMENTS), ...params, text('viewId', '')],
   },
   build: (p, id) => {
@@ -227,7 +227,7 @@ const extensionOp = (
     category: 'output',
     description,
     inputs: [],
-    outputs: [{ name: 'extension', type: 'value' }],
+    outputs: [{ name: 'extension', type: 'value', shape: 'extension' }],
     params,
   },
   build,
@@ -269,21 +269,6 @@ function flatBounds(b: unknown): number[] {
 }
 
 const ramps = d3 as unknown as Record<string, ((t: number) => string) | undefined>
-
-// Base styles by URL, fetched once: an override edit should not refetch the style
-const styles = new Map<string, Promise<Record<string, unknown>>>()
-function fetchStyle(url: string): Promise<Record<string, unknown>> {
-  let style = styles.get(url)
-  if (!style) {
-    style = fetch(url).then(r => {
-      if (!r.ok) throw new Error(`Failed to fetch map style: ${r.statusText}`)
-      return r.json()
-    })
-    styles.set(url, style)
-    style.catch(() => styles.delete(url))
-  }
-  return style
-}
 
 // SQL for the west, east, south and north of a position over a relation's rows: a geometry
 // column, a vector stored as components, or an expression such as `[lng, lat]`
@@ -365,7 +350,7 @@ export const DECK_OPS: DeckOp[] = [
         'The camera that fits rows into the render surface: wire its view state into the deck, or its longitude, latitude and zoom into a View State. The bounds are computed in DuckDB.',
       inputs: [],
       outputs: [
-        { name: 'viewState', type: 'value' },
+        { name: 'viewState', type: 'value', shape: 'viewState' },
         { name: 'longitude', type: 'number' },
         { name: 'latitude', type: 'number' },
         { name: 'zoom', type: 'number' },
@@ -522,7 +507,7 @@ export const DECK_OPS: DeckOp[] = [
       description:
         'A camera: longitude, latitude, zoom, pitch and bearing, which numbers can drive.',
       inputs: [],
-      outputs: [{ name: 'viewState', type: 'value' }],
+      outputs: [{ name: 'viewState', type: 'value', shape: 'viewState' }],
       params: [
         num('longitude', -74.006, { min: -180, max: 180, step: 0.001 }),
         num('latitude', 40.7128, { min: -90, max: 90, step: 0.001 }),
@@ -538,6 +523,26 @@ export const DECK_OPS: DeckOp[] = [
       pitch: p.pitch,
       bearing: p.bearing,
     }),
+  },
+
+  {
+    noodles: 'SwitchOp',
+    def: {
+      type: 'switch-value',
+      label: 'Switch Value',
+      category: 'output',
+      description:
+        'One of several values, chosen by Index: a camera from several View States wired into the deck, say. Keyframe Index to cut between cameras; with Blend, a decimal Index blends the two either side, so keyframing it flies from one camera to the next.',
+      inputs: [],
+      outputs: [{ name: 'value', type: 'value' }],
+      params: [
+        wired('values', 'value'),
+        num('index', 0, { min: 0, step: 1, help: 'Which value, counting from 0 in wiring order' }),
+        toggle('blend', false),
+      ],
+    },
+    lists: ['values'],
+    build: p => switchValue((p.values as unknown[] | undefined) ?? [], Number(p.index), !!p.blend),
   },
 
   // --- widgets -------------------------------------------------------------------------
@@ -598,7 +603,7 @@ export const DECK_OPS: DeckOp[] = [
       category: 'output',
       description: 'Display a bitmap image as a screen-space overlay',
       inputs: [],
-      outputs: [{ name: 'widget', type: 'value' }],
+      outputs: [{ name: 'widget', type: 'value', shape: 'widget' }],
       params: [
         url('image'),
         menu('placement', 'top-right', [...PLACEMENTS, 'fill']),
@@ -625,7 +630,7 @@ export const DECK_OPS: DeckOp[] = [
       category: 'output',
       description: 'Display a color scale legend overlay on the visualization',
       inputs: [],
-      outputs: [{ name: 'widget', type: 'value' }],
+      outputs: [{ name: 'widget', type: 'value', shape: 'widget' }],
       params: [
         text('colorScheme', 'viridis'),
         text('label', ''),
@@ -994,7 +999,7 @@ export const DECK_OPS: DeckOp[] = [
       description:
         "A basemap style with your changes: layers hidden or recolored, from the style editor. Wire it into the deck's map style.",
       inputs: [],
-      outputs: [{ name: 'mapStyle', type: 'value' }],
+      outputs: [{ name: 'mapStyle', type: 'value', shape: 'mapStyle' }],
       params: [
         url(
           'baseStyle',
@@ -1006,10 +1011,8 @@ export const DECK_OPS: DeckOp[] = [
     build: async p => {
       const base = p.baseStyle
       if (!base) return ''
-      const style =
-        typeof base === 'string' ? await fetchStyle(base) : (base as Record<string, unknown>)
       const overrides = (p.overrides ?? { layers: [], global: {} }) as never
-      return applyStyleOverrides(style as never, overrides)
+      return styleWithChanges(base as string | Record<string, unknown>, overrides)
     },
   },
 
@@ -1076,6 +1079,18 @@ export const DECK_OPS: DeckOp[] = [
     },
   },
 ]
+
+/**
+ * The value at `index`, as the Noodles SwitchOp chose it: the one below a decimal index, or with
+ * `blend` the two either side interpolated.
+ */
+export function switchValue(values: unknown[], index: number, blend: boolean): unknown {
+  if (values.length === 0) return undefined
+  const i = Math.max(0, Math.min(Number.isFinite(index) ? index : 0, values.length - 1))
+  const lower = Math.floor(i)
+  if (!blend || lower === i) return values[lower]
+  return d3.interpolate(values[lower] as object, values[Math.ceil(i)] as object)(i - lower)
+}
 
 export const DECK_OP_INDEX = new Map(DECK_OPS.map(o => [o.def.type, o]))
 // The deck operator replacing a Noodles operator class
