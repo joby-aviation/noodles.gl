@@ -53,7 +53,7 @@ import {
   UnknownField,
   Vec2Field,
 } from './fields'
-import { getKeysStore } from './keys-store'
+import { getKeysStore, type KeyType } from './keys-store'
 import { type OpView, resolveOp } from './op-resolver'
 import type { LayerPropsValue } from './types'
 import type { ExtractProps } from './utils/extract-props'
@@ -86,6 +86,9 @@ export abstract class Operator<OP extends IOperator> {
 
   // Opt-in flag for operators that support custom fields
   static supportsCustomFields = false
+
+  // API keys execute() reads, so the operator runs again when the key it would get changes
+  static usesKeys: readonly KeyType[] = []
 
   inputs: ReturnType<OP['createInputs']>
   outputs: ReturnType<OP['createOutputs']>
@@ -685,6 +688,7 @@ export class ChartOp extends Operator<ChartOp> {
 export class GeocoderOp extends Operator<GeocoderOp> {
   static displayName = 'Geocoder'
   static description = 'Get the location of a query string'
+  static usesKeys = ['mapbox'] as const
   createInputs() {
     return {
       query: new StringField(undefined, {
@@ -728,6 +732,7 @@ export class GeocoderOp extends Operator<GeocoderOp> {
 export class DirectionsOp extends Operator<DirectionsOp> {
   static displayName = 'Directions'
   static description = 'Get driving, traffic-aware driving, or transit directions between points'
+  static usesKeys = ['mapbox', 'googleMaps'] as const
   asDownload = () => this.outputData
   createInputs() {
     return {

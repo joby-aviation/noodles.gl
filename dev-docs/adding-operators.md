@@ -59,6 +59,9 @@ registers them with the planner. A parameter whose widget is a Noodles field (an
 list, a map style's overrides) uses `kind: 'field'` with `{ op, input }`, and the FieldAdapter
 builds that field from the class.
 
+A `build` that reads an API key with `getKeysStore().getKey()` lists those keys in
+`usesKeys: ['googleMaps']`, so the operator is built again when the user changes the key.
+
 ## A host operator
 
 A Noodles operator class in `noodles-editor/src/noodles/operators.ts` with `createInputs`,
@@ -66,6 +69,9 @@ A Noodles operator class in `noodles-editor/src/noodles/operators.ts` with `crea
 `src/runtime/migrate/op-catalog.ts`. `HostRunner` runs `execute()` with the inputs the document
 and the scalar program give it, and hands rows back to planner nodes through DuckDB. Keep it
 small: every host operator is work the engine cannot plan.
+
+An `execute()` that reads an API key with `getKeysStore().getKey()` lists those keys in
+`static usesKeys = ['mapbox'] as const`, so it runs again when the user changes the key.
 
 ## Converting an older Noodles operator
 

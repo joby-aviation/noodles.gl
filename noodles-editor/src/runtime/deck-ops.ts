@@ -17,6 +17,7 @@ import {
   toSql,
 } from '@noodles.gl/planner'
 import * as d3 from 'd3'
+import type { KeyType } from '../noodles/keys-store'
 import { applyStyleOverrides } from '../utils/map-style-utils'
 import { registerValueOperators } from './value-ops'
 
@@ -32,6 +33,8 @@ export interface DeckOp {
   aggregate?: { param: string; select: (p: Record<string, unknown>, shape: RelShape) => string }
   // Rebuilt when the render surface resizes, which `env.surface` holds
   surface?: boolean
+  // API keys `build` reads: rebuilt when the key it would get changes
+  usesKeys?: KeyType[]
   // `build` returns a value per output port, not the first port's value
   ports?: boolean
 }
@@ -901,81 +904,85 @@ export const DECK_OPS: DeckOp[] = [
       }
     }
   ),
-  layerOp(
-    'tile-3d',
-    'Tile3DLayerOp',
-    'Tile 3D Layer',
-    'Render 3D tiles on the map (Google, Cesium, or a custom tileset URL)',
-    [
-      menu('provider', 'Google', ['Cesium', 'Generic', 'Google']),
-      text('tilesetUrl', ''),
-      menu('operation', 'terrain+draw', ['terrain+draw', 'draw', 'terrain']),
-      toggle('wireframe', false),
-      toggle('flatLighting', true),
-      toggle('throttleRequests', false),
-      num('pointSize', 1, { min: 0, step: 0.1 }),
-      num('maxScreenSpaceError', 50, { min: 0, step: 0.1 }),
-      num('maxMemoryUsage', 2024, { min: 0, step: 0.1 }),
-    ],
-    async (p, id) => {
-      const {
-        flatLighting,
-        provider,
-        tilesetUrl,
-        throttleRequests,
-        maxMemoryUsage,
-        maxScreenSpaceError,
-        ...rest
-      } = p
-      // The page's API keys: loaded here so the migrator can read this table without them
-      const { getKeysStore } = await import('../noodles/keys-store')
-      const { getKey } = getKeysStore()
-      const googleKey = getKey('googleMaps')
-      const cesiumToken = getKey('cesium')
-      if (provider === 'Google' && !googleKey) {
-        throw new Error(
-          'Tile3DLayer: Google Maps API key is not set (add it in Settings > API Keys)'
-        )
+  // Rebuilt when the Google or Cesium key changes, since the tiles load with it
+  {
+    usesKeys: ['googleMaps', 'cesium'],
+    ...layerOp(
+      'tile-3d',
+      'Tile3DLayerOp',
+      'Tile 3D Layer',
+      'Render 3D tiles on the map (Google, Cesium, or a custom tileset URL)',
+      [
+        menu('provider', 'Google', ['Cesium', 'Generic', 'Google']),
+        text('tilesetUrl', ''),
+        menu('operation', 'terrain+draw', ['terrain+draw', 'draw', 'terrain']),
+        toggle('wireframe', false),
+        toggle('flatLighting', true),
+        toggle('throttleRequests', false),
+        num('pointSize', 1, { min: 0, step: 0.1 }),
+        num('maxScreenSpaceError', 50, { min: 0, step: 0.1 }),
+        num('maxMemoryUsage', 2024, { min: 0, step: 0.1 }),
+      ],
+      async (p, id) => {
+        const {
+          flatLighting,
+          provider,
+          tilesetUrl,
+          throttleRequests,
+          maxMemoryUsage,
+          maxScreenSpaceError,
+          ...rest
+        } = p
+        // The page's API keys: loaded here so the migrator can read this table without them
+        const { getKeysStore } = await import('../noodles/keys-store')
+        const { getKey } = getKeysStore()
+        const googleKey = getKey('googleMaps')
+        const cesiumToken = getKey('cesium')
+        if (provider === 'Google' && !googleKey) {
+          throw new Error(
+            'Tile3DLayer: Google Maps API key is not set (add it in Settings > API Keys)'
+          )
+        }
+        if (provider === 'Cesium' && !cesiumToken) {
+          throw new Error(
+            'Tile3DLayer: Cesium Ion access token is not set (add it in Settings > API Keys)'
+          )
+        }
+        // Generic sends no credentials, so falling back to the Google tileset would fail
+        if (provider === 'Generic' && !tilesetUrl) {
+          throw new Error('Tile3DLayer: set Tileset URL to use the Generic provider')
+        }
+        const fallback =
+          provider === 'Cesium'
+            ? 'https://assets.ion.cesium.com/242005/tileset.json'
+            : 'https://tile.googleapis.com/v1/3dtiles/root.json'
+        const { CesiumIonLoader, Tiles3DLoader } = await import('@loaders.gl/3d-tiles')
+        return {
+          ...layerOf('Tile3DLayer', id, rest),
+          data: tilesetUrl || fallback,
+          loader: provider === 'Cesium' ? CesiumIonLoader : Tiles3DLoader,
+          loadOptions:
+            provider === 'Google'
+              ? { fetch: { headers: { 'X-GOOG-API-KEY': googleKey } } }
+              : provider === 'Cesium'
+                ? { tileset: { throttleRequests }, 'cesium-ion': { accessToken: cesiumToken } }
+                : null,
+          onTilesetLoad: (tileset: {
+            maximumMemoryUsage: number
+            setProps(p: Record<string, unknown>): void
+          }) => {
+            tileset.maximumMemoryUsage = Number(maxMemoryUsage)
+            tileset.setProps({
+              throttleRequests,
+              maximumScreenSpaceError: maxScreenSpaceError,
+              maximumMemoryUsage: maxMemoryUsage,
+            })
+          },
+          _subLayerProps: flatLighting ? { scenegraph: { _lighting: 'flat' } } : undefined,
+        }
       }
-      if (provider === 'Cesium' && !cesiumToken) {
-        throw new Error(
-          'Tile3DLayer: Cesium Ion access token is not set (add it in Settings > API Keys)'
-        )
-      }
-      // Generic sends no credentials, so falling back to the Google tileset would fail
-      if (provider === 'Generic' && !tilesetUrl) {
-        throw new Error('Tile3DLayer: set Tileset URL to use the Generic provider')
-      }
-      const fallback =
-        provider === 'Cesium'
-          ? 'https://assets.ion.cesium.com/242005/tileset.json'
-          : 'https://tile.googleapis.com/v1/3dtiles/root.json'
-      const { CesiumIonLoader, Tiles3DLoader } = await import('@loaders.gl/3d-tiles')
-      return {
-        ...layerOf('Tile3DLayer', id, rest),
-        data: tilesetUrl || fallback,
-        loader: provider === 'Cesium' ? CesiumIonLoader : Tiles3DLoader,
-        loadOptions:
-          provider === 'Google'
-            ? { fetch: { headers: { 'X-GOOG-API-KEY': googleKey } } }
-            : provider === 'Cesium'
-              ? { tileset: { throttleRequests }, 'cesium-ion': { accessToken: cesiumToken } }
-              : null,
-        onTilesetLoad: (tileset: {
-          maximumMemoryUsage: number
-          setProps(p: Record<string, unknown>): void
-        }) => {
-          tileset.maximumMemoryUsage = Number(maxMemoryUsage)
-          tileset.setProps({
-            throttleRequests,
-            maximumScreenSpaceError: maxScreenSpaceError,
-            maximumMemoryUsage: maxMemoryUsage,
-          })
-        },
-        _subLayerProps: flatLighting ? { scenegraph: { _lighting: 'flat' } } : undefined,
-      }
-    }
-  ),
+    ),
+  },
 
   // --- basemap style -------------------------------------------------------------------
   {

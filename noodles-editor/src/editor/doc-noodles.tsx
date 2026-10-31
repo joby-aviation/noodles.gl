@@ -42,7 +42,13 @@ import { setParam } from './doc-ops'
 import { getUIStore, useUIStore } from './ui-store'
 import '../noodles/layers.css'
 import { agentBench, externalControl } from '../noodles/globals'
-import { getKeysStore, type KeysConfig, keysProjectId, useKeysStore } from '../noodles/keys-store'
+import {
+  getKeysStore,
+  type KeysConfig,
+  keysProjectId,
+  syncKeysAcrossTabs,
+  useKeysStore,
+} from '../noodles/keys-store'
 import { trackChatClosed, trackChatOpened } from '../noodles/utils/editor-analytics'
 import { claimStarterSelection, findStarterNodeId } from '../noodles/utils/starter-node'
 import { DocProperties } from './doc-properties'
@@ -122,6 +128,8 @@ export function useDocNoodles(): Visualization {
   const { setCurrentDirectory, setActiveStorageType, setError } = useFileSystemStore()
   const doc = useEditor(s => s.doc)
   const dirty = useEditor(s => s.dirty)
+  // Keys and choices set in another tab apply here too
+  useEffect(() => syncKeysAcrossTabs(), [])
   // Editing a project key in Settings changes what the project file saves
   useEffect(
     () =>
