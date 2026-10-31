@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   AI_KEY_TYPES,
+  describeKey,
   fingerprintKey,
   getEnvKeys,
   getKeysForProject,
@@ -530,6 +531,26 @@ describe('Keys Store', () => {
 
       expect(getKey('anthropic')).toBe('browser-anthropic')
       expect(getActiveSource('anthropic')).toBe('browser')
+    })
+  })
+
+  describe('describeKey', () => {
+    it('names where the key came from', () => {
+      const { setProjectKeys, setBrowserKey, setKeyOverride } = getKeysStore()
+      setProjectKeys({ mapbox: 'project-token' }, '/projects/a')
+      setBrowserKey('mapbox', 'browser-token')
+      expect(describeKey('mapbox', 'project-token')).toBe("the project's Mapbox token")
+
+      setKeyOverride('mapbox', 'browser')
+      expect(describeKey('mapbox', 'browser-token')).toBe('your browser Mapbox token')
+    })
+
+    it('names a key that changed while its request was out by where it is now', () => {
+      const { setProjectKeys, setBrowserKey } = getKeysStore()
+      setBrowserKey('googleMaps', 'browser-key')
+      setProjectKeys({ googleMaps: 'project-key' }, '/projects/a')
+      expect(describeKey('googleMaps', 'browser-key')).toBe('your browser Google Maps key')
+      expect(describeKey('googleMaps', 'gone-key')).toBe('the Google Maps key')
     })
   })
 

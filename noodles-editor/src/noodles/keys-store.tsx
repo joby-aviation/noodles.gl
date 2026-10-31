@@ -375,6 +375,34 @@ export function syncKeysAcrossTabs(): () => void {
   return () => window.removeEventListener('storage', onStorage)
 }
 
+// What messages call each key
+export const KEY_NAMES: Record<KeyType, string> = {
+  mapbox: 'Mapbox token',
+  googleMaps: 'Google Maps key',
+  cesium: 'Cesium Ion token',
+  anthropic: 'Anthropic key',
+  openrouter: 'OpenRouter key',
+  overpass: 'Overpass endpoint',
+}
+
+// Names a key and where it came from for an error, e.g. "the project's Mapbox token", so the
+// user knows which one to fix. Matches the value sent rather than reading the active key,
+// which may have changed while the request was out.
+export function describeKey(key: KeyType, value: string): string {
+  const state = getKeysStore()
+  const slots = getSlots(state, key)
+  const active = state.getActiveSource(key)
+  const source =
+    active && slots[active] === value
+      ? active
+      : (['project', 'browser', 'env'] as const).find(slot => slots[slot] === value)
+  const name = KEY_NAMES[key]
+  if (source === 'project') return `the project's ${name}`
+  if (source === 'browser') return `your browser ${name}`
+  if (source === 'env') return `the environment ${name}`
+  return `the ${name}`
+}
+
 // Choices are stored per route, so an example and a saved project with the same name
 // keep separate ones
 export function keysProjectId(routePrefix: string, name: string): string {

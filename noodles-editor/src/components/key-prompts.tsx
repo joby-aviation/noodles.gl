@@ -1,9 +1,10 @@
 import { useState } from 'react'
 import { createPortal } from 'react-dom'
 import {
+  KEY_NAMES,
   type KeyPrompt,
-  PROMPTED_KEY_TYPES,
   type KeyType,
+  PROMPTED_KEY_TYPES,
   useKeysStore,
 } from '../noodles/keys-store'
 import { analytics } from '../utils/analytics'
@@ -11,12 +12,6 @@ import { getLoadedGoogleMapsKey } from '../utils/geocoding'
 import s from './key-prompts.module.css'
 
 type PromptedKey = (typeof PROMPTED_KEY_TYPES)[number]
-
-const KEY_NAMES: Record<PromptedKey, string> = {
-  mapbox: 'Mapbox token',
-  googleMaps: 'Google Maps key',
-  cesium: 'Cesium Ion token',
-}
 
 const SERVICE_NAMES: Record<PromptedKey, string> = {
   mapbox: 'Mapbox',
