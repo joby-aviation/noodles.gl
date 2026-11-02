@@ -6504,8 +6504,18 @@ export class OutOp extends Operator<OutOp> {
         description:
           'Final waits for each frame to settle; preview is faster but can drop or repeat frames.',
       }),
+      fileName: new StringField('', {
+        label: 'File name',
+        description:
+          'Base name of exported files, which get -v1, -v2 and an extension. Empty uses the project name.',
+      }),
+      imageFormat: new StringLiteralField('png', {
+        values: ['png', 'jpeg'],
+        label: 'Photo format',
+        description: 'File format for photos saved to the renders folder: png or jpeg.',
+      }),
       rendersDirectory: new StringField('renders', {
-        description: 'Folder in the project where image sequence exports are saved.',
+        description: 'Folder in the project where photos, videos and image sequences are saved.',
       }),
       sequenceFormat: new StringLiteralField('png', {
         values: ['png', 'exr'],

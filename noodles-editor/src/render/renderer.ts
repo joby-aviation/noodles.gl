@@ -16,7 +16,12 @@ import {
   guardFrameStep,
 } from './frame-guard'
 import { type RenderErrorCategory, type RenderSource, trackRender } from './render-analytics'
-import { nextRenderVersion, renderFileName, sanitizeRenderBaseName } from './render-file-name'
+import {
+  type RenderFileReservation,
+  renderFileName,
+  reserveRenderFile,
+  sanitizeRenderBaseName,
+} from './render-file-name'
 import { ALPHA_VIDEO_CODECS } from './video-export'
 
 export const rafDriver = {
@@ -118,6 +123,8 @@ export const useRenderer = ({
       startFrame = 0,
       endFrame = Math.floor(sequenceLength * captureFps),
       target = 'picker',
+      directoryHandle,
+      fileName,
       source = 'menu',
       onFrameComplete,
     }: {
@@ -135,6 +142,10 @@ export const useRenderer = ({
       startFrame?: number
       endFrame?: number
       target?: CaptureTarget
+      // With 'picker', saves into this folder as <fileName>-vN instead of asking where
+      directoryHandle?: FileSystemDirectoryHandle
+      // Base name of the file; the project name when empty
+      fileName?: string
       source?: RenderSource
       onFrameComplete?: (frame: number, total: number) => void
     }): Promise<CaptureResult> => {
@@ -163,13 +174,24 @@ export const useRenderer = ({
       // reports errors through a callback, so they would otherwise only be logged.
       let encoderError: Error | undefined
 
-      const baseName = sanitizeRenderBaseName(projectName)
-      const extension = exportAlpha ? '.webm' : '.mp4'
-      const mimeType = exportAlpha ? 'video/webm' : 'video/mp4'
+      const baseName = sanitizeRenderBaseName(fileName, projectName)
+      const format = exportAlpha ? 'webm' : 'mp4'
+      const extension = `.${format}`
+      const mimeType = `video/${format}`
+      const toFolder = target === 'picker' && directoryHandle !== undefined
       // Firefox and Safari have no save dialog, so the video is kept in memory and
       // downloaded once it is done
-      const download = target === 'picker' && !checkFileSystemSupport().fileSystemAccess
+      const download =
+        target === 'picker' && !toFolder && !checkFileSystemSupport().fileSystemAccess
       const captureTarget: CaptureTarget = download ? 'buffer' : target
+      // The file claimed in directoryHandle, deleted again if the export fails
+      let reservation: RenderFileReservation | undefined
+
+      const reserveFileStream = async () => {
+        reservation = await reserveRenderFile(directoryHandle!, { baseName, extension: format })
+        debugRender('Saving the video as %s', reservation.name)
+        return reservation.handle.createWritable()
+      }
 
       const pickFileStream = async (name: string) => {
         const fileHandle = await window
@@ -200,7 +222,12 @@ export const useRenderer = ({
       const getContainer = async (name: string, config: VideoEncoderConfig) => {
         // The picker comes first: it needs the click that started the export, and the
         // browser only honors that click for a few seconds
-        const fileWritableStream = captureTarget === 'picker' ? await pickFileStream(name) : null
+        const fileWritableStream =
+          captureTarget !== 'picker'
+            ? null
+            : toFolder
+              ? await reserveFileStream()
+              : await pickFileStream(name)
         if (captureTarget === 'picker' && !fileWritableStream) {
           return null
         }
@@ -346,6 +373,7 @@ export const useRenderer = ({
       let mapContainer: Awaited<ReturnType<typeof getContainer>> = null
       let mapFrames: CanvasFrameReader | undefined
       let finished = false
+      let saved = false
 
       try {
         if (exportAlpha && !ALPHA_VIDEO_CODECS.includes(codec)) {
@@ -535,6 +563,7 @@ export const useRenderer = ({
         if (download && buffer) {
           downloadBlob(new Blob([buffer], { type: mimeType }), `${baseName}${extension}`)
         }
+        saved = true
         tracker.completed()
         return { status: 'done', frameCount, fps, buffer }
       } catch (error) {
@@ -554,6 +583,8 @@ export const useRenderer = ({
           await mapFrames?.cancel()
           await mapContainer?.cancel().catch(() => {})
         }
+        // A file claimed in the renders folder holds nothing usable, and would take a version
+        if (!saved) await reservation?.discard()
         mapFrames?.stop()
         setIsRendering(false)
       }
@@ -568,6 +599,7 @@ export const useRenderer = ({
       getCanvas = () => canvas,
       getDeck,
       directoryHandle,
+      fileName,
       format = 'png',
       captureDelay = 200,
       captureMode = 'final',
@@ -582,6 +614,8 @@ export const useRenderer = ({
       getCanvas?: () => HTMLCanvasElement | null | undefined
       getDeck?: () => Deck | null
       directoryHandle: FileSystemDirectoryHandle
+      // Base name of the frames; the project name when empty
+      fileName?: string
       format?: SequenceFormat
       captureDelay?: number
       captureMode?: CaptureMode
@@ -634,6 +668,9 @@ export const useRenderer = ({
 
       let frames: CanvasFrameReader | undefined
       let failed = false
+      // The first frame's file, claimed before the export starts so the version is taken
+      let reservation: RenderFileReservation | undefined
+      let firstFrameWritten = false
 
       // Pipelined writes: up to MAX_CONCURRENT_WRITES file writes run concurrently with
       // the next frame's render to avoid ~750ms/frame disk flush stalls.
@@ -654,8 +691,13 @@ export const useRenderer = ({
         if (format === 'exr') await loadExrEncoder()
 
         // A new version for each export, so a second sequence never overwrites the first
-        const baseName = sanitizeRenderBaseName(projectName)
-        const version = await nextRenderVersion(directoryHandle, baseName)
+        const baseName = sanitizeRenderBaseName(fileName, projectName)
+        reservation = await reserveRenderFile(directoryHandle, {
+          baseName,
+          extension: format,
+          frame: String(startFrame).padStart(padLength, '0'),
+        })
+        const { version } = reservation
 
         frames = new CanvasFrameReader(canvas, redraw)
         const guard = { recording: canvas, getCanvas }
@@ -727,7 +769,12 @@ export const useRenderer = ({
           const convertEnd = performance.now()
           totalConvertTime += convertEnd - convertStart
 
-          pendingWrites.push(writeFile(filename, blob))
+          const first = i === startFrame
+          pendingWrites.push(
+            writeFile(filename, blob).then(() => {
+              if (first) firstFrameWritten = true
+            })
+          )
 
           framesDone = i - startFrame + 1
           onFrameComplete?.(framesDone, totalFrames)
@@ -774,6 +821,9 @@ export const useRenderer = ({
         tracker.completed()
       } catch (error) {
         failed = true
+        // The frames written so far stay. If none were, the reserved first frame is empty.
+        await Promise.allSettled(pendingWrites)
+        if (!firstFrameWritten) await reservation?.discard()
         const category: RenderErrorCategory =
           error instanceof CanvasReplacedError
             ? 'canvas_replaced'
@@ -825,12 +875,54 @@ function downloadBlob(blob: Blob, fileName: string) {
   setTimeout(() => URL.revokeObjectURL(url), 60_000)
 }
 
+export type PhotoFormat = 'png' | 'jpeg'
+
+// Reads the canvas as an image. Call it right after a redraw, or the buffer is empty.
+function canvasToBlob(canvas: HTMLCanvasElement, type: string, quality: number) {
+  return new Promise<Blob>((resolve, reject) => {
+    canvas.toBlob(blob => (blob ? resolve(blob) : reject('canvas is empty')), type, quality)
+  })
+}
+
+async function writeBlob(handle: FileSystemFileHandle, blob: Blob) {
+  const fileWritableStream = await handle.createWritable()
+  await fileWritableStream.write(blob)
+  await fileWritableStream.close()
+}
+
 export const captureScreenshot = async (
   suggestedName: string,
   getBufferedCanvas: () => HTMLCanvasElement,
-  { quality = 1, source = 'menu' }: { quality?: number; source?: RenderSource } = {}
+  {
+    quality = 1,
+    source = 'menu',
+    directoryHandle,
+    format = 'png',
+  }: {
+    quality?: number
+    source?: RenderSource
+    // Saves into this folder as <suggestedName>-vN instead of asking where
+    directoryHandle?: FileSystemDirectoryHandle
+    // The format saved into directoryHandle; the save dialog lets the user pick
+    format?: PhotoFormat
+  } = {}
 ) => {
   const baseName = sanitizeRenderBaseName(suggestedName, 'screenshot')
+
+  if (directoryHandle) {
+    const reservation = await reserveRenderFile(directoryHandle, { baseName, extension: format })
+    try {
+      const blob = await canvasToBlob(getBufferedCanvas(), `image/${format}`, quality)
+      await writeBlob(reservation.handle, blob)
+    } catch (error) {
+      await reservation.discard()
+      throw error
+    }
+    debugRender('Saved the photo as %s', reservation.name)
+    analytics.track('screenshot_taken', { source })
+    return
+  }
+
   // Without a save dialog the screenshot downloads as a PNG
   const imageHandle = checkFileSystemSupport().fileSystemAccess
     ? await window.showSaveFilePicker({
@@ -849,20 +941,10 @@ export const captureScreenshot = async (
     : null
 
   const type = imageHandle ? (await imageHandle.getFile()).type : 'image/png'
-
-  const blob = await new Promise<Blob>((resolve, reject) => {
-    // canvas needs to redrawn immediately before capture or else buffer will be empty.
-    getBufferedCanvas().toBlob(
-      blob => (blob ? resolve(blob) : reject('canvas is empty')),
-      type,
-      quality
-    )
-  })
+  const blob = await canvasToBlob(getBufferedCanvas(), type, quality)
 
   if (imageHandle) {
-    const fileWritableStream = await imageHandle.createWritable()
-    await fileWritableStream.write(blob)
-    await fileWritableStream.close()
+    await writeBlob(imageHandle, blob)
   } else {
     downloadBlob(blob, `${baseName}.png`)
   }

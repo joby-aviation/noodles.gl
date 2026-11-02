@@ -3,6 +3,7 @@ import {
   nextRenderVersion,
   RENDER_EXTENSIONS,
   renderFileName,
+  reserveRenderFile,
   sanitizeRenderBaseName,
 } from './render-file-name'
 
@@ -117,5 +118,76 @@ describe('nextRenderVersion', () => {
   it('treats regular expression characters in the name literally', async () => {
     const directory = directoryWith(['a+b-v2.png', 'aab-v9.png'])
     expect(await nextRenderVersion(directory, 'a+b')).toBe(3)
+  })
+})
+
+describe('reserveRenderFile', () => {
+  // A folder that keeps the files created in it, and can refuse to delete them
+  function writableDirectory(names: string[] = [], { lockedFiles = false } = {}) {
+    const files = new Set(names)
+    const handle = {
+      async *entries() {
+        for (const name of files) yield [name, { kind: 'file', name }]
+      },
+      async getFileHandle(name: string) {
+        files.add(name)
+        return { kind: 'file', name }
+      },
+      async removeEntry(name: string) {
+        if (lockedFiles) throw new DOMException('The file is in use', 'NoModificationAllowedError')
+        files.delete(name)
+      },
+    } as unknown as FileSystemDirectoryHandle
+    return { files, handle }
+  }
+
+  it('creates the next version so the folder already shows it as taken', async () => {
+    const { files, handle } = writableDirectory(['map-v1.png'])
+    const reservation = await reserveRenderFile(handle, { baseName: 'map', extension: 'mp4' })
+    expect(reservation).toMatchObject({ name: 'map-v2.mp4', version: 2 })
+    expect(files.has('map-v2.mp4')).toBe(true)
+  })
+
+  it('gives exports started together their own versions', async () => {
+    const { handle } = writableDirectory()
+    const names = await Promise.all([
+      reserveRenderFile(handle, { baseName: 'shared', extension: 'png' }),
+      reserveRenderFile(handle, { baseName: 'shared', extension: 'webm' }),
+      reserveRenderFile(handle, { baseName: 'shared', extension: 'exr', frame: '0000' }),
+    ])
+    expect(names.map(reservation => reservation.name)).toEqual([
+      'shared-v1.png',
+      'shared-v2.webm',
+      'shared-v3_0000.exr',
+    ])
+  })
+
+  it('keeps reserving after one reservation fails', async () => {
+    const { handle } = writableDirectory()
+    const failing = {
+      entries: () => {
+        throw new DOMException('The folder was removed', 'NotFoundError')
+      },
+    } as unknown as FileSystemDirectoryHandle
+    await expect(reserveRenderFile(failing, { baseName: 'map', extension: 'png' })).rejects.toThrow(
+      'removed'
+    )
+    const next = await reserveRenderFile(handle, { baseName: 'map', extension: 'png' })
+    expect(next.name).toBe('map-v1.png')
+  })
+
+  it('deletes the reserved file when discarded, and frees its version', async () => {
+    const { files, handle } = writableDirectory()
+    const reservation = await reserveRenderFile(handle, { baseName: 'map', extension: 'mp4' })
+    await reservation.discard()
+    expect(files.has('map-v1.mp4')).toBe(false)
+    const retry = await reserveRenderFile(handle, { baseName: 'map', extension: 'mp4' })
+    expect(retry.name).toBe('map-v1.mp4')
+  })
+
+  it('does not throw when the reserved file cannot be deleted', async () => {
+    const { handle } = writableDirectory([], { lockedFiles: true })
+    const reservation = await reserveRenderFile(handle, { baseName: 'map', extension: 'png' })
+    await expect(reservation.discard()).resolves.toBeUndefined()
   })
 })

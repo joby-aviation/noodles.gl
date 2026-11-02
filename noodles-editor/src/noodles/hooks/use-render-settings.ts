@@ -38,6 +38,8 @@ export function useRenderSettings(): RenderSettings {
       outOp.inputs.framerate.subscribe(() => updateSettings()),
       outOp.inputs.captureDelay.subscribe(() => updateSettings()),
       outOp.inputs.captureMode.subscribe(() => updateSettings()),
+      outOp.inputs.fileName.subscribe(() => updateSettings()),
+      outOp.inputs.imageFormat.subscribe(() => updateSettings()),
       outOp.inputs.rendersDirectory.subscribe(() => updateSettings()),
       outOp.inputs.sequenceFormat.subscribe(() => updateSettings()),
     ]
@@ -79,6 +81,8 @@ export function getRenderSettingsFromOutOp(outOp: OutOp): RenderSettings {
     framerate: outOp.inputs.framerate.value,
     captureDelay: outOp.inputs.captureDelay.value,
     captureMode: outOp.inputs.captureMode.value as RenderSettings['captureMode'],
+    fileName: outOp.inputs.fileName.value,
+    imageFormat: outOp.inputs.imageFormat.value as RenderSettings['imageFormat'],
     rendersDirectory: outOp.inputs.rendersDirectory.value,
     sequenceFormat: outOp.inputs.sequenceFormat.value as RenderSettings['sequenceFormat'],
   }
@@ -126,6 +130,12 @@ export function setRenderSettingsOnOutOp(outOp: OutOp, settings: Partial<RenderS
   }
   if (settings.captureMode !== undefined) {
     outOp.inputs.captureMode.setValue(settings.captureMode)
+  }
+  if (settings.fileName !== undefined) {
+    outOp.inputs.fileName.setValue(settings.fileName)
+  }
+  if (settings.imageFormat !== undefined) {
+    outOp.inputs.imageFormat.setValue(settings.imageFormat)
   }
   if (settings.rendersDirectory !== undefined) {
     outOp.inputs.rendersDirectory.setValue(settings.rendersDirectory)

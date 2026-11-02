@@ -41,6 +41,8 @@ Expressions and code read its fields as `op('/out').par.vis` (an input). Edges n
 | `framerate` | `NumberField` | `30` |
 | `captureDelay` | `NumberField` | `50` |
 | `captureMode` | `StringLiteralField` | `"final"` |
+| `fileName` | `StringField` | `""` |
+| `imageFormat` | `StringLiteralField` | `"png"` |
 | `rendersDirectory` | `StringField` | `"renders"` |
 | `sequenceFormat` | `StringLiteralField` | `"png"` |
 <!-- gen:end inputs -->

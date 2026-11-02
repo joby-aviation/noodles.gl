@@ -15,6 +15,8 @@ export type RenderSettings = {
   framerate: number
   captureDelay: number
   captureMode: 'final' | 'preview'
+  fileName: string
+  imageFormat: 'png' | 'jpeg'
   rendersDirectory: string
   sequenceFormat: 'png' | 'exr'
 }
@@ -33,6 +35,8 @@ export const DEFAULT_RENDER_SETTINGS: RenderSettings = {
   framerate: 30,
   captureDelay: 50,
   captureMode: 'final',
+  fileName: '',
+  imageFormat: 'png',
   rendersDirectory: 'renders',
   sequenceFormat: 'png',
 }
