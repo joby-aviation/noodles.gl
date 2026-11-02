@@ -200,19 +200,32 @@ function NumberCellEditor({
   )
 }
 
-function StringCellEditor({ value, onChange, onComplete, onCancel }: CellEditorProps) {
+// A textarea so strings can hold line breaks (e.g. multiline TextLayer labels). Enter
+// commits like the other editors; Shift+Enter or Alt+Enter inserts a line break.
+function StringCellEditor({ value, onChange, onComplete, onCancel, column }: CellEditorProps) {
+  const text = String(value ?? '')
   return (
-    <InputText
-      value={value as string}
+    <textarea
+      value={text}
+      rows={text.split('\n').length}
       onChange={e => onChange(e.target.value)}
       onBlur={() => onComplete()}
       onKeyDown={e => {
         e.stopPropagation()
-        if (e.key === 'Enter') onComplete('next-row')
+        if (e.key === 'Enter' && !e.shiftKey && !e.altKey) {
+          e.preventDefault()
+          onComplete('next-row')
+        }
         if (e.key === 'Escape') onCancel()
       }}
+      onFocus={e => {
+        const end = e.currentTarget.value.length
+        e.currentTarget.setSelectionRange(end, end)
+      }}
+      // biome-ignore lint/a11y/noAutofocus: Cell editors must focus the control that replaced the display cell.
       autoFocus
-      className={s.cellEditor}
+      className={cx('p-inputtext', s.cellEditor, s.stringCellEditor)}
+      aria-label={`Edit ${column.name}`}
     />
   )
 }
@@ -841,8 +854,9 @@ function renderDateTimeCell(value: unknown): string {
   return ''
 }
 
+// Rows are one line tall, so line breaks show as a marker instead of collapsing to spaces
 function renderStringCell(value: unknown): string {
-  return String(value ?? '')
+  return String(value ?? '').replace(/\r?\n/g, ' ↵ ')
 }
 
 function StringLiteralCell({
