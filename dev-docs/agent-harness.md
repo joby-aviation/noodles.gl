@@ -217,25 +217,66 @@ offers the 2B, which needs about half the memory. Every entry carries
 `supportsImages: false` until WebLLM ships a Qwen3.5 vision build. The download
 reports progress through the same `DownloadProgress` UI Chrome uses.
 
-### Why there is no keyless preset
+### The hosted free tier
 
-The obvious lowest-friction path — a shared endpoint that answers with no account
-behind it — was implemented, tested against real services, and removed. No free
-OpenAI-compatible endpoint is callable from a browser page:
+No free OpenAI-compatible endpoint is callable from a browser page, so the keyless
+path is a proxy of our own. When this was first tried against public services:
 
-- `text.pollinations.ai/openai` returns `403 {"error":"Missing Turnstile token"}` when
-  the request carries a page `Origin`. The same request from curl succeeds. Adding a
-  `?referrer=` param and using the GET prompt route both still 403.
-- `ai.hackclub.com` serves no CORS headers, so the fetch never leaves the page.
-- `api.deepinfra.com/v1/openai` answers `GET /models` but `401 missing API key` on
-  chat completions.
+- `text.pollinations.ai/openai` returned `403 {"error":"Missing Turnstile token"}` for
+  any request carrying a page `Origin`.
+- `ai.hackclub.com` served no CORS headers.
+- `api.deepinfra.com/v1/openai` answered `GET /models` but `401` on chat completions.
 
-A keyless path therefore needs a proxy, and there is no backend in this repo. The
-closest substitute is the free-key presets in `endpoint-presets.ts` — Groq, Google AI
-Studio and Cerebras all issue a key with no credit card — and, ahead of those,
-OpenRouter's one-click connect. The one piece of the demo work that stayed is
-`CustomProvider` omitting the `Authorization` header when there is no key, which is
-what a server on your own LAN wants anyway.
+The proxy is a Cloudflare Pages Function, `functions/api/llm/[[path]].ts`, deployed
+with the site by the same `wrangler pages deploy` (Pages compiles `functions/` from
+the directory the command runs in). It forwards chat completions to an
+OpenAI-compatible provider, Groq by default, with a key the browser never sees:
+
+| Route | |
+| --- | --- |
+| `GET /api/llm/status` | `{available, model, providerName, contextWindow, freeMessages}`; `available` is false without a key, and on localhost the route does not exist at all |
+| `POST /api/llm/v1/chat/completions` | the proxied request, streamed back as SSE |
+
+It only serves the assistant, and only for a first taste:
+
+- The system message has to start with `prompts/core.md`, checked against
+  `CORE_PROMPT_FINGERPRINT` (length and SHA-256) so the Function needs no Markdown
+  loader. `hosted-llm.test.ts` fails when `core.md` changes and prints the new values.
+- At most `FREE_MESSAGES` (2) user messages per conversation. History travels with
+  every request and tool results are `tool` messages, so counting `user` messages
+  needs no storage.
+- Browser requests from the deployment's own host or `HOSTED_LLM_ALLOWED_ORIGINS`
+  only (default `https://noodles.gl`), a 256 KB body cap, 80 messages, 64 tools, 1024 output tokens, and
+  the model set by the Function. The upstream body is rebuilt from named fields.
+- A per-minute 429 from the provider is waited out (up to 15 s, twice), because one
+  agent turn makes several requests in a row. A longer `Retry-After` is a daily limit
+  and is passed on as `429 busy`.
+- With a KV namespace bound as `LLM_LIMITS`, 60 requests per IP per day. Without
+  one, the provider's own quota is the backstop.
+
+Errors use the `{error: {message, code}}` shape `describeFailure` reads; `code` is
+`free_limit` or `busy` where the client needs to tell those apart.
+
+noodles.gl itself is served by GitHub Pages (`deploy-docs.yml`), where Functions do
+not run; Cloudflare Pages serves `noodles-gl.pages.dev` and the PR previews. So the
+editor on noodles.gl calls `https://noodles-gl.pages.dev/api/llm` across origins,
+and the Function answers the CORS preflight for allowed origins. Previews call
+their own host.
+
+Groq's free tier allows 8K tokens a minute and rejects any single request larger
+than that, which is why `contextWindow` is 8192 rather than the model's own window.
+
+**Setup**, in the Cloudflare dashboard under the `noodles-gl` Pages project, Settings,
+Variables and Secrets, for Production and Preview:
+
+1. `HOSTED_LLM_API_KEY` (secret): a Groq key from console.groq.com.
+2. Optional: `HOSTED_LLM_BASE_URL`, `HOSTED_LLM_MODEL` and `HOSTED_LLM_PROVIDER_NAME`
+   to use another provider or model. Defaults are `https://api.groq.com/openai/v1`,
+   `openai/gpt-oss-120b` and `Groq`. `HOSTED_LLM_ALLOWED_ORIGINS` replaces the
+   `https://noodles.gl` default.
+3. Optional: a KV namespace bound as `LLM_LIMITS` for the per-IP cap.
+
+Changes to variables apply to the next deployment.
 
 ### The Chrome provider's session
 
