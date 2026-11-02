@@ -16,6 +16,7 @@ import {
   guardFrameStep,
 } from './frame-guard'
 import { type RenderErrorCategory, type RenderSource, trackRender } from './render-analytics'
+import { nextRenderVersion, renderFileName, sanitizeRenderBaseName } from './render-file-name'
 import { ALPHA_VIDEO_CODECS } from './video-export'
 
 export const rafDriver = {
@@ -162,6 +163,7 @@ export const useRenderer = ({
       // reports errors through a callback, so they would otherwise only be logged.
       let encoderError: Error | undefined
 
+      const baseName = sanitizeRenderBaseName(projectName)
       const extension = exportAlpha ? '.webm' : '.mp4'
       const mimeType = exportAlpha ? 'video/webm' : 'video/mp4'
       // Firefox and Safari have no save dialog, so the video is kept in memory and
@@ -373,7 +375,7 @@ export const useRenderer = ({
           )
         }
 
-        mapContainer = await getContainer(`${projectName}-map`, config)
+        mapContainer = await getContainer(baseName, config)
         if (!mapContainer) {
           debugRender('Render setup cancelled by user (map container)')
           tracker.cancelled()
@@ -531,7 +533,7 @@ export const useRenderer = ({
         const buffer = await finishEncoding()
         if (encoderError) return fail('encoder', encoderError)
         if (download && buffer) {
-          downloadBlob(new Blob([buffer], { type: mimeType }), `${projectName}-map${extension}`)
+          downloadBlob(new Blob([buffer], { type: mimeType }), `${baseName}${extension}`)
         }
         tracker.completed()
         return { status: 'done', frameCount, fps, buffer }
@@ -651,6 +653,10 @@ export const useRenderer = ({
         // Load the encoder before the first frame so a failed chunk load stops the export early
         if (format === 'exr') await loadExrEncoder()
 
+        // A new version for each export, so a second sequence never overwrites the first
+        const baseName = sanitizeRenderBaseName(projectName)
+        const version = await nextRenderVersion(directoryHandle, baseName)
+
         frames = new CanvasFrameReader(canvas, redraw)
         const guard = { recording: canvas, getCanvas }
 
@@ -681,7 +687,12 @@ export const useRenderer = ({
           totalWaitTime += waitEnd - waitStart
 
           const frameNumber = String(i).padStart(padLength, '0')
-          const filename = `${projectName}_${frameNumber}.${format}`
+          const filename = renderFileName({
+            baseName,
+            version,
+            extension: format,
+            frame: frameNumber,
+          })
 
           // Drain oldest write if the queue is full before capturing the next frame
           if (pendingWrites.length >= MAX_CONCURRENT_WRITES) {
@@ -819,10 +830,11 @@ export const captureScreenshot = async (
   getBufferedCanvas: () => HTMLCanvasElement,
   { quality = 1, source = 'menu' }: { quality?: number; source?: RenderSource } = {}
 ) => {
+  const baseName = sanitizeRenderBaseName(suggestedName, 'screenshot')
   // Without a save dialog the screenshot downloads as a PNG
   const imageHandle = checkFileSystemSupport().fileSystemAccess
     ? await window.showSaveFilePicker({
-        suggestedName,
+        suggestedName: baseName,
         types: [
           {
             description: 'PNG',
@@ -852,7 +864,7 @@ export const captureScreenshot = async (
     await fileWritableStream.write(blob)
     await fileWritableStream.close()
   } else {
-    downloadBlob(blob, `${suggestedName}.png`)
+    downloadBlob(blob, `${baseName}.png`)
   }
   analytics.track('screenshot_taken', { source })
 }
