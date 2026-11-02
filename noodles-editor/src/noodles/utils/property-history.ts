@@ -11,8 +11,20 @@ import {
 import { dismissStarterHint, getAllOps, getGraphStore } from '../store'
 import { trackFieldEdit, useFieldEditScope } from './field-edit-analytics'
 import type { OpId } from './id-utils'
+import { applyTableHistorySnapshot } from './table-history'
 
-type PropertyMutationCallback = (description: string, before: string, after: string) => void
+export interface PropertyMutationOptions {
+  mergeKey?: string
+  mergeWindowMs?: number
+  mergedDescription?: string
+}
+
+type PropertyMutationCallback = (
+  description: string,
+  before: string,
+  after: string,
+  options?: PropertyMutationOptions
+) => void
 
 let _propertyMutationCallback: PropertyMutationCallback | undefined
 let _lastCommittedBeforeState: string | null = null
@@ -62,6 +74,8 @@ export function captureOperatorInputs(): string | null {
 // Connected fields will be immediately overwritten by their upstream sources,
 // so restoring them here is harmless and keeps the restore logic simple.
 export function applyOperatorInputs(snapshot: string): void {
+  if (applyTableHistorySnapshot(snapshot)) return
+
   let data: Record<string, Record<string, unknown>>
   try {
     data = JSON.parse(snapshot)
@@ -94,7 +108,8 @@ export function applyOperatorInputs(snapshot: string): void {
 export function firePropertyMutation(
   description: string,
   before: string | null,
-  afterState?: string | null
+  afterState?: string | null,
+  options?: PropertyMutationOptions
 ): boolean {
   if (before === null) return false
   const after = afterState === undefined ? captureOperatorInputs() : afterState
@@ -104,7 +119,8 @@ export function firePropertyMutation(
   if (!_propertyMutationCallback) return false
   _lastCommittedBeforeState = before
   debugHistorySnapshot('Firing property mutation: %s', description)
-  _propertyMutationCallback(description, before, after)
+  if (options) _propertyMutationCallback(description, before, after, options)
+  else _propertyMutationCallback(description, before, after)
   return true
 }
 

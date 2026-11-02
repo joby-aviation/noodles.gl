@@ -89,6 +89,7 @@ import {
   firePropertyMutation,
   usePropertyHistory,
 } from '../utils/property-history'
+import { createTableHistorySnapshots } from '../utils/table-history'
 import { BrushableHistogramOpComponent } from './brushable-histogram-op'
 import { categories as baseCategories, nodeTypeToDisplayName } from './categories'
 import { CommentOpComponent } from './comment-op'
@@ -1980,10 +1981,20 @@ export function TableEditorOpComponent({
   if (!op) return null
 
   const handleDataChange = (newData: unknown[], description = 'Edit table data') => {
-    const before = captureOperatorInputs()
+    const snapshots = createTableHistorySnapshots(
+      op.id,
+      { data: (op.inputs.data.value ?? []) as unknown[] },
+      { data: newData }
+    )
     op.inputs.data.setValue(newData)
     op.outputs.data.setValue(newData)
-    firePropertyMutation(description, before)
+    if (snapshots) {
+      firePropertyMutation(description, snapshots.before, snapshots.after, {
+        mergeKey: `table-data:${op.id}`,
+        mergeWindowMs: 1_500,
+        mergedDescription: 'Edit table data',
+      })
+    }
   }
 
   const handleSchemaChange = (newSchema: TableSchema, newData?: unknown[]) => {
@@ -1996,14 +2007,22 @@ export function TableEditorOpComponent({
       return
     }
 
-    const before = captureOperatorInputs()
+    const beforeData = (op.inputs.data.value ?? []) as unknown[]
+    const snapshots = createTableHistorySnapshots(
+      op.id,
+      {
+        data: beforeData,
+        schema: isTableSchema(op.inputs.schema.value) ? op.inputs.schema.value : null,
+      },
+      { data: newData ?? beforeData, schema: newSchema }
+    )
     op.inputs.schema.setValue(newSchema)
     setSchema(newSchema)
     if (newData !== undefined) {
       op.inputs.data.setValue(newData)
       op.outputs.data.setValue(newData)
     }
-    firePropertyMutation('Edit table schema', before)
+    if (snapshots) firePropertyMutation('Edit table schema', snapshots.before, snapshots.after)
   }
 
   return (

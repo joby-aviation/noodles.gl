@@ -7,10 +7,11 @@ import { createElement, useRef } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useTimelineStore } from '../../timeline/timeline-store'
 import { analytics } from '../../utils/analytics'
-import { MathOp, NumberOp } from '../operators'
+import { MathOp, NumberOp, TableEditorOp } from '../operators'
 import { clearOps, deleteOp, getOp, setOp } from '../store'
 import type { GraphRef } from '../types'
 import { registerLockChangeCallback, setLockedWithHistory } from './lock-history'
+import { createTableHistorySnapshots } from './table-history'
 import { useUndoRedo } from './use-undo-redo'
 
 vi.mock('../../utils/analytics', () => ({
@@ -321,6 +322,96 @@ describe('useUndoRedo — graphRef captures full state across scopes', () => {
     expect(wouldRestore).toContain('/container')
     expect(wouldRestore).toContain('/container/child1')
     expect(wouldRestore).toContain('/container/child2')
+  })
+})
+
+describe('useUndoRedo — table edit batching', () => {
+  beforeEach(() => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-11-02T12:00:00Z'))
+    clearOps()
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+    clearOps()
+  })
+
+  it('groups nearby edits to one table and restores the whole batch', () => {
+    const { result } = renderHook(() => useTestHook(), { wrapper })
+    const op = new TableEditorOp('/table')
+    const before = [{ value: 'A' }, { value: 'B' }]
+    const edited = [{ value: 'Edited' }, { value: 'B' }]
+    const after = [...edited, { value: 'C' }]
+    op.inputs.data.setValue(after)
+    op.outputs.data.setValue(after)
+    setOp(op.id, op as never)
+
+    const first = createTableHistorySnapshots('/table', { data: before }, { data: edited })!
+    const second = createTableHistorySnapshots('/table', { data: edited }, { data: after })!
+    const options = {
+      mergeKey: 'table-data:/table',
+      mergeWindowMs: 1_500,
+      mergedDescription: 'Edit table data',
+    }
+
+    act(() =>
+      result.current.undoRedo.recordPropertyChange(
+        'Edit cell value',
+        first.before,
+        first.after,
+        options
+      )
+    )
+    vi.advanceTimersByTime(500)
+    act(() =>
+      result.current.undoRedo.recordPropertyChange(
+        'Add table row',
+        second.before,
+        second.after,
+        options
+      )
+    )
+
+    expect(result.current.undoRedo.history).toHaveLength(1)
+    expect(result.current.undoRedo.history[0].description).toBe('Edit table data')
+
+    act(() => result.current.undoRedo.undo())
+    expect(op.inputs.data.value).toEqual(before)
+
+    act(() => result.current.undoRedo.redo())
+    expect(op.inputs.data.value).toEqual(after)
+  })
+
+  it('starts a new entry after the merge window or an undo', () => {
+    const { result } = renderHook(() => useTestHook(), { wrapper })
+    const first = createTableHistorySnapshots(
+      '/table',
+      { data: [{ value: 1 }] },
+      { data: [{ value: 2 }] }
+    )!
+    const second = createTableHistorySnapshots(
+      '/table',
+      { data: [{ value: 2 }] },
+      { data: [{ value: 3 }] }
+    )!
+    const options = { mergeKey: 'table-data:/table', mergeWindowMs: 1_500 }
+
+    act(() =>
+      result.current.undoRedo.recordPropertyChange('First', first.before, first.after, options)
+    )
+    vi.advanceTimersByTime(1_501)
+    act(() =>
+      result.current.undoRedo.recordPropertyChange('Second', second.before, second.after, options)
+    )
+    expect(result.current.undoRedo.history).toHaveLength(2)
+
+    act(() => result.current.undoRedo.undo())
+    vi.advanceTimersByTime(1)
+    act(() =>
+      result.current.undoRedo.recordPropertyChange('Branched', second.before, second.after, options)
+    )
+    expect(result.current.undoRedo.history).toHaveLength(2)
   })
 })
 
