@@ -1,4 +1,4 @@
-import { getKeysStore } from '../noodles/keys-store'
+import { describeKey, getKeysStore } from '../noodles/keys-store'
 import { analytics } from './analytics'
 import { debugGeocode } from './debug'
 
@@ -51,6 +51,11 @@ let googleMapsPromise: Promise<void> | null = null
 let loadingApiKey: string | null = null
 let loadedApiKey: string | null = null
 
+// How the Maps JavaScript API script is fetched, replaceable in tests
+export const googleMapsScript = {
+  load: (url: string): Promise<unknown> => import(/* @vite-ignore */ url),
+}
+
 // The key the Maps JavaScript API was loaded with. It can't switch keys afterwards.
 export function getLoadedGoogleMapsKey(): string | null {
   return loadedApiKey
@@ -102,12 +107,17 @@ export async function loadGoogleMapsAPI(apiKey: string): Promise<void> {
       callback: callbackName,
     })
 
-    import(/* @vite-ignore */ `https://maps.googleapis.com/maps/api/js?${params.toString()}`).catch(
-      error => {
+    googleMapsScript
+      .load(`https://maps.googleapis.com/maps/api/js?${params.toString()}`)
+      .catch(error => {
+        // Forget the failed load, so the next request tries again
+        googleMapsPromise = null
         loadingApiKey = null
-        reject(error)
-      }
-    )
+        delete window[callbackName]
+        debugGeocode('Google Maps failed to load:', error)
+        // The browser's message has the script URL in it, and so the key
+        reject(new Error("Couldn't load Google Maps. Check your connection and try again."))
+      })
   })
 
   return googleMapsPromise
@@ -185,7 +195,9 @@ export async function geocodeWithGooglePlaces(query: string): Promise<GeocodingR
           : 'network_error',
     })
     const message = error instanceof Error ? error.message : String(error)
-    throw new Error(`Google Places failed: ${message}`, { cause: error })
+    throw new Error(`Google Places failed using ${describeKey('googleMaps', apiKey)}: ${message}`, {
+      cause: error,
+    })
   }
 }
 
@@ -207,9 +219,11 @@ export async function geocodeWithMapbox(query: string, apiKey: string): Promise<
     })
     // Mapbox explains rejections in the body, e.g. "Query too long - 21/20 tokens"
     const body: { message?: string } | undefined = await response.json?.().catch(() => undefined)
-    throw new Error(
-      `Mapbox geocoding failed: ${response.status} ${body?.message || response.statusText}`
-    )
+    const detail = `${response.status} ${body?.message || response.statusText}`
+    if (response.status === 401 || response.status === 403) {
+      throw new Error(`Mapbox rejected ${describeKey('mapbox', apiKey)} (${detail})`)
+    }
+    throw new Error(`Mapbox geocoding failed: ${detail}`)
   }
 
   const data: MapboxGeocodingResponse = await response.json()

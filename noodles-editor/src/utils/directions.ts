@@ -2,7 +2,7 @@ import polyline from '@mapbox/polyline'
 import haversine from 'haversine-distance'
 import { Temporal } from 'temporal-polyfill'
 import tzLookup from 'tz-lookup'
-import { getKeysStore } from '../noodles/keys-store'
+import { describeKey, getKeysStore } from '../noodles/keys-store'
 import { loadGoogleMapsAPI } from './geocoding'
 
 export type AnimatedDirections = {
@@ -189,6 +189,11 @@ async function getDrivingDirections({
     )
     const data: MapboxDirectionsResponse = await res.json()
 
+    if (res.status === 401 || res.status === 403) {
+      throw new Error(
+        `Mapbox rejected ${describeKey('mapbox', token)} (${res.status} ${data.message ?? res.statusText})`
+      )
+    }
     if (data.code === 'NoSegment' || data.code === 'InvalidInput') {
       throw new Error(data.message)
     }
@@ -253,8 +258,9 @@ async function getTrafficAwareDrivingDirections({
     ? resolveOriginDepartureTime({ origin, localTime: departureTime })
     : undefined
 
+  let response: Awaited<ReturnType<typeof Route.computeRoutes>>
   try {
-    const { routes } = await Route.computeRoutes({
+    response = await Route.computeRoutes({
       origin,
       destination,
       travelMode: TravelMode.DRIVING,
@@ -266,34 +272,35 @@ async function getTrafficAwareDrivingDirections({
       fields: ['path', 'distanceMeters', 'durationMillis', 'travelAdvisory'],
       ...(scheduledDeparture ? { departureTime: scheduledDeparture } : {}),
     })
-
-    const route = routes?.[0]
-    const distance = route?.distanceMeters
-    const durationMillis = route?.durationMillis
-    const path = route?.path?.map(point => [point.lng, point.lat])
-    if (!route || distance === undefined || durationMillis == null || !path?.length) {
-      throw new Error('Google returned no complete route.')
-    }
-
-    // No tollInfo means no tolls. Without a toll pass, Google estimates the cash price.
-    const tollInfo = route.travelAdvisory?.tollInfo
-    const [tollPrice] = tollInfo?.estimatedPrices ?? []
-
-    const duration = durationMillis / 1000
-    return {
-      distance,
-      duration,
-      durationFormatted: formatDuration(duration),
-      path,
-      timestamps: createTimestamps(path, distance, duration),
-      hasTolls: Boolean(tollInfo),
-      tollAmount: tollPrice ? tollPrice.units + tollPrice.nanos / 1e9 : undefined,
-      tollCurrency: tollPrice?.currencyCode,
-    }
   } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
     throw new Error(
-      `Google traffic directions failed: ${error instanceof Error ? error.message : String(error)}`
+      `Google traffic directions failed using ${describeKey('googleMaps', apiKey)}: ${message}`
     )
+  }
+
+  const route = response.routes?.[0]
+  const distance = route?.distanceMeters
+  const durationMillis = route?.durationMillis
+  const path = route?.path?.map(point => [point.lng, point.lat])
+  if (!route || distance === undefined || durationMillis == null || !path?.length) {
+    throw new Error('Google returned no complete route.')
+  }
+
+  // No tollInfo means no tolls. Without a toll pass, Google estimates the cash price.
+  const tollInfo = route.travelAdvisory?.tollInfo
+  const [tollPrice] = tollInfo?.estimatedPrices ?? []
+
+  const duration = durationMillis / 1000
+  return {
+    distance,
+    duration,
+    durationFormatted: formatDuration(duration),
+    path,
+    timestamps: createTimestamps(path, distance, duration),
+    hasTolls: Boolean(tollInfo),
+    tollAmount: tollPrice ? tollPrice.units + tollPrice.nanos / 1e9 : undefined,
+    tollCurrency: tollPrice?.currencyCode,
   }
 }
 
@@ -325,6 +332,8 @@ async function getTransitDirections({
     directionsService.route(request, (result, status) => {
       if (status === 'OK' && result) {
         resolve(result)
+      } else if (status === 'REQUEST_DENIED') {
+        reject(new Error(`Google rejected ${describeKey('googleMaps', apiKey)} (${status})`))
       } else {
         reject(new Error(status))
       }

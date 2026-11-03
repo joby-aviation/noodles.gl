@@ -72,12 +72,17 @@ export class DocStore {
 
   /**
    * Change the document. `tag` names the gesture: consecutive edits with the same tag inside
-   * the coalescing window are one undo step.
+   * the coalescing window (`windowMs`, 500 ms unless the gesture's pauses run longer) are one
+   * undo step.
    */
-  // biome-ignore lint/suspicious/noConfusingVoidType: an edit mutates the draft and returns nothing, or returns a new document
-  edit(fn: (doc: EditorDoc) => EditorDoc | undefined | void, tag?: string): void {
+  edit(
+    // biome-ignore lint/suspicious/noConfusingVoidType: an edit mutates the draft and returns nothing, or returns a new document
+    fn: (doc: EditorDoc) => EditorDoc | undefined | void,
+    tag?: string,
+    windowMs = COALESCE_MS
+  ): void {
     const now = performance.now()
-    const coalesce = tag !== undefined && tag === this.lastTag && now - this.lastEdit < COALESCE_MS
+    const coalesce = tag !== undefined && tag === this.lastTag && now - this.lastEdit < windowMs
     if (!coalesce) {
       this.undoStack.push(this.state.doc)
       if (this.undoStack.length > HISTORY) this.undoStack.shift()
