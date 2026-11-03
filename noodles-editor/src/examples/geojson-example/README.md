@@ -8,10 +8,10 @@ This example visualizes the BART transit system using a single GeoJSON layer tha
 ## Key Techniques
 - **Data source**: `FileOp` loads GeoJSON from URL
 - **GeoJSON layer**: `GeoJsonLayerOp` with `pointType: "circle+text"` for labeled points
-- **Fill color**: `ColorOp` with static color `#A0A0B4C8` (RGB: 160, 160, 180, Alpha: 200) sets uniform fill
+- **Fill color**: `ColorOp` with static color `#01017e` (dark blue) sets uniform fill
 - **Line color**: `AccessorOp` with expression `d.properties.color || '#000'` uses feature properties
 - **Text labels**: `AccessorOp` with expression `d.properties.name` displays station names
-- **Styling**: `getPointRadius: 4`, `getLineWidth: 20`, `extruded: true`, `getElevation: 30`
+- **Styling**: `getPointRadius: 4`, `getLineWidth: 100`, `lineWidthMinPixels: 4`, `extruded: true`, `getElevation: 30`
 - **Basemap**: `MaplibreBasemapOp` with positron style
 
 ## Data Structure
@@ -24,7 +24,7 @@ The GeoJSON file contains features with:
 ## Node Graph Flow
 ```
 Data → GeoJSON Layer → Deck → Out
-     ↘ Fill Color Accessor ↗
+     ↘ Fill Color ↗
      ↘ Line Color Accessor ↗
      ↘ Text Accessor ↗
 ```

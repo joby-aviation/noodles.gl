@@ -3,16 +3,17 @@
 _Adapted from [Kepler.gl example](https://kepler.gl/demo/earthquakes)_
 
 ## Overview
-This example visualizes California earthquake data where both the size and color of each point are driven by magnitude values. Larger earthquakes appear as bigger circles with more intense colors, using a square root scale for perceptually accurate sizing and a normalized color ramp to map magnitude values to a gradient. This demonstrates data-driven styling where a single metric (magnitude) controls multiple visual properties.
+This example visualizes California earthquake data where both the size and color of each point are driven by magnitude values. Larger earthquakes appear as bigger circles with more intense colors, using a radius that grows with the square root of magnitude and a normalized color ramp to map magnitude values to a gradient. This demonstrates data-driven styling where a single metric (magnitude) controls multiple visual properties.
 
 ## Key Techniques
 - **Data source**: `FileOp` loads earthquake data from CSV
 - **Position accessor**: `AccessorOp` with expression `[d.Longitude, d.Latitude]` extracts coordinates
 - **Magnitude accessor**: `AccessorOp` with expression `d.Magnitude` extracts magnitude value
-- **Radius calculation**: `AccessorOp` with expression `Math.sqrt(d.Magnitude) * 15` for perceptually better sizing
-- **Value normalization**: `MapRangeOp` scales magnitude from 0-5 range to 0-1
-- **Color mapping**: `ColorRampOp` maps normalized values to a color gradient
-- **Layer**: `ScatterplotLayerOp` displays the circles
+- **Radius calculation**: `MathOp` nodes take the square root of magnitude (`sqrt`), then scale it to meters (`multiply`, `b: 1700`)
+- **Value normalization**: `MapRangeOp` scales magnitude from the 2.5-7 range to 0-1
+- **Color mapping**: `ColorRampOp` with the `turbo` scheme maps normalized values to a color gradient
+- **Layer**: `ScatterplotLayerOp` displays the circles with `radiusUnits: "meters"`
+- **Basemap**: `MaplibreBasemapOp` with voyager style
 
 ## Data Structure
 The CSV file contains earthquake records with fields:
@@ -28,7 +29,7 @@ The CSV file contains earthquake records with fields:
 ```
 Data → Magnitude Accessor → MapRange → ColorRamp → Layer (getFillColor)
                           ↘
-                           Radius Accessor → Layer (getRadius)
+                           Sqrt → Multiply → Layer (getRadius)
      → Position Accessor → Layer (getPosition)
 ```
 

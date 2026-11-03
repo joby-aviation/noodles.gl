@@ -1,4 +1,4 @@
-import { assert, type LayerProps, View } from '@deck.gl/core'
+import { LayerExtension, type LayerProps, View } from '@deck.gl/core'
 import { interpolateLab, scaleOrdinal, schemeAccent } from 'd3'
 import { BehaviorSubject, combineLatest, type Subscription } from 'rxjs'
 import { Temporal } from 'temporal-polyfill'
@@ -9,8 +9,14 @@ import { debugSetValue } from '../utils/debug'
 import type { BetterDeckProps, BetterMapProps } from '../visualizations'
 import type { inputComponents } from './components/field-components'
 import type { IOperator, Operator } from './operators'
+import { repairTableSchema, type TableSchema } from './table-schema'
+import type { DeckViewDescriptor, DeckViewValue } from './types'
+import { deepEqual } from './utils/deep-equal'
 import type { ExtractProps } from './utils/extract-props'
+import { deriveDecimalStep } from './utils/number-precision'
 import { resolvePath } from './utils/path-utils'
+
+export { deriveDecimalStep } from './utils/number-precision'
 
 export interface IField<
   S extends z.ZodType = z.ZodType,
@@ -33,6 +39,11 @@ type BaseFieldOptions = {
   transform?: (val: unknown, ...args: unknown[]) => unknown
   accessor?: boolean
   showByDefault?: boolean // Defaults to true. Set to false to hide field by default in UI.
+  label?: string // Friendly name for the UI. Defaults to a humanized field name.
+  description?: string // One-line explanation of what the field does, shown in the UI.
+  useDeepEquality?: boolean // Use deep equality when comparing values to prevent unnecessary updates
+  maxDepth?: number // Maximum depth for deep equality checks (Infinity = unlimited)
+  internal?: boolean // Serialized state hidden from generic UI and unavailable as a graph port.
 }
 
 type PointFieldOptions = BaseFieldOptions & {
@@ -53,6 +64,9 @@ type NumberFieldOptions = BaseFieldOptions & {
   softMin: number
   softMax: number
   step: number
+  // Generic Number operators can infer their editing step from the current value.
+  // Semantic fields (opacity, latitude, width, etc.) keep their declared step.
+  deriveStepFromValue: boolean
 }
 
 type CompoundPropsFieldOptions = BaseFieldOptions &
@@ -63,10 +77,34 @@ type CompoundPropsFieldOptions = BaseFieldOptions &
 
 type StringLiteralFieldOptions = BaseFieldOptions & {
   values: string[] | Record<string, unknown> | { value: unknown; label: string }[]
+  freeform?: boolean
+  displayAs?: 'select' | 'typeahead' | 'color-scheme'
 }
 
 type CodeFieldOptions = BaseFieldOptions & {
-  language?: 'javascript' | 'json' | 'sql'
+  language?: 'javascript' | 'json' | 'sql' | 'overpass-ql'
+}
+
+// Serialized form of a field driven by an expression, e.g. { $expr: "op('/time').out.seconds * 2" }
+export type SerializedExpression = { $expr: string }
+
+export function isSerializedExpression(value: unknown): value is SerializedExpression {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    '$expr' in value &&
+    typeof (value as SerializedExpression).$expr === 'string'
+  )
+}
+
+// The expression engine (utils/field-expressions.ts) registers itself here so Field
+// doesn't import the evaluator directly — that would create an import cycle through
+// operators.ts (which needs fnWithSource, freeExports, and the op store).
+type FieldExpressionEvaluator = (field: Field) => void
+let fieldExpressionEvaluator: FieldExpressionEvaluator | null = null
+
+export function registerFieldExpressionEvaluator(evaluator: FieldExpressionEvaluator | null) {
+  fieldExpressionEvaluator = evaluator
 }
 
 // Field has a lot going on. It's both a type and a value. It's meant to be connected to
@@ -99,6 +137,28 @@ export abstract class Field<
   // Should this field be shown by default in the UI? Defaults to true.
   showByDefault = true
 
+  // Friendly name and one-line explanation for the UI. The field's key stays the identifier
+  // used in edges, references and expressions. See utils/field-docs.ts for the fallbacks.
+  label?: string
+  description?: string
+
+  // Internal fields are serialized but omitted from generic UI and operator discovery.
+  internal = false
+
+  // Keep connection checks centralized on the same flag used by generic UI.
+  get connectable() {
+    return !this.internal
+  }
+
+  // Use deep equality when comparing values to prevent unnecessary updates
+  // Only enable for fields with stable, value-typed data (plain objects, arrays, primitives)
+  // Do not enable for fields containing class instances, Date, Map, Set with identity semantics
+  useDeepEquality = false
+
+  // Maximum depth for deep equality checks (only relevant if useDeepEquality=true)
+  // Infinity = unlimited depth, 0 = reference equality only, 1 = shallow, 2+ = limited depth
+  maxDepth = Infinity
+
   // Hold a reference to the operator that owns this field. Only used for debugging at the moment.
   op!: Operator<IOperator>
 
@@ -106,6 +166,20 @@ export abstract class Field<
 
   // Allows this field to be used with Theatre, and debugging with zod
   pathToProps: string[] = []
+
+  // Expression mode ("drivers"): when set, the field's value is computed by evaluating
+  // a JavaScript expression instead of holding a literal. Null means literal mode.
+  expression$ = new BehaviorSubject<string | null>(null)
+
+  // Last evaluation error (null when the expression evaluated cleanly or in literal mode)
+  expressionError$ = new BehaviorSubject<string | null>(null)
+
+  // Teardown for engine-managed subscriptions (e.g. timeline reactivity); owned by the engine
+  expressionCleanup: (() => void) | null = null
+
+  get expression(): string | null {
+    return this.expression$.value
+  }
 
   constructor(initialValue?: z.input<S> | undefined | Partial<O>, options?: Partial<O>) {
     // This is fine since we set the value immediately after
@@ -141,12 +215,39 @@ export abstract class Field<
   }
 
   // Wrap schema in additional functionality like optional, transform, accessor etc.
-  enhanceSchema({ accessor, optional, transform, showByDefault }: Partial<O>) {
+  enhanceSchema({
+    accessor,
+    optional,
+    transform,
+    showByDefault,
+    useDeepEquality,
+    maxDepth,
+    label,
+    description,
+    internal,
+  }: Partial<O>) {
     let schema = this.schema
 
     // Set showByDefault (defaults to true if not specified)
     if (showByDefault !== undefined) {
       this.showByDefault = showByDefault
+    }
+
+    if (label !== undefined) this.label = label
+    if (description !== undefined) this.description = description
+
+    if (internal !== undefined) {
+      this.internal = internal
+    }
+
+    // Set useDeepEquality if specified
+    if (useDeepEquality !== undefined) {
+      this.useDeepEquality = useDeepEquality
+    }
+
+    // Set maxDepth if specified
+    if (maxDepth !== undefined) {
+      this.maxDepth = maxDepth
     }
 
     if (accessor) {
@@ -195,10 +296,40 @@ export abstract class Field<
       this.next(parsed.data)
 
       // Mark the owning operator as dirty
-      this.op?.markDirty()
+      this.op?.markDirty(this)
     } else {
       debugSetValue('%s: %O -> %O [PARSE FAILED]', path, oldValue, value)
       debugSetValue('Parse error', parsed.error.issues)
+    }
+  }
+
+  // Enter expression mode. The value becomes the result of evaluating `expr`;
+  // re-evaluation is triggered by reference connections (see addConnection) and,
+  // for timeline-dependent expressions, by the engine's timeline subscription.
+  setExpression(expr: string): void {
+    this.expressionCleanup?.()
+    this.expressionCleanup = null
+    this.expression$.next(expr)
+    if (fieldExpressionEvaluator) {
+      fieldExpressionEvaluator(this)
+    } else {
+      debugSetValue('%s: no expression evaluator registered', this.pathToProps.join('.'))
+    }
+  }
+
+  // Exit expression mode, keeping the last evaluated value as the new literal value
+  clearExpression(): void {
+    if (this.expression === null) return
+    this.expressionCleanup?.()
+    this.expressionCleanup = null
+    this.expression$.next(null)
+    this.expressionError$.next(null)
+  }
+
+  // Re-run the expression (no-op in literal mode)
+  evaluateExpression(): void {
+    if (this.expression !== null) {
+      fieldExpressionEvaluator?.(this)
     }
   }
 
@@ -207,6 +338,9 @@ export abstract class Field<
     field: F,
     connectionType: 'reference' | 'value' = 'value'
   ) {
+    if (!this.connectable || !field.connectable) {
+      throw new Error('Cannot connect an internal field')
+    }
     if (this.subscriptions.has(id)) {
       return
     }
@@ -214,10 +348,13 @@ export abstract class Field<
     const subscription = field.subscribe(value => {
       if (connectionType === 'value') {
         this.setValue(value)
+      } else if (this.expression !== null) {
+        // Reference feeding an expression-driven field: recompute the value
+        this.evaluateExpression()
       } else {
         this.next(this.value)
         // For reference connections, also mark dirty
-        this.op?.markDirty()
+        this.op?.markDirty(this)
       }
     })
     this.subscriptions.set(id, subscription)
@@ -227,7 +364,10 @@ export abstract class Field<
   removeConnection(id: string, connectionType: 'reference' | 'value' = 'value') {
     if (
       connectionType === 'value' &&
-      (this instanceof DataField || this instanceof ExpressionField || this instanceof CodeField)
+      (this instanceof DataField ||
+        this instanceof ExpressionField ||
+        this instanceof CodeField ||
+        this instanceof UnknownField)
     ) {
       this.setValue(this.defaultValue)
     }
@@ -240,6 +380,9 @@ export abstract class Field<
   // Override when the field's value is not the same as the serialized value.
   // e.g. CodeField should serialize the template string with handlebar references, not the resolved value.
   serialize() {
+    if (this.expression !== null) {
+      return { $expr: this.expression }
+    }
     return this.value
   }
 
@@ -278,6 +421,42 @@ export class FileUrlField extends Field<z.ZodString, FileUrlFieldOptions> {
   }
 }
 
+export interface MapStyleFieldOptions extends BaseFieldOptions {
+  accept?: string
+}
+
+export class MapStyleField extends Field<
+  z.ZodUnion<[z.ZodString, z.ZodRecord<z.ZodString, z.ZodUnknown>]>,
+  MapStyleFieldOptions
+> {
+  static type = 'map-style'
+  static defaultValue = ''
+  accept?: string
+
+  constructor(defaultValue = '', options?: Partial<MapStyleFieldOptions>) {
+    super(defaultValue, options)
+    this.accept = options?.accept
+  }
+
+  createSchema(_options?: Partial<MapStyleFieldOptions>) {
+    return z.union([z.string(), z.record(z.string(), z.unknown())])
+  }
+
+  // Skip update if object content is identical to avoid unnecessary downstream re-execution
+  setValue(value: z.input<typeof this.schema>): void {
+    if (
+      typeof value === 'object' &&
+      value !== null &&
+      typeof this.value === 'object' &&
+      this.value !== null &&
+      deepEqual(this.value, value)
+    ) {
+      return
+    }
+    super.setValue(value)
+  }
+}
+
 export const IN_NS = 'par'
 export const OUT_NS = 'out'
 export type InOut = typeof IN_NS | typeof OUT_NS
@@ -309,14 +488,19 @@ export const mustacheRe = new RegExp(
   `{{(?<opId>${OPERATOR_ID_PATTERN})\\.(?<inOut>par|out)\\.(?<fieldPath>[\\w-.]+)}}`,
   'g'
 )
-// Function-style references: op('/path/to/operator').out.val
+// Function-style references: op('/path/to/operator').out.val or op("/path/to/operator").out.val
 export const fnRe = new RegExp(
-  `op\\('(?<opId>${OPERATOR_ID_PATTERN})'\\)\\.(?<inOut>par|out)\\.(?<fieldPath>[\\w-.]+)`,
+  `op\\((?<q>['"])(?<opId>${OPERATOR_ID_PATTERN})\\k<q>\\)\\.(?<inOut>par|out)\\.(?<fieldPath>[\\w-.]+)`,
   'g'
 )
 
+// Self-reference shorthand: {{par.fieldPath}} (references current operator's own parameter)
+export const selfParMustacheRe = /{{(?<inOut>par)\.(?<fieldPath>[\w-.]+)}}/g
+
 export function getFieldReferences(text: string, thisOpId?: string) {
   const fieldReferences = new Map<string, FieldReference>()
+
+  // Match standard references (with operator ID)
   for (const { groups } of [...text.matchAll(mustacheRe), ...text.matchAll(fnRe)]) {
     const fieldPath = groups?.fieldPath.split('.')[0]
     const opId = thisOpId ? resolvePath(groups?.opId || '', thisOpId) : groups?.opId
@@ -336,6 +520,24 @@ export function getFieldReferences(text: string, thisOpId?: string) {
     const ref = { fieldPath, opId, inOut: groups?.inOut as InOut, handleId } as FieldReference
     fieldReferences.set(fullPath, ref)
   }
+
+  // Match self-parameter shorthand ({{par.fieldPath}})
+  if (thisOpId) {
+    for (const { groups } of text.matchAll(selfParMustacheRe)) {
+      const fieldPath = groups?.fieldPath.split('.')[0]
+      const inOut = groups?.inOut as InOut // Always 'par'
+
+      if (!groups || !fieldPath) continue
+
+      const handleId = `${inOut}.${fieldPath}`
+      const fullPath = `${thisOpId}.${handleId}`
+      if (fieldReferences.has(fullPath)) continue
+
+      const ref = { fieldPath, opId: thisOpId, inOut, handleId } as FieldReference
+      fieldReferences.set(fullPath, ref)
+    }
+  }
+
   return Array.from(fieldReferences.values())
 }
 
@@ -350,7 +552,7 @@ export class CodeField extends Field<
 > {
   static type = 'code'
   static defaultValue = ''
-  language: 'javascript' | 'sql' | 'json' = 'javascript'
+  language: 'javascript' | 'sql' | 'json' | 'overpass-ql' = 'javascript'
 
   subscribedFields = new Map()
 
@@ -434,12 +636,15 @@ export class StringLiteralField extends Field<
   static type = 'string-literal'
   static defaultValue = ''
   choices: StringLiteralOption[] = []
+  freeform = false
+  displayAs?: 'select' | 'typeahead' | 'color-scheme'
   createSchema(options: Partial<StringLiteralFieldOptions>) {
     const values = (options.values || []) as StringLiteralOption[]
+    const freeform = options.freeform ?? false
     // TODO: use zod enum? transform StringLiteralOption input type to string?
-    return values.length > 0
-      ? z.union(values.map(({ value }: StringLiteralOption) => z.literal(value)))
-      : z.string()
+    return freeform || values.length === 0
+      ? z.string()
+      : z.union(values.map(({ value }: StringLiteralOption) => z.literal(value)))
   }
 
   constructor(
@@ -449,11 +654,14 @@ export class StringLiteralField extends Field<
     const choices = parseChoices(opts)
     super(override, { ...(Array.isArray(opts) ? {} : opts), values: choices })
     this.choices = choices
+    this.freeform = !Array.isArray(opts) && (opts?.freeform ?? false)
+    this.displayAs = !Array.isArray(opts) ? opts?.displayAs : undefined
   }
 
   updateChoices(opts: Partial<StringLiteralFieldOptions> | StringLiteralOption[] | string[]) {
     const choices = parseChoices(opts)
     this.choices = choices
+    this.freeform = !Array.isArray(opts) && (opts.freeform ?? false)
     const mergedOpts = { ...(Array.isArray(opts) ? {} : opts), values: choices }
     this.schema = this.createSchema(mergedOpts)
     this.schema = this.enhanceSchema(mergedOpts)
@@ -469,6 +677,11 @@ export class NumberField extends Field<z.ZodNumber, NumberFieldOptions> {
   softMin: number
   softMax: number
   step: number
+  deriveStepFromValue: boolean
+
+  // A user-selected step is UI state rather than graph data. Keeping it observable
+  // lets an undo/redo restore update an already-mounted number control.
+  readonly stepOverride$ = new BehaviorSubject<number | undefined>(undefined)
 
   createSchema(options: NumberFieldOptions) {
     const schema = z.number().min(options.min).max(options.max)
@@ -484,6 +697,7 @@ export class NumberField extends Field<z.ZodNumber, NumberFieldOptions> {
       softMin: -Infinity,
       softMax: Infinity,
       step: 0.1,
+      deriveStepFromValue: false,
       ...options,
     }
     super(override, opts)
@@ -492,6 +706,23 @@ export class NumberField extends Field<z.ZodNumber, NumberFieldOptions> {
     this.softMin = opts.softMin
     this.softMax = opts.softMax
     this.step = opts.step
+    this.deriveStepFromValue = opts.deriveStepFromValue
+  }
+
+  get stepOverride(): number | undefined {
+    return this.stepOverride$.value
+  }
+
+  setStepOverride(step: number | undefined): void {
+    if (step !== undefined && (!Number.isFinite(step) || step <= 0)) return
+    if (Object.is(this.stepOverride$.value, step)) return
+    this.stepOverride$.next(step)
+  }
+
+  getEffectiveStep(value: number = this.value): number {
+    if (this.stepOverride !== undefined) return this.stepOverride
+    if (this.deriveStepFromValue) return deriveDecimalStep(value, this.step)
+    return this.step
   }
 }
 
@@ -603,10 +834,13 @@ export class DataField<D extends Field = Field, TElement = unknown> extends Fiel
     return subschema.readonly()
   }
 
-  constructor(public field?: D) {
+  constructor(
+    public field?: D,
+    options?: BaseFieldOptions
+  ) {
     const subschema = field?.schema || z.unknown()
     const defaultValue = typeof field?.defaultValue !== 'undefined' ? field.defaultValue : []
-    super(defaultValue, { subschema } as SubSchemaOptions<D['schema']>)
+    super(defaultValue, { ...options, subschema } as SubSchemaOptions<D['schema']>)
   }
 }
 
@@ -626,14 +860,101 @@ export class GeoJsonField<D extends Field = Field, TElement = unknown> extends F
     return subschema.readonly()
   }
 
-  constructor(public field?: D) {
+  constructor(
+    public field?: D,
+    options?: BaseFieldOptions
+  ) {
     const subschema = field?.schema || z.unknown()
     const defaultValue =
       typeof field?.defaultValue !== 'undefined'
         ? field.defaultValue
         : { type: 'FeatureCollection', features: [] }
-    super(defaultValue, { subschema } as SubSchemaOptions<D['schema']>)
+    super(defaultValue, { ...options, subschema } as SubSchemaOptions<D['schema']>)
   }
+}
+
+// Helper to extract coordinates from GeoJSON Point geometries or Features
+// Used by Point2DField and Point3DField to accept PointOp outputs and geometry columns
+function extractGeoJsonPointCoordinates(
+  val: unknown,
+  dimensions: 2 | 3 = 3
+): { lng: number; lat: number; alt: number } | { lng: number; lat: number } | null {
+  if (typeof val !== 'object' || val === null || Array.isArray(val)) {
+    return null
+  }
+
+  const obj = val as Record<string, unknown>
+
+  // Check if it's a bare GeoJSON Point geometry
+  if (obj.type === 'Point' && Array.isArray(obj.coordinates) && obj.coordinates.length >= 2) {
+    const coords = obj.coordinates as number[]
+    if (dimensions === 3) {
+      return {
+        lng: coords[0],
+        lat: coords[1],
+        alt: coords.length >= 3 ? coords[2] : 0,
+      }
+    }
+    return {
+      lng: coords[0],
+      lat: coords[1],
+    }
+  }
+
+  // Check if it's a GeoJSON Point Feature
+  if (obj.type === 'Feature' && typeof obj.geometry === 'object' && obj.geometry !== null) {
+    const geom = obj.geometry as Record<string, unknown>
+    if (geom.type === 'Point' && Array.isArray(geom.coordinates) && geom.coordinates.length >= 2) {
+      const coords = geom.coordinates as number[]
+      if (dimensions === 3) {
+        return {
+          lng: coords[0],
+          lat: coords[1],
+          alt: coords.length >= 3 ? coords[2] : 0,
+        }
+      }
+      return {
+        lng: coords[0],
+        lat: coords[1],
+      }
+    }
+  }
+
+  return null
+}
+
+// Extract point coordinates from a row object's "geometry" column.
+// Handles: [lng, lat], [lng, lat, alt], {type: "Point", coordinates: [...]}, and GeoJSON Features.
+function extractGeometryColumn(
+  obj: Record<string, unknown>,
+  dimensions: 2 | 3 = 3
+): { lng: number; lat: number; alt: number } | { lng: number; lat: number } | null {
+  const geom = obj.geometry
+  if (geom === undefined || geom === null) {
+    return null
+  }
+
+  // geometry is a [lng, lat] or [lng, lat, alt] tuple
+  if (
+    Array.isArray(geom) &&
+    geom.length >= 2 &&
+    typeof geom[0] === 'number' &&
+    typeof geom[1] === 'number'
+  ) {
+    if (dimensions === 3) {
+      const alt = geom.length >= 3 && typeof geom[2] === 'number' ? geom[2] : 0
+      return { lng: geom[0], lat: geom[1], alt }
+    }
+    return { lng: geom[0], lat: geom[1] }
+  }
+
+  // geometry is a GeoJSON Point geometry or Feature
+  const geoJsonCoords = extractGeoJsonPointCoordinates(geom, dimensions)
+  if (geoJsonCoords) {
+    return geoJsonCoords
+  }
+
+  return null
 }
 
 type Point3DFieldValue =
@@ -663,21 +984,124 @@ export class Point3DField extends Field<
     this.returnType = options?.returnType || 'object'
   }
 
-  createSchema({ returnType }: PointFieldOptions = { returnType: 'object' }) {
+  createSchema({ returnType = 'object' }: PointFieldOptions = {}) {
     const noop = (val: unknown) => val
     return z.union([
       z
-        .looseObject({
-          lng: z.number(),
-          lat: z.number(),
-          alt: z.number(),
+        .unknown()
+        .transform(val => {
+          // Try to extract GeoJSON Point geometry or Feature coordinates (3D)
+          const geoJsonCoords = extractGeoJsonPointCoordinates(val, 3)
+          if (geoJsonCoords) {
+            return geoJsonCoords
+          }
+
+          // Normalize column names: support Longitude/Latitude, longitude/latitude, lon/lat
+          if (typeof val === 'object' && val !== null && !Array.isArray(val)) {
+            const obj = val as Record<string, unknown>
+
+            // Check for a "geometry" column containing point data
+            const geomCoords = extractGeometryColumn(obj, 3)
+            if (geomCoords) {
+              return geomCoords
+            }
+
+            const normalized: Record<string, unknown> = {}
+            let hasLng = false
+            let hasLat = false
+            let _hasAlt = false
+
+            for (const [key, value] of Object.entries(obj)) {
+              const lowerKey = key.toLowerCase()
+              // Map longitude variants to lng
+              if (lowerKey === 'longitude' || lowerKey === 'lon') {
+                normalized.lng = value
+                hasLng = true
+              }
+              // Map latitude variants to lat
+              else if (lowerKey === 'latitude') {
+                normalized.lat = value
+                hasLat = true
+              }
+              // Map altitude variants to alt
+              else if (lowerKey === 'altitude') {
+                normalized.alt = value
+                _hasAlt = true
+              }
+              // Keep existing lng/lat/alt as-is (for backward compatibility)
+              else if (lowerKey === 'lng') {
+                normalized.lng = value
+                hasLng = true
+              } else if (lowerKey === 'lat') {
+                normalized.lat = value
+                hasLat = true
+              } else if (lowerKey === 'alt') {
+                normalized.alt = value
+                _hasAlt = true
+              }
+              // Pass through all other properties
+              else {
+                normalized[key] = value
+              }
+            }
+
+            // Only return normalized object if we have required coordinate fields (lng and lat)
+            if (hasLng && hasLat) {
+              return normalized
+            }
+          }
+          return val
         })
+        .pipe(
+          z.looseObject({
+            lng: z.number(),
+            lat: z.number(),
+            alt: z.number(),
+          })
+        )
         .transform(returnType === 'tuple' ? val => [val.lng, val.lat, val.alt] : noop),
       z
-        .looseObject({
-          lng: z.number(),
-          lat: z.number(),
+        .unknown()
+        .transform(val => {
+          // Normalize column names for 2D variant (no altitude)
+          // Note: GeoJSON Point geometries/Features and geometry columns are handled by the first union arm
+          if (typeof val === 'object' && val !== null && !Array.isArray(val)) {
+            const obj = val as Record<string, unknown>
+            const normalized: Record<string, unknown> = {}
+            let hasLng = false
+            let hasLat = false
+
+            for (const [key, value] of Object.entries(obj)) {
+              const lowerKey = key.toLowerCase()
+              if (lowerKey === 'longitude' || lowerKey === 'lon') {
+                normalized.lng = value
+                hasLng = true
+              } else if (lowerKey === 'latitude') {
+                normalized.lat = value
+                hasLat = true
+              } else if (lowerKey === 'lng') {
+                normalized.lng = value
+                hasLng = true
+              } else if (lowerKey === 'lat') {
+                normalized.lat = value
+                hasLat = true
+              } else {
+                normalized[key] = value
+              }
+            }
+
+            if (hasLng && hasLat) {
+              return normalized
+            }
+          }
+          return val
         })
+        .pipe(
+          z.looseObject({
+            lng: z.number(),
+            lat: z.number(),
+          })
+        )
         .transform(
           returnType === 'tuple' ? val => [val.lng, val.lat, 0] : val => ({ ...val, alt: 0 })
         ),
@@ -694,6 +1118,9 @@ export class Point3DField extends Field<
 }
 
 type Point2DFieldValue = { lng: number; lat: number; [key: string]: unknown } | [number, number]
+type BboxFieldValue =
+  | { southwest: Point2DFieldValue; northeast: Point2DFieldValue }
+  | [Point2DFieldValue, Point2DFieldValue]
 
 // Should this just be a Vec2? Should it be a GeoJSON Point Or does it need to be a special case
 export class Point2DField extends Field<
@@ -726,14 +1153,71 @@ export class Point2DField extends Field<
     this.returnType = options?.returnType || 'object'
   }
 
-  createSchema({ returnType }: PointFieldOptions = { returnType: 'object' }) {
+  createSchema({ returnType = 'object' }: PointFieldOptions = {}) {
     const noop = (val: unknown) => val
     return z.union([
       z
-        .looseObject({
-          lng: z.number(),
-          lat: z.number(),
+        .unknown()
+        .transform(val => {
+          // Try to extract GeoJSON Point geometry or Feature coordinates (2D)
+          const geoJsonCoords = extractGeoJsonPointCoordinates(val, 2)
+          if (geoJsonCoords) {
+            return geoJsonCoords
+          }
+
+          // Normalize column names: support Longitude/Latitude, longitude/latitude, lon/lat
+          if (typeof val === 'object' && val !== null && !Array.isArray(val)) {
+            const obj = val as Record<string, unknown>
+
+            // Check for a "geometry" column containing point data
+            const geomCoords = extractGeometryColumn(obj, 2)
+            if (geomCoords) {
+              return geomCoords
+            }
+
+            const normalized: Record<string, unknown> = {}
+            let hasLng = false
+            let hasLat = false
+
+            for (const [key, value] of Object.entries(obj)) {
+              const lowerKey = key.toLowerCase()
+              // Map longitude variants to lng
+              if (lowerKey === 'longitude' || lowerKey === 'lon') {
+                normalized.lng = value
+                hasLng = true
+              }
+              // Map latitude variants to lat
+              else if (lowerKey === 'latitude') {
+                normalized.lat = value
+                hasLat = true
+              }
+              // Keep existing lng/lat as-is (for backward compatibility)
+              else if (lowerKey === 'lng') {
+                normalized.lng = value
+                hasLng = true
+              } else if (lowerKey === 'lat') {
+                normalized.lat = value
+                hasLat = true
+              }
+              // Pass through all other properties
+              else {
+                normalized[key] = value
+              }
+            }
+
+            // Only return normalized object if we found required coordinate fields (lng and lat)
+            if (hasLng && hasLat) {
+              return normalized
+            }
+          }
+          return val
         })
+        .pipe(
+          z.looseObject({
+            lng: z.number(),
+            lat: z.number(),
+          })
+        )
         .transform(returnType === 'tuple' ? val => [val.lng, val.lat] : noop),
       z
         .tuple([z.number(), z.number(), z.number()])
@@ -741,6 +1225,75 @@ export class Point2DField extends Field<
       z
         .tuple([z.number(), z.number()])
         .transform(returnType === 'object' ? val => ({ lng: val[0], lat: val[1] }) : noop),
+    ])
+  }
+}
+
+export class BboxField extends Field<
+  z.ZodUnion<
+    [
+      z.ZodObject<{
+        southwest: z.ZodType<Point2DFieldValue>
+        northeast: z.ZodType<Point2DFieldValue>
+      }>,
+      z.ZodTuple<[z.ZodType<Point2DFieldValue>, z.ZodType<Point2DFieldValue>]>,
+    ]
+  >,
+  PointFieldOptions
+> {
+  static type = 'bbox'
+  static defaultValue = {
+    southwest: { lng: -74.05, lat: 40.68 },
+    northeast: { lng: -73.9, lat: 40.82 },
+  }
+  static channelKeys = ['southwest', 'northeast'] as const
+
+  returnType: 'object' | 'tuple' = 'object'
+
+  constructor(override?: BboxFieldValue, options?: PointFieldOptions) {
+    super(override, options)
+    this.returnType = options?.returnType || 'object'
+  }
+
+  createSchema({ returnType = 'object' }: PointFieldOptions = {}) {
+    const point2dSchema = z.union([
+      z.object({ lng: z.number(), lat: z.number() }).passthrough(),
+      z.tuple([z.number(), z.number()]),
+    ])
+
+    return z.union([
+      z
+        .object({
+          southwest: point2dSchema,
+          northeast: point2dSchema,
+        })
+        .transform(val => {
+          if (returnType === 'tuple') {
+            const sw = Array.isArray(val.southwest)
+              ? val.southwest
+              : [val.southwest.lng, val.southwest.lat]
+            const ne = Array.isArray(val.northeast)
+              ? val.northeast
+              : [val.northeast.lng, val.northeast.lat]
+            return [sw, ne]
+          }
+          // Normalize points to {lng, lat} format
+          const sw = Array.isArray(val.southwest)
+            ? { lng: val.southwest[0], lat: val.southwest[1] }
+            : val.southwest
+          const ne = Array.isArray(val.northeast)
+            ? { lng: val.northeast[0], lat: val.northeast[1] }
+            : val.northeast
+          return { southwest: sw, northeast: ne }
+        }),
+      z.tuple([point2dSchema, point2dSchema]).transform(val => {
+        if (returnType === 'object') {
+          const sw = Array.isArray(val[0]) ? { lng: val[0][0], lat: val[0][1] } : val[0]
+          const ne = Array.isArray(val[1]) ? { lng: val[1][0], lat: val[1][1] } : val[1]
+          return { southwest: sw, northeast: ne }
+        }
+        return val
+      }),
     ])
   }
 }
@@ -765,7 +1318,7 @@ export class Vec2Field extends Field<
     super(override, options)
     this.returnType = options?.returnType || 'object'
   }
-  createSchema({ returnType }: Vec2FieldOptions = { returnType: 'object' }) {
+  createSchema({ returnType = 'object' }: Vec2FieldOptions = {}) {
     const noop = (val: unknown) => val
     return z.union([
       z
@@ -801,7 +1354,7 @@ export class Vec3Field extends Field<
     super(override, options)
     this.returnType = options?.returnType || 'object'
   }
-  createSchema({ returnType }: Vec2FieldOptions = { returnType: 'object' }) {
+  createSchema({ returnType = 'object' }: Vec2FieldOptions = {}) {
     const noop = (val: unknown) => val
     return z.union([
       z
@@ -930,6 +1483,61 @@ export class CompoundPropsField extends Field<
   }
 }
 
+export type NumberStepOverrides = Record<string, number>
+
+export type NodeUIMetadata = {
+  numberSteps?: NumberStepOverrides
+}
+
+function visitNumberFields(
+  fields: Record<string, unknown>,
+  visitor: (path: string, field: NumberField) => void,
+  parentPath = ''
+): void {
+  for (const [name, field] of Object.entries(fields)) {
+    const path = parentPath ? `${parentPath}.${name}` : name
+    if (field instanceof NumberField) {
+      visitor(path, field)
+    } else if (field instanceof CompoundPropsField) {
+      visitNumberFields(field.fields, visitor, path)
+    }
+  }
+}
+
+export function captureNumberStepOverrides(fields: Record<string, unknown>): NumberStepOverrides {
+  const overrides: NumberStepOverrides = {}
+  visitNumberFields(fields, (path, field) => {
+    if (field.stepOverride !== undefined) overrides[path] = field.stepOverride
+  })
+  return overrides
+}
+
+// Applying an absent map deliberately clears overrides. Property-history snapshots
+// need to undo a precision-only change even when the numeric input value is unchanged.
+export function applyNumberStepOverrides(
+  fields: Record<string, unknown>,
+  overrides?: NumberStepOverrides
+): void {
+  visitNumberFields(fields, (path, field) => {
+    const step = overrides?.[path]
+    field.setStepOverride(
+      typeof step === 'number' && Number.isFinite(step) && step > 0 ? step : undefined
+    )
+  })
+}
+
+export function captureNodeUIMetadata(fields: Record<string, unknown>): NodeUIMetadata | undefined {
+  const numberSteps = captureNumberStepOverrides(fields)
+  return Object.keys(numberSteps).length > 0 ? { numberSteps } : undefined
+}
+
+export function applyNodeUIMetadata(
+  fields: Record<string, unknown>,
+  metadata?: NodeUIMetadata
+): void {
+  applyNumberStepOverrides(fields, metadata?.numberSteps)
+}
+
 // TODO: Should this be flag like `multiple`? Or should it be a separate class?
 export class ListField<F extends Field> extends Field<
   z.ZodArray<F['schema']>,
@@ -953,8 +1561,12 @@ export class ListField<F extends Field> extends Field<
   }
 
   // Overrides the default setValue to handle a list of fields
-  // TODO: Do we need to handle reference connections?
-  addConnection(id: string, field: F, _connectionType: 'reference' | 'value' = 'value') {
+  addConnection(id: string, field: F, connectionType: 'reference' | 'value' = 'value') {
+    // Expressions may assemble a list from several upstream values. A reference
+    // triggers evaluation; only value connections contribute items to the list.
+    if (connectionType === 'reference') {
+      return super.addConnection(id, field, connectionType)
+    }
     if (this.subscriptions.has(id)) {
       return
     }
@@ -970,22 +1582,24 @@ export class ListField<F extends Field> extends Field<
 
   removeConnection(id: string, connectionType: 'reference' | 'value' = 'value'): void {
     super.removeConnection(id, connectionType)
-    this.fields.delete(id)
-    this.setValue(Array.from(this.fields.values()).map(f => f.value) as F[])
+    if (this.fields.delete(id)) {
+      this.setValue(Array.from(this.fields.values()).map(f => f.value) as F[])
+    }
   }
 
-  reorderInputs(fromIndex: number, toIndex: number): void {
-    if (fromIndex === toIndex) {
+  // Idempotently reorder connections to match orderedIds (typically the edge array order).
+  // Unknown ids are ignored; connections not listed keep their relative order at the end.
+  setConnectionOrder(orderedIds: string[]): void {
+    const currentIds = Array.from(this.fields.keys())
+    const listed = orderedIds.filter(id => this.fields.has(id))
+    const unlisted = currentIds.filter(id => !orderedIds.includes(id))
+    const nextIds = [...listed, ...unlisted]
+
+    if (nextIds.every((id, i) => id === currentIds[i])) {
       return
     }
-    const fields = Array.from(this.fields.entries())
 
-    assert(fromIndex >= 0 && fromIndex < fields.length, 'fromIndex is out of bounds')
-    assert(toIndex >= 0 && toIndex < fields.length, 'toIndex is out of bounds')
-
-    const [movedField] = fields.splice(fromIndex, 1)
-    fields.splice(toIndex, 0, movedField)
-    this.fields = new Map(fields)
+    this.fields = new Map(nextIds.map(id => [id, this.fields.get(id) as F]))
     this.setValue(Array.from(this.fields.values()).map(f => f.value) as F[])
   }
 }
@@ -1014,6 +1628,22 @@ export class UnknownField extends Field<z.ZodUnknown> {
   static defaultValue = null
   createSchema() {
     return z.unknown()
+  }
+}
+
+/** Typed, serialized TableEditor state. It is deliberately not a graph port. */
+export class TableSchemaField extends Field<z.ZodType<TableSchema | null>> {
+  static type = 'unknown'
+  static defaultValue = null
+
+  createSchema() {
+    return z.unknown().transform((value, context): TableSchema | null => {
+      if (value === null) return null
+      const repaired = repairTableSchema(value)
+      if (repaired) return repaired
+      context.addIssue({ code: 'custom', message: 'Expected a valid table schema' })
+      return z.NEVER
+    })
   }
 }
 
@@ -1049,30 +1679,78 @@ export class ExtensionField extends Field<z.ZodTypeAny> {
   static defaultValue = undefined
   createSchema() {
     return z.strictObject({
-      extension: z.looseObject({ type: z.string() }),
+      // A `{ type }` descriptor from an extension operator, or a LayerExtension
+      // instance built by the user (e.g. in a CodeOp). Instance first so a
+      // subclass with a `type` property isn't flattened into a plain object.
+      extension: z.union([z.instanceof(LayerExtension), z.looseObject({ type: z.string() })]),
       props: z.looseObject({}),
     })
   }
 }
 
-export class ViewField extends Field<
-  z.ZodType<InstanceType<View>, z.ZodTypeDef, InstanceType<View>>
-> {
+const deckViewDescriptorSchema = z.looseObject({
+  type: z.enum(['MapView', 'GlobeView', 'FirstPersonView', 'OrbitView', 'OrthographicView']),
+}) as z.ZodType<DeckViewDescriptor>
+
+const deckViewSchema = z.union([
+  deckViewDescriptorSchema,
+  z.instanceof(View),
+]) as z.ZodType<DeckViewValue>
+
+export class ViewField extends Field<z.ZodType<DeckViewValue>> {
   static type = 'view'
   static defaultValue = undefined
   createSchema() {
-    return z.instanceof(View)
+    return deckViewSchema
+  }
+}
+
+export type VisualizationDeckProps = Omit<BetterDeckProps, 'layers' | 'views'> & {
+  layers?: (LayerProps & { type: string })[]
+  views?: DeckViewValue[]
+}
+
+export class MapLibreLayerField extends Field<
+  z.ZodType<{
+    id: string
+    type: 'custom'
+    code: string
+    renderingMode?: '2d' | '3d'
+    beforeId?: string
+    params?: Record<string, unknown>
+  }>
+> {
+  static type = 'maplibre-layer'
+  static defaultValue = undefined
+
+  createSchema() {
+    return z.strictObject({
+      id: z.string(),
+      type: z.literal('custom'),
+      code: z.string(),
+      renderingMode: z.enum(['2d', '3d']).optional(),
+      beforeId: z.string().optional(),
+      params: z.record(z.string(), z.unknown()).optional(),
+    })
   }
 }
 
 export class VisualizationField extends Field<
   z.ZodType<{
-    deckProps: { layers: (LayerProps & { type: string })[] } & BetterDeckProps
+    deckProps: VisualizationDeckProps
     mapProps?: BetterMapProps
+    maplibreLayers?: Array<{
+      id: string
+      type: 'custom'
+      code: string
+      renderingMode?: '2d' | '3d'
+      beforeId?: string
+      params?: Record<string, unknown>
+    }>
   }>
 > {
   static type = 'visualization'
-  static defaultValue = { deckProps: {}, mapProps: undefined }
+  static defaultValue = { deckProps: {}, mapProps: undefined, maplibreLayers: [] }
   createSchema() {
     return z.looseObject({
       deckProps: z.looseObject({
@@ -1083,6 +1761,7 @@ export class VisualizationField extends Field<
             })
           )
           .optional(),
+        views: z.array(deckViewSchema).optional(),
       }),
       mapProps: z
         .looseObject({
@@ -1090,6 +1769,18 @@ export class VisualizationField extends Field<
           latitude: z.number(),
           zoom: z.number(),
         })
+        .optional(),
+      maplibreLayers: z
+        .array(
+          z.strictObject({
+            id: z.string(),
+            type: z.literal('custom'),
+            code: z.string(),
+            renderingMode: z.enum(['2d', '3d']).optional(),
+            beforeId: z.string().optional(),
+            params: z.record(z.string(), z.unknown()).optional(),
+          })
+        )
         .optional(),
     })
   }
@@ -1394,3 +2085,41 @@ export class BezierCurveField extends Field<z.ZodType<BezierCurveData>> {
     return segments
   }
 }
+
+// Mapping of field type strings to Field class constructors
+// Used for creating custom fields dynamically
+// Apply a serialized value to a field, routing expression payloads ({ $expr }) to
+// setExpression and everything else through the field's normal deserialize + setValue path.
+// Used by project loading and undo/redo restore. Feature-detects the expression methods
+// since some callers pass minimal IField implementations (e.g. test mocks).
+export function applySerializedFieldValue(field: Field, value: unknown): void {
+  if (isSerializedExpression(value) && typeof field.setExpression === 'function') {
+    field.setExpression(value.$expr)
+    return
+  }
+  if (typeof field.clearExpression === 'function' && field.expression != null) {
+    field.clearExpression()
+  }
+  const ctor = field.constructor as typeof Field & { deserialize?: (value: unknown) => unknown }
+  field.setValue(typeof ctor.deserialize === 'function' ? ctor.deserialize(value) : value)
+}
+
+export const fieldTypeToClass = {
+  number: NumberField,
+  string: StringField,
+  boolean: BooleanField,
+  color: ColorField,
+  vec2: Vec2Field,
+  vec3: Vec3Field,
+  vec4: Vec4Field,
+  'geopoint-2d': Point2DField,
+  'geopoint-3d': Point3DField,
+  bbox: BboxField,
+  date: DateField,
+  expression: ExpressionField,
+  code: CodeField,
+  'bezier-curve': BezierCurveField,
+  'string-literal': StringLiteralField,
+  data: DataField,
+  unknown: UnknownField,
+} as const satisfies Record<string, typeof Field>

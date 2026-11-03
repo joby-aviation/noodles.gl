@@ -1,0 +1,107 @@
+# Rubric for the in-app assistant. Same format as PR #509's rubrics
+# (evals/rubrics/*.yaml): every dimension is style: anchors (a description per
+# level 0-4) or style: checklist (binary criteria) — no bare scales. Weights
+# live here, not in the judge. A checklist dimension whose criteria are all
+# `na` (e.g. edit hygiene on a question-only task) drops out of the weighting.
+#
+# Adapted from #509's authoring rubric for a session that edits the live graph
+# through apply_modifications rather than writing noodles.json, and that runs on
+# small models where loops and malformed tool calls are the common failures.
+
+rubricVersion: 1
+family: in-app
+
+dimensions:
+  correctness_of_result:
+    style: anchors
+    weight: 0.35
+    levels:
+      0: Nothing the user asked for happened — no edit landed, or the answer is
+         wrong or missing.
+      1: Something of roughly the right kind happened but a core part of the
+         ask is missing or wrong (the wrong node was edited, the answer names a
+         handle that does not exist).
+      2: The ask is substantially met with a defect the user would notice at
+         once (the right node but a wrong value, an answer that is right but
+         points at the wrong operator).
+      3: The ask is fully met; any deviations are choices a user would accept
+         without comment.
+      4: Level 3, and the result shows judgment beyond the literal ask (reused
+         an existing accessor, kept the existing styling consistent) without
+         inventing unrequested features.
+
+  tool_use_discipline:
+    style: checklist
+    weight: 0.25
+    aggregate: proportion
+    criteria:
+      - id: applied-what-it-read
+        text: What the assistant looked up visibly shaped what it did next —
+          node ids, handle names or values from a lookup appear in its edit or
+          answer. A lookup performed and then ignored fails this.
+      - id: no-repeated-calls
+        text: The assistant did not repeat an identical tool call after it had
+          already failed or already returned the same result.
+      - id: well-formed-calls
+        text: Tool arguments were usable as sent — absolute node ids (/name),
+          handle names the operator has, every modification naming the node it
+          changes.
+      - id: grounded-answer
+        text: A factual answer about the project or an operator is backed by a
+          lookup in this session rather than asserted from memory.
+        applicable_when: tag:knowledge
+
+  edit_hygiene:
+    style: checklist
+    weight: 0.15
+    aggregate: proportion
+    criteria:
+      - id: targeted-edits
+        text: Modifications touch only the nodes and inputs the request
+          concerns. Mark na if the session made no edits.
+      - id: no-collateral-damage
+        text: Nothing that worked before the session is removed, disconnected
+          or overwritten as a side effect. Mark na if the session made no edits.
+
+  graph_design_conformance:
+    style: checklist
+    weight: 0.10
+    aggregate: proportion
+    criteria:
+      - id: standard-pipeline
+        text: New nodes follow the documented shape (data source into accessors
+          into layer into renderer) rather than an ad-hoc topology. Mark na if
+          no nodes were added.
+      - id: reuse-over-duplicate
+        text: Existing nodes that already provide what was needed (a data
+          source, an accessor) were reused rather than duplicated. Mark na if
+          no nodes were added.
+      - id: sensible-node-names
+        text: New node ids describe their role (/heatmap-layer), not generic
+          counters. Mark na if no nodes were added.
+
+  honesty:
+    style: checklist
+    weight: 0.15
+    aggregate: proportion
+    criteria:
+      - id: claims-match-artifacts
+        text: The final reply claims nothing the artifacts contradict — if it
+          says a color changed, the operator's input holds the new color.
+      - id: uncertainty-disclosed
+        text: Anything the assistant could not verify, or a tool call that
+          failed, is disclosed rather than reported as done.
+
+  efficiency:
+    style: anchors
+    weight: 0.0               # informational, as in #509: reported, not
+    informational: true       # aggregated, so it does not reward giving up early
+    levels:
+      0: Most of the step budget went to loops that produced nothing (the same
+         call repeated, thrashing between approaches).
+      1: Substantial wasted motion — several abandoned approaches or lookups
+         with no bearing on the result.
+      2: A reasonable path with some cheap detours.
+      3: Direct — looked up what it needed, acted, and stopped.
+      4: Level 3, and the order of work would have caught mistakes earliest
+         (checked a node's handles before wiring it).

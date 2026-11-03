@@ -7,6 +7,8 @@ import {
   getAbsolutePosition,
   getNodeHeight,
   getNodeWidth,
+  hasPosition,
+  placeNewNode,
   positionCollidesWithNodes,
   rectanglesOverlap,
   VIEWER_GAP,
@@ -471,5 +473,39 @@ describe('viewer-position', () => {
       expect(position.x).toBe(100 + 200 + VIEWER_GAP)
       expect(position.y).toBe(200)
     })
+  })
+})
+
+describe('placeNewNode', () => {
+  const at = (id: string, x: number, y: number) =>
+    ({ id, position: { x, y }, data: {} }) as ReactFlowNode
+
+  it('puts the node beside the one feeding it', () => {
+    const nodes = [at('/data', 0, 0), at('/deck', 900, 0)]
+    const edges = [{ source: '/data', target: '/heat' }]
+    expect(placeNewNode('/heat', edges, nodes)).toEqual({
+      x: DEFAULT_NODE_WIDTH + VIEWER_GAP,
+      y: 0,
+    })
+  })
+
+  it('falls back to the right of everything', () => {
+    const nodes = [at('/data', 0, 0), at('/deck', 900, 40)]
+    expect(placeNewNode('/heat', [], nodes)).toEqual({
+      x: 900 + DEFAULT_NODE_WIDTH + VIEWER_GAP,
+      y: 40,
+    })
+  })
+
+  it('starts an empty project at the origin', () => {
+    expect(placeNewNode('/heat', [], [])).toEqual({ x: 0, y: 0 })
+  })
+
+  it('treats a missing or partial position as none', () => {
+    expect(hasPosition({ id: '/a', data: {} } as unknown as ReactFlowNode)).toBe(false)
+    expect(
+      hasPosition({ id: '/a', position: { x: 1 }, data: {} } as unknown as ReactFlowNode)
+    ).toBe(false)
+    expect(hasPosition(at('/a', 0, 0))).toBe(true)
   })
 })

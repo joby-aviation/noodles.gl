@@ -230,6 +230,42 @@ describe('012-render-settings-to-outop', () => {
     expect(outNode?.data?.inputs?.display).toBe(DEFAULT_RENDER_SETTINGS.display)
   })
 
+  it('should keep render settings already set as OutOp inputs', async () => {
+    const project: NoodlesProjectJSON = {
+      version: 7,
+      nodes: [
+        {
+          id: '/out',
+          type: 'OutOp',
+          position: { x: 0, y: 0 },
+          data: {
+            inputs: { width: 3840, height: 2160, framerate: 48, lod: 1 },
+          },
+        },
+      ],
+      edges: [],
+      viewport: { x: 0, y: 0, zoom: 1 },
+      timeline: {
+        sheetsById: {
+          Noodles: { staticOverrides: { byObject: { render: { codec: 'hevc', framerate: 30 } } } },
+        },
+      },
+    }
+
+    const migrated = await up(project)
+
+    const outNode = migrated.nodes.find(n => n.id === '/out')
+    expect(outNode?.data?.inputs).toMatchObject({
+      width: 3840,
+      height: 2160,
+      framerate: 48,
+      lod: 1,
+      // Settings the OutOp didn't have still come from the timeline, then the defaults
+      codec: 'hevc',
+      bitrateMbps: DEFAULT_RENDER_SETTINGS.bitrateMbps,
+    })
+  })
+
   it('should migrate back down correctly', async () => {
     const project: NoodlesProjectJSON = {
       version: 12,

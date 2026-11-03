@@ -48,7 +48,7 @@ Fields are the individual parameters on each operator. They come in two types:
 
 **Input Fields** (left side):
 - Accept values from connections or manual entry
-- Can be configured in the Properties Panel
+- Can be configured in the [Properties Panel](./properties-panel.md)
 - Can be animated with keyframes
 
 **Output Fields** (right side):
@@ -84,6 +84,17 @@ Workflows in Noodles.gl are **reactive**, meaning:
 - No need to manually refresh or recalculate
 
 This makes experimentation fast and intuitive.
+
+### Locking Nodes
+
+Click the lock icon in a node's header to keep its result. Use it for slow or paid nodes, such as directions, while you work on the rest of the workflow.
+
+- A locked node keeps its result when its inputs change. The connections into it fade to show that changes there have no effect.
+- A locked node's result is saved with the project, so reopening the project doesn't run it again. Results that can't be saved, such as layers, run once when you reopen.
+- A locked node with no result yet runs once to get one.
+- Unlocking runs the node again with its current inputs. The editor asks first, and undo restores the previous result.
+
+Saved results go in a `cache` folder next to `noodles.json`. Commit it to share results with your collaborators, or add it to `.gitignore` to keep them on your machine.
 
 ## Building Your First Workflow
 
@@ -143,6 +154,16 @@ For complex workflows, use **Container** operators to organize related nodes:
 - Collapse containers to hide complexity
 - Navigate using breadcrumbs or press `u` to go up one level
 
+### Comments
+
+Add a **Comment** to explain part of a graph in place. Open the Add Node menu and choose **Comment** (under Utility), then move it next to the nodes it describes. The featured examples include a few to show the idea.
+
+- **Edit the text**: Double-click the comment, type, then press Escape or click away to finish. Line breaks are kept, and web addresses become links.
+- **Resize**: Select the comment and drag its corners or edges.
+- **Move**: Drag the comment from anywhere on it.
+
+Comments sit behind other nodes, have no inputs or outputs, and don't change what the graph does. Their text and size are saved with the project.
+
 ### Node Tree Sidebar
 
 The left sidebar shows a hierarchical view of all operators in your workflow:
@@ -162,6 +183,7 @@ Color-coded borders indicate operator categories (Data, Visualization, Transform
 3. **Name your nodes**: Give operators descriptive names for clarity (double-click the title)
 4. **Start simple**: Build incrementally, testing at each step
 5. **Use viewer nodes**: Add "Viewer" operators to inspect data at any stage
+6. **Leave notes**: Add a Comment next to anything a reader might not understand
 
 ## Data Flow Patterns
 
@@ -244,7 +266,7 @@ All [deck.gl layers](https://deck.gl/docs/api-reference/layers) are available, i
 ### Utilities
 
 - **Viewer**: Inspect data at any stage
-- **TableEditor**: View and edit tabular data
+- **TableEditor**: View and edit tabular data. Its typed schema is local table state rather than a connectable graph port.
 - **Container**: Organize related operators
 - **Switch**: Route data based on index
 - **Color**: Create and manipulate colors
@@ -254,7 +276,7 @@ All [deck.gl layers](https://deck.gl/docs/api-reference/layers) are available, i
 
 1. **Use the Properties Panel**: Most operator configuration happens here
 2. **Inspect data**: Use Viewer nodes or the TableEditor to see your data
-3. **Lock nodes**: Click the lock icon to prevent accidental changes
+3. **Lock slow nodes**: Keep a result while you work elsewhere. See [Locking Nodes](#locking-nodes)
 4. **Check connections**: Hover over handles to see data types or outputs
 5. **Experiment freely**: Changes are reactive and reversible
 

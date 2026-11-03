@@ -131,3 +131,33 @@ export function calculateViewerPosition(
   // If all attempts fail, return the last tried position
   return position
 }
+
+export function hasPosition(node: ReactFlowNode): boolean {
+  return Number.isFinite(node.position?.x) && Number.isFinite(node.position?.y)
+}
+
+// Where to put a node that arrived without a position, e.g. from the AI assistant:
+// beside the node feeding it if an edge says which, otherwise right of everything.
+// Every node in `nodes` must have a position.
+export function placeNewNode(
+  nodeId: string,
+  edges: Array<{ source: string; target: string }>,
+  nodes: ReactFlowNode[]
+): { x: number; y: number } {
+  const feeder = edges
+    .filter(edge => edge.target === nodeId)
+    .map(edge => nodes.find(node => node.id === edge.source))
+    .find(node => node !== undefined)
+  const anchor =
+    feeder ??
+    nodes
+      .filter(node => node.type !== 'group')
+      .reduce<ReactFlowNode | undefined>(
+        (rightmost, node) =>
+          !rightmost || getAbsolutePosition(node, nodes).x > getAbsolutePosition(rightmost, nodes).x
+            ? node
+            : rightmost,
+        undefined
+      )
+  return anchor ? calculateViewerPosition(anchor, nodes) : { x: 0, y: 0 }
+}

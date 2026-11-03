@@ -1,9 +1,15 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
+  AI_KEY_TYPES,
+  describeKey,
+  fingerprintKey,
   getEnvKeys,
   getKeysForProject,
   getKeysStore,
+  isAIKey,
   type KeysConfig,
+  keysProjectId,
+  syncKeysAcrossTabs,
   useKeysStore,
 } from './keys-store'
 
@@ -14,8 +20,12 @@ describe('Keys Store', () => {
     // Reset store state
     useKeysStore.setState({
       browserKeys: {},
-      saveInProject: false,
+      keyOverrides: {},
       projectKeys: undefined,
+      projectId: undefined,
+      projectKeyEdits: 0,
+      ignoredProjectKeys: [],
+      rejectedKeys: {},
     })
   })
 
@@ -38,13 +48,13 @@ describe('Keys Store', () => {
       expect(result === undefined || result === envKeys.mapbox).toBe(true)
     })
 
-    it('should prioritize browserKeys over project keys', () => {
+    it('should prioritize project keys over browserKeys', () => {
       const { setBrowserKey, setProjectKeys, getKey } = getKeysStore()
 
       setProjectKeys({ mapbox: 'project-token' })
       setBrowserKey('mapbox', 'browser-token')
 
-      expect(getKey('mapbox')).toBe('browser-token')
+      expect(getKey('mapbox')).toBe('project-token')
     })
 
     it('should use project keys when browserKeys is empty', () => {
@@ -125,6 +135,24 @@ describe('Keys Store', () => {
       expect(getKeysStore().projectKeys).toEqual(keys)
 
       setProjectKeys(undefined)
+      expect(getKeysStore().projectKeys).toBeUndefined()
+    })
+
+    it('should remove one project key without clearing the others', () => {
+      const { setProjectKeys, removeProjectKey } = getKeysStore()
+      setProjectKeys({ mapbox: 'mapbox-token', googleMaps: 'google-token' })
+
+      removeProjectKey('mapbox')
+
+      expect(getKeysStore().projectKeys).toEqual({ googleMaps: 'google-token' })
+    })
+
+    it('should clear project keys after removing the final key', () => {
+      const { setProjectKeys, removeProjectKey } = getKeysStore()
+      setProjectKeys({ mapbox: 'mapbox-token' })
+
+      removeProjectKey('mapbox')
+
       expect(getKeysStore().projectKeys).toBeUndefined()
     })
   })
@@ -263,16 +291,266 @@ describe('Keys Store', () => {
       expect(getActiveSource('mapbox')).toBe('project')
     })
 
-    it('should prioritize browser over project', () => {
+    it('should prioritize project over browser', () => {
       const { setBrowserKey, setProjectKeys, getActiveSource } = getKeysStore()
 
-      // Add project
-      setProjectKeys({ mapbox: 'project-token' })
-      expect(getActiveSource('mapbox')).toBe('project')
-
-      // Add browser
       setBrowserKey('mapbox', 'browser-token')
       expect(getActiveSource('mapbox')).toBe('browser')
+
+      setProjectKeys({ mapbox: 'project-token' })
+      expect(getActiveSource('mapbox')).toBe('project')
+    })
+  })
+
+  describe('overrides', () => {
+    beforeEach(() => {
+      vi.stubEnv('VITE_CESIUM_ACCESS_TOKEN', 'env-cesium')
+      getKeysStore().setProjectKeys({ cesium: 'project-cesium' }, 'project-a')
+      getKeysStore().setBrowserKey('cesium', 'browser-cesium')
+    })
+
+    afterEach(() => {
+      vi.unstubAllEnvs()
+    })
+
+    it('should use the browser key for the project that chose it', () => {
+      getKeysStore().setKeyOverride('cesium', 'browser')
+
+      expect(getKeysStore().getKey('cesium')).toBe('browser-cesium')
+      expect(getKeysStore().getActiveSource('cesium')).toBe('browser')
+    })
+
+    it('should use the env key for the project that chose it', () => {
+      getKeysStore().setKeyOverride('cesium', 'env')
+
+      expect(getKeysStore().getKey('cesium')).toBe('env-cesium')
+    })
+
+    it('should not apply to another project', () => {
+      getKeysStore().setKeyOverride('cesium', 'browser')
+      getKeysStore().setProjectKeys({ cesium: 'project-cesium' }, 'project-b')
+
+      expect(getKeysStore().getKey('cesium')).toBe('project-cesium')
+    })
+
+    it('should apply again when the project is reopened', () => {
+      getKeysStore().setKeyOverride('cesium', 'browser')
+      getKeysStore().setProjectKeys(undefined, 'project-b')
+      getKeysStore().setProjectKeys({ cesium: 'project-cesium' }, 'project-a')
+
+      expect(getKeysStore().getKey('cesium')).toBe('browser-cesium')
+    })
+
+    it('should lapse when the project key changes', () => {
+      getKeysStore().setKeyOverride('cesium', 'browser')
+      getKeysStore().setProjectKeys({ cesium: 'new-project-cesium' }, 'project-a')
+
+      expect(getKeysStore().getKey('cesium')).toBe('new-project-cesium')
+      expect(getKeysStore().getOverride('cesium')).toBeNull()
+    })
+
+    it('should fall back to the project key when the browser key is cleared', () => {
+      getKeysStore().setKeyOverride('cesium', 'browser')
+      getKeysStore().clearBrowserKey('cesium')
+
+      expect(getKeysStore().getKey('cesium')).toBe('project-cesium')
+    })
+
+    it('should store a fingerprint, never a key', () => {
+      getKeysStore().setKeyOverride('cesium', 'browser')
+
+      const stored = localStorage.getItem('noodles-keys')!
+      expect(JSON.parse(stored).state.keyOverrides).toEqual({
+        'project-a': {
+          cesium: { source: 'browser', projectKeyFingerprint: fingerprintKey('project-cesium') },
+        },
+      })
+      expect(stored).not.toContain('project-cesium')
+    })
+
+    it('should go back to the project key when the override is removed', () => {
+      getKeysStore().setKeyOverride('cesium', 'browser')
+      getKeysStore().setKeyOverride('cesium', null)
+
+      expect(getKeysStore().getKey('cesium')).toBe('project-cesium')
+      expect(getKeysStore().keyOverrides).toEqual({})
+    })
+
+    it('should copy the choices when the project is saved under a new name', () => {
+      getKeysStore().setKeyOverride('cesium', 'browser')
+      getKeysStore().copyKeyOverridesTo('project-renamed')
+      getKeysStore().setProjectKeys({ cesium: 'project-cesium' }, 'project-renamed')
+
+      expect(getKeysStore().getKey('cesium')).toBe('browser-cesium')
+      expect(Object.keys(getKeysStore().keyOverrides)).toEqual(['project-a', 'project-renamed'])
+    })
+
+    it('should move the choices when the project is renamed', () => {
+      getKeysStore().setKeyOverride('cesium', 'browser')
+      getKeysStore().moveKeyOverridesTo('project-renamed')
+      getKeysStore().setProjectKeys({ cesium: 'project-cesium' }, 'project-renamed')
+
+      expect(getKeysStore().getKey('cesium')).toBe('browser-cesium')
+      expect(Object.keys(getKeysStore().keyOverrides)).toEqual(['project-renamed'])
+    })
+
+    it('should replace choices left at the new name by an earlier project', () => {
+      getKeysStore().setProjectKeys({ cesium: 'project-cesium' }, 'project-b')
+      getKeysStore().setKeyOverride('cesium', 'browser')
+      getKeysStore().setProjectKeys({ cesium: 'project-cesium' }, 'project-c')
+      getKeysStore().copyKeyOverridesTo('project-b')
+      getKeysStore().setProjectKeys({ cesium: 'project-cesium' }, 'project-b')
+
+      expect(getKeysStore().getKey('cesium')).toBe('project-cesium')
+    })
+
+    it('should keep choices for an example apart from a saved project of the same name', () => {
+      getKeysStore().setProjectKeys(
+        { cesium: 'project-cesium' },
+        keysProjectId('/examples', 'nyc-taxis')
+      )
+      getKeysStore().setKeyOverride('cesium', 'browser')
+      getKeysStore().setProjectKeys(
+        { cesium: 'project-cesium' },
+        keysProjectId('/projects', 'nyc-taxis')
+      )
+
+      expect(getKeysStore().getKey('cesium')).toBe('project-cesium')
+    })
+
+    it('should not record an override without a project key', () => {
+      getKeysStore().setProjectKeys(undefined, 'project-a')
+      getKeysStore().setKeyOverride('cesium', 'browser')
+
+      expect(getKeysStore().keyOverrides).toEqual({})
+    })
+  })
+
+  describe('setProjectKey', () => {
+    it('should remember the loaded keys until the project is saved', () => {
+      const { setProjectKeys, setProjectKey, markProjectKeysSaved } = getKeysStore()
+      setProjectKeys({ mapbox: 'project-mapbox' })
+      setProjectKey('mapbox', 'edited-mapbox')
+      expect(getKeysStore().savedProjectKeys).toEqual({ mapbox: 'project-mapbox' })
+
+      markProjectKeysSaved()
+      expect(getKeysStore().savedProjectKeys).toEqual({ mapbox: 'edited-mapbox' })
+    })
+
+    it('should edit one project key and count the edit', () => {
+      const { setProjectKeys, setProjectKey } = getKeysStore()
+      setProjectKeys({ mapbox: 'project-mapbox' })
+      setProjectKey('googleMaps', ' project-google ')
+
+      expect(getKeysStore().projectKeys).toEqual({
+        mapbox: 'project-mapbox',
+        googleMaps: 'project-google',
+      })
+      expect(getKeysStore().projectKeyEdits).toBe(1)
+    })
+
+    it('should remove the key when cleared', () => {
+      const { setProjectKeys, setProjectKey } = getKeysStore()
+      setProjectKeys({ mapbox: 'project-mapbox' })
+      setProjectKey('mapbox', '')
+
+      expect(getKeysStore().projectKeys).toBeUndefined()
+    })
+
+    it('should not count loading a project as an edit', () => {
+      getKeysStore().setProjectKeys({ mapbox: 'project-mapbox' })
+
+      expect(getKeysStore().projectKeyEdits).toBe(0)
+    })
+
+    it('should refuse AI keys', () => {
+      getKeysStore().setProjectKey('anthropic', 'project-anthropic')
+
+      expect(getKeysStore().projectKeys).toBeUndefined()
+      expect(getKeysStore().projectKeyEdits).toBe(0)
+    })
+  })
+
+  describe('AI keys', () => {
+    it('should treat only the AI provider keys as AI keys', () => {
+      expect(AI_KEY_TYPES).toEqual(['anthropic', 'openrouter'])
+      expect(isAIKey('anthropic')).toBe(true)
+      expect(isAIKey('openrouter')).toBe(true)
+      expect(isAIKey('mapbox')).toBe(false)
+      expect(isAIKey('googleMaps')).toBe(false)
+      expect(isAIKey('cesium')).toBe(false)
+      expect(isAIKey('overpass')).toBe(false)
+    })
+
+    it('should strip AI keys when project keys are set', () => {
+      getKeysStore().setProjectKeys({
+        mapbox: 'project-mapbox',
+        anthropic: 'project-anthropic',
+        openrouter: 'project-openrouter',
+      })
+
+      const state = getKeysStore()
+      expect(state.projectKeys).toEqual({ mapbox: 'project-mapbox' })
+      expect(state.ignoredProjectKeys).toEqual(['anthropic', 'openrouter'])
+    })
+
+    it('should leave no project keys when the file only had AI keys', () => {
+      getKeysStore().setProjectKeys({ anthropic: 'project-anthropic' })
+
+      expect(getKeysStore().projectKeys).toBeUndefined()
+      expect(getKeysStore().ignoredProjectKeys).toEqual(['anthropic'])
+    })
+
+    it('should forget ignored AI keys when the next project has none', () => {
+      const { setProjectKeys } = getKeysStore()
+      setProjectKeys({ anthropic: 'project-anthropic' })
+      setProjectKeys({ mapbox: 'project-mapbox' })
+
+      expect(getKeysStore().ignoredProjectKeys).toEqual([])
+    })
+
+    it('should ignore an AI key in projectKeys even if one gets there', () => {
+      // setProjectKeys strips them, so this checks the getters guard on their own
+      useKeysStore.setState({
+        projectKeys: { anthropic: 'project-anthropic', openrouter: 'project-openrouter' },
+      })
+      const envKeys = getEnvKeys()
+      const { getKey, hasKey, getActiveSource } = getKeysStore()
+
+      for (const key of AI_KEY_TYPES) {
+        expect(getKey(key)).toBe(envKeys[key])
+        expect(hasKey(key)).toBe(!!envKeys[key])
+        expect(getActiveSource(key)).toBe(envKeys[key] ? 'env' : null)
+      }
+    })
+
+    it('should still use a browser AI key', () => {
+      const { setProjectKeys, setBrowserKey, getKey, getActiveSource } = getKeysStore()
+      setProjectKeys({ anthropic: 'project-anthropic' })
+      setBrowserKey('anthropic', 'browser-anthropic')
+
+      expect(getKey('anthropic')).toBe('browser-anthropic')
+      expect(getActiveSource('anthropic')).toBe('browser')
+    })
+  })
+
+  describe('describeKey', () => {
+    it('names where the key came from', () => {
+      const { setProjectKeys, setBrowserKey, setKeyOverride } = getKeysStore()
+      setProjectKeys({ mapbox: 'project-token' }, '/projects/a')
+      setBrowserKey('mapbox', 'browser-token')
+      expect(describeKey('mapbox', 'project-token')).toBe("the project's Mapbox token")
+
+      setKeyOverride('mapbox', 'browser')
+      expect(describeKey('mapbox', 'browser-token')).toBe('your browser Mapbox token')
+    })
+
+    it('names a key that changed while its request was out by where it is now', () => {
+      const { setProjectKeys, setBrowserKey } = getKeysStore()
+      setBrowserKey('googleMaps', 'browser-key')
+      setProjectKeys({ googleMaps: 'project-key' }, '/projects/a')
+      expect(describeKey('googleMaps', 'browser-key')).toBe('your browser Google Maps key')
+      expect(describeKey('googleMaps', 'gone-key')).toBe('the Google Maps key')
     })
   })
 
@@ -289,33 +567,75 @@ describe('Keys Store', () => {
       expect(parsed.state.browserKeys.mapbox).toBe('test-token')
     })
 
-    it('should persist saveInProject setting', () => {
-      const { setSaveInProject } = getKeysStore()
-      setSaveInProject(true)
+    it('should drop the old saveInProject setting when migrating', async () => {
+      localStorage.setItem(
+        'noodles-keys',
+        JSON.stringify({
+          state: { browserKeys: { mapbox: 'old-token' }, saveInProject: true },
+          version: 0,
+        })
+      )
+      await useKeysStore.persist.rehydrate()
 
-      const stored = localStorage.getItem('noodles-keys')
-      const parsed = JSON.parse(stored!)
-      expect(parsed.state.saveInProject).toBe(true)
+      const state = getKeysStore() as unknown as Record<string, unknown>
+      expect(state.saveInProject).toBeUndefined()
+      expect(getKeysStore().browserKeys).toEqual({ mapbox: 'old-token' })
+      expect(getKeysStore().keyOverrides).toEqual({})
+    })
+
+    it('picks up keys and choices saved in another tab', async () => {
+      const { setProjectKeys } = getKeysStore()
+      setProjectKeys({ mapbox: 'project-key' }, '/projects/a')
+      const stop = syncKeysAcrossTabs()
+
+      // Another tab writes localStorage directly, which this tab only hears as an event
+      const newValue = JSON.stringify({
+        state: {
+          browserKeys: { mapbox: 'other-tab-key' },
+          keyOverrides: {
+            '/projects/a': {
+              mapbox: { source: 'browser', projectKeyFingerprint: fingerprintKey('project-key') },
+            },
+          },
+          providerPreference: 'automatic',
+        },
+        version: 1,
+      })
+      localStorage.setItem('noodles-keys', newValue)
+      window.dispatchEvent(new StorageEvent('storage', { key: 'noodles-keys', newValue }))
+
+      await vi.waitFor(() => expect(getKeysStore().getKey('mapbox')).toBe('other-tab-key'))
+      expect(getKeysStore().projectKeys).toEqual({ mapbox: 'project-key' })
+      expect(getKeysStore().projectId).toBe('/projects/a')
+
+      stop()
+      localStorage.setItem(
+        'noodles-keys',
+        JSON.stringify({ state: { browserKeys: {} }, version: 1 })
+      )
+      window.dispatchEvent(new StorageEvent('storage', { key: 'noodles-keys' }))
+      await Promise.resolve()
+      expect(getKeysStore().browserKeys).toEqual({ mapbox: 'other-tab-key' })
     })
 
     it('should NOT persist projectKeys', () => {
       const { setProjectKeys } = getKeysStore()
-      setProjectKeys({ mapbox: 'project-key' })
+      setProjectKeys({ mapbox: 'project-key', anthropic: 'project-anthropic' })
 
       const stored = localStorage.getItem('noodles-keys')
       if (stored) {
         const parsed = JSON.parse(stored)
         expect(parsed.state.projectKeys).toBeUndefined()
+        expect(parsed.state.ignoredProjectKeys).toBeUndefined()
       }
     })
 
     it('should load persisted state from localStorage', () => {
       // Zustand persist middleware handles restoration on module load
       // We can test that persisted state is accessible
-      const { setBrowserKey, setSaveInProject } = getKeysStore()
+      const { setBrowserKey } = getKeysStore()
 
       setBrowserKey('mapbox', 'persisted-token')
-      setSaveInProject(true)
 
       // Verify it was saved
       const stored = localStorage.getItem('noodles-keys')
@@ -324,7 +644,6 @@ describe('Keys Store', () => {
       // Verify state is correct
       const state = getKeysStore()
       expect(state.browserKeys.mapbox).toBe('persisted-token')
-      expect(state.saveInProject).toBe(true)
     })
   })
 
@@ -342,6 +661,84 @@ describe('Keys Store', () => {
       unsubscribe()
     })
   })
+
+  describe('getPrompt', () => {
+    beforeEach(() => {
+      vi.stubEnv('VITE_CESIUM_ACCESS_TOKEN', '')
+      getKeysStore().setProjectKeys({ cesium: 'project-cesium' }, 'project-a')
+      getKeysStore().setBrowserKey('cesium', 'browser-cesium')
+    })
+
+    afterEach(() => {
+      vi.unstubAllEnvs()
+    })
+
+    it('should ask when the project key and the user key differ', () => {
+      expect(getKeysStore().getPrompt('cesium')).toEqual({ kind: 'choose', mine: 'browser' })
+    })
+
+    it('should ask about the environment key when there is no browser key', () => {
+      vi.stubEnv('VITE_CESIUM_ACCESS_TOKEN', 'env-cesium')
+      getKeysStore().setBrowserKey('cesium', undefined)
+
+      expect(getKeysStore().getPrompt('cesium')).toEqual({ kind: 'choose', mine: 'env' })
+    })
+
+    it('should not ask when the keys match or there is no user key', () => {
+      getKeysStore().setBrowserKey('cesium', 'project-cesium')
+      expect(getKeysStore().getPrompt('cesium')).toBeNull()
+
+      getKeysStore().setBrowserKey('cesium', undefined)
+      expect(getKeysStore().getPrompt('cesium')).toBeNull()
+    })
+
+    it('should not ask again once the project key is kept', () => {
+      getKeysStore().setKeyOverride('cesium', 'project')
+
+      expect(getKeysStore().getPrompt('cesium')).toBeNull()
+      expect(getKeysStore().getKey('cesium')).toBe('project-cesium')
+    })
+
+    it('should ask again when the kept project key changes', () => {
+      getKeysStore().setKeyOverride('cesium', 'project')
+      getKeysStore().setProjectKeys({ cesium: 'new-project-cesium' }, 'project-a')
+
+      expect(getKeysStore().getPrompt('cesium')).toEqual({ kind: 'choose', mine: 'browser' })
+    })
+
+    it('should ask about the environment key once the chosen browser key is cleared', () => {
+      vi.stubEnv('VITE_CESIUM_ACCESS_TOKEN', 'env-cesium')
+      getKeysStore().setKeyOverride('cesium', 'browser')
+      getKeysStore().setBrowserKey('cesium', undefined)
+
+      expect(getKeysStore().getPrompt('cesium')).toEqual({ kind: 'choose', mine: 'env' })
+    })
+
+    it('should not ask about a project key typed into Settings', () => {
+      getKeysStore().setProjectKey('cesium', 'typed-cesium')
+
+      expect(getKeysStore().getPrompt('cesium')).toBeNull()
+    })
+
+    it('should say when the user key is in use instead', () => {
+      getKeysStore().setKeyOverride('cesium', 'browser')
+
+      expect(getKeysStore().getPrompt('cesium')).toEqual({ kind: 'overridden', source: 'browser' })
+    })
+
+    it('should offer the user key when the project key is rejected, even after keeping it', () => {
+      getKeysStore().setKeyOverride('cesium', 'project')
+      getKeysStore().reportKeyRejected('cesium', 'project-cesium')
+
+      expect(getKeysStore().getPrompt('cesium')).toEqual({ kind: 'rejected', mine: 'browser' })
+    })
+
+    it('should not ask without a project id', () => {
+      getKeysStore().setProjectKeys({ cesium: 'project-cesium' })
+
+      expect(getKeysStore().getPrompt('cesium')).toBeNull()
+    })
+  })
 })
 
 describe('getKeysForProject', () => {
@@ -349,35 +746,49 @@ describe('getKeysForProject', () => {
     localStorage.clear()
     useKeysStore.setState({
       browserKeys: {},
-      saveInProject: false,
+      keyOverrides: {},
       projectKeys: undefined,
+      projectId: undefined,
+      projectKeyEdits: 0,
+      ignoredProjectKeys: [],
+      rejectedKeys: {},
     })
   })
 
-  it('should return undefined when saveInProject is false', () => {
-    const { setBrowserKey } = getKeysStore()
-    setBrowserKey('mapbox', 'test-token')
+  it('should never save browser keys', () => {
+    const { setBrowserKeys } = getKeysStore()
+    setBrowserKeys({ mapbox: 'browser-mapbox', anthropic: 'browser-anthropic' })
 
     expect(getKeysForProject()).toBeUndefined()
   })
 
-  it('should return browserKeys when saveInProject is true', () => {
-    const keys: KeysConfig = {
-      mapbox: 'test-token',
-      googleMaps: 'google-token',
-    }
+  it('should save the loaded project keys', () => {
+    const { setProjectKeys } = getKeysStore()
+    setProjectKeys({ googleMaps: 'project-token' })
 
-    const { setBrowserKeys, setSaveInProject } = getKeysStore()
-    setBrowserKeys(keys)
-    setSaveInProject(true)
-
-    expect(getKeysForProject()).toEqual(keys)
+    expect(getKeysForProject()).toEqual({ googleMaps: 'project-token' })
   })
 
-  it('should return undefined when no browser keys are saved', () => {
-    const { setSaveInProject } = getKeysStore()
-    setSaveInProject(true)
+  it('should save a project key edited after loading', () => {
+    const { setProjectKeys, setProjectKey } = getKeysStore()
+    setProjectKeys({ googleMaps: 'project-token' })
+    setProjectKey('mapbox', 'new-mapbox')
 
-    expect(getKeysForProject()).toEqual({})
+    expect(getKeysForProject()).toEqual({ googleMaps: 'project-token', mapbox: 'new-mapbox' })
+  })
+
+  it('should drop AI keys a loaded project contained', () => {
+    const { setProjectKeys } = getKeysStore()
+    setProjectKeys({ googleMaps: 'project-google', openrouter: 'project-openrouter' })
+
+    expect(getKeysForProject()).toEqual({ googleMaps: 'project-google' })
+  })
+
+  it('should drop AI keys even if they reach projectKeys directly', () => {
+    useKeysStore.setState({
+      projectKeys: { cesium: 'project-cesium', anthropic: 'project-anthropic' },
+    })
+
+    expect(getKeysForProject()).toEqual({ cesium: 'project-cesium' })
   })
 })

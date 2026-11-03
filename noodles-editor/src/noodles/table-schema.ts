@@ -1,0 +1,738 @@
+// Table schema types and utilities for TableEditorOp
+
+import { Temporal } from 'temporal-polyfill'
+
+export type ColumnType =
+  | 'number'
+  | 'string'
+  | 'boolean'
+  | 'color'
+  | 'point2d'
+  | 'point3d'
+  | 'vec2'
+  | 'vec3'
+  | 'date'
+  | 'dateTime'
+  | 'stringLiteral'
+
+// DateTime cell value format
+export interface DateTimeValue {
+  datetime: string // ISO 8601 datetime string (YYYY-MM-DDTHH:mm:ss.SSS)
+  timezone: string // IANA timezone identifier (e.g., 'UTC', 'America/New_York')
+}
+
+export interface ColumnSchema {
+  /** Stable identity used to distinguish a rename from a new column. */
+  id?: string
+  name: string
+  type: ColumnType
+  options?: {
+    // NumberField options
+    min?: number
+    max?: number
+    step?: number
+    softMin?: number
+    softMax?: number
+
+    // StringLiteralField options
+    values?: string[]
+    freeform?: boolean
+
+    // Point2D options
+    geocoder?: boolean
+  }
+  defaultValue?: unknown
+}
+
+export interface TableSchema {
+  columns: ColumnSchema[]
+}
+
+const columnTypes = new Set<ColumnType>([
+  'number',
+  'string',
+  'boolean',
+  'color',
+  'point2d',
+  'point3d',
+  'vec2',
+  'vec3',
+  'date',
+  'dateTime',
+  'stringLiteral',
+])
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+const numberOptionKeys = ['min', 'max', 'step', 'softMin', 'softMax'] as const
+
+function columnOptionsValidationError(
+  column: Record<string, unknown>,
+  type: ColumnType,
+  label: string
+): string | undefined {
+  const options = column.options
+  if (options === undefined) return undefined
+  if (!isRecord(options)) return `${label} options must be an object.`
+
+  const allowedKeys = new Set<string>(
+    type === 'number'
+      ? numberOptionKeys
+      : type === 'stringLiteral'
+        ? ['values', 'freeform']
+        : type === 'point2d'
+          ? ['geocoder']
+          : []
+  )
+  const unexpectedKey = Object.keys(options).find(key => !allowedKeys.has(key))
+  if (unexpectedKey) {
+    return `${label} option "${unexpectedKey}" is not valid for type ${type}.`
+  }
+
+  if (type === 'number') {
+    for (const key of numberOptionKeys) {
+      const option = options[key]
+      if (option !== undefined && (typeof option !== 'number' || !Number.isFinite(option))) {
+        return `${label} option "${key}" must be a finite number.`
+      }
+    }
+
+    if (typeof options.step === 'number' && options.step <= 0) {
+      return `${label} step must be greater than zero.`
+    }
+    if (
+      typeof options.min === 'number' &&
+      typeof options.max === 'number' &&
+      options.min > options.max
+    ) {
+      return `${label} minimum cannot exceed its maximum.`
+    }
+    if (
+      typeof options.softMin === 'number' &&
+      typeof options.softMax === 'number' &&
+      options.softMin > options.softMax
+    ) {
+      return `${label} soft minimum cannot exceed its soft maximum.`
+    }
+    return undefined
+  }
+
+  if (type === 'stringLiteral') {
+    if (
+      options.values !== undefined &&
+      (!Array.isArray(options.values) || options.values.some(option => typeof option !== 'string'))
+    ) {
+      return `${label} literal values must be strings.`
+    }
+    if (Array.isArray(options.values) && new Set(options.values).size !== options.values.length) {
+      return `${label} literal values must be unique.`
+    }
+    if (options.freeform !== undefined && typeof options.freeform !== 'boolean') {
+      return `${label} freeform option must be a boolean.`
+    }
+    return undefined
+  }
+
+  if (
+    type === 'point2d' &&
+    options.geocoder !== undefined &&
+    typeof options.geocoder !== 'boolean'
+  ) {
+    return `${label} geocoder option must be a boolean.`
+  }
+
+  return undefined
+}
+
+function hasValidColumnDefault(column: ColumnSchema): boolean {
+  if (column.defaultValue === undefined) return true
+  if (!validateValue(column.defaultValue, column)) return false
+
+  switch (column.type) {
+    case 'number':
+      return Number.isFinite(column.defaultValue)
+    case 'point2d':
+    case 'vec2':
+    case 'point3d':
+    case 'vec3':
+      return (column.defaultValue as number[]).every(Number.isFinite)
+    case 'date':
+      if (column.defaultValue instanceof Date) return !Number.isNaN(column.defaultValue.getTime())
+      try {
+        Temporal.PlainDate.from(column.defaultValue as string)
+        return true
+      } catch {
+        return false
+      }
+    default:
+      return true
+  }
+}
+
+/** Returns a user-facing reason when a value is not a valid table schema. */
+export function getTableSchemaValidationError(value: unknown): string | undefined {
+  if (!isRecord(value) || !Array.isArray(value.columns)) {
+    return 'Expected a table schema with a columns array.'
+  }
+
+  const names = new Set<string>()
+  const identities = new Set<string>()
+  for (const [index, candidate] of value.columns.entries()) {
+    const label = `Column ${index + 1}`
+    if (!isRecord(candidate)) return `${label} must be an object.`
+    if (typeof candidate.name !== 'string' || candidate.name.trim().length === 0) {
+      return `${label} name cannot be empty.`
+    }
+    if (typeof candidate.type !== 'string' || !columnTypes.has(candidate.type as ColumnType)) {
+      return `${label} has an unsupported type.`
+    }
+    if (
+      candidate.id !== undefined &&
+      (typeof candidate.id !== 'string' || candidate.id.trim().length === 0)
+    ) {
+      return `${label} identity cannot be empty.`
+    }
+
+    const type = candidate.type as ColumnType
+    const optionsError = columnOptionsValidationError(candidate, type, label)
+    if (optionsError) return optionsError
+
+    const column = candidate as unknown as ColumnSchema
+    if (!hasValidColumnDefault(column)) {
+      return `${label} default value is invalid for type ${type} and its constraints.`
+    }
+
+    const identity = typeof candidate.id === 'string' ? candidate.id : candidate.name
+    if (names.has(candidate.name)) return `Column name "${candidate.name}" is duplicated.`
+    if (identities.has(identity)) return `Column identity "${identity}" is duplicated.`
+    names.add(candidate.name)
+    identities.add(identity)
+  }
+
+  return undefined
+}
+
+/** Runtime guard shared by project loading and schema clipboard parsing. */
+export function isTableSchema(value: unknown): value is TableSchema {
+  return getTableSchemaValidationError(value) === undefined
+}
+
+/**
+ * Normalizes schemas written by older TableEditor builds before strict validation existed.
+ * Unknown presentation metadata is discarded, valid constraints are retained, and an
+ * invalid default is omitted so the column can use its type's current default.
+ */
+export function repairTableSchema(value: unknown): TableSchema | undefined {
+  if (isTableSchema(value)) return value
+  if (!isRecord(value) || !Array.isArray(value.columns)) return undefined
+
+  const columns: ColumnSchema[] = []
+  for (const candidate of value.columns) {
+    if (!isRecord(candidate)) return undefined
+    if (typeof candidate.name !== 'string' || candidate.name.trim().length === 0) return undefined
+    if (typeof candidate.type !== 'string' || !columnTypes.has(candidate.type as ColumnType)) {
+      return undefined
+    }
+
+    const type = candidate.type as ColumnType
+    const column: ColumnSchema = { name: candidate.name, type }
+    if (typeof candidate.id === 'string' && candidate.id.trim().length > 0) {
+      column.id = candidate.id
+    }
+
+    if (isRecord(candidate.options)) {
+      if (type === 'number') {
+        const options: NonNullable<ColumnSchema['options']> = {}
+        for (const key of numberOptionKeys) {
+          const option = candidate.options[key]
+          if (typeof option === 'number' && Number.isFinite(option)) options[key] = option
+        }
+        if (typeof options.step === 'number' && options.step <= 0) delete options.step
+        if (
+          typeof options.min === 'number' &&
+          typeof options.max === 'number' &&
+          options.min > options.max
+        ) {
+          delete options.max
+        }
+        if (
+          typeof options.softMin === 'number' &&
+          typeof options.softMax === 'number' &&
+          options.softMin > options.softMax
+        ) {
+          delete options.softMax
+        }
+        if (Object.keys(options).length > 0) column.options = options
+      } else if (type === 'stringLiteral') {
+        const values = Array.isArray(candidate.options.values)
+          ? [...new Set(candidate.options.values.filter(value => typeof value === 'string'))]
+          : undefined
+        const freeform =
+          typeof candidate.options.freeform === 'boolean' ? candidate.options.freeform : undefined
+        if ((values?.length ?? 0) > 0 || freeform !== undefined) {
+          column.options = {
+            ...(values && { values }),
+            ...(freeform !== undefined && { freeform }),
+          }
+        }
+      } else if (type === 'point2d' && typeof candidate.options.geocoder === 'boolean') {
+        column.options = { geocoder: candidate.options.geocoder }
+      }
+    }
+
+    if (Object.hasOwn(candidate, 'defaultValue')) {
+      column.defaultValue = candidate.defaultValue
+      if (getTableSchemaValidationError({ columns: [column] })) delete column.defaultValue
+    }
+    columns.push(column)
+  }
+
+  const repaired = { columns }
+  return isTableSchema(repaired) ? repaired : undefined
+}
+
+export interface TableSchemaTransitionResult {
+  data: unknown[]
+  renamedColumns: Array<{ from: string; to: string }>
+}
+
+export function getInitialColumnId(name: string): string {
+  return name
+}
+
+function getColumnId(column: ColumnSchema): string {
+  return column.id ?? getInitialColumnId(column.name)
+}
+
+/**
+ * Applies an authoritative schema change while retaining values for columns whose stable
+ * identity survived the transition. Name matching keeps schemas written before column IDs
+ * were introduced backwards compatible.
+ */
+export function transitionTableData(
+  data: unknown[],
+  previousSchema: TableSchema,
+  nextSchema: TableSchema,
+  options?: {
+    sourceColumnNames?: Array<string | undefined>
+    preferNextColumnNames?: boolean
+  }
+): TableSchemaTransitionResult {
+  const usedPreviousColumns = new Set<number>()
+  const sourceColumns = nextSchema.columns.map((nextColumn, nextIndex) => {
+    if (options?.sourceColumnNames !== undefined) {
+      const explicitSourceName = options.sourceColumnNames[nextIndex]
+      if (explicitSourceName === undefined) return undefined
+      return previousSchema.columns.find(column => column.name === explicitSourceName)
+    }
+
+    const nextId = getColumnId(nextColumn)
+    let previousIndex = previousSchema.columns.findIndex(
+      (column, index) => !usedPreviousColumns.has(index) && getColumnId(column) === nextId
+    )
+
+    if (previousIndex === -1 && nextColumn.id === undefined) {
+      previousIndex = previousSchema.columns.findIndex(
+        (column, index) => !usedPreviousColumns.has(index) && column.name === nextColumn.name
+      )
+    }
+
+    if (previousIndex === -1) return undefined
+    usedPreviousColumns.add(previousIndex)
+    return previousSchema.columns[previousIndex]
+  })
+
+  const renamedColumns = nextSchema.columns.flatMap((nextColumn, index) => {
+    const previousColumn = sourceColumns[index]
+    return previousColumn && previousColumn.name !== nextColumn.name
+      ? [{ from: previousColumn.name, to: nextColumn.name }]
+      : []
+  })
+
+  const remappedData = data.map(row => {
+    if (typeof row !== 'object' || row === null || Array.isArray(row)) return row
+    const record = row as Record<string, unknown>
+
+    return Object.fromEntries(
+      nextSchema.columns.flatMap((nextColumn, index) => {
+        const previousColumn = sourceColumns[index]
+        if (!previousColumn) return []
+
+        const shouldUseNextName =
+          options?.preferNextColumnNames && Object.hasOwn(record, nextColumn.name)
+        const sourceName = shouldUseNextName ? nextColumn.name : previousColumn.name
+        return Object.hasOwn(record, sourceName) ? [[nextColumn.name, record[sourceName]]] : []
+      })
+    )
+  })
+
+  return {
+    data: validateTableData(remappedData, nextSchema),
+    renamedColumns,
+  }
+}
+
+// Infer column type from a sample value
+function inferColumnType(value: unknown): ColumnType {
+  if (value === null || value === undefined) {
+    return 'string'
+  }
+
+  if (typeof value === 'number') {
+    return 'number'
+  }
+
+  if (typeof value === 'boolean') {
+    return 'boolean'
+  }
+
+  if (typeof value === 'string') {
+    // Check for hex color
+    if (/^#[0-9A-Fa-f]{6}([0-9A-Fa-f]{2})?$/.test(value)) {
+      return 'color'
+    }
+    return 'string'
+  }
+
+  if (Array.isArray(value)) {
+    // Point2D: [number, number]
+    if (value.length === 2 && typeof value[0] === 'number' && typeof value[1] === 'number') {
+      return 'point2d'
+    }
+    // Point3D or Vec3: [number, number, number]
+    if (
+      value.length === 3 &&
+      typeof value[0] === 'number' &&
+      typeof value[1] === 'number' &&
+      typeof value[2] === 'number'
+    ) {
+      return 'vec3'
+    }
+    // Vec2: [number, number] (same as point2d, defaults to point2d)
+    if (value.length === 2 && typeof value[0] === 'number' && typeof value[1] === 'number') {
+      return 'vec2'
+    }
+  }
+
+  if (typeof value === 'object' && value !== null) {
+    // Check for Temporal.PlainDate or Date
+    if ('calendar' in value && 'year' in value) {
+      return 'date'
+    }
+    if (value instanceof Date) {
+      return 'date'
+    }
+
+    // Check for Point2D object: { lng, lat } or { x, y }
+    const obj = value as Record<string, unknown>
+    if (
+      ('lng' in obj && 'lat' in obj) ||
+      ('x' in obj && 'y' in obj && Object.keys(obj).length === 2)
+    ) {
+      return 'point2d'
+    }
+
+    // Vec3 object: { x, y, z }
+    if ('x' in obj && 'y' in obj && 'z' in obj && Object.keys(obj).length === 3) {
+      return 'vec3'
+    }
+  }
+
+  return 'string'
+}
+
+// Infer schema from data array
+export function inferSchema(data: unknown[]): TableSchema {
+  if (!data || data.length === 0) {
+    return { columns: [] }
+  }
+
+  const firstRow = data[0]
+  if (typeof firstRow !== 'object' || firstRow === null || Array.isArray(firstRow)) {
+    return { columns: [] }
+  }
+
+  const columns: ColumnSchema[] = []
+  for (const [key, value] of Object.entries(firstRow)) {
+    const type = inferColumnType(value)
+    columns.push({
+      name: key,
+      type,
+      defaultValue: getDefaultValue({ name: key, type }),
+    })
+  }
+
+  return { columns }
+}
+
+// Get default value for a column type
+export function getDefaultValue(schema: ColumnSchema): unknown {
+  switch (schema.type) {
+    case 'number': {
+      const minimum = schema.options?.min
+      const maximum = schema.options?.max
+      if (minimum !== undefined) return minimum
+      if (maximum !== undefined && maximum < 0) return maximum
+      return 0
+    }
+    case 'string':
+      return ''
+    case 'boolean':
+      return false
+    case 'color':
+      return '#000000'
+    case 'point2d':
+      return [0, 0]
+    case 'point3d':
+      return [0, 0, 0]
+    case 'vec2':
+      return [0, 0]
+    case 'vec3':
+      return [0, 0, 0]
+    case 'date':
+      return new Date().toISOString().split('T')[0] // YYYY-MM-DD
+    case 'dateTime': {
+      // Return DateTimeValue object (always default to UTC for new cells)
+      const timezone = 'UTC'
+      const now = Temporal.Now.zonedDateTimeISO(timezone)
+      const result: DateTimeValue = {
+        datetime: now.toPlainDateTime().toString({ smallestUnit: 'millisecond' }),
+        timezone: timezone,
+      }
+      return result
+    }
+    case 'stringLiteral':
+      return schema.options?.values?.[0] ?? ''
+    default:
+      return null
+  }
+}
+
+// Validate IANA timezone identifier
+export function isValidTimezone(tz: string): boolean {
+  try {
+    Intl.DateTimeFormat(undefined, { timeZone: tz })
+    return true
+  } catch {
+    return false
+  }
+}
+
+// Convert a value to match the target column type
+export function convertValue(value: unknown, targetType: ColumnType): unknown {
+  // If value is already valid for the target type, return as-is
+  if (validateValue(value, { name: '', type: targetType })) {
+    return value
+  }
+
+  // Otherwise convert to default value for the target type
+  return getDefaultValue({ name: '', type: targetType })
+}
+
+// Validate a value against a column schema
+export function validateValue(value: unknown, schema: ColumnSchema): boolean {
+  switch (schema.type) {
+    case 'number':
+      if (typeof value !== 'number' || Number.isNaN(value)) {
+        return false
+      }
+      if (schema.options?.min !== undefined && value < schema.options.min) {
+        return false
+      }
+      if (schema.options?.max !== undefined && value > schema.options.max) {
+        return false
+      }
+      return true
+
+    case 'string':
+      return typeof value === 'string'
+
+    case 'boolean':
+      return typeof value === 'boolean'
+
+    case 'color':
+      return typeof value === 'string' && /^#[0-9A-Fa-f]{6}([0-9A-Fa-f]{2})?$/.test(value)
+
+    case 'point2d':
+    case 'vec2':
+      return (
+        Array.isArray(value) &&
+        value.length === 2 &&
+        typeof value[0] === 'number' &&
+        typeof value[1] === 'number'
+      )
+
+    case 'point3d':
+    case 'vec3':
+      return (
+        Array.isArray(value) &&
+        value.length === 3 &&
+        typeof value[0] === 'number' &&
+        typeof value[1] === 'number' &&
+        typeof value[2] === 'number'
+      )
+
+    case 'date':
+      // Accept ISO date string or Date object
+      if (typeof value === 'string') {
+        return /^\d{4}-\d{2}-\d{2}$/.test(value)
+      }
+      return value instanceof Date && !Number.isNaN(value.getTime())
+
+    case 'dateTime': {
+      // Only accept { datetime: "...", timezone: "..." } format
+      if (value && typeof value === 'object' && 'datetime' in value && 'timezone' in value) {
+        const obj = value as DateTimeValue
+        // Validate types
+        if (typeof obj.datetime !== 'string') return false
+        if (typeof obj.timezone !== 'string') return false
+        // Validate datetime string format
+        try {
+          Temporal.PlainDateTime.from(obj.datetime)
+        } catch {
+          return false
+        }
+        // Validate timezone
+        if (!isValidTimezone(obj.timezone)) return false
+        return true
+      }
+      return false
+    }
+
+    case 'stringLiteral':
+      if (typeof value !== 'string') {
+        return false
+      }
+      if (schema.options?.freeform) {
+        return true
+      }
+      if (schema.options?.values && schema.options.values.length > 0) {
+        return schema.options.values.includes(value)
+      }
+      return true
+
+    default:
+      return true
+  }
+}
+
+// Convert datetime string to Temporal.ZonedDateTime for output
+export function stringToTemporal(value: string, timezone: string): Temporal.ZonedDateTime {
+  // Handle various input formats:
+  // 1. datetime-local format: "2026-05-03T14:30:45.123"
+  // 2. ISO 8601 with timezone: "2026-05-03T14:30:45.123+05:00[Asia/Tokyo]"
+  // 3. ISO 8601 with Z suffix: "2026-05-03T14:30:45.123Z"
+
+  try {
+    // If value has explicit timezone annotation [TimeZone], use it
+    if (value.includes('[')) {
+      return Temporal.ZonedDateTime.from(value)
+    }
+
+    // If value has Z suffix or offset (+/-), parse as instant then convert to target timezone
+    if (value.includes('Z') || /[+-]\d{2}:\d{2}/.test(value)) {
+      const instant = Temporal.Instant.from(value)
+      return instant.toZonedDateTimeISO(timezone)
+    }
+
+    // Otherwise, parse as PlainDateTime and add timezone
+    const plainDateTime = Temporal.PlainDateTime.from(value)
+    return plainDateTime.toZonedDateTime(timezone)
+  } catch (error) {
+    console.warn(`Failed to parse datetime "${value}" with timezone ${timezone}:`, error)
+    // Fallback: use current time in a safe timezone
+    const safeTimezone = isValidTimezone(timezone) ? timezone : 'UTC'
+    return Temporal.Now.zonedDateTimeISO(safeTimezone)
+  }
+}
+
+// Convert Temporal.ZonedDateTime to string for storage
+export function temporalToString(value: Temporal.ZonedDateTime): string {
+  // Store as PlainDateTime string (no timezone suffix) for datetime-local compatibility
+  // The timezone is stored in column schema
+  return value.toPlainDateTime().toString({ smallestUnit: 'millisecond' })
+}
+
+// Convert table data for output: strings → Temporal for dateTime columns
+export function prepareTableDataForOutput(data: unknown[], schema: TableSchema): unknown[] {
+  if (!data || data.length === 0) {
+    return []
+  }
+
+  return data.map(row => {
+    if (typeof row !== 'object' || row === null || Array.isArray(row)) {
+      return row
+    }
+
+    const outputRow: Record<string, unknown> = { ...row }
+
+    for (const col of schema.columns) {
+      if (col.type === 'dateTime') {
+        const value = (row as Record<string, unknown>)[col.name]
+
+        // Only handle DateTimeValue format
+        if (value && typeof value === 'object' && 'datetime' in value && 'timezone' in value) {
+          const dateTimeValue = value as DateTimeValue
+          const timezone = isValidTimezone(dateTimeValue.timezone) ? dateTimeValue.timezone : 'UTC'
+          // Convert to Temporal.ZonedDateTime
+          outputRow[col.name] = stringToTemporal(dateTimeValue.datetime, timezone)
+        }
+      }
+    }
+
+    return outputRow
+  })
+}
+
+// Validate entire table data against schema
+export function validateTableData(data: unknown[], schema: TableSchema): unknown[] {
+  if (!data || data.length === 0) {
+    return []
+  }
+
+  return data.map((row, rowIndex) => {
+    if (typeof row !== 'object' || row === null || Array.isArray(row)) {
+      console.warn(`TableEditorOp: Invalid row at index ${rowIndex}`, row)
+      return row
+    }
+
+    const validatedRow: Record<string, unknown> = {}
+    for (const col of schema.columns) {
+      const value = (row as Record<string, unknown>)[col.name]
+
+      // Use default if missing
+      if (value === undefined) {
+        validatedRow[col.name] = col.defaultValue ?? getDefaultValue(col)
+        continue
+      }
+
+      // A chained TableEditor receives the upstream editor's output representation.
+      // Convert Temporal values back to the editable storage representation before
+      // validating so a valid date-time is not replaced with the column default.
+      if (col.type === 'dateTime' && value instanceof Temporal.ZonedDateTime) {
+        validatedRow[col.name] = {
+          datetime: temporalToString(value),
+          timezone: value.timeZoneId,
+        } satisfies DateTimeValue
+        continue
+      }
+
+      // Validate value
+      if (!validateValue(value, col)) {
+        console.warn(
+          `TableEditorOp: Invalid value for column "${col.name}" at row ${rowIndex}:`,
+          value,
+          'expected type:',
+          col.type
+        )
+        validatedRow[col.name] = col.defaultValue ?? getDefaultValue(col)
+      } else {
+        validatedRow[col.name] = value
+      }
+    }
+
+    return validatedRow
+  })
+}

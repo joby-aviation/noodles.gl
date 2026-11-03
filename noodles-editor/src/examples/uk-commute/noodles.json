@@ -1,4 +1,145 @@
 {
+  "edges": [
+    {
+      "id": "/deck.out.vis->/out.par.vis",
+      "source": "/deck",
+      "target": "/out",
+      "sourceHandle": "out.vis",
+      "targetHandle": "par.vis"
+    },
+    {
+      "id": "/data-source.out.data->/arc-layer.par.data",
+      "source": "/data-source",
+      "target": "/arc-layer",
+      "sourceHandle": "out.data",
+      "targetHandle": "par.data"
+    },
+    {
+      "id": "/data-source.out.data->/residence-layer.par.data",
+      "source": "/data-source",
+      "target": "/residence-layer",
+      "sourceHandle": "out.data",
+      "targetHandle": "par.data"
+    },
+    {
+      "id": "/data-source.out.data->/workplace-layer.par.data",
+      "source": "/data-source",
+      "target": "/workplace-layer",
+      "sourceHandle": "out.data",
+      "targetHandle": "par.data"
+    },
+    {
+      "id": "/home-position.out.accessor->/arc-layer.par.getSourcePosition",
+      "source": "/home-position",
+      "target": "/arc-layer",
+      "sourceHandle": "out.accessor",
+      "targetHandle": "par.getSourcePosition"
+    },
+    {
+      "id": "/work-position.out.accessor->/arc-layer.par.getTargetPosition",
+      "source": "/work-position",
+      "target": "/arc-layer",
+      "sourceHandle": "out.accessor",
+      "targetHandle": "par.getTargetPosition"
+    },
+    {
+      "id": "/home-position.out.accessor->/residence-layer.par.getPosition",
+      "source": "/home-position",
+      "target": "/residence-layer",
+      "sourceHandle": "out.accessor",
+      "targetHandle": "par.getPosition"
+    },
+    {
+      "id": "/work-position.out.accessor->/workplace-layer.par.getPosition",
+      "source": "/work-position",
+      "target": "/workplace-layer",
+      "sourceHandle": "out.accessor",
+      "targetHandle": "par.getPosition"
+    },
+    {
+      "id": "/source-color.out.color->/arc-layer.par.getSourceColor",
+      "source": "/source-color",
+      "target": "/arc-layer",
+      "sourceHandle": "out.color",
+      "targetHandle": "par.getSourceColor"
+    },
+    {
+      "id": "/target-color.out.color->/arc-layer.par.getTargetColor",
+      "source": "/target-color",
+      "target": "/arc-layer",
+      "sourceHandle": "out.color",
+      "targetHandle": "par.getTargetColor"
+    },
+    {
+      "id": "/source-color.out.color->/residence-layer.par.getFillColor",
+      "source": "/source-color",
+      "target": "/residence-layer",
+      "sourceHandle": "out.color",
+      "targetHandle": "par.getFillColor"
+    },
+    {
+      "id": "/target-color.out.color->/workplace-layer.par.getFillColor",
+      "source": "/target-color",
+      "target": "/workplace-layer",
+      "sourceHandle": "out.color",
+      "targetHandle": "par.getFillColor"
+    },
+    {
+      "id": "/maplibre-basemap.out.maplibre->/deck.par.basemap",
+      "source": "/maplibre-basemap",
+      "target": "/deck",
+      "sourceHandle": "out.maplibre",
+      "targetHandle": "par.basemap"
+    },
+    {
+      "id": "/arc-layer.out.layer->/deck.par.layers",
+      "source": "/arc-layer",
+      "target": "/deck",
+      "sourceHandle": "out.layer",
+      "targetHandle": "par.layers"
+    },
+    {
+      "id": "/residence-layer.out.layer->/deck.par.layers",
+      "source": "/residence-layer",
+      "target": "/deck",
+      "sourceHandle": "out.layer",
+      "targetHandle": "par.layers"
+    },
+    {
+      "id": "/workplace-layer.out.layer->/deck.par.layers",
+      "source": "/workplace-layer",
+      "target": "/deck",
+      "sourceHandle": "out.layer",
+      "targetHandle": "par.layers"
+    },
+    {
+      "id": "/blending.out.parameters->/arc-layer.par.parameters",
+      "source": "/blending",
+      "target": "/arc-layer",
+      "sourceHandle": "out.parameters",
+      "targetHandle": "par.parameters"
+    },
+    {
+      "id": "/blending.out.parameters->/residence-layer.par.parameters",
+      "source": "/blending",
+      "target": "/residence-layer",
+      "sourceHandle": "out.parameters",
+      "targetHandle": "par.parameters"
+    },
+    {
+      "id": "/blending.out.parameters->/workplace-layer.par.parameters",
+      "source": "/blending",
+      "target": "/workplace-layer",
+      "sourceHandle": "out.parameters",
+      "targetHandle": "par.parameters"
+    }
+  ],
+  "version": 23,
+  "name": "UK Commute Patterns",
+  "editorSettings": {
+    "layoutMode": "noodles-on-top",
+    "showOverlay": true
+  },
   "nodes": [
     {
       "id": "/deck",
@@ -16,7 +157,19 @@
       "id": "/out",
       "type": "OutOp",
       "data": {
-        "inputs": {},
+        "inputs": {
+          "display": "fixed",
+          "width": 1920,
+          "height": 1080,
+          "lod": 2,
+          "waitForData": true,
+          "codec": "avc",
+          "bitrateMbps": 10,
+          "bitrateMode": "constant",
+          "scaleControl": 0.3,
+          "framerate": 30,
+          "captureDelay": 50
+        },
         "locked": false
       },
       "position": {
@@ -177,148 +330,72 @@
         },
         "locked": false
       }
+    },
+    {
+      "id": "/data-note",
+      "type": "CommentOp",
+      "position": {
+        "x": 0,
+        "y": 90
+      },
+      "data": {
+        "inputs": {
+          "text": "This loads UK commute flows: where people live and where they work."
+        },
+        "locked": false
+      },
+      "width": 300,
+      "height": 80
+    },
+    {
+      "id": "/color-note",
+      "type": "CommentOp",
+      "position": {
+        "x": 490,
+        "y": -40
+      },
+      "data": {
+        "inputs": {
+          "text": "These two nodes set the home and work colors. Click one to pick a new color."
+        },
+        "locked": false
+      },
+      "width": 300,
+      "height": 80
+    },
+    {
+      "id": "/arc-note",
+      "type": "CommentOp",
+      "position": {
+        "x": 856,
+        "y": -200
+      },
+      "data": {
+        "inputs": {
+          "text": "Each arc links a home (orange) to a workplace (purple). Click it and change getHeight."
+        },
+        "locked": false
+      },
+      "width": 320,
+      "height": 80
+    },
+    {
+      "id": "/try-next-note",
+      "type": "CommentOp",
+      "position": {
+        "x": 1200,
+        "y": -20
+      },
+      "data": {
+        "inputs": {
+          "text": "Try next:\n- Click residence-layer and change getRadius to resize the home dots.\n- Click the diamond next to bearing on maplibre-basemap, pick a later time in the Timeline, and change it again.\n- Press Export and pick Video (MP4) to save the animation."
+        },
+        "locked": false
+      },
+      "width": 340,
+      "height": 190
     }
   ],
-  "edges": [
-    {
-      "id": "/deck.out.vis->/out.par.vis",
-      "source": "/deck",
-      "target": "/out",
-      "sourceHandle": "out.vis",
-      "targetHandle": "par.vis"
-    },
-    {
-      "id": "/data-source.out.data->/arc-layer.par.data",
-      "source": "/data-source",
-      "target": "/arc-layer",
-      "sourceHandle": "out.data",
-      "targetHandle": "par.data"
-    },
-    {
-      "id": "/data-source.out.data->/residence-layer.par.data",
-      "source": "/data-source",
-      "target": "/residence-layer",
-      "sourceHandle": "out.data",
-      "targetHandle": "par.data"
-    },
-    {
-      "id": "/data-source.out.data->/workplace-layer.par.data",
-      "source": "/data-source",
-      "target": "/workplace-layer",
-      "sourceHandle": "out.data",
-      "targetHandle": "par.data"
-    },
-    {
-      "id": "/home-position.out.accessor->/arc-layer.par.getSourcePosition",
-      "source": "/home-position",
-      "target": "/arc-layer",
-      "sourceHandle": "out.accessor",
-      "targetHandle": "par.getSourcePosition"
-    },
-    {
-      "id": "/work-position.out.accessor->/arc-layer.par.getTargetPosition",
-      "source": "/work-position",
-      "target": "/arc-layer",
-      "sourceHandle": "out.accessor",
-      "targetHandle": "par.getTargetPosition"
-    },
-    {
-      "id": "/home-position.out.accessor->/residence-layer.par.getPosition",
-      "source": "/home-position",
-      "target": "/residence-layer",
-      "sourceHandle": "out.accessor",
-      "targetHandle": "par.getPosition"
-    },
-    {
-      "id": "/work-position.out.accessor->/workplace-layer.par.getPosition",
-      "source": "/work-position",
-      "target": "/workplace-layer",
-      "sourceHandle": "out.accessor",
-      "targetHandle": "par.getPosition"
-    },
-    {
-      "id": "/source-color.out.color->/arc-layer.par.getSourceColor",
-      "source": "/source-color",
-      "target": "/arc-layer",
-      "sourceHandle": "out.color",
-      "targetHandle": "par.getSourceColor"
-    },
-    {
-      "id": "/target-color.out.color->/arc-layer.par.getTargetColor",
-      "source": "/target-color",
-      "target": "/arc-layer",
-      "sourceHandle": "out.color",
-      "targetHandle": "par.getTargetColor"
-    },
-    {
-      "id": "/source-color.out.color->/residence-layer.par.getFillColor",
-      "source": "/source-color",
-      "target": "/residence-layer",
-      "sourceHandle": "out.color",
-      "targetHandle": "par.getFillColor"
-    },
-    {
-      "id": "/target-color.out.color->/workplace-layer.par.getFillColor",
-      "source": "/target-color",
-      "target": "/workplace-layer",
-      "sourceHandle": "out.color",
-      "targetHandle": "par.getFillColor"
-    },
-    {
-      "id": "/maplibre-basemap.out.maplibre->/deck.par.basemap",
-      "source": "/maplibre-basemap",
-      "target": "/deck",
-      "sourceHandle": "out.maplibre",
-      "targetHandle": "par.basemap"
-    },
-    {
-      "id": "/arc-layer.out.layer->/deck.par.layers",
-      "source": "/arc-layer",
-      "target": "/deck",
-      "sourceHandle": "out.layer",
-      "targetHandle": "par.layers"
-    },
-    {
-      "id": "/residence-layer.out.layer->/deck.par.layers",
-      "source": "/residence-layer",
-      "target": "/deck",
-      "sourceHandle": "out.layer",
-      "targetHandle": "par.layers"
-    },
-    {
-      "id": "/workplace-layer.out.layer->/deck.par.layers",
-      "source": "/workplace-layer",
-      "target": "/deck",
-      "sourceHandle": "out.layer",
-      "targetHandle": "par.layers"
-    },
-    {
-      "id": "/blending.out.parameters->/arc-layer.par.parameters",
-      "source": "/blending",
-      "target": "/arc-layer",
-      "sourceHandle": "out.parameters",
-      "targetHandle": "par.parameters"
-    },
-    {
-      "id": "/blending.out.parameters->/residence-layer.par.parameters",
-      "source": "/blending",
-      "target": "/residence-layer",
-      "sourceHandle": "out.parameters",
-      "targetHandle": "par.parameters"
-    },
-    {
-      "id": "/blending.out.parameters->/workplace-layer.par.parameters",
-      "source": "/blending",
-      "target": "/workplace-layer",
-      "sourceHandle": "out.parameters",
-      "targetHandle": "par.parameters"
-    }
-  ],
-  "viewport": {
-    "x": 110.09970280160951,
-    "y": 138.99036470751906,
-    "zoom": 0.46798777100021355
-  },
   "timeline": {
     "sheetsById": {
       "Noodles": {
@@ -329,6 +406,5 @@
     },
     "definitionVersion": "0.4.0",
     "revisionHistory": []
-  },
-  "version": 6
+  }
 }

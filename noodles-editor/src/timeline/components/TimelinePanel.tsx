@@ -3,6 +3,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useExportActions } from '../../noodles/contexts/export-actions-context'
+import { shouldBlockKeyboardShortcut } from '../../noodles/utils/input-detection'
 import {
   captureTimelineState,
   fireTimelineMutation,
@@ -104,16 +105,40 @@ export function TimelinePanel({ height = 300, onCollapse }: TimelinePanelProps) 
   // Convert pixels to time
   const pixelsToTime = useCallback((pixels: number) => pixels / pixelsPerSecond, [pixelsPerSecond])
 
-  // Handle zoom with mouse wheel
-  const handleWheel = useCallback((e: React.WheelEvent) => {
-    if (e.ctrlKey || e.metaKey) {
-      e.preventDefault()
-      const delta = e.deltaY > 0 ? 0.9 : 1.1
-      setPixelsPerSecond(prev =>
-        Math.max(MIN_PIXELS_PER_SECOND, Math.min(MAX_PIXELS_PER_SECOND, prev * delta))
+  // Zoom while keeping the playhead at the same screen position
+  const zoomAroundPlayhead = useCallback(
+    (newPixelsPerSecond: number) => {
+      if (!scrollAreaRef.current) return
+
+      const clampedZoom = Math.max(
+        MIN_PIXELS_PER_SECOND,
+        Math.min(MAX_PIXELS_PER_SECOND, newPixelsPerSecond)
       )
-    }
-  }, [])
+
+      // Calculate playhead pixel position before and after zoom
+      const playheadPxBefore = position * pixelsPerSecond
+      const playheadPxAfter = position * clampedZoom
+
+      // Adjust scroll to keep playhead at same screen position
+      const scrollDelta = playheadPxAfter - playheadPxBefore
+      scrollAreaRef.current.scrollLeft = Math.max(0, scrollAreaRef.current.scrollLeft + scrollDelta)
+
+      setPixelsPerSecond(clampedZoom)
+    },
+    [position, pixelsPerSecond]
+  )
+
+  // Handle zoom with mouse wheel (Ctrl/Cmd/Shift + scroll)
+  const handleWheel = useCallback(
+    (e: React.WheelEvent) => {
+      if (e.ctrlKey || e.metaKey || e.shiftKey) {
+        e.preventDefault()
+        const delta = e.deltaY > 0 ? 0.9 : 1.1
+        zoomAroundPlayhead(pixelsPerSecond * delta)
+      }
+    },
+    [pixelsPerSecond, zoomAroundPlayhead]
+  )
 
   // Handle scroll on the right (keyframe) panel — keep the left labels panel in sync
   const handleScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
@@ -321,9 +346,7 @@ export function TimelinePanel({ height = 300, onCollapse }: TimelinePanelProps) 
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
       if (e.key !== 'Delete' && e.key !== 'Backspace') return
-      const target = e.target as HTMLElement
-      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)
-        return
+      if (shouldBlockKeyboardShortcut(e)) return
 
       if (selectedMarkerId) {
         e.preventDefault()
@@ -356,6 +379,22 @@ export function TimelinePanel({ height = 300, onCollapse }: TimelinePanelProps) 
         store.selectAllKeyframes()
       }
 
+      // Cmd/Ctrl+C to copy selected keyframes
+      if (
+        (e.key === 'c' || e.key === 'C') &&
+        (e.metaKey || e.ctrlKey) &&
+        selectedKeyframeIds.size > 0
+      ) {
+        e.preventDefault()
+        getTimelineStore().copySelectedKeyframes()
+      }
+
+      // Cmd/Ctrl+V to paste keyframes
+      if ((e.key === 'v' || e.key === 'V') && (e.metaKey || e.ctrlKey)) {
+        e.preventDefault()
+        getTimelineStore().pasteKeyframes()
+      }
+
       // T to cycle handle type for selected keyframes
       if ((e.key === 't' || e.key === 'T') && selectedKeyframeIds.size > 0) {
         e.preventDefault()
@@ -382,15 +421,7 @@ export function TimelinePanel({ height = 300, onCollapse }: TimelinePanelProps) 
   // Handle spacebar for play/pause and arrow keys for frame stepping globally
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
-      const target = e.target as HTMLElement
-      // Don't intercept keys in input elements
-      if (
-        target.tagName === 'INPUT' ||
-        target.tagName === 'TEXTAREA' ||
-        target.contentEditable === 'true'
-      ) {
-        return
-      }
+      if (shouldBlockKeyboardShortcut(e)) return
 
       const store = getTimelineStore()
       if (e.code === 'Space') {
@@ -456,7 +487,7 @@ export function TimelinePanel({ height = 300, onCollapse }: TimelinePanelProps) 
           <button
             type="button"
             className={s.timelineZoomBtn}
-            onClick={() => setPixelsPerSecond(prev => Math.max(MIN_PIXELS_PER_SECOND, prev * 0.8))}
+            onClick={() => zoomAroundPlayhead(pixelsPerSecond * 0.8)}
             title="Zoom out"
           >
             <span className={s.timelineZoomBtnText}>&minus;</span>
@@ -484,13 +515,13 @@ export function TimelinePanel({ height = 300, onCollapse }: TimelinePanelProps) 
             max={LOG_MAX}
             step={0.01}
             value={Math.log(pixelsPerSecond)}
-            onChange={e => setPixelsPerSecond(Math.exp(Number(e.target.value)))}
+            onChange={e => zoomAroundPlayhead(Math.exp(Number(e.target.value)))}
             title={`Zoom: ${Math.round(pixelsPerSecond)} px/s`}
           />
           <button
             type="button"
             className={s.timelineZoomBtn}
-            onClick={() => setPixelsPerSecond(prev => Math.min(MAX_PIXELS_PER_SECOND, prev * 1.25))}
+            onClick={() => zoomAroundPlayhead(pixelsPerSecond * 1.25)}
             title="Zoom in"
           >
             <span className={s.timelineZoomBtnText}>+</span>
@@ -566,6 +597,25 @@ export function TimelinePanel({ height = 300, onCollapse }: TimelinePanelProps) 
                 mousePosition={connectionMousePos}
               />
               {boxSelectOverlay && <div className={s.timelineBoxSelect} style={boxSelectOverlay} />}
+              {/* Dim regions outside in/out range */}
+              {sequence.inPoint > 0 && (
+                <div
+                  className={s.timelineDimOverlay}
+                  style={{
+                    left: 0,
+                    width: `${sequence.inPoint * pixelsPerSecond}px`,
+                  }}
+                />
+              )}
+              {sequence.outPoint < sequence.length && (
+                <div
+                  className={s.timelineDimOverlay}
+                  style={{
+                    left: `${sequence.outPoint * pixelsPerSecond}px`,
+                    width: `${(sequence.length - sequence.outPoint) * pixelsPerSecond}px`,
+                  }}
+                />
+              )}
             </div>
           ) : (
             <CurveEditorView

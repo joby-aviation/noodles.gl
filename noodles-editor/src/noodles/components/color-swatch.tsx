@@ -4,9 +4,15 @@ import { createPortal } from 'react-dom'
 import { colorToHex } from '../../utils/color'
 import s from '../noodles.module.css'
 
+// An optional color with no value shows as transparent (the checkered background), and
+// the picker starts from opaque black so the first pick isn't invisible
+const UNSET_COLOR = '#00000000'
+const UNSET_PICKER_COLOR = '#000000ff'
+
 interface ColorSwatchProps {
-  // Color value as hex string (e.g., "#ff0000" or "#ff0000ff") or color array [r, g, b, a]
-  value: string | [number, number, number, number?]
+  // Color value as hex string (e.g., "#ff0000" or "#ff0000ff") or color array [r, g, b, a].
+  // null or undefined means no color is set (optional ColorFields default to it).
+  value: string | [number, number, number, number?] | null | undefined
   // Callback when color changes
   onChange: (color: string) => void
   // Whether the swatch is disabled
@@ -41,13 +47,16 @@ export function ColorSwatch({
   const swatchRef = useRef<HTMLButtonElement>(null)
 
   // Convert value to hex string for display
+  const isUnset = typeof value !== 'string' && !Array.isArray(value)
   const hexValue =
     typeof value === 'string'
       ? value
-      : (() => {
-          const [r, g, b, a = 255] = value
-          return colorToHex([r, g, b, a])
-        })()
+      : Array.isArray(value)
+        ? (() => {
+            const [r, g, b, a = 255] = value
+            return colorToHex([r, g, b, a])
+          })()
+        : UNSET_COLOR
 
   // Handle click outside, escape, wheel, and touch events
   useEffect(() => {
@@ -206,7 +215,11 @@ export function ColorSwatch({
             }}
           >
             <div className={s.chromePickerWrapper}>
-              <ChromePicker color={hexValue} onChange={onPickerChange} disableAlpha={false} />
+              <ChromePicker
+                color={isUnset ? UNSET_PICKER_COLOR : hexValue}
+                onChange={onPickerChange}
+                disableAlpha={false}
+              />
             </div>
           </div>,
           document.body

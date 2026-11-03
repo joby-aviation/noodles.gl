@@ -32,4 +32,4 @@ To extend this example:
 - Use multiple `ScenegraphLayerOp` instances for complex scenes
 - Add lighting with material properties
 - Animate models using timeline features
-- Add other 3D layers like `PointCloudLayerOp` or `MeshLayerOp`
+- Add other 3D layers like `PointCloudLayerOp` or `SimpleMeshLayerOp`

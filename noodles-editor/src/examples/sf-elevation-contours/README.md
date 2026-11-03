@@ -7,9 +7,10 @@ This example displays San Francisco's topography through elevation contour lines
 
 ## Key Techniques
 - **Data source**: `FileOp` loads contour line data (GeoJSON LineStrings)
-- **Line layer**: `GeoJsonLayerOp` renders contour lines
-- **Color mapping**: Line colors or weights based on elevation values
-- **Basemap**: `MaplibreBasemapOp` centered on San Francisco
+- **Line layer**: `GeoJsonLayerOp` renders contour lines with `lineWidthScale: 8` and `opacity: 0.38`
+- **Elevation accessor**: `AccessorOp` with expression `d.properties.elevation`
+- **Color mapping**: `MapRangeOp` scales elevation from 0-900 ft to 0-1, then `ColorRampOp` sets the line and fill color
+- **Basemap**: `MaplibreBasemapOp` with dark matter style, centered on San Francisco
 
 ## Data Structure
 The GeoJSON file contains contour line features with:

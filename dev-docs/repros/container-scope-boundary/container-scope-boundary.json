@@ -1,0 +1,110 @@
+{
+  "version": 14,
+  "nodes": [
+    {
+      "id": "/source",
+      "type": "NumberOp",
+      "position": { "x": 50, "y": 200 },
+      "data": { "inputs": { "val": 42 } }
+    },
+    {
+      "id": "/container",
+      "type": "ContainerOp",
+      "position": { "x": 300, "y": 150 },
+      "data": { "inputs": {} }
+    },
+    {
+      "id": "/container/graph-input",
+      "type": "GraphInputOp",
+      "position": { "x": 50, "y": 100 },
+      "data": { "inputs": {} }
+    },
+    {
+      "id": "/container/math",
+      "type": "MathOp",
+      "position": { "x": 250, "y": 100 },
+      "data": { "inputs": { "operator": "multiply", "b": 2 } }
+    },
+    {
+      "id": "/container/graph-output",
+      "type": "GraphOutputOp",
+      "position": { "x": 450, "y": 100 },
+      "data": { "inputs": {} }
+    },
+    {
+      "id": "/container/nested",
+      "type": "ContainerOp",
+      "position": { "x": 250, "y": 300 },
+      "data": { "inputs": {} }
+    },
+    {
+      "id": "/container/nested/graph-input",
+      "type": "GraphInputOp",
+      "position": { "x": 50, "y": 100 },
+      "data": { "inputs": {} }
+    },
+    {
+      "id": "/container/nested/number",
+      "type": "NumberOp",
+      "position": { "x": 250, "y": 100 },
+      "data": { "inputs": { "val": 7 } }
+    },
+    {
+      "id": "/container/nested/graph-output",
+      "type": "GraphOutputOp",
+      "position": { "x": 450, "y": 100 },
+      "data": { "inputs": {} }
+    },
+    {
+      "id": "/sink",
+      "type": "MathOp",
+      "position": { "x": 550, "y": 200 },
+      "data": { "inputs": { "operator": "add", "b": 0 } }
+    }
+  ],
+  "edges": [
+    {
+      "id": "/source.out.val->/container.par.in",
+      "source": "/source",
+      "target": "/container",
+      "sourceHandle": "out.val",
+      "targetHandle": "par.in"
+    },
+    {
+      "id": "/container.par.in->/container/graph-input.par.parentValue",
+      "source": "/container",
+      "target": "/container/graph-input",
+      "sourceHandle": "par.in",
+      "targetHandle": "par.parentValue"
+    },
+    {
+      "id": "/container/graph-input.out.value->/container/math.par.a",
+      "source": "/container/graph-input",
+      "target": "/container/math",
+      "sourceHandle": "out.value",
+      "targetHandle": "par.a"
+    },
+    {
+      "id": "/container/math.out.val->/container/graph-output.par.value",
+      "source": "/container/math",
+      "target": "/container/graph-output",
+      "sourceHandle": "out.val",
+      "targetHandle": "par.value"
+    },
+    {
+      "id": "/container/graph-output.out.propagatedValue->/container.out.out",
+      "source": "/container/graph-output",
+      "target": "/container",
+      "sourceHandle": "out.propagatedValue",
+      "targetHandle": "out.out"
+    },
+    {
+      "id": "/container.out.out->/sink.par.a",
+      "source": "/container",
+      "target": "/sink",
+      "sourceHandle": "out.out",
+      "targetHandle": "par.a"
+    }
+  ],
+  "viewport": { "x": 0, "y": 0, "zoom": 1 }
+}

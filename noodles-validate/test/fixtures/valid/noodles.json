@@ -1,0 +1,94 @@
+{
+  "version": 18,
+  "name": "Fixture: valid",
+  "nodes": [
+    {
+      "id": "/earthquakes",
+      "type": "FileOp",
+      "position": { "x": 0, "y": 0 },
+      "data": { "inputs": { "format": "csv", "url": "@/data.csv" }, "locked": false }
+    },
+    {
+      "id": "/position",
+      "type": "AccessorOp",
+      "position": { "x": 0, "y": 200 },
+      "data": { "inputs": { "expression": "[d.longitude, d.latitude]" } }
+    },
+    {
+      "id": "/quakes-layer",
+      "type": "ScatterplotLayerOp",
+      "position": { "x": 350, "y": 0 },
+      "data": { "inputs": { "getRadius": 500, "getFillColor": "#ff0000ff" } }
+    },
+    {
+      "id": "/fault-lines",
+      "type": "PathLayerOp",
+      "position": { "x": 350, "y": 300 },
+      "data": { "inputs": {} }
+    },
+    {
+      "id": "/basemap",
+      "type": "MaplibreBasemapOp",
+      "position": { "x": 350, "y": 600 },
+      "data": { "inputs": {} }
+    },
+    {
+      "id": "/deck",
+      "type": "DeckRendererOp",
+      "position": { "x": 700, "y": 0 },
+      "data": { "inputs": {} }
+    },
+    {
+      "id": "/out",
+      "type": "OutOp",
+      "position": { "x": 1050, "y": 0 },
+      "data": { "inputs": {} }
+    }
+  ],
+  "edges": [
+    {
+      "id": "/earthquakes.out.data->/quakes-layer.par.data",
+      "source": "/earthquakes",
+      "sourceHandle": "out.data",
+      "target": "/quakes-layer",
+      "targetHandle": "par.data"
+    },
+    {
+      "id": "/position.out.accessor->/quakes-layer.par.getPosition",
+      "source": "/position",
+      "sourceHandle": "out.accessor",
+      "target": "/quakes-layer",
+      "targetHandle": "par.getPosition"
+    },
+    {
+      "id": "/quakes-layer.out.layer->/deck.par.layers",
+      "source": "/quakes-layer",
+      "sourceHandle": "out.layer",
+      "target": "/deck",
+      "targetHandle": "par.layers"
+    },
+    {
+      "id": "/fault-lines.out.layer->/deck.par.layers",
+      "source": "/fault-lines",
+      "sourceHandle": "out.layer",
+      "target": "/deck",
+      "targetHandle": "par.layers"
+    },
+    {
+      "id": "/basemap.out.maplibre->/deck.par.basemap",
+      "source": "/basemap",
+      "sourceHandle": "out.maplibre",
+      "target": "/deck",
+      "targetHandle": "par.basemap"
+    },
+    {
+      "id": "/deck.out.vis->/out.par.vis",
+      "source": "/deck",
+      "sourceHandle": "out.vis",
+      "target": "/out",
+      "targetHandle": "par.vis"
+    }
+  ],
+  "viewport": { "x": 0, "y": 0, "zoom": 1 },
+  "timeline": {}
+}

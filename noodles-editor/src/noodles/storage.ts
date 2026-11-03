@@ -5,12 +5,23 @@ import {
   directoryExists,
   fileExists,
   getOPFSRoot,
+  queryPermission,
   readFileFromDirectory,
   readFileFromDirectoryBinary,
   requestPermission,
   selectDirectory,
   writeFileToDirectory,
 } from './utils/filesystem'
+import { supportsVersioning } from './utils/git-settings'
+import { memoryProjectStore } from './utils/memory-project-store'
+import {
+  CACHE_DIRECTORY_NAME,
+  type OutputCache,
+  type OutputCacheFiles,
+  readDirectoryOutputCache,
+  readOutputCache,
+  writeOutputCache,
+} from './utils/output-cache'
 import { EMPTY_PROJECT, type NoodlesProjectJSON, safeStringify } from './utils/serialization'
 
 // Pre-load all example asset URLs at build time using import.meta.glob
@@ -28,6 +39,7 @@ export interface FileSystemProject {
   name: string // Project name (directory name)
   projectData: NoodlesProjectJSON // The project data
   dataDirectoryHandle?: FileSystemDirectoryHandle // Optional data directory handle for assets
+  outputCache?: OutputCache // Saved outputs of locked operators, set on load
 }
 
 // Result type for file system operations
@@ -39,6 +51,7 @@ export type FileSystemResult<T> =
 export interface FileSystemError {
   type:
     | 'permission-denied'
+    | 'permission-prompt' // The browser will ask again, but only during a click
     | 'not-found'
     | 'unsupported'
     | 'invalid-state'
@@ -49,6 +62,12 @@ export interface FileSystemError {
   message: string // Human-readable error message
   details?: string // Optional error details or recovery suggestions
   originalError?: unknown // Original error object if available
+  directoryHandle?: FileSystemDirectoryHandle // The remembered folder, for permission errors
+}
+
+// The `reason` sent with project_open_failed: the error type in snake_case, never the message
+export function openFailureReason(type: FileSystemError['type']): string {
+  return type.replace(/-/g, '_')
 }
 
 const PROJECT_FILE_NAME = 'noodles.json'
@@ -129,7 +148,22 @@ export async function getProjectDirectoryHandle(
         let projectDirectory: FileSystemDirectoryHandle | null = null
         const cached = await directoryHandleCache.getCachedHandle(projectName)
 
-        if (cached) {
+        // Without a user gesture we can only read the permission. After a browser restart
+        // it is back to 'prompt'; return the handle so a button click can ask for it.
+        if (cached && !promptIfMissing) {
+          const permission = await queryPermission(cached.handle, 'readwrite')
+          if (permission !== 'granted') {
+            return {
+              success: false,
+              error: {
+                type: permission === 'prompt' ? 'permission-prompt' : 'permission-denied',
+                message: `Access to folder ${cached.handle.name} needs permission`,
+                directoryHandle: cached.handle,
+              },
+            }
+          }
+          projectDirectory = cached.handle
+        } else if (cached) {
           const isValid = await directoryHandleCache.validateHandle(projectName)
           if (isValid) {
             projectDirectory = cached.handle
@@ -198,13 +232,13 @@ export async function getProjectDirectoryHandle(
       }
     }
 
-    case 'publicFolder': {
-      // Public folder projects don't have directory handles
+    case 'publicFolder':
+    case 'memory': {
       return {
         success: false,
         error: {
           type: 'not-found',
-          message: 'Public folder projects do not have directory handles',
+          message: `${type} projects do not have directory handles`,
         },
       }
     }
@@ -227,8 +261,24 @@ export async function getProjectDirectoryHandle(
 export async function save(
   type: StorageType,
   projectName: string,
-  projectData: NoodlesProjectJSON
+  projectData: NoodlesProjectJSON,
+  cacheFiles: OutputCacheFiles,
+  options?: { skipGitCommit?: boolean; commitMessage?: string }
 ): Promise<FileSystemResult<FileSystemProject>> {
+  if (type === 'memory') {
+    memoryProjectStore.setProjectJson(projectName, projectData)
+    memoryProjectStore.setCacheFiles(projectName, cacheFiles)
+    return {
+      success: true,
+      data: {
+        directoryHandle: null as unknown as FileSystemDirectoryHandle,
+        projectFileHandle: null as unknown as FileSystemFileHandle,
+        name: projectName,
+        projectData,
+      },
+    }
+  }
+
   const result = await getProjectDirectoryHandle(type, projectName, true)
   if (!result.success) {
     return result
@@ -240,11 +290,12 @@ export async function save(
     // Serialize and write noodles.json
     const projectJson = safeStringify(projectData)
     await writeFileToDirectory(projectDirectory, PROJECT_FILE_NAME, projectJson)
+    await writeOutputCache(projectDirectory, cacheFiles)
 
     const projectFileHandle = await projectDirectory.getFileHandle(PROJECT_FILE_NAME)
 
-    return {
-      success: true,
+    const saveResult = {
+      success: true as const,
       data: {
         directoryHandle: projectDirectory,
         projectFileHandle,
@@ -252,6 +303,22 @@ export async function save(
         projectData,
       },
     }
+
+    // Record the save in the project's version history. A failure never fails the save.
+    if (!options?.skipGitCommit && supportsVersioning(type)) {
+      try {
+        const { commitProjectSnapshot } = await import('./utils/git-service')
+        await commitProjectSnapshot(
+          projectDirectory,
+          projectName,
+          options?.commitMessage || `Save ${new Date().toISOString()}`
+        )
+      } catch (error) {
+        console.warn('Git commit failed:', error)
+      }
+    }
+
+    return saveResult
   } catch (error) {
     return {
       success: false,
@@ -267,6 +334,27 @@ export async function load(
   type: StorageType,
   fromProject: string | FileSystemDirectoryHandle
 ): Promise<FileSystemResult<FileSystemProject>> {
+  if (type === 'memory' && typeof fromProject === 'string') {
+    const projectJson = memoryProjectStore.getProjectJson(fromProject)
+    if (!projectJson) {
+      return {
+        success: false,
+        error: { type: 'not-found', message: `Memory project not found: ${fromProject}` },
+      }
+    }
+    const projectData = { ...EMPTY_PROJECT, ...projectJson } as NoodlesProjectJSON
+    return {
+      success: true,
+      data: {
+        directoryHandle: null as unknown as FileSystemDirectoryHandle,
+        projectFileHandle: null as unknown as FileSystemFileHandle,
+        name: fromProject,
+        projectData,
+        outputCache: await readMemoryOutputCache(fromProject, projectData.nodes),
+      },
+    }
+  }
+
   let projectDirectory: FileSystemDirectoryHandle
   let projectName: string
 
@@ -303,11 +391,20 @@ export async function load(
     } as NoodlesProjectJSON
 
     const projectFileHandle = await projectDirectory.getFileHandle(PROJECT_FILE_NAME)
+    const outputCache = await readDirectoryOutputCache(projectDirectory, projectData.nodes)
 
     // Cache the directory handle if loaded via File System Access API
     // This ensures the handle is available on refresh and save operations
     if (type === 'fileSystemAccess' && typeof fromProject !== 'string') {
       await directoryHandleCache.cacheHandle(projectName, projectDirectory, projectDirectory.name)
+    }
+
+    // Start version history for a project that doesn't have it yet. This runs in the
+    // background so a large data folder doesn't hold up opening the project.
+    if (supportsVersioning(type)) {
+      import('./utils/git-service')
+        .then(({ initProjectRepo }) => initProjectRepo(projectDirectory, projectName))
+        .catch(error => console.warn('Git initialization failed:', error))
     }
 
     return {
@@ -317,6 +414,7 @@ export async function load(
         projectFileHandle,
         name: projectName,
         projectData,
+        outputCache,
       },
     }
   } catch (error) {
@@ -327,12 +425,34 @@ export async function load(
   }
 }
 
+// Read the saved outputs of an in-memory project's locked nodes
+export function readMemoryOutputCache(
+  projectId: string,
+  nodes: NoodlesProjectJSON['nodes']
+): Promise<OutputCache> {
+  return readOutputCache(
+    async fileName => memoryProjectStore.getCacheFile(projectId, fileName),
+    nodes
+  )
+}
+
 // Read an asset file from a project's data directory or from public folder
 export async function readAsset(
   type: StorageType,
   projectName: string,
   fileName: string
 ): Promise<FileSystemResult<string>> {
+  if (type === 'memory') {
+    const data = await memoryProjectStore.readAsset(projectName, fileName)
+    if (data === null) {
+      return {
+        success: false,
+        error: { type: 'not-found', message: `Asset not found in memory: ${fileName}` },
+      }
+    }
+    return { success: true, data }
+  }
+
   // For public folder projects, fetch from asset URLs
   if (type === 'publicFolder') {
     try {
@@ -418,6 +538,17 @@ export async function readAssetBinary(
   projectName: string,
   fileName: string
 ): Promise<FileSystemResult<ArrayBuffer>> {
+  if (type === 'memory') {
+    const data = await memoryProjectStore.readAssetBinary(projectName, fileName)
+    if (data === null) {
+      return {
+        success: false,
+        error: { type: 'not-found', message: `Asset not found in memory: ${fileName}` },
+      }
+    }
+    return { success: true, data }
+  }
+
   // For public folder projects, fetch from asset URLs
   if (type === 'publicFolder') {
     try {
@@ -503,6 +634,10 @@ export async function checkAssetExists(
   projectName: string,
   fileName: string
 ): Promise<boolean> {
+  if (type === 'memory') {
+    return memoryProjectStore.checkAssetExists(projectName, fileName)
+  }
+
   // For public folder projects, check if asset exists in URL map
   if (type === 'publicFolder') {
     const assetKey = `../examples/${projectName}/${fileName}`
@@ -527,6 +662,25 @@ export async function checkAssetExists(
   }
 }
 
+// Returns the FileSystemFileHandle for an existing asset, or null if unavailable
+export async function getAssetFileHandle(
+  type: StorageType,
+  projectName: string,
+  fileName: string
+): Promise<FileSystemFileHandle | null> {
+  if (type !== 'fileSystemAccess') return null
+  const projectDirectory = await getProjectDirectoryHandle(type, projectName, false)
+  if (!projectDirectory.success) return null
+  try {
+    const hasDataDir = await directoryExists(projectDirectory.data, DATA_DIRECTORY_NAME)
+    if (!hasDataDir) return null
+    const dataDirectory = await projectDirectory.data.getDirectoryHandle(DATA_DIRECTORY_NAME)
+    return await dataDirectory.getFileHandle(fileName)
+  } catch {
+    return null
+  }
+}
+
 // Write an asset file to a project's data directory
 export async function writeAsset(
   type: StorageType,
@@ -534,6 +688,11 @@ export async function writeAsset(
   fileName: string,
   contents: string | Blob
 ): Promise<FileSystemResult<void>> {
+  if (type === 'memory') {
+    memoryProjectStore.writeAsset(projectName, fileName, contents)
+    return { success: true, data: undefined }
+  }
+
   // Public folder projects are read-only
   if (type === 'publicFolder') {
     return {
@@ -575,6 +734,10 @@ export async function writeAsset(
 
 // Check if a project has a data directory with files
 export async function hasDataDirectory(type: StorageType, projectName: string): Promise<boolean> {
+  if (type === 'memory') {
+    return memoryProjectStore.hasDataDirectory(projectName)
+  }
+
   // For public folder projects, check if any data files exist in URL map
   if (type === 'publicFolder') {
     const prefix = `../examples/${projectName}/data/`
@@ -608,6 +771,10 @@ export async function listDataFiles(
   type: StorageType,
   projectName: string
 ): Promise<FileSystemResult<string[]>> {
+  if (type === 'memory') {
+    return { success: true, data: memoryProjectStore.listDataFiles(projectName) }
+  }
+
   // For public folder projects, list from URL map
   if (type === 'publicFolder') {
     const prefix = `../examples/${projectName}/data/`
@@ -758,6 +925,71 @@ export async function copyPublicFolderData(
     return {
       success: false,
       error: handleError(error, 'copy public folder data'),
+    }
+  }
+}
+
+// Copy in-memory assets to a target directory on disk
+export async function copyMemoryDataToDirectory(
+  projectId: string,
+  targetDirectory: FileSystemDirectoryHandle
+): Promise<FileSystemResult<void>> {
+  try {
+    const assets = memoryProjectStore.getAllAssets(projectId)
+    if (assets.size === 0) {
+      return { success: true, data: undefined }
+    }
+
+    const targetDataDir = await targetDirectory.getDirectoryHandle(DATA_DIRECTORY_NAME, {
+      create: true,
+    })
+
+    for (const [fileName, blob] of assets) {
+      const pathParts = fileName.split('/')
+      const baseName = pathParts.pop()!
+
+      let currentDir = targetDataDir
+      for (const part of pathParts) {
+        currentDir = await currentDir.getDirectoryHandle(part, { create: true })
+      }
+
+      const contents = await blob.arrayBuffer()
+      await writeFileToDirectory(currentDir, baseName, contents)
+    }
+
+    return { success: true, data: undefined }
+  } catch (error) {
+    return {
+      success: false,
+      error: handleError(error, 'copy memory data to directory'),
+    }
+  }
+}
+
+// Copy bundled example assets into an in-memory project so examples become editable
+export async function copyExampleAssetsToMemory(
+  exampleName: string,
+  memoryProjectId: string
+): Promise<void> {
+  const prefix = `../examples/${exampleName}/`
+  for (const [key, url] of Object.entries(exampleAssetUrls)) {
+    if (key.startsWith(prefix) && !key.endsWith('noodles.json') && !key.endsWith('README.md')) {
+      try {
+        const response = await fetch(url)
+        if (response.ok) {
+          const blob = await response.blob()
+          const relativePath = key.substring(prefix.length)
+          const cachePrefix = `${CACHE_DIRECTORY_NAME}/`
+          if (relativePath.startsWith(cachePrefix)) {
+            const fileName = relativePath.substring(cachePrefix.length)
+            memoryProjectStore.setCacheFile(memoryProjectId, fileName, await blob.text())
+          } else {
+            memoryProjectStore.writeAsset(memoryProjectId, relativePath, blob)
+          }
+        }
+      } catch {
+        debugSerialize(`Failed to copy example asset: ${key}`)
+      }
     }
   }
 }

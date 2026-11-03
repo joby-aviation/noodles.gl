@@ -1,4 +1,5 @@
-import { getKeysStore } from '../noodles/keys-store'
+import { describeKey, getKeysStore } from '../noodles/keys-store'
+import { analytics } from './analytics'
 import { debugGeocode } from './debug'
 
 export interface GeocodingResult {
@@ -48,10 +49,29 @@ interface PhotonGeocodingResponse {
 let googleMapsLoaded = false
 let googleMapsPromise: Promise<void> | null = null
 let loadingApiKey: string | null = null
+let loadedApiKey: string | null = null
+
+// How the Maps JavaScript API script is fetched, replaceable in tests
+export const googleMapsScript = {
+  load: (url: string): Promise<unknown> => import(/* @vite-ignore */ url),
+}
+
+// The key the Maps JavaScript API was loaded with. It can't switch keys afterwards.
+export function getLoadedGoogleMapsKey(): string | null {
+  return loadedApiKey
+}
 
 // Load Google Maps JavaScript API
 export async function loadGoogleMapsAPI(apiKey: string): Promise<void> {
-  if (googleMapsLoaded) return
+  if (googleMapsLoaded) {
+    // Carrying on would bill and restrict requests under the old key, not the active one
+    if (apiKey !== loadedApiKey) {
+      throw new Error(
+        'Google Maps is still using the previous API key. Reload the page to use the new one.'
+      )
+    }
+    return
+  }
 
   // If currently loading, check if it's the same key
   if (googleMapsPromise) {
@@ -64,11 +84,16 @@ export async function loadGoogleMapsAPI(apiKey: string): Promise<void> {
   }
 
   loadingApiKey = apiKey
+  // Google calls this when it rejects the key, e.g. for a site the key isn't restricted to
+  Object.assign(window, {
+    gm_authFailure: () => getKeysStore().reportKeyRejected('googleMaps', apiKey),
+  })
   googleMapsPromise = new Promise<void>((resolve, reject) => {
     const callbackName = `googleMapsCallback_${Date.now()}`
 
     window[callbackName] = () => {
       googleMapsLoaded = true
+      loadedApiKey = apiKey
       loadingApiKey = null
       resolve()
       delete window[callbackName]
@@ -82,12 +107,17 @@ export async function loadGoogleMapsAPI(apiKey: string): Promise<void> {
       callback: callbackName,
     })
 
-    import(/* @vite-ignore */ `https://maps.googleapis.com/maps/api/js?${params.toString()}`).catch(
-      error => {
+    googleMapsScript
+      .load(`https://maps.googleapis.com/maps/api/js?${params.toString()}`)
+      .catch(error => {
+        // Forget the failed load, so the next request tries again
+        googleMapsPromise = null
         loadingApiKey = null
-        reject(error)
-      }
-    )
+        delete window[callbackName]
+        debugGeocode('Google Maps failed to load:', error)
+        // The browser's message has the script URL in it, and so the key
+        reject(new Error("Couldn't load Google Maps. Check your connection and try again."))
+      })
   })
 
   return googleMapsPromise
@@ -156,31 +186,56 @@ export async function geocodeWithGooglePlaces(query: string): Promise<GeocodingR
     return results
   } catch (error) {
     debugGeocode('Google Places API error:', error)
-    throw error
+    analytics.track('geocoding_failed', {
+      service: 'google',
+      statusCode: undefined,
+      reason:
+        error instanceof Error && error.message.includes('API key')
+          ? 'api_key_missing'
+          : 'network_error',
+    })
+    const message = error instanceof Error ? error.message : String(error)
+    throw new Error(`Google Places failed using ${describeKey('googleMaps', apiKey)}: ${message}`, {
+      cause: error,
+    })
   }
 }
 
 // Geocode using Mapbox Geocoding API
 export async function geocodeWithMapbox(query: string, apiKey: string): Promise<GeocodingResult[]> {
-  try {
-    const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json?access_token=${apiKey}&limit=5`
-    const response = await fetch(url)
-    const data: MapboxGeocodingResponse = await response.json()
-
-    if (data.features) {
-      return data.features.map(feature => ({
-        place_name: feature.place_name,
-        coordinates: {
-          longitude: feature.center[0],
-          latitude: feature.center[1],
-        },
-      }))
+  const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json?access_token=${apiKey}&limit=5`
+  const response = await fetch(url)
+  if (!response.ok) {
+    const reason =
+      response.status === 429
+        ? 'rate_limit'
+        : response.status === 404
+          ? 'not_found'
+          : 'network_error'
+    analytics.track('geocoding_failed', {
+      service: 'mapbox',
+      statusCode: response.status,
+      reason,
+    })
+    // Mapbox explains rejections in the body, e.g. "Query too long - 21/20 tokens"
+    const body: { message?: string } | undefined = await response.json?.().catch(() => undefined)
+    const detail = `${response.status} ${body?.message || response.statusText}`
+    if (response.status === 401 || response.status === 403) {
+      throw new Error(`Mapbox rejected ${describeKey('mapbox', apiKey)} (${detail})`)
     }
-    return []
-  } catch (error) {
-    debugGeocode('Mapbox geocoding error:', error)
-    return []
+    throw new Error(`Mapbox geocoding failed: ${detail}`)
   }
+
+  const data: MapboxGeocodingResponse = await response.json()
+  const results = (data.features ?? []).map(feature => ({
+    place_name: feature.place_name,
+    coordinates: {
+      longitude: feature.center[0],
+      latitude: feature.center[1],
+    },
+  }))
+
+  return results
 }
 
 // Geocode using Photon API (free, OSM-based)

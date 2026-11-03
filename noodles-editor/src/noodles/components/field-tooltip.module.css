@@ -1,0 +1,26 @@
+.content {
+  max-width: 260px;
+  padding: 6px 8px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  background: rgba(28, 28, 28, 0.97);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+  color: var(--color-text-primary);
+  font-size: 12px;
+  line-height: 1.4;
+  z-index: var(--z-index-modal);
+}
+
+.description {
+  margin-bottom: 4px;
+}
+
+.key {
+  color: var(--color-text-secondary);
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 11px;
+}
+
+.arrow {
+  fill: rgba(28, 28, 28, 0.97);
+}

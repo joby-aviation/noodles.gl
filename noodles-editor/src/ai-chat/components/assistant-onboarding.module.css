@@ -1,0 +1,203 @@
+.container {
+  display: flex;
+  flex-direction: column;
+  padding: 24px 20px 16px;
+  height: 100%;
+  overflow-y: auto;
+}
+
+.header {
+  text-align: center;
+  margin-bottom: 20px;
+}
+
+.title {
+  margin: 0 0 6px 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: #e0e0e0;
+}
+
+.subtitle {
+  margin: 0;
+  font-size: 13px;
+  color: #aaa;
+  line-height: 1.5;
+}
+
+.promptText {
+  width: 100%;
+  box-sizing: border-box;
+  margin-top: 6px;
+  background: #1a1a1a;
+  color: #c8c8c8;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 6px;
+  padding: 6px 8px;
+  font-family: monospace;
+  font-size: 11px;
+  resize: vertical;
+}
+
+.cardsContainer {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.card {
+  background: #252525;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  transition:
+    border-color 0.2s,
+    box-shadow 0.2s;
+}
+
+.card:hover {
+  border-color: rgba(255, 255, 255, 0.18);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+}
+
+.cardTitle {
+  margin: 0 0 6px 0;
+  font-size: 15px;
+  font-weight: 600;
+  color: #e0e0e0;
+}
+
+.cardDescription {
+  margin: 0 0 14px 0;
+  font-size: 13px;
+  color: #aaa;
+  line-height: 1.5;
+}
+
+.primaryButton {
+  width: 100%;
+  background: #4a9eff;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  padding: 10px 20px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.primaryButton:hover:not(:disabled) {
+  background: #3a8eef;
+}
+
+.primaryButton:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.modelButtons {
+  display: flex;
+  gap: 8px;
+}
+
+.secondaryButton {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  background: transparent;
+  color: #e0e0e0;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.modelTier {
+  font-weight: 600;
+}
+
+.modelMeta {
+  font-size: 11px;
+  font-weight: 400;
+  color: #999;
+}
+
+.secondaryButton:hover {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.3);
+}
+
+.errorText {
+  margin: 12px 0 0 0;
+  font-size: 12px;
+  color: #f87171;
+  line-height: 1.5;
+}
+
+.errorText a {
+  color: #fca5a5;
+  text-decoration: underline;
+}
+
+.footer {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  text-align: center;
+  padding: 14px 0 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  margin-top: auto;
+}
+
+.footerText {
+  margin: 0;
+  font-size: 12px;
+  color: #888;
+  line-height: 1.5;
+}
+
+.linkButton {
+  background: none;
+  border: none;
+  color: #4a9eff;
+  text-decoration: none;
+  cursor: pointer;
+  padding: 0;
+  font: inherit;
+  transition: color 0.2s;
+}
+
+.linkButton:hover {
+  color: #3a8eef;
+  text-decoration: underline;
+}
+
+.closeContainer {
+  text-align: center;
+  padding-top: 8px;
+}
+
+.closeButton {
+  background: transparent;
+  border: none;
+  color: #aaa;
+  cursor: pointer;
+  font-size: 13px;
+  padding: 8px 16px;
+  border-radius: 6px;
+  transition: all 0.2s;
+}
+
+.closeButton:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: #e0e0e0;
+}

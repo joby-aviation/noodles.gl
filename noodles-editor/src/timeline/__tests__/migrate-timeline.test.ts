@@ -1,103 +1,103 @@
-// Tests for Theatre.js timeline migration
+// Tests for timeline data migration
 
 import { describe, expect, it } from 'vitest'
 import {
-  bezierHandlesToTheatreHandles,
-  exportToTheatreFormat,
-  fieldPathToTheatreObjectName,
-  keyframeToTheatreKeyframe,
-  migrateTheatreTimeline,
-  theatreHandlesToBezierHandles,
-  theatreKeyframeToKeyframe,
-  theatreObjectNameToFieldPath,
-  theatreTrackDataToTrack,
-  theatreValueToKeyframeValue,
-  validateTheatreData,
+  bezierHandlesToSerializedHandles,
+  exportToTimelineFormat,
+  fieldPathToObjectName,
+  keyframeToSerializedKeyframe,
+  migrateTimelineData,
+  objectNameToFieldPath,
+  rawValueToKeyframeValue,
+  serializedHandlesToBezierHandles,
+  serializedKeyframeToKeyframe,
+  trackDataToTrack,
+  validateTimelineData,
 } from '../migrate-timeline'
-import type { TheatreKeyframe, TheatreTimelineData, TheatreTrackData } from '../types'
+import type { TimelineData, TimelineKeyframe, TimelineTrackData } from '../types'
 
 describe('Object Name Conversion', () => {
-  describe('theatreObjectNameToFieldPath', () => {
+  describe('objectNameToFieldPath', () => {
     it('converts simple object name', () => {
-      expect(theatreObjectNameToFieldPath('my-operator')).toBe('/my-operator')
+      expect(objectNameToFieldPath('my-operator')).toBe('/my-operator')
     })
 
     it('converts object name with single property', () => {
-      expect(theatreObjectNameToFieldPath('my-operator / value')).toBe('/my-operator.par.value')
+      expect(objectNameToFieldPath('my-operator / value')).toBe('/my-operator.par.value')
     })
 
     it('converts object name with nested properties', () => {
-      expect(theatreObjectNameToFieldPath('maplibre-basemap / viewState / zoom')).toBe(
+      expect(objectNameToFieldPath('maplibre-basemap / viewState / zoom')).toBe(
         '/maplibre-basemap.par.viewState.zoom'
       )
     })
 
     it('handles deeply nested paths', () => {
-      expect(theatreObjectNameToFieldPath('op / a / b / c / d')).toBe('/op.par.a.b.c.d')
+      expect(objectNameToFieldPath('op / a / b / c / d')).toBe('/op.par.a.b.c.d')
     })
   })
 
-  describe('fieldPathToTheatreObjectName', () => {
+  describe('fieldPathToObjectName', () => {
     it('converts simple field path', () => {
-      expect(fieldPathToTheatreObjectName('/my-operator')).toBe('my-operator')
+      expect(fieldPathToObjectName('/my-operator')).toBe('my-operator')
     })
 
     it('converts field path with property', () => {
-      expect(fieldPathToTheatreObjectName('/my-operator.par.value')).toBe('my-operator / value')
+      expect(fieldPathToObjectName('/my-operator.par.value')).toBe('my-operator / value')
     })
 
     it('converts field path with nested properties', () => {
-      expect(fieldPathToTheatreObjectName('/maplibre-basemap.par.viewState.zoom')).toBe(
+      expect(fieldPathToObjectName('/maplibre-basemap.par.viewState.zoom')).toBe(
         'maplibre-basemap / viewState / zoom'
       )
     })
 
     it('handles path without leading slash', () => {
-      expect(fieldPathToTheatreObjectName('op.par.value')).toBe('op / value')
+      expect(fieldPathToObjectName('op.par.value')).toBe('op / value')
     })
   })
 
   describe('round-trip conversion', () => {
     it('preserves data through round-trip', () => {
       const original = 'maplibre-basemap / viewState / zoom'
-      const fieldPath = theatreObjectNameToFieldPath(original)
-      const converted = fieldPathToTheatreObjectName(fieldPath)
+      const fieldPath = objectNameToFieldPath(original)
+      const converted = fieldPathToObjectName(fieldPath)
       expect(converted).toBe(original)
     })
   })
 })
 
 describe('Handle Conversion', () => {
-  describe('theatreHandlesToBezierHandles', () => {
+  describe('serializedHandlesToBezierHandles', () => {
     it('converts linear handles', () => {
-      const handles = theatreHandlesToBezierHandles([0, 0, 1, 1])
+      const handles = serializedHandlesToBezierHandles([0, 0, 1, 1])
       expect(handles.left).toEqual([0, 0])
       expect(handles.right).toEqual([1, 1])
       expect(handles.type).toBe('aligned')
     })
 
     it('converts ease-in handles', () => {
-      const handles = theatreHandlesToBezierHandles([0.42, 0, 1, 1])
+      const handles = serializedHandlesToBezierHandles([0.42, 0, 1, 1])
       expect(handles.left).toEqual([0.42, 0])
       expect(handles.right).toEqual([1, 1])
     })
 
     it('converts ease-out handles', () => {
-      const handles = theatreHandlesToBezierHandles([0, 0, 0.58, 1])
+      const handles = serializedHandlesToBezierHandles([0, 0, 0.58, 1])
       expect(handles.left).toEqual([0, 0])
       expect(handles.right).toEqual([0.58, 1])
     })
 
     it('handles overshoot values', () => {
-      const handles = theatreHandlesToBezierHandles([0.36, 0, 0.66, -0.56])
+      const handles = serializedHandlesToBezierHandles([0.36, 0, 0.66, -0.56])
       expect(handles.left).toEqual([0.36, 0])
       expect(handles.right).toEqual([0.66, -0.56])
     })
   })
 
-  describe('bezierHandlesToTheatreHandles', () => {
+  describe('bezierHandlesToSerializedHandles', () => {
     it('converts to array format', () => {
-      const handles = bezierHandlesToTheatreHandles({
+      const handles = bezierHandlesToSerializedHandles({
         left: [0.25, 0.1],
         right: [0.25, 1],
         type: 'aligned',
@@ -109,55 +109,55 @@ describe('Handle Conversion', () => {
   describe('handle round-trip', () => {
     it('preserves handle values', () => {
       const original: [number, number, number, number] = [0.42, 0, 0.58, 1]
-      const bezier = theatreHandlesToBezierHandles(original)
-      const converted = bezierHandlesToTheatreHandles(bezier)
+      const bezier = serializedHandlesToBezierHandles(original)
+      const converted = bezierHandlesToSerializedHandles(bezier)
       expect(converted).toEqual(original)
     })
   })
 })
 
 describe('Value Conversion', () => {
-  describe('theatreValueToKeyframeValue', () => {
+  describe('rawValueToKeyframeValue', () => {
     it('converts number', () => {
-      expect(theatreValueToKeyframeValue(42)).toBe(42)
+      expect(rawValueToKeyframeValue(42)).toBe(42)
     })
 
     it('converts boolean', () => {
-      expect(theatreValueToKeyframeValue(true)).toBe(true)
-      expect(theatreValueToKeyframeValue(false)).toBe(false)
+      expect(rawValueToKeyframeValue(true)).toBe(true)
+      expect(rawValueToKeyframeValue(false)).toBe(false)
     })
 
     it('converts string', () => {
-      expect(theatreValueToKeyframeValue('hello')).toBe('hello')
+      expect(rawValueToKeyframeValue('hello')).toBe('hello')
     })
 
     it('converts RGBA color', () => {
-      const value = theatreValueToKeyframeValue({ r: 1, g: 0.5, b: 0, a: 0.8 })
+      const value = rawValueToKeyframeValue({ r: 1, g: 0.5, b: 0, a: 0.8 })
       expect(value).toEqual({ r: 1, g: 0.5, b: 0, a: 0.8 })
     })
 
     it('converts RGB color with default alpha', () => {
-      const value = theatreValueToKeyframeValue({ r: 1, g: 0, b: 0 })
+      const value = rawValueToKeyframeValue({ r: 1, g: 0, b: 0 })
       expect(value).toEqual({ r: 1, g: 0, b: 0, a: 1 })
     })
 
     it('converts Vec2', () => {
-      expect(theatreValueToKeyframeValue({ x: 10, y: 20 })).toEqual({ x: 10, y: 20 })
+      expect(rawValueToKeyframeValue({ x: 10, y: 20 })).toEqual({ x: 10, y: 20 })
     })
 
     it('converts Vec3', () => {
-      expect(theatreValueToKeyframeValue({ x: 10, y: 20, z: 30 })).toEqual({ x: 10, y: 20, z: 30 })
+      expect(rawValueToKeyframeValue({ x: 10, y: 20, z: 30 })).toEqual({ x: 10, y: 20, z: 30 })
     })
 
     it('converts Point2D', () => {
-      expect(theatreValueToKeyframeValue({ lng: -122.4, lat: 37.8 })).toEqual({
+      expect(rawValueToKeyframeValue({ lng: -122.4, lat: 37.8 })).toEqual({
         lng: -122.4,
         lat: 37.8,
       })
     })
 
     it('converts Point3D', () => {
-      expect(theatreValueToKeyframeValue({ lng: -122.4, lat: 37.8, alt: 1000 })).toEqual({
+      expect(rawValueToKeyframeValue({ lng: -122.4, lat: 37.8, alt: 1000 })).toEqual({
         lng: -122.4,
         lat: 37.8,
         alt: 1000,
@@ -165,7 +165,7 @@ describe('Value Conversion', () => {
     })
 
     it('converts compound object', () => {
-      const value = theatreValueToKeyframeValue({
+      const value = rawValueToKeyframeValue({
         zoom: 12,
         center: { lng: -122, lat: 37 },
       })
@@ -176,19 +176,19 @@ describe('Value Conversion', () => {
     })
 
     it('handles null', () => {
-      expect(theatreValueToKeyframeValue(null)).toBe(0)
+      expect(rawValueToKeyframeValue(null)).toBe(0)
     })
 
     it('handles undefined', () => {
-      expect(theatreValueToKeyframeValue(undefined)).toBe(0)
+      expect(rawValueToKeyframeValue(undefined)).toBe(0)
     })
   })
 })
 
 describe('Keyframe Conversion', () => {
-  describe('theatreKeyframeToKeyframe', () => {
+  describe('serializedKeyframeToKeyframe', () => {
     it('converts bezier keyframe', () => {
-      const theatreKf: TheatreKeyframe = {
+      const serializedKf: TimelineKeyframe = {
         id: 'kf1',
         position: 1.5,
         connectedRight: true,
@@ -196,7 +196,7 @@ describe('Keyframe Conversion', () => {
         value: 100,
       }
 
-      const kf = theatreKeyframeToKeyframe(theatreKf)
+      const kf = serializedKeyframeToKeyframe(serializedKf)
 
       expect(kf.id).toBe('kf1')
       expect(kf.position).toBe(1.5)
@@ -208,7 +208,7 @@ describe('Keyframe Conversion', () => {
     })
 
     it('detects linear interpolation', () => {
-      const theatreKf: TheatreKeyframe = {
+      const serializedKf: TimelineKeyframe = {
         id: 'kf2',
         position: 0,
         connectedRight: true,
@@ -216,13 +216,13 @@ describe('Keyframe Conversion', () => {
         value: 0,
       }
 
-      const kf = theatreKeyframeToKeyframe(theatreKf)
+      const kf = serializedKeyframeToKeyframe(serializedKf)
       expect(kf.interpolation).toBe('linear')
       expect(kf.handles).toBeUndefined()
     })
 
     it('detects hold interpolation', () => {
-      const theatreKf: TheatreKeyframe = {
+      const serializedKf: TimelineKeyframe = {
         id: 'kf3',
         position: 2,
         connectedRight: false,
@@ -230,12 +230,12 @@ describe('Keyframe Conversion', () => {
         value: 50,
       }
 
-      const kf = theatreKeyframeToKeyframe(theatreKf)
+      const kf = serializedKeyframeToKeyframe(serializedKf)
       expect(kf.interpolation).toBe('hold')
     })
   })
 
-  describe('keyframeToTheatreKeyframe', () => {
+  describe('keyframeToSerializedKeyframe', () => {
     it('converts native keyframe', () => {
       const kf = {
         id: 'kf1',
@@ -249,13 +249,13 @@ describe('Keyframe Conversion', () => {
         },
       }
 
-      const theatreKf = keyframeToTheatreKeyframe(kf)
+      const serializedKf = keyframeToSerializedKeyframe(kf)
 
-      expect(theatreKf.id).toBe('kf1')
-      expect(theatreKf.position).toBe(1)
-      expect(theatreKf.value).toBe(42)
-      expect(theatreKf.connectedRight).toBe(true)
-      expect(theatreKf.handles).toEqual([0.25, 0.1, 0.25, 1])
+      expect(serializedKf.id).toBe('kf1')
+      expect(serializedKf.position).toBe(1)
+      expect(serializedKf.value).toBe(42)
+      expect(serializedKf.connectedRight).toBe(true)
+      expect(serializedKf.handles).toEqual([0.25, 0.1, 0.25, 1])
     })
 
     it('sets connectedRight false for hold', () => {
@@ -266,15 +266,15 @@ describe('Keyframe Conversion', () => {
         interpolation: 'hold' as const,
       }
 
-      const theatreKf = keyframeToTheatreKeyframe(kf)
-      expect(theatreKf.connectedRight).toBe(false)
+      const serializedKf = keyframeToSerializedKeyframe(kf)
+      expect(serializedKf.connectedRight).toBe(false)
     })
   })
 })
 
 describe('Track Conversion', () => {
   it('converts track data', () => {
-    const trackData: TheatreTrackData = {
+    const trackData: TimelineTrackData = {
       type: 'number',
       keyframes: [
         { id: 'kf1', position: 0, connectedRight: true, handles: [0, 0, 1, 1], value: 0 },
@@ -282,7 +282,7 @@ describe('Track Conversion', () => {
       ],
     }
 
-    const track = theatreTrackDataToTrack('my-op', 'value', trackData)
+    const track = trackDataToTrack('my-op', 'value', trackData)
 
     expect(track.id).toBe('/my-op.par.value')
     expect(track.fieldPath).toBe('/my-op.par.value')
@@ -293,7 +293,7 @@ describe('Track Conversion', () => {
   })
 
   it('sorts keyframes by position', () => {
-    const trackData: TheatreTrackData = {
+    const trackData: TimelineTrackData = {
       type: 'number',
       keyframes: [
         { id: 'kf2', position: 2, connectedRight: true, handles: [0, 0, 1, 1], value: 200 },
@@ -302,7 +302,7 @@ describe('Track Conversion', () => {
       ],
     }
 
-    const track = theatreTrackDataToTrack('op', 'val', trackData)
+    const track = trackDataToTrack('op', 'val', trackData)
 
     expect(track.keyframes[0].position).toBe(0)
     expect(track.keyframes[1].position).toBe(1)
@@ -311,8 +311,8 @@ describe('Track Conversion', () => {
 })
 
 describe('Full Timeline Migration', () => {
-  it('migrates complete Theatre.js timeline', () => {
-    const theatreData: TheatreTimelineData = {
+  it('migrates complete timeline timeline', () => {
+    const timelineData: TimelineData = {
       sheetsById: {
         Noodles: {
           sequence: {
@@ -351,7 +351,7 @@ describe('Full Timeline Migration', () => {
       },
     }
 
-    const result = migrateTheatreTimeline(theatreData)
+    const result = migrateTimelineData(timelineData)
 
     expect(result.sequence.length).toBe(10)
     expect(result.sequence.fps).toBe(30)
@@ -361,7 +361,7 @@ describe('Full Timeline Migration', () => {
   })
 
   it('handles empty timeline', () => {
-    const theatreData: TheatreTimelineData = {
+    const timelineData: TimelineData = {
       sheetsById: {
         Noodles: {
           sequence: {
@@ -373,7 +373,7 @@ describe('Full Timeline Migration', () => {
       },
     }
 
-    const result = migrateTheatreTimeline(theatreData)
+    const result = migrateTimelineData(timelineData)
 
     expect(result.sequence.length).toBe(5)
     expect(result.sequence.fps).toBe(24)
@@ -381,11 +381,11 @@ describe('Full Timeline Migration', () => {
   })
 
   it('handles missing Noodles sheet', () => {
-    const theatreData = {
+    const timelineData = {
       sheetsById: {},
-    } as TheatreTimelineData
+    } as TimelineData
 
-    const result = migrateTheatreTimeline(theatreData)
+    const result = migrateTimelineData(timelineData)
 
     expect(result.sequence.length).toBe(10) // Default
     expect(result.sequence.fps).toBe(30) // Default
@@ -393,7 +393,7 @@ describe('Full Timeline Migration', () => {
   })
 
   it('handles multiple tracks and objects', () => {
-    const theatreData: TheatreTimelineData = {
+    const timelineData: TimelineData = {
       sheetsById: {
         Noodles: {
           sequence: {
@@ -440,7 +440,7 @@ describe('Full Timeline Migration', () => {
       },
     }
 
-    const result = migrateTheatreTimeline(theatreData)
+    const result = migrateTimelineData(timelineData)
 
     expect(Object.keys(result.tracks)).toHaveLength(2)
     expect(result.tracks['/op1.par.value']).toBeDefined()
@@ -448,8 +448,8 @@ describe('Full Timeline Migration', () => {
   })
 })
 
-describe('Export to Theatre Format', () => {
-  it('exports native format to Theatre.js format', () => {
+describe('Export to Timeline Format', () => {
+  it('exports native format to timeline format', () => {
     const nativeData = {
       sequence: { length: 10, fps: 30 },
       tracks: {
@@ -475,19 +475,19 @@ describe('Export to Theatre Format', () => {
       },
     }
 
-    const theatreData = exportToTheatreFormat(nativeData)
+    const timelineData = exportToTimelineFormat(nativeData)
 
-    expect(theatreData.sheetsById.Noodles.sequence.length).toBe(10)
-    expect(theatreData.sheetsById.Noodles.sequence.subUnitsPerUnit).toBe(30)
+    expect(timelineData.sheetsById.Noodles.sequence.length).toBe(10)
+    expect(timelineData.sheetsById.Noodles.sequence.subUnitsPerUnit).toBe(30)
 
-    const tracksByObject = theatreData.sheetsById.Noodles.sequence.tracksByObject
+    const tracksByObject = timelineData.sheetsById.Noodles.sequence.tracksByObject
     expect(tracksByObject['my-op']).toBeDefined()
   })
 })
 
 describe('Validation', () => {
-  it('validates valid Theatre.js data', () => {
-    const theatreData: TheatreTimelineData = {
+  it('validates valid timeline data', () => {
+    const timelineData: TimelineData = {
       sheetsById: {
         Noodles: {
           sequence: {
@@ -499,25 +499,25 @@ describe('Validation', () => {
       },
     }
 
-    const result = validateTheatreData(theatreData)
+    const result = validateTimelineData(timelineData)
     expect(result.valid).toBe(true)
     expect(result.errors).toHaveLength(0)
   })
 
   it('reports error for non-object data', () => {
-    const result = validateTheatreData(null)
+    const result = validateTimelineData(null)
     expect(result.valid).toBe(false)
     expect(result.errors).toContain('Timeline data must be an object')
   })
 
   it('reports warning for missing sheetsById', () => {
-    const result = validateTheatreData({})
+    const result = validateTimelineData({})
     expect(result.valid).toBe(true)
     expect(result.warnings).toContain('No sheetsById found, using empty timeline')
   })
 
   it('reports warning for invalid sequence length', () => {
-    const theatreData = {
+    const timelineData = {
       sheetsById: {
         Noodles: {
           sequence: {
@@ -529,13 +529,13 @@ describe('Validation', () => {
       },
     }
 
-    const result = validateTheatreData(theatreData)
+    const result = validateTimelineData(timelineData)
     expect(result.valid).toBe(true)
     expect(result.warnings.some(w => w.includes('Invalid sequence length'))).toBe(true)
   })
 
   it('reports error for keyframe with invalid position', () => {
-    const theatreData = {
+    const timelineData = {
       sheetsById: {
         Noodles: {
           sequence: {
@@ -565,7 +565,7 @@ describe('Validation', () => {
       },
     }
 
-    const result = validateTheatreData(theatreData)
+    const result = validateTimelineData(timelineData)
     expect(result.valid).toBe(false)
     expect(result.errors.some(e => e.includes('invalid position'))).toBe(true)
   })

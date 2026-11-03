@@ -1,11 +1,14 @@
 import * as Dialog from '@radix-ui/react-dialog'
 import { Cross2Icon } from '@radix-ui/react-icons'
+import { useEffect } from 'react'
+import { analytics } from '../../utils/analytics'
 import { useFileSystemError, useFileSystemStore } from '../filesystem-store'
 import type { FileSystemError } from '../storage'
 import s from './menu.module.css'
 
 const errorTitles: Record<FileSystemError['type'], string> = {
   'permission-denied': 'Permission Denied',
+  'permission-prompt': 'Permission Needed',
   'not-found': 'Project Not Found',
   unsupported: 'Storage Not Supported',
   'invalid-state': 'Invalid State',
@@ -15,9 +18,30 @@ const errorTitles: Record<FileSystemError['type'], string> = {
   unknown: 'Unknown Error',
 }
 
+const errorTypeMap: Record<FileSystemError['type'], string> = {
+  'permission-denied': 'permission_denied',
+  'permission-prompt': 'permission_prompt',
+  'not-found': 'not_found',
+  unsupported: 'not_supported',
+  'invalid-state': 'invalid_state',
+  'security-error': 'security_error',
+  'abort-error': 'abort_error',
+  'already-exists': 'file_exists',
+  unknown: 'unknown',
+}
+
 export function StorageErrorHandler() {
   const error = useFileSystemError()
   const { clearError } = useFileSystemStore()
+
+  useEffect(() => {
+    if (error) {
+      // Don't send error.details or error.message - they may contain project names or file paths
+      analytics.track('storage_error_encountered', {
+        errorType: errorTypeMap[error.type],
+      })
+    }
+  }, [error])
 
   if (!error) {
     return null
