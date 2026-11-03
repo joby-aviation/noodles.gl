@@ -5,6 +5,17 @@ import { deepEqual } from './deep-equal'
 import type { OpId } from './id-utils'
 
 const TABLE_HISTORY_VERSION = 1
+const TABLE_HISTORY_VALUE_TYPE = '$noodlesTableHistoryValue'
+
+type TaggedTableHistoryValue =
+  | {
+      [TABLE_HISTORY_VALUE_TYPE]: 'date'
+      value: string
+    }
+  | {
+      [TABLE_HISTORY_VALUE_TYPE]: 'escaped-object'
+      entries: [string, unknown][]
+    }
 
 interface TableDataPatch {
   start: number
@@ -58,7 +69,41 @@ function changedDataSlice(before: unknown[], after: unknown[]) {
 }
 
 function serializeSnapshot(operations: TableHistoryOperation[]): string {
-  return JSON.stringify({ $tableHistory: TABLE_HISTORY_VERSION, operations })
+  return JSON.stringify(
+    { $tableHistory: TABLE_HISTORY_VERSION, operations },
+    function (key, value: unknown) {
+      const original = key === '' ? value : (this as Record<string, unknown>)[key]
+      if (original instanceof Date) {
+        return {
+          [TABLE_HISTORY_VALUE_TYPE]: 'date',
+          value: original.toISOString(),
+        } satisfies TaggedTableHistoryValue
+      }
+      if (
+        original !== null &&
+        typeof original === 'object' &&
+        Object.hasOwn(original, TABLE_HISTORY_VALUE_TYPE)
+      ) {
+        return {
+          [TABLE_HISTORY_VALUE_TYPE]: 'escaped-object',
+          entries: Object.entries(original),
+        } satisfies TaggedTableHistoryValue
+      }
+      return value
+    }
+  )
+}
+
+function reviveSnapshotValue(_key: string, value: unknown): unknown {
+  if (value === null || typeof value !== 'object') return value
+  const tagged = value as Partial<TaggedTableHistoryValue>
+  if (tagged[TABLE_HISTORY_VALUE_TYPE] === 'date' && typeof tagged.value === 'string') {
+    return new Date(tagged.value)
+  }
+  if (tagged[TABLE_HISTORY_VALUE_TYPE] === 'escaped-object' && Array.isArray(tagged.entries)) {
+    return Object.fromEntries(tagged.entries)
+  }
+  return value
 }
 
 export function createTableHistorySnapshots(
@@ -111,7 +156,7 @@ export function createTableHistorySnapshots(
 
 function parseSnapshot(snapshot: string): TableHistorySnapshot | null {
   try {
-    const parsed = JSON.parse(snapshot) as Partial<TableHistorySnapshot>
+    const parsed = JSON.parse(snapshot, reviveSnapshotValue) as Partial<TableHistorySnapshot>
     if (parsed.$tableHistory !== TABLE_HISTORY_VERSION || !Array.isArray(parsed.operations)) {
       return null
     }

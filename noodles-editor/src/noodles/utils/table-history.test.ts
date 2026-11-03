@@ -120,6 +120,31 @@ describe('table history patches', () => {
     expect(createTableHistorySnapshots('/table', { data: before }, { data: after })).toBeNull()
   })
 
+  it('preserves Date values while undoing an adjacent cell edit', () => {
+    const date = new Date('2026-11-03T10:30:00.000Z')
+    const before = [{ label: 'Before', date }]
+    const after = [{ label: 'After', date }]
+    const snapshots = createTableHistorySnapshots('/table', { data: before }, { data: after })!
+    const op = tableOp(after)
+    getOp.mockReturnValue(op)
+
+    expect(applyTableHistorySnapshot(snapshots.before)).toBe(true)
+    expect(op.inputs.data.value).toEqual(before)
+    expect((op.inputs.data.value[0] as { date: unknown }).date).toBeInstanceOf(Date)
+  })
+
+  it('preserves user objects that contain the history type marker', () => {
+    const tagged = { $noodlesTableHistoryValue: 'date', value: 'user data' }
+    const before = [{ label: 'Before', tagged }]
+    const after = [{ label: 'After', tagged }]
+    const snapshots = createTableHistorySnapshots('/table', { data: before }, { data: after })!
+    const op = tableOp(after)
+    getOp.mockReturnValue(op)
+
+    applyTableHistorySnapshot(snapshots.before)
+    expect(op.inputs.data.value).toEqual(before)
+  })
+
   it('returns null when neither data nor schema changed', () => {
     const data = [{ value: 1 }]
     expect(createTableHistorySnapshots('/table', { data }, { data })).toBeNull()
