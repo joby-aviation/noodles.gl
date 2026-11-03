@@ -15,6 +15,7 @@ import { AutoComplete } from 'primereact/autocomplete'
 import { Button } from 'primereact/button'
 import { InputSwitch } from 'primereact/inputswitch'
 import { InputText } from 'primereact/inputtext'
+import { InputTextarea } from 'primereact/inputtextarea'
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { analytics } from '../../utils/analytics'
 import type { TableEditorOp } from '../operators'
@@ -200,19 +201,31 @@ function NumberCellEditor({
   )
 }
 
-function StringCellEditor({ value, onChange, onComplete, onCancel }: CellEditorProps) {
+// A textarea so strings can hold line breaks (e.g. multiline TextLayer labels). Enter
+// commits like the other editors; Shift+Enter or Alt+Enter inserts a line break.
+function StringCellEditor({ value, onChange, onComplete, onCancel, column }: CellEditorProps) {
+  const text = String(value ?? '')
   return (
-    <InputText
-      value={value as string}
+    <InputTextarea
+      value={text}
+      rows={text.split('\n').length}
       onChange={e => onChange(e.target.value)}
       onBlur={() => onComplete()}
       onKeyDown={e => {
         e.stopPropagation()
-        if (e.key === 'Enter') onComplete('next-row')
+        if (e.key === 'Enter' && !e.shiftKey && !e.altKey) {
+          e.preventDefault()
+          onComplete('next-row')
+        }
         if (e.key === 'Escape') onCancel()
       }}
+      onFocus={e => {
+        const end = e.currentTarget.value.length
+        e.currentTarget.setSelectionRange(end, end)
+      }}
       autoFocus
-      className={s.cellEditor}
+      className={cx(s.cellEditor, s.stringCellEditor)}
+      aria-label={`Edit ${column.name}`}
     />
   )
 }
