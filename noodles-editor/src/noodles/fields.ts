@@ -2275,8 +2275,29 @@ export function applySerializedFieldValue(field: Field, value: unknown): void {
     }
     return
   }
+  const next = supportsChannelPorts(field) ? withVectorComponents(field, value) : value
   const ctor = field.constructor as typeof Field & { deserialize?: (value: unknown) => unknown }
-  field.setValue(typeof ctor.deserialize === 'function' ? ctor.deserialize(value) : value)
+  field.setValue(typeof ctor.deserialize === 'function' ? ctor.deserialize(next) : next)
+}
+
+// Some components of a vector, e.g. { y: 4 } from an undo snapshot of a split input whose
+// x channel is connected. The components it leaves out keep their current values.
+function withVectorComponents(field: VectorField, value: unknown): unknown {
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) return value
+  const record = value as Record<string, unknown>
+  const keys = field.channelKeys
+  if (!Object.keys(record).every(key => keys.includes(key))) return value
+  if (field.schema.safeParse(value).success) return value
+  return Object.fromEntries(
+    keys.map((key, index) => [
+      key,
+      key in record
+        ? record[key]
+        : (channelNumber(field.value, key, index) ??
+          channelNumber(field.defaultValue, key, index) ??
+          0),
+    ])
+  )
 }
 
 export const fieldTypeToClass = {

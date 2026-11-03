@@ -7,7 +7,7 @@ import { createElement, useRef } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useTimelineStore } from '../../timeline/timeline-store'
 import { analytics } from '../../utils/analytics'
-import { MathOp, NumberOp, TableEditorOp } from '../operators'
+import { MathOp, NumberOp, SplitXYOp, TableEditorOp } from '../operators'
 import { clearOps, deleteOp, getOp, setOp } from '../store'
 import type { GraphRef } from '../types'
 import { registerLockChangeCallback, setLockedWithHistory } from './lock-history'
@@ -611,6 +611,68 @@ describe('useUndoRedo — graph mutations', () => {
     const [[change]] = onNodesChange.mock.calls[0]
     expect(change.type).toBe('add')
     expect(change.item.data.inputs.val).toBe(5)
+  })
+
+  it('undoing a deletion brings back a split input with its channel values', async () => {
+    const onNodesChange = vi.fn()
+    const node = { id: '/s', type: 'SplitXYOp', position: { x: 0, y: 0 }, data: { inputs: {} } }
+    const { result } = renderHook(() => useTestHook(), { wrapper })
+    await act(async () => {
+      result.current.storeApi.setState({ onNodesChange, nodes: [node] })
+    })
+    const op = new SplitXYOp('/s')
+    setOp(op.id, op)
+    op.setInputPortMode('vec', 'channels')
+    op.inputs.vec.channels?.fields.x.setExpression('1 + 2')
+    op.inputs.vec.channels?.fields.y.setValue(4)
+
+    act(() =>
+      result.current.undoRedo.recordGraphMutation('Apply assistant proposal', () =>
+        result.current.storeApi.setState({ nodes: [] })
+      )
+    )
+    deleteOp('/s')
+    await act(() => vi.advanceTimersByTimeAsync(0))
+
+    act(() => result.current.undoRedo.undo())
+
+    const [[change]] = onNodesChange.mock.calls[0]
+    expect(change.item.data.inputs).toEqual({ vec: { x: { $expr: '1 + 2' }, y: 4 } })
+    expect(change.item.data.inputPortModes).toEqual({ vec: 'channels' })
+    const restored = new SplitXYOp('/s', change.item.data.inputs)
+    expect(restored.inputs.vec.channels?.fields.x.expression).toBe('1 + 2')
+    expect(restored.inputs.vec.value).toEqual({ x: 3, y: 4 })
+  })
+
+  it('undoing a deletion keeps the unconnected channels of a split input', async () => {
+    const onNodesChange = vi.fn()
+    const node = { id: '/s', type: 'SplitXYOp', position: { x: 0, y: 0 }, data: { inputs: {} } }
+    const { result } = renderHook(() => useTestHook(), { wrapper })
+    await act(async () => {
+      result.current.storeApi.setState({ onNodesChange, nodes: [node] })
+    })
+    const num = new NumberOp('/num', { val: 7 })
+    const op = new SplitXYOp('/s')
+    setOp(op.id, op)
+    op.setInputPortMode('vec', 'channels')
+    op.inputs.vec.channels?.fields.x.addConnection('e', num.outputs.val, 'value')
+    op.inputs.vec.channels?.fields.y.setValue(4)
+
+    act(() =>
+      result.current.undoRedo.recordGraphMutation('Apply assistant proposal', () =>
+        result.current.storeApi.setState({ nodes: [] })
+      )
+    )
+    deleteOp('/s')
+    await act(() => vi.advanceTimersByTimeAsync(0))
+
+    act(() => result.current.undoRedo.undo())
+
+    // The connected x channel comes back from its edge
+    const [[change]] = onNodesChange.mock.calls[0]
+    expect(change.item.data.inputs).toEqual({ vec: { y: 4 } })
+    const restored = new SplitXYOp('/s', change.item.data.inputs)
+    expect(restored.inputs.vec.value).toEqual({ x: 0, y: 4 })
   })
 
   it('records nothing when the batch changed nothing', async () => {
