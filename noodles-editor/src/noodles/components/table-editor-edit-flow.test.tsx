@@ -452,20 +452,6 @@ describe('TableEditor - Edit Flow', () => {
         'Edit cell name'
       )
     })
-
-    it('marks line breaks in the one-line cell display', () => {
-      const { getByText } = render(
-        <TableEditor
-          op={mockOp}
-          data={[{ name: 'Alice\nSmith', count: 10 }]}
-          schema={schema}
-          onDataChange={vi.fn()}
-          onSchemaChange={vi.fn()}
-        />
-      )
-
-      expect(getByText('Alice ↵ Smith')).toBeTruthy()
-    })
   })
 
   describe('updateData comparison logic', () => {

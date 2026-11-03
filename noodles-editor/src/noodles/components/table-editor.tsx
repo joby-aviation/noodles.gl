@@ -15,6 +15,7 @@ import { AutoComplete } from 'primereact/autocomplete'
 import { Button } from 'primereact/button'
 import { InputSwitch } from 'primereact/inputswitch'
 import { InputText } from 'primereact/inputtext'
+import { InputTextarea } from 'primereact/inputtextarea'
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { analytics } from '../../utils/analytics'
 import type { TableEditorOp } from '../operators'
@@ -205,7 +206,7 @@ function NumberCellEditor({
 function StringCellEditor({ value, onChange, onComplete, onCancel, column }: CellEditorProps) {
   const text = String(value ?? '')
   return (
-    <textarea
+    <InputTextarea
       value={text}
       rows={text.split('\n').length}
       onChange={e => onChange(e.target.value)}
@@ -222,9 +223,8 @@ function StringCellEditor({ value, onChange, onComplete, onCancel, column }: Cel
         const end = e.currentTarget.value.length
         e.currentTarget.setSelectionRange(end, end)
       }}
-      // biome-ignore lint/a11y/noAutofocus: Cell editors must focus the control that replaced the display cell.
       autoFocus
-      className={cx('p-inputtext', s.cellEditor, s.stringCellEditor)}
+      className={cx(s.cellEditor, s.stringCellEditor)}
       aria-label={`Edit ${column.name}`}
     />
   )
@@ -854,9 +854,8 @@ function renderDateTimeCell(value: unknown): string {
   return ''
 }
 
-// Rows are one line tall, so line breaks show as a marker instead of collapsing to spaces
 function renderStringCell(value: unknown): string {
-  return String(value ?? '').replace(/\r?\n/g, ' ↵ ')
+  return String(value ?? '')
 }
 
 function StringLiteralCell({
