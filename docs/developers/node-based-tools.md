@@ -1,10 +1,18 @@
 # Node-based tools
 
+> Want to make maps with Noodles.gl rather than change its code? Go to [Start here](../intro.md) to open the editor or an example.
+
 Noodles draws inspiration from a long line of node-based tools and workflow builders.
 
 Specifically it aims to follow in the footsteps of [TouchDesigner](https://derivative.ca/) and [Houdini](https://www.sidefx.com/), two graphical programming environments commonly used in hollywood special effects and live performances.
 
 The principle that everything is a value, and all values are reactive makes creating visuals intuitive, flexible, and repeatable. Noodles attempts to simplify the visualization creation process while exposing powerful primitives and a flexible IDE.
+
+<OpenInEditor example="nyc-taxis" label="Open the NYC Taxis graph">
+
+To see a Noodles graph, open the NYC Taxis example. It loads a CSV, picks out pickup and dropoff points, and draws them as arcs. Click any node to see its inputs.
+
+</OpenInEditor>
 
 Some other prior art:
 

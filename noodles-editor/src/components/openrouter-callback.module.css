@@ -1,0 +1,27 @@
+.page {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  min-height: 100vh;
+  padding: 2rem;
+  background-color: #1a1a1a;
+  color: var(--color-text-primary, #eee);
+  text-align: center;
+  font-family: system-ui, sans-serif;
+}
+
+.title {
+  font-size: 1.1rem;
+  font-weight: 600;
+  margin: 0;
+}
+
+.error {
+  max-width: 40rem;
+  margin: 0;
+  color: #f87171;
+  font-size: 0.9rem;
+  line-height: 1.5;
+}

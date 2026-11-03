@@ -8,6 +8,7 @@ import {
   BooleanField,
   ColorField,
   CompoundPropsField,
+  DataField,
   DateField,
   type Field,
   ListField,
@@ -20,8 +21,10 @@ import {
   Vec3Field,
 } from '../noodles/fields'
 import type { IOperator, Operator } from '../noodles/operators'
+import { getOp } from '../noodles/store'
 import { type RGBA as ColorRGBA, colorToRgba, hexToRgba, rgbaToHex } from '../utils/color'
 import { debugBinding, debugKeyframe, debugTimeline } from '../utils/debug'
+import { bindTableCellsToTimeline } from './table-cell-bindings'
 import type { TimelineStore } from './timeline-store'
 import { getTimelineStore, useTimelineStore } from './timeline-store'
 import type { KeyframeValue, Point2D, Point3D, RGBA, Vec2, Vec3 } from './types'
@@ -231,6 +234,54 @@ export function getFieldPath(opId: string, fieldName: string, subPath?: string[]
   return parts.join(' / ')
 }
 
+// Parse a track ID and return the corresponding operator and field
+// Returns null if operator/field not found
+export function getFieldFromTrackPath(fieldPath: string): {
+  operator: Operator<IOperator>
+  fieldName: string
+  subPath?: string[]
+  field: AnyField
+} | null {
+  const parts = fieldPath.split(' / ')
+  if (parts.length < 2) return null
+
+  // Reconstruct operator ID by trying each split point
+  // "container / nested / fieldName" → try "/container/nested", then "/container"
+  let operator: Operator<IOperator> | null = null
+  let opPartCount = 0
+
+  for (let i = parts.length - 2; i >= 0; i--) {
+    const opId = `/${parts.slice(0, i + 1).join('/')}`
+    operator = getOp(opId)
+    if (operator) {
+      opPartCount = i + 1
+      break
+    }
+  }
+
+  if (!operator) return null
+
+  const fieldName = parts[opPartCount]
+  const subPath = parts.slice(opPartCount + 1)
+
+  // Navigate to the field
+  let field: AnyField | undefined = operator.inputs[fieldName] as AnyField
+  if (!field) return null
+
+  // Table cell tracks ("table / data / 0 / value") are applied by bindTableCellsToTimeline;
+  // returning the DataField here would let callers overwrite the whole table with one cell
+  if (subPath.length > 0 && field instanceof DataField) return null
+
+  // For compound fields, navigate to sub-field
+  if (subPath.length > 0 && field instanceof CompoundPropsField) {
+    field = field.fields[subPath[0]] as AnyField
+  }
+
+  if (!field) return null
+
+  return { operator, fieldName, subPath: subPath.length > 0 ? subPath : undefined, field }
+}
+
 // ============================================================================
 // Binding Management
 // ============================================================================
@@ -295,6 +346,52 @@ export function bindFieldToTimeline(
         debugTimeline(`Error syncing timeline to field for ${op.id}.${fieldName}:`, e)
       }
       updating = false
+    }
+  )
+
+  // Subscribe to track keyframe changes -> update field
+  // Handles undo/redo and any other keyframe modifications
+  const unsubscribeTracks = useTimelineStore.subscribe(
+    state => {
+      const track = state.tracks.get(fieldPath)
+      return track?.keyframes
+    },
+    _keyframes => {
+      if (op.locked?.value || updating) return
+
+      // Re-evaluate at current position
+      const position = getTimelineStore().position
+      const value = timelineStore.evaluateTrack(fieldPath, position)
+
+      if (value !== undefined) {
+        // Skip if value hasn't changed
+        if (
+          lastKeyframeValue !== undefined &&
+          JSON.stringify(value) === JSON.stringify(lastKeyframeValue)
+        ) {
+          return
+        }
+        lastKeyframeValue = value
+
+        updating = true
+        try {
+          const fieldValue = keyframeValueToFieldValue(field, value)
+          if (fieldValue !== undefined && field.value !== fieldValue) {
+            field.setValue(fieldValue)
+          }
+        } catch (e) {
+          debugTimeline(`Error syncing track changes to field for ${op.id}.${fieldName}:`, e)
+        }
+        updating = false
+      }
+    },
+    {
+      equalityFn: (a, b) => {
+        if (a === b) return true
+        if (!a || !b || a.length !== b.length) return false
+        // Shallow compare keyframes by reference - new array is created on mutation
+        return a.every((kf, i) => kf === b[i])
+      },
     }
   )
 
@@ -408,6 +505,7 @@ export function bindFieldToTimeline(
   // Return cleanup function
   return () => {
     unsubscribePosition()
+    unsubscribeTracks()
     fieldSub.unsubscribe()
   }
 }
@@ -481,6 +579,45 @@ function bindVecChannelToTimeline(
         debugTimeline(`Error syncing timeline to vec channel ${fieldPath}:`, e)
       }
       updating = false
+    }
+  )
+
+  // Subscribe to track keyframe changes -> update channel
+  const unsubscribeTracks = useTimelineStore.subscribe(
+    state => {
+      const track = state.tracks.get(fieldPath)
+      return track?.keyframes
+    },
+    _keyframes => {
+      if (op.locked?.value || updating) return
+
+      const position = getTimelineStore().position
+      const value = timelineStore.evaluateTrack(fieldPath, position) as number | undefined
+
+      if (value !== undefined) {
+        if (lastKfValue !== undefined && value === lastKfValue) {
+          return
+        }
+        lastKfValue = value
+
+        updating = true
+        try {
+          if (getChannel() !== value) {
+            setChannel(value)
+          }
+        } catch (e) {
+          debugTimeline(`Error syncing track changes to vec channel ${fieldPath}:`, e)
+        }
+        updating = false
+      }
+    },
+    {
+      equalityFn: (a, b) => {
+        if (a === b) return true
+        if (!a || !b || a.length !== b.length) return false
+        // Shallow compare keyframes by reference - new array is created on mutation
+        return a.every((kf, i) => kf === b[i])
+      },
     }
   )
 
@@ -581,6 +718,7 @@ function bindVecChannelToTimeline(
 
   return () => {
     unsubscribePosition()
+    unsubscribeTracks()
     fieldSub.unsubscribe()
   }
 }
@@ -590,6 +728,14 @@ export function bindOperatorToTimeline(op: Operator<IOperator>, store?: Timeline
   const cleanupFns: Array<() => void> = []
 
   for (const [fieldName, field] of Object.entries(op.inputs)) {
+    // Table data: individual cells can be keyframed ("table / data / 0 / value")
+    if (field instanceof DataField) {
+      const cleanup = bindTableCellsToTimeline(op, getFieldPath(op.id, fieldName), field, store)
+      cleanupFns.push(cleanup)
+      activeBindings.set(`${op.id}.${fieldName}`, cleanup)
+      continue
+    }
+
     // Skip non-animatable fields
     if (typeof field.value === 'function') continue
     if (!isAnimatableField(field as AnyField)) continue

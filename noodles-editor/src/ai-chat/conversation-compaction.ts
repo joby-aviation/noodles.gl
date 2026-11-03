@@ -1,6 +1,8 @@
 // Conversation compaction utilities for managing long conversation history
-import type Anthropic from '@anthropic-ai/sdk'
+
 import { debugAiChat } from '../utils/debug'
+import type { AgentProvider } from './agent/types'
+import { collectText } from './agent/types'
 import type { Message } from './types'
 
 const SUMMARY_SYSTEM_PROMPT = `You are summarizing a conversation to preserve context while reducing length.
@@ -32,12 +34,18 @@ export function shouldCompact(messages: Message[], threshold = 50000): boolean {
   return estimateConversationTokens(messages) > threshold
 }
 
+// A quarter of the window for history leaves room for the system prompt, the tool
+// schemas, a full tool-result batch and the reply. Derived rather than hardcoded so
+// a 6k-token local model compacts at ~1.5k instead of never.
+export function compactionThreshold(contextWindow: number): number {
+  return Math.floor(contextWindow * 0.25)
+}
+
 // Create a compacted conversation history by summarizing older messages.
 // Keeps the most recent messages intact and summarizes earlier context.
 export async function compactConversation(
-  client: Anthropic,
+  provider: AgentProvider,
   messages: Message[],
-  model: string,
   keepRecent = 2
 ): Promise<Message[]> {
   // Keep last N exchanges (2 messages per exchange)
@@ -58,24 +66,21 @@ export async function compactConversation(
     .join('\n\n')
 
   try {
-    // Generate summary using Claude
-    const response = await client.messages.create({
-      model,
-      max_tokens: 2000,
+    // The summarizer needs no tools, so it is a plain one-shot generation on
+    // whatever provider is driving the conversation
+    const summaryText = await collectText(provider, {
       system: SUMMARY_SYSTEM_PROMPT,
       messages: [
         {
           role: 'user',
-          content: `Summarize this conversation history:\n\n${conversationText}`,
+          content: [
+            { type: 'text', text: `Summarize this conversation history:\n\n${conversationText}` },
+          ],
         },
       ],
+      tools: [],
+      maxTokens: 2000,
     })
-
-    // Extract summary text
-    const summaryText = response.content
-      .filter((c): c is Anthropic.TextBlock => c.type === 'text')
-      .map(c => c.text)
-      .join('\n')
 
     // Anthropic API requires alternating user/assistant roles.
     // Prepend the summary to the first user message to maintain proper alternation.

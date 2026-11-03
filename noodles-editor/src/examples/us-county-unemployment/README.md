@@ -8,8 +8,10 @@ This example creates a choropleth map of all US counties where each county's col
 ## Key Techniques
 - **Data source**: `FileOp` loads county boundaries with unemployment statistics
 - **Polygon layer**: `GeoJsonLayerOp` renders county shapes
-- **Color mapping**: `ColorRampOp` creates sequential scale from low to high unemployment
-- **Basemap**: `MaplibreBasemapOp` showing continental United States
+- **Unemployment accessor**: `AccessorOp` with expression `d.properties.unemployment_rate ?? 0`
+- **Data range**: `ExtentOp` finds the highest unemployment rate across `d.features` and feeds it to `MapRangeOp` as `inMax`
+- **Color mapping**: `MapRangeOp` scales the rate to 0-1, then `ColorRampOp` creates a sequential scale from low to high unemployment
+- **Basemap**: `MaplibreBasemapOp` with voyager style, showing continental United States
 
 ## Data Structure
 The GeoJSON file contains county features with:

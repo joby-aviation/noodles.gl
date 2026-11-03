@@ -1,13 +1,13 @@
-import type { Edge as ReactFlowEdge, Node as ReactFlowNode } from '@xyflow/react'
+import type { Edge as ReactFlowEdge } from '@xyflow/react'
 import { create } from 'zustand'
+import { shallow } from 'zustand/shallow'
+import { useGraphStore } from './graph-store'
 import type { IOperator, Operator } from './operators'
 // only import types from noodles to avoid circular dependencies
 import type { OpId } from './utils/id-utils'
-import { edgeId } from './utils/id-utils'
-import { generateQualifiedPath, isAbsolutePath, resolvePath } from './utils/path-utils'
 
 // ============================================================================
-// Operator Store (Zustand) - Separate slice for operators and sheet objects
+// Operator Store (Zustand) - Now delegates to graph-store
 // ============================================================================
 
 interface OperatorStoreState {
@@ -37,68 +37,53 @@ interface OperatorStoreState {
   batch: (fn: () => void) => void
 }
 
-export const useOperatorStore = create<OperatorStoreState>((set, get) => ({
-  operators: new Map(),
-  sheetObjects: new Map(),
-  _batching: false,
+export interface PendingInsertionIndex {
+  nodeId: string
+  handleId: string
+  index: number
+}
 
-  // Operator actions
-  getOp: id => get().operators.get(id),
+// Compatibility wrapper - delegates to graph store
+// Syncs state from graph store to ensure React subscribers get notified
+export const useOperatorStore = create<OperatorStoreState>((set, _get) => {
+  // Subscribe to graph store and sync relevant state
+  useGraphStore.subscribe(
+    state => ({
+      operators: state.operators,
+      sheetObjects: state.sheetObjects,
+      _batching: state._batching,
+    }),
+    synced => set(synced),
+    // Without this, every node drag or selection change would notify subscribers
+    { equalityFn: shallow }
+  )
 
-  setOp: (id, op) => {
-    const operators = new Map(get().operators)
-    operators.set(id, op)
-    set({ operators })
-  },
+  return {
+    // Initial state from graph store
+    operators: useGraphStore.getState().operators,
+    sheetObjects: useGraphStore.getState().sheetObjects,
+    _batching: useGraphStore.getState()._batching,
 
-  deleteOp: id => {
-    const operators = new Map(get().operators)
-    const op = operators.get(id)
-    operators.delete(id)
-    // Dispose only if this op instance is no longer referenced at any id.
-    // During renames, setOp(newId, op) runs before deleteOp(oldId), so the
-    // same instance is still in the map and should NOT be disposed.
-    const isStillReferenced = op && Array.from(operators.values()).some(o => o === op)
-    set({ operators })
-    if (op && !isStillReferenced) {
-      op.dispose?.()
-    }
-  },
+    // Operator actions - delegate to graph store
+    getOp: (id: OpId) => useGraphStore.getState().getOp(id),
+    setOp: (id: OpId, op: Operator<IOperator>) => useGraphStore.getState().setOp(id, op),
+    deleteOp: (id: OpId) => useGraphStore.getState().deleteOp(id),
+    hasOp: (id: OpId) => useGraphStore.getState().hasOp(id),
+    clearOps: () => useGraphStore.getState().clearOps(),
+    getAllOps: () => useGraphStore.getState().getAllOps(),
+    getOpEntries: () => useGraphStore.getState().getOpEntries(),
 
-  hasOp: id => get().operators.has(id),
+    // Sheet object actions - delegate to graph store
+    getSheetObject: (id: OpId) => useGraphStore.getState().getSheetObject(id),
+    setSheetObject: (id: OpId, sheetObj: unknown) =>
+      useGraphStore.getState().setSheetObject(id, sheetObj),
+    deleteSheetObject: (id: OpId) => useGraphStore.getState().deleteSheetObject(id),
+    hasSheetObject: (id: OpId) => useGraphStore.getState().hasSheetObject(id),
 
-  clearOps: () => {
-    set({ operators: new Map(), sheetObjects: new Map() })
-  },
-
-  getAllOps: () => Array.from(get().operators.values()),
-
-  getOpEntries: () => Array.from(get().operators.entries()),
-
-  // Sheet object actions
-  getSheetObject: id => get().sheetObjects.get(id),
-
-  setSheetObject: (id, sheetObj) => {
-    const sheetObjects = new Map(get().sheetObjects)
-    sheetObjects.set(id, sheetObj)
-    set({ sheetObjects })
-  },
-
-  deleteSheetObject: id => {
-    const sheetObjects = new Map(get().sheetObjects)
-    sheetObjects.delete(id)
-    set({ sheetObjects })
-  },
-
-  hasSheetObject: id => get().sheetObjects.has(id),
-
-  // Batching - prevents multiple Zustand updates during batch operations
-  batch: fn => {
-    set({ _batching: true })
-    fn()
-    set({ _batching: false })
-  },
-}))
+    // Batching - delegate to graph store
+    batch: (fn: () => void) => useGraphStore.getState().batch(fn),
+  }
+})
 
 // ============================================================================
 // UI Store (Zustand) - Separate slice for UI state
@@ -111,25 +96,62 @@ export interface ConnectionDragState {
   compatibleEdgeIds: Set<string>
 }
 
+export interface NodeDragState {
+  nodeId: string
+  hasExistingConnections: boolean
+  targetedEdge: { id: string; canInsert: boolean } | null
+}
+
 interface UIStoreState {
   hoveredOutputHandle: { nodeId: string; handleId: string } | null
   setHoveredOutputHandle: (handle: { nodeId: string; handleId: string } | null) => void
   connectionDragState: ConnectionDragState | null
   setConnectionDragState: (state: ConnectionDragState | null) => void
+  // Slot index for multi-input handles: written by MultiInputHandle while a connection
+  // (or reconnection) drag hovers it, consumed once by onConnect/onReconnect, cleared
+  // when a drag is cancelled or the publishing handle unmounts
+  pendingInsertionIndex: PendingInsertionIndex | null
+  setPendingInsertionIndex: (info: PendingInsertionIndex | null) => void
   targetedEdge: { id: string; compatible: boolean } | null
   setTargetedEdge: (edge: { id: string; compatible: boolean } | null) => void
-  sidebarVisible: boolean
-  setSidebarVisible: (visible: boolean) => void
+  nodeDragState: NodeDragState | null
+  setNodeDragState: (state: NodeDragState | null) => void
+  inspectedReferenceEdge: ReactFlowEdge | null
+  setInspectedReferenceEdge: (edge: ReactFlowEdge | null) => void
+  // Node an example selected on open; its properties panel shows a short hint until
+  // the user edits a value or selects something else
+  starterHintNodeId: string | null
+  setStarterHintNodeId: (id: string | null) => void
+  // A node selected from the map: the graph pans to it if needed and pulses it. `seq`
+  // grows with each request, so clicking the same feature twice pulses twice.
+  mapPickFocus: { nodeId: string; seq: number } | null
+  focusNodeFromMap: (nodeId: string) => void
   sidebarSearchFocusTrigger: number
   triggerSidebarSearch: () => void
   settingsDialogOpen: boolean
   setSettingsDialogOpen: (open: boolean) => void
-  timelineExpanded: boolean
-  setTimelineExpanded: (expanded: boolean) => void
-  timelineHeight: number
-  setTimelineHeight: (height: number) => void
   quickStartModalOpen: boolean
   setQuickStartModalOpen: (open: boolean) => void
+  timelineExpanded: boolean
+  setTimelineExpanded: (expanded: boolean) => void
+  spreadsheetVisible: boolean
+  setSpreadsheetVisible: (visible: boolean) => void
+  pinnedSpreadsheetNodeId: string | null
+  setPinnedSpreadsheetNodeId: (id: string | null) => void
+  mapMode: MapMode
+  setMapMode: (mode: MapMode) => void
+}
+
+// docked: map in its own panel above the node graph
+// floating: map in a draggable window
+// underlay: map fills the node graph area, drawn behind the graph
+export type MapMode = 'docked' | 'floating' | 'underlay'
+
+const MAP_MODES: MapMode[] = ['docked', 'floating', 'underlay']
+
+function loadMapMode(): MapMode {
+  const stored = localStorage.getItem('noodles-map-mode') as MapMode | null
+  return stored && MAP_MODES.includes(stored) ? stored : 'docked'
 }
 
 export const useUIStore = create<UIStoreState>(set => ({
@@ -137,21 +159,37 @@ export const useUIStore = create<UIStoreState>(set => ({
   setHoveredOutputHandle: handle => set({ hoveredOutputHandle: handle }),
   connectionDragState: null,
   setConnectionDragState: state => set({ connectionDragState: state }),
+  pendingInsertionIndex: null,
+  setPendingInsertionIndex: info => set({ pendingInsertionIndex: info }),
   targetedEdge: null,
   setTargetedEdge: edge => set({ targetedEdge: edge }),
-  sidebarVisible: false,
-  setSidebarVisible: visible => set({ sidebarVisible: visible }),
+  nodeDragState: null,
+  setNodeDragState: state => set({ nodeDragState: state }),
+  inspectedReferenceEdge: null,
+  setInspectedReferenceEdge: edge => set({ inspectedReferenceEdge: edge }),
+  starterHintNodeId: null,
+  setStarterHintNodeId: id => set({ starterHintNodeId: id }),
+  mapPickFocus: null,
+  focusNodeFromMap: nodeId =>
+    set(state => ({ mapPickFocus: { nodeId, seq: (state.mapPickFocus?.seq ?? 0) + 1 } })),
   sidebarSearchFocusTrigger: 0,
   triggerSidebarSearch: () =>
     set(state => ({ sidebarSearchFocusTrigger: state.sidebarSearchFocusTrigger + 1 })),
   settingsDialogOpen: false,
   setSettingsDialogOpen: open => set({ settingsDialogOpen: open }),
-  timelineExpanded: false,
-  setTimelineExpanded: expanded => set({ timelineExpanded: expanded }),
-  timelineHeight: 250,
-  setTimelineHeight: height => set({ timelineHeight: height }),
   quickStartModalOpen: false,
   setQuickStartModalOpen: open => set({ quickStartModalOpen: open }),
+  timelineExpanded: false,
+  setTimelineExpanded: expanded => set({ timelineExpanded: expanded }),
+  spreadsheetVisible: false,
+  setSpreadsheetVisible: visible => set({ spreadsheetVisible: visible }),
+  pinnedSpreadsheetNodeId: null,
+  setPinnedSpreadsheetNodeId: id => set({ pinnedSpreadsheetNodeId: id }),
+  mapMode: loadMapMode(),
+  setMapMode: mode => {
+    set({ mapMode: mode })
+    localStorage.setItem('noodles-map-mode', mode)
+  },
 }))
 
 // ============================================================================
@@ -177,149 +215,57 @@ export const getActiveOutOpStore = () => useActiveOutOpStore.getState()
 // Helper functions for non-React contexts
 // ============================================================================
 
-// Get the operator store instance for use outside React components
-export const getOpStore = () => useOperatorStore.getState()
+// Get the operator store instance for use outside React components (now delegates to graph store)
+export const getOpStore = () => useGraphStore.getState()
 
 // Get the UI store instance for use outside React components
 export const getUIStore = () => useUIStore.getState()
 
-// `path` can be absolute or relative to `contextOperatorId`
-export const getOp = (
-  path: string,
-  contextOperatorId?: string
-): Operator<IOperator> | undefined => {
-  if (!path) {
-    return undefined
-  }
+// Re-export convenience helpers from graph-store
+export {
+  clearOps,
+  deleteOp,
+  deleteSheetObject,
+  getAllOps,
+  getAllSheetObjectIds,
+  getGraphStore,
+  getOp,
+  getOpEntries,
+  getSheetObject,
+  hasOp,
+  hasSheetObject,
+  setOp,
+  setSheetObject,
+  useGraphStore,
+} from './graph-store'
 
-  const store = useOperatorStore.getState()
-
-  // If path is absolute or no context provided, use direct lookup
-  if (isAbsolutePath(path) || !contextOperatorId) {
-    return store.getOp(path)
-  }
-
-  // Resolve relative path using context
-  const resolvedPath = resolvePath(path, contextOperatorId)
-  if (!resolvedPath) {
-    return undefined
-  }
-
-  return store.getOp(resolvedPath)
+// Hides the hint shown for an example's starter node; called on the first edit
+export const dismissStarterHint = () => {
+  if (getUIStore().starterHintNodeId) getUIStore().setStarterHintNodeId(null)
 }
-
-// Convenience helpers for common store operations
-export const setOp = (id: OpId, op: Operator<IOperator>) => getOpStore().setOp(id, op)
-export const deleteOp = (id: OpId) => getOpStore().deleteOp(id)
-export const hasOp = (id: OpId) => getOpStore().hasOp(id)
-export const clearOps = () => getOpStore().clearOps()
-export const getAllOps = () => getOpStore().getAllOps()
-export const getOpEntries = () => getOpStore().getOpEntries()
-
-// Sheet object helpers
-export const getSheetObject = (id: OpId) => getOpStore().getSheetObject(id)
-export const setSheetObject = (id: OpId, sheetObj: unknown) =>
-  getOpStore().setSheetObject(id, sheetObj)
-export const deleteSheetObject = (id: OpId) => getOpStore().deleteSheetObject(id)
-export const hasSheetObject = (id: OpId) => getOpStore().hasSheetObject(id)
-export const getAllSheetObjectIds = () => Array.from(getOpStore().sheetObjects.keys())
 
 // Hovered output handle helpers
 export const setHoveredOutputHandle = (handle: { nodeId: string; handleId: string } | null) =>
   getUIStore().setHoveredOutputHandle(handle)
 
-// ============================================================================
-// Operator ID Update Helper
-// ============================================================================
+// Multi-input pending slot helpers (see pendingInsertionIndex in UIStoreState)
+export const setPendingInsertionIndex = (info: PendingInsertionIndex | null) =>
+  getUIStore().setPendingInsertionIndex(info)
 
-//
-// Updates an operator's ID and all references to it (nodes, edges, children).
-// This is used when renaming operators in the node tree sidebar or node headers.
-//
-// @param nodeId - Current ID of the operator
-// @param newBaseName - New base name (without path prefix)
-// @param isContainer - Whether the operator is a container
-// @param setNodes - React Flow setNodes function
-// @param setEdges - React Flow setEdges function
-export const updateOperatorId = (
-  nodeId: string,
-  newBaseName: string,
-  isContainer: boolean,
-  setNodes: (updater: (nodes: ReactFlowNode[]) => ReactFlowNode[]) => void,
-  setEdges: (updater: (edges: ReactFlowEdge[]) => ReactFlowEdge[]) => void
-) => {
-  const store = getOpStore()
-  const op = store.getOp(nodeId)
-  if (!op) return
+export const clearPendingInsertionIndex = () => getUIStore().setPendingInsertionIndex(null)
 
-  const newQualifiedId = generateQualifiedPath(newBaseName, op.containerId ?? '/')
-
-  // Update the operator itself
-  setOp(newQualifiedId, op)
-  op.id = newQualifiedId
-
-  // If this is a container, update all children nodes and their operators
-  if (isContainer) {
-    const childOps = getAllOps().filter((childOp: Operator<IOperator>) =>
-      childOp.id.startsWith(`${nodeId}/`)
-    )
-
-    for (const childOp of childOps) {
-      const oldChildId = childOp.id
-      // Replace only the exact container path at the start
-      const newChildId = newQualifiedId + oldChildId.slice(nodeId.length)
-      setOp(newChildId, childOp)
-      childOp.id = newChildId
-      queueMicrotask(() => deleteOp(oldChildId))
-    }
+// Consume-and-clear, guarded on the drop target so a stale index from hovering one
+// handle can't leak into a drop on a different handle
+export const takePendingInsertionIndex = (
+  nodeId: string | null | undefined,
+  handleId: string | null | undefined
+): number | null => {
+  const pending = getUIStore().pendingInsertionIndex
+  getUIStore().setPendingInsertionIndex(null)
+  if (pending && pending.nodeId === nodeId && pending.handleId === handleId) {
+    return pending.index
   }
-
-  // Give React time to update the component tree before deleting the old id
-  queueMicrotask(() => {
-    deleteOp(nodeId)
-  })
-
-  // Update React Flow nodes and edges
-  setNodes(nodes =>
-    nodes.map(n => {
-      // Update the node itself if it matches
-      if (n.id === nodeId) {
-        return { ...n, id: newQualifiedId }
-      }
-      // Update children if this is a container
-      if (isContainer && n.id.startsWith(`${nodeId}/`)) {
-        return { ...n, id: newQualifiedId + n.id.slice(nodeId.length) }
-      }
-      return n
-    })
-  )
-
-  setEdges(edges =>
-    edges.map(edge => {
-      const sourceNeedsUpdate =
-        edge.source === nodeId || (isContainer && edge.source.startsWith(`${nodeId}/`))
-      const targetNeedsUpdate =
-        edge.target === nodeId || (isContainer && edge.target.startsWith(`${nodeId}/`))
-
-      if (!sourceNeedsUpdate && !targetNeedsUpdate) return edge
-
-      const updatedEdge = {
-        ...edge,
-        source: sourceNeedsUpdate
-          ? edge.source === nodeId
-            ? newQualifiedId
-            : newQualifiedId + edge.source.slice(nodeId.length)
-          : edge.source,
-        target: targetNeedsUpdate
-          ? edge.target === nodeId
-            ? newQualifiedId
-            : newQualifiedId + edge.target.slice(nodeId.length)
-          : edge.target,
-      }
-
-      return { ...updatedEdge, id: edgeId(updatedEdge) }
-    })
-  )
+  return null
 }
 
 // ============================================================================

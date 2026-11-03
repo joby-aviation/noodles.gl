@@ -1,10 +1,19 @@
-import posthog from 'posthog-js'
+import posthog, { type BeforeSendFn } from 'posthog-js'
 import { debugAnalytics } from './debug'
 
 const ANALYTICS_CONSENT_KEY = 'noodles-analytics-consent'
 const ERROR_CAPTURE_CONSENT_KEY = 'noodles-error-capture-consent'
 const POSTHOG_API_KEY = import.meta.env.VITE_POSTHOG_API_KEY
 const POSTHOG_HOST = import.meta.env.VITE_POSTHOG_HOST || 'https://us.i.posthog.com'
+const GA_MEASUREMENT_ID = import.meta.env.VITE_GA_MEASUREMENT_ID
+
+// Declare gtag types for TypeScript
+declare global {
+  interface Window {
+    dataLayer?: unknown[]
+    gtag?: (...args: unknown[]) => void
+  }
+}
 
 export interface AnalyticsConsent {
   enabled: boolean
@@ -17,9 +26,61 @@ interface ErrorCaptureConsent {
   timestamp: string
 }
 
+// Benign browser noise that should never reach error tracking. "ResizeObserver loop ..."
+// fires when a ResizeObserver callback changes layout; it is a harmless browser warning.
+export function isIgnoredErrorMessage(message: string | null | undefined): boolean {
+  return typeof message === 'string' && message.includes('ResizeObserver loop')
+}
+
+const DEV_HOSTNAMES = new Set(['localhost', '127.0.0.1', '[::1]'])
+
+function isDevSessionUrl(url: unknown): boolean {
+  if (typeof url !== 'string') return false
+  try {
+    return DEV_HOSTNAMES.has(new URL(url).hostname)
+  } catch {
+    return false
+  }
+}
+
+// posthog.init before_send hook. Exception autocapture (capture_exceptions) installs its own
+// window.onerror / unhandledrejection handlers, so those events never pass through
+// AnalyticsManager.captureException(). Every $exception event, autocaptured or manual, passes
+// through this hook before it is sent.
+export const filterExceptionEvent: BeforeSendFn = event => {
+  if (event?.event !== '$exception') return event
+  const props = event.properties ?? {}
+
+  // Rule 1: error capture opt-out. Honors the Settings toggle for autocaptured exceptions the
+  // same way captureException() does. Read on every event, so toggling applies without a reload.
+  if (!AnalyticsManager.getInstance().getErrorCaptureEnabled()) {
+    debugAnalytics('Dropped exception: error capture is turned off')
+    return null
+  }
+
+  // Rule 2: benign browser noise, matched on any exception message in the event
+  const exceptionList: Array<{ value?: unknown }> = Array.isArray(props.$exception_list)
+    ? props.$exception_list
+    : []
+  const messages = [props.$exception_message, ...exceptionList.map(e => e?.value)]
+  if (messages.some(m => typeof m === 'string' && isIgnoredErrorMessage(m))) {
+    debugAnalytics('Filtered benign exception from PostHog')
+    return null
+  }
+
+  // Rule 3: local development sessions (dev server or local preview build)
+  if (isDevSessionUrl(props.$current_url)) {
+    debugAnalytics('Filtered exception from local dev session')
+    return null
+  }
+
+  return event
+}
+
 export class AnalyticsManager {
   private static instance: AnalyticsManager
-  private initialized = false
+  private posthogInitialized = false
+  private gaInitialized = false
 
   static getInstance(): AnalyticsManager {
     if (!AnalyticsManager.instance) {
@@ -29,7 +90,12 @@ export class AnalyticsManager {
   }
 
   initialize() {
-    if (this.initialized || !POSTHOG_API_KEY) {
+    this.initializePostHog()
+    this.initializeGoogleAnalytics()
+  }
+
+  private initializePostHog() {
+    if (this.posthogInitialized || !POSTHOG_API_KEY) {
       return
     }
 
@@ -38,12 +104,12 @@ export class AnalyticsManager {
 
       posthog.init(POSTHOG_API_KEY, {
         api_host: POSTHOG_HOST,
-        opt_out_capturing_by_default: !consent?.enabled,
+        opt_out_capturing_by_default: consent?.enabled === false, // only opt out if explicitly declined
         autocapture: false, // Privacy: manual events only
-        disable_session_recording: true, // Privacy: no session recording
-        capture_pageview: false, // Manual tracking
+        capture_pageview: true, // Captures initial page load; route changes tracked manually
         capture_pageleave: true,
         capture_exceptions: true, // Capture unhandled exceptions
+        before_send: filterExceptionEvent, // Drops opted-out, benign, and local-dev exceptions
         loaded: posthog => {
           if (import.meta.env.DEV) {
             posthog.debug(false) // Set to true for verbose logging in dev
@@ -51,11 +117,53 @@ export class AnalyticsManager {
         },
       })
 
-      this.initialized = true
+      this.posthogInitialized = true
     } catch (error) {
       // Silently fail if PostHog is blocked by ad blockers
-      debugAnalytics('Analytics initialization failed (likely blocked by ad blocker):', error)
-      this.initialized = false
+      debugAnalytics('PostHog initialization failed (likely blocked by ad blocker):', error)
+      this.posthogInitialized = false
+    }
+  }
+
+  private initializeGoogleAnalytics() {
+    if (this.gaInitialized || !GA_MEASUREMENT_ID) {
+      return
+    }
+
+    try {
+      const consent = this.getConsent()
+
+      // Load gtag.js script
+      const script = document.createElement('script')
+      script.async = true
+      script.src = `https://www.googletagmanager.com/gtag/js?id=${GA_MEASUREMENT_ID}`
+      document.head.appendChild(script)
+
+      // Initialize dataLayer and gtag function
+      window.dataLayer = window.dataLayer || []
+      window.gtag = function gtag(...args: unknown[]) {
+        window.dataLayer?.push(args)
+      }
+      window.gtag('js', new Date())
+
+      // Configure with consent - default to denied until explicit consent
+      window.gtag('consent', 'default', {
+        analytics_storage: consent?.enabled === true ? 'granted' : 'denied',
+      })
+
+      window.gtag('config', GA_MEASUREMENT_ID, {
+        send_page_view: true,
+        anonymize_ip: true, // Privacy: anonymize IP addresses
+      })
+
+      this.gaInitialized = true
+    } catch (error) {
+      // Silently fail if Google Analytics is blocked
+      debugAnalytics(
+        'Google Analytics initialization failed (likely blocked by ad blocker):',
+        error
+      )
+      this.gaInitialized = false
     }
   }
 
@@ -79,11 +187,47 @@ export class AnalyticsManager {
     try {
       localStorage.setItem(ANALYTICS_CONSENT_KEY, JSON.stringify(consent))
 
-      if (this.initialized) {
+      // Update PostHog consent
+      if (this.posthogInitialized) {
         if (enabled) {
+          // Only fire a manual $pageview if the user was previously opted out —
+          // for new visitors posthog.init already fired it via capture_pageview: true.
+          const wasOptedOut = posthog.has_opted_out_capturing()
           posthog.opt_in_capturing()
+          if (wasOptedOut) {
+            posthog.capture('$pageview')
+          }
         } else {
           posthog.opt_out_capturing()
+        }
+      }
+
+      // Update Google Analytics consent
+      if (this.gaInitialized && window.gtag) {
+        window.gtag('consent', 'update', {
+          analytics_storage: enabled ? 'granted' : 'denied',
+        })
+      }
+
+      // Track the consent decision itself (this will only send if enabled)
+      if (enabled) {
+        this.track('analytics_consent_granted')
+      } else {
+        // For opt-out tracking, we send one final event to both providers before disabling
+        // This helps us measure opt-out rates
+        if (this.posthogInitialized) {
+          try {
+            posthog.capture('analytics_consent_denied')
+          } catch (e) {
+            debugAnalytics('Failed to track opt-out to PostHog:', e)
+          }
+        }
+        if (this.gaInitialized && window.gtag) {
+          try {
+            window.gtag('event', 'analytics_consent_denied')
+          } catch (e) {
+            debugAnalytics('Failed to track opt-out to GA:', e)
+          }
         }
       }
     } catch (error) {
@@ -120,21 +264,35 @@ export class AnalyticsManager {
   }
 
   track(event: string, properties?: Record<string, unknown>) {
-    if (!this.initialized || !this.getConsent()?.enabled) {
+    const consent = this.getConsent()
+    if (consent?.enabled === false) {
       return
     }
 
-    try {
-      // Filter out sensitive properties
-      const safeProperties = this.filterSensitiveData(properties || {})
-      posthog.capture(event, safeProperties)
-    } catch (error) {
-      debugAnalytics('Analytics tracking failed:', event, error)
+    // Filter out sensitive properties
+    const safeProperties = this.filterSensitiveData(properties || {})
+
+    // Track to PostHog
+    if (this.posthogInitialized) {
+      try {
+        posthog.capture(event, safeProperties)
+      } catch (error) {
+        debugAnalytics('PostHog tracking failed:', event, error)
+      }
+    }
+
+    // Track to Google Analytics
+    if (this.gaInitialized && window.gtag) {
+      try {
+        window.gtag('event', event, safeProperties)
+      } catch (error) {
+        debugAnalytics('Google Analytics tracking failed:', event, error)
+      }
     }
   }
 
   identify(userId: string, properties?: Record<string, unknown>) {
-    if (!this.initialized || !this.getConsent()?.enabled) {
+    if (!this.initialized || this.getConsent()?.enabled === false) {
       return
     }
 
@@ -158,19 +316,74 @@ export class AnalyticsManager {
     }
   }
 
+  capturePageview() {
+    const consent = this.getConsent()
+    if (consent?.enabled === false) {
+      return
+    }
+
+    // PostHog pageview
+    if (this.posthogInitialized) {
+      try {
+        posthog.capture('$pageview')
+      } catch (error) {
+        debugAnalytics('PostHog pageview capture failed:', error)
+      }
+    }
+
+    // Google Analytics pageview
+    if (this.gaInitialized && window.gtag) {
+      try {
+        window.gtag('event', 'page_view', {
+          page_location: window.location.href,
+          page_path: window.location.pathname,
+        })
+      } catch (error) {
+        debugAnalytics('Google Analytics pageview capture failed:', error)
+      }
+    }
+  }
+
   captureException(
     error: Error,
     properties?: Record<string, unknown> & { source?: string; componentStack?: string }
   ) {
     // Check if user has disabled error capture
-    if (!this.initialized || !this.getErrorCaptureEnabled()) {
+    if (!this.getErrorCaptureEnabled()) {
       return
     }
 
-    try {
-      posthog.captureException(error, properties)
-    } catch (err) {
-      debugAnalytics('Analytics exception capture failed:', err)
+    // Filter benign ResizeObserver errors
+    // These are harmless browser optimization warnings that occur when ResizeObserver
+    // callbacks trigger layout changes. They don't indicate actual problems and
+    // would create noise in error tracking.
+    if (isIgnoredErrorMessage(error.message)) {
+      debugAnalytics('Filtered benign ResizeObserver error from analytics')
+      return
+    }
+
+    // PostHog exception capture
+    if (this.posthogInitialized) {
+      try {
+        posthog.captureException(error, properties)
+      } catch (err) {
+        debugAnalytics('PostHog exception capture failed:', err)
+      }
+    }
+
+    // Google Analytics exception capture
+    if (this.gaInitialized && window.gtag) {
+      try {
+        // Filter sensitive data from exception properties
+        const safeProperties = this.filterSensitiveData(properties || {})
+        window.gtag('event', 'exception', {
+          description: error.name, // Use error.name instead of error.message to avoid leaking file paths
+          fatal: false,
+          ...safeProperties,
+        })
+      } catch (err) {
+        debugAnalytics('Google Analytics exception capture failed:', err)
+      }
     }
   }
 
@@ -221,7 +434,8 @@ export class AnalyticsManager {
 
   // Helper method to check if analytics is available and enabled
   isEnabled(): boolean {
-    return this.initialized && !!this.getConsent()?.enabled
+    const hasAnyProvider = this.posthogInitialized || this.gaInitialized
+    return hasAnyProvider && this.getConsent()?.enabled !== false
   }
 }
 

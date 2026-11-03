@@ -75,6 +75,11 @@
   border-color: #3b82f6;
 }
 
+.numberInput:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
 .resolutionInputs {
   display: flex;
   align-items: center;
@@ -92,6 +97,36 @@
 .separator {
   color: rgba(255, 255, 255, 0.4);
   font-size: 11px;
+}
+
+.presetSelect {
+  flex: 0 0 auto;
+  align-self: stretch;
+  width: 20px;
+  padding: 0;
+  background-color: rgba(255, 255, 255, 0.05);
+  color: var(--color-text-primary);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+  font-size: 0;
+  cursor: pointer;
+  transition: all 0.2s;
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 24 24' fill='none' stroke='rgba(255,255,255,0.6)' stroke-width='2'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: center;
+}
+
+.presetSelect:hover {
+  background-color: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.presetSelect:focus {
+  outline: none;
+  background-color: rgba(255, 255, 255, 0.08);
+  border-color: #3b82f6;
 }
 
 .slider {
@@ -152,6 +187,21 @@
   cursor: pointer;
   font-size: 11px;
   color: rgba(255, 255, 255, 0.7);
+}
+
+.checkbox:disabled {
+  cursor: not-allowed;
+}
+
+.checkboxLabel:has(.checkbox:disabled) {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.hint {
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.4);
+  margin: -2px 0 6px 20px;
 }
 
 .resetButton {
@@ -269,4 +319,9 @@
   font-size: 11px;
   opacity: 0.7;
   flex-shrink: 0;
+}
+
+/* A hint under a labeled field, lined up with the field instead of the label */
+.fieldHint {
+  margin-left: 78px;
 }

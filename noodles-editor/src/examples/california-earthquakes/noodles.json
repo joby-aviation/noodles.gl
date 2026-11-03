@@ -1,4 +1,89 @@
 {
+  "edges": [
+    {
+      "id": "/deck.out.vis->/out.par.vis",
+      "source": "/deck",
+      "target": "/out",
+      "sourceHandle": "out.vis",
+      "targetHandle": "par.vis"
+    },
+    {
+      "id": "/data-source.out.data->/scatterplot-layer.par.data",
+      "source": "/data-source",
+      "target": "/scatterplot-layer",
+      "sourceHandle": "out.data",
+      "targetHandle": "par.data"
+    },
+    {
+      "id": "/position-accessor.out.accessor->/scatterplot-layer.par.getPosition",
+      "source": "/position-accessor",
+      "target": "/scatterplot-layer",
+      "sourceHandle": "out.accessor",
+      "targetHandle": "par.getPosition"
+    },
+    {
+      "source": "/multiply",
+      "sourceHandle": "out.result",
+      "target": "/scatterplot-layer",
+      "targetHandle": "par.getRadius",
+      "id": "/multiply.out.result->/scatterplot-layer.par.getRadius"
+    },
+    {
+      "source": "/magnitude-color",
+      "sourceHandle": "out.color",
+      "target": "/scatterplot-layer",
+      "targetHandle": "par.getFillColor",
+      "id": "/magnitude-color.out.color->/scatterplot-layer.par.getFillColor"
+    },
+    {
+      "source": "/map-range",
+      "sourceHandle": "out.scaled",
+      "target": "/magnitude-color",
+      "targetHandle": "par.value",
+      "id": "/map-range.out.scaled->/magnitude-color.par.value"
+    },
+    {
+      "id": "/maplibre-basemap.out.maplibre->/deck.par.basemap",
+      "source": "/maplibre-basemap",
+      "target": "/deck",
+      "sourceHandle": "out.maplibre",
+      "targetHandle": "par.basemap"
+    },
+    {
+      "id": "/scatterplot-layer.out.layer->/deck.par.layers",
+      "source": "/scatterplot-layer",
+      "target": "/deck",
+      "sourceHandle": "out.layer",
+      "targetHandle": "par.layers"
+    },
+    {
+      "source": "/magnitude-accessor",
+      "sourceHandle": "out.accessor",
+      "target": "/map-range",
+      "targetHandle": "par.val",
+      "id": "/magnitude-accessor.out.accessor->/map-range.par.val"
+    },
+    {
+      "source": "/magnitude-accessor",
+      "sourceHandle": "out.accessor",
+      "target": "/sqrt",
+      "targetHandle": "par.a",
+      "id": "/magnitude-accessor.out.accessor->/sqrt.par.a"
+    },
+    {
+      "id": "/sqrt.out.result->/multiply.par.a",
+      "source": "/sqrt",
+      "target": "/multiply",
+      "sourceHandle": "out.result",
+      "targetHandle": "par.a"
+    }
+  ],
+  "version": 23,
+  "name": "California Earthquakes",
+  "editorSettings": {
+    "layoutMode": "noodles-on-top",
+    "showOverlay": true
+  },
   "nodes": [
     {
       "id": "/deck",
@@ -16,7 +101,19 @@
       "id": "/out",
       "type": "OutOp",
       "data": {
-        "inputs": {},
+        "inputs": {
+          "display": "fixed",
+          "width": 1920,
+          "height": 1080,
+          "lod": 2,
+          "waitForData": true,
+          "codec": "avc",
+          "bitrateMbps": 10,
+          "bitrateMode": "constant",
+          "scaleControl": 0.3,
+          "framerate": 30,
+          "captureDelay": 50
+        },
         "locked": false
       },
       "position": {
@@ -154,7 +251,7 @@
       "data": {
         "inputs": {
           "operator": "multiply",
-          "b": 1000
+          "b": 1700
         },
         "locked": false
       },
@@ -162,92 +259,72 @@
         "x": 235.19973882458825,
         "y": 548.5423198131313
       }
+    },
+    {
+      "id": "/data-note",
+      "type": "CommentOp",
+      "position": {
+        "x": -30,
+        "y": -120
+      },
+      "data": {
+        "inputs": {
+          "text": "This loads the earthquake CSV. Click it to see its columns."
+        },
+        "locked": false
+      },
+      "width": 265,
+      "height": 80
+    },
+    {
+      "id": "/magnitude-note",
+      "type": "CommentOp",
+      "position": {
+        "x": -472,
+        "y": 490
+      },
+      "data": {
+        "inputs": {
+          "text": "This reads each earthquake's magnitude. The nodes to its right turn it into a circle size and color."
+        },
+        "locked": false
+      },
+      "width": 314,
+      "height": 80
+    },
+    {
+      "id": "/layer-note",
+      "type": "CommentOp",
+      "position": {
+        "x": 660,
+        "y": 40
+      },
+      "data": {
+        "inputs": {
+          "text": "This layer draws one circle per earthquake. Click it and change radiusScale to make the circles bigger."
+        },
+        "locked": false
+      },
+      "width": 329,
+      "height": 80
+    },
+    {
+      "id": "/try-next-note",
+      "type": "CommentOp",
+      "position": {
+        "x": 1200,
+        "y": 380
+      },
+      "data": {
+        "inputs": {
+          "text": "Try next:\n- Click magnitude-color and pick a different colorScheme.\n- Drop a CSV with latitude and longitude columns onto the canvas to map your own points.\n- Press Export and pick Image (PNG) to save the map."
+        },
+        "locked": false
+      },
+      "width": 340,
+      "height": 190
     }
   ],
-  "edges": [
-    {
-      "id": "/deck.out.vis->/out.par.vis",
-      "source": "/deck",
-      "target": "/out",
-      "sourceHandle": "out.vis",
-      "targetHandle": "par.vis"
-    },
-    {
-      "id": "/data-source.out.data->/scatterplot-layer.par.data",
-      "source": "/data-source",
-      "target": "/scatterplot-layer",
-      "sourceHandle": "out.data",
-      "targetHandle": "par.data"
-    },
-    {
-      "id": "/position-accessor.out.accessor->/scatterplot-layer.par.getPosition",
-      "source": "/position-accessor",
-      "target": "/scatterplot-layer",
-      "sourceHandle": "out.accessor",
-      "targetHandle": "par.getPosition"
-    },
-    {
-      "source": "/multiply",
-      "sourceHandle": "out.result",
-      "target": "/scatterplot-layer",
-      "targetHandle": "par.getRadius",
-      "id": "/multiply.out.result->/scatterplot-layer.par.getRadius"
-    },
-    {
-      "source": "/magnitude-color",
-      "sourceHandle": "out.color",
-      "target": "/scatterplot-layer",
-      "targetHandle": "par.getFillColor",
-      "id": "/magnitude-color.out.color->/scatterplot-layer.par.getFillColor"
-    },
-    {
-      "source": "/map-range",
-      "sourceHandle": "out.scaled",
-      "target": "/magnitude-color",
-      "targetHandle": "par.value",
-      "id": "/map-range.out.scaled->/magnitude-color.par.value"
-    },
-    {
-      "id": "/maplibre-basemap.out.maplibre->/deck.par.basemap",
-      "source": "/maplibre-basemap",
-      "target": "/deck",
-      "sourceHandle": "out.maplibre",
-      "targetHandle": "par.basemap"
-    },
-    {
-      "id": "/scatterplot-layer.out.layer->/deck.par.layers",
-      "source": "/scatterplot-layer",
-      "target": "/deck",
-      "sourceHandle": "out.layer",
-      "targetHandle": "par.layers"
-    },
-    {
-      "source": "/magnitude-accessor",
-      "sourceHandle": "out.accessor",
-      "target": "/map-range",
-      "targetHandle": "par.val",
-      "id": "/magnitude-accessor.out.accessor->/map-range.par.val"
-    },
-    {
-      "source": "/magnitude-accessor",
-      "sourceHandle": "out.accessor",
-      "target": "/sqrt",
-      "targetHandle": "par.a",
-      "id": "/magnitude-accessor.out.accessor->/sqrt.par.a"
-    },
-    {
-      "source": "/magnitude-accessor",
-      "sourceHandle": "out.accessor",
-      "target": "/multiply",
-      "targetHandle": "par.a",
-      "id": "/magnitude-accessor.out.accessor->/multiply.par.a"
-    }
-  ],
-  "viewport": {
-    "x": 143.291766562843,
-    "y": 172.88548024794358,
-    "zoom": 0.4813563009649149
-  },
   "timeline": {
     "sheetsById": {
       "Noodles": {
@@ -257,8 +334,6 @@
       }
     },
     "definitionVersion": "0.4.0",
-    "revisionHistory": [
-    ]
-  },
-  "version": 6
+    "revisionHistory": []
+  }
 }

@@ -1,4 +1,68 @@
 {
+  "edges": [
+    {
+      "id": "/deck.out.vis->/out.par.vis",
+      "source": "/deck",
+      "target": "/out",
+      "sourceHandle": "out.vis",
+      "targetHandle": "par.vis"
+    },
+    {
+      "id": "/data-source.out.data->/geojson-layer.par.data",
+      "source": "/data-source",
+      "target": "/geojson-layer",
+      "sourceHandle": "out.data",
+      "targetHandle": "par.data"
+    },
+    {
+      "id": "/elevation-color.out.color->/geojson-layer.par.getFillColor",
+      "source": "/elevation-color",
+      "target": "/geojson-layer",
+      "sourceHandle": "out.color",
+      "targetHandle": "par.getFillColor"
+    },
+    {
+      "id": "/elevation-color.out.color->/geojson-layer.par.getLineColor",
+      "source": "/elevation-color",
+      "target": "/geojson-layer",
+      "sourceHandle": "out.color",
+      "targetHandle": "par.getLineColor"
+    },
+    {
+      "id": "/elevation-accessor.out.accessor->/elevation-range.par.val",
+      "source": "/elevation-accessor",
+      "target": "/elevation-range",
+      "sourceHandle": "out.accessor",
+      "targetHandle": "par.val"
+    },
+    {
+      "id": "/elevation-range.out.scaled->/elevation-color.par.value",
+      "source": "/elevation-range",
+      "target": "/elevation-color",
+      "sourceHandle": "out.scaled",
+      "targetHandle": "par.value"
+    },
+    {
+      "id": "/maplibre-basemap.out.maplibre->/deck.par.basemap",
+      "source": "/maplibre-basemap",
+      "target": "/deck",
+      "sourceHandle": "out.maplibre",
+      "targetHandle": "par.basemap"
+    },
+    {
+      "id": "/geojson-layer.out.layer->/deck.par.layers",
+      "source": "/geojson-layer",
+      "target": "/deck",
+      "sourceHandle": "out.layer",
+      "targetHandle": "par.layers"
+    }
+  ],
+  "version": 23,
+  "name": "San Francisco Elevation Contours",
+  "editorSettings": {
+    "layoutMode": "noodles-on-top",
+    "showOverlay": true
+  },
   "nodes": [
     {
       "id": "/deck",
@@ -16,7 +80,19 @@
       "id": "/out",
       "type": "OutOp",
       "data": {
-        "inputs": {},
+        "inputs": {
+          "display": "fixed",
+          "width": 1920,
+          "height": 1080,
+          "lod": 2,
+          "waitForData": true,
+          "codec": "avc",
+          "bitrateMbps": 10,
+          "bitrateMode": "constant",
+          "scaleControl": 0.3,
+          "framerate": 30,
+          "captureDelay": 50
+        },
         "locked": false
       },
       "position": {
@@ -81,6 +157,21 @@
       }
     },
     {
+      "id": "/elevation-range",
+      "type": "MapRangeOp",
+      "data": {
+        "inputs": {
+          "inMin": 0,
+          "inMax": 900
+        },
+        "locked": false
+      },
+      "position": {
+        "x": 220,
+        "y": 357.60812772133534
+      }
+    },
+    {
       "type": "MaplibreBasemapOp",
       "id": "/maplibre-basemap",
       "position": {
@@ -100,64 +191,72 @@
         },
         "locked": false
       }
+    },
+    {
+      "id": "/data-note",
+      "type": "CommentOp",
+      "position": {
+        "x": 0,
+        "y": -70
+      },
+      "data": {
+        "inputs": {
+          "text": "This loads San Francisco's contour lines. Each line follows one height above sea level."
+        },
+        "locked": false
+      },
+      "width": 300,
+      "height": 90
+    },
+    {
+      "id": "/layer-note",
+      "type": "CommentOp",
+      "position": {
+        "x": 900,
+        "y": -110
+      },
+      "data": {
+        "inputs": {
+          "text": "This layer draws the contour lines. Click it and change lineWidthScale to make them thicker."
+        },
+        "locked": false
+      },
+      "width": 300,
+      "height": 90
+    },
+    {
+      "id": "/range-note",
+      "type": "CommentOp",
+      "position": {
+        "x": 220,
+        "y": 590
+      },
+      "data": {
+        "inputs": {
+          "text": "This turns each line's elevation into a color. Change inMax to spread the colors differently."
+        },
+        "locked": false
+      },
+      "width": 320,
+      "height": 80
+    },
+    {
+      "id": "/try-next-note",
+      "type": "CommentOp",
+      "position": {
+        "x": 1220,
+        "y": -120
+      },
+      "data": {
+        "inputs": {
+          "text": "Try next:\n- Click elevation-color and pick a different colorScheme.\n- Click the diamond next to bearing on maplibre-basemap, pick a later time in the Timeline, and change it again.\n- Press Export and pick Video (MP4) to save the animation."
+        },
+        "locked": false
+      },
+      "width": 340,
+      "height": 190
     }
   ],
-  "edges": [
-    {
-      "id": "/deck.out.vis->/out.par.vis",
-      "source": "/deck",
-      "target": "/out",
-      "sourceHandle": "out.vis",
-      "targetHandle": "par.vis"
-    },
-    {
-      "id": "/data-source.out.data->/geojson-layer.par.data",
-      "source": "/data-source",
-      "target": "/geojson-layer",
-      "sourceHandle": "out.data",
-      "targetHandle": "par.data"
-    },
-    {
-      "id": "/elevation-color.out.color->/geojson-layer.par.getFillColor",
-      "source": "/elevation-color",
-      "target": "/geojson-layer",
-      "sourceHandle": "out.color",
-      "targetHandle": "par.getFillColor"
-    },
-    {
-      "id": "/elevation-color.out.color->/geojson-layer.par.getLineColor",
-      "source": "/elevation-color",
-      "target": "/geojson-layer",
-      "sourceHandle": "out.color",
-      "targetHandle": "par.getLineColor"
-    },
-    {
-      "id": "/elevation-accessor.out.accessor->/elevation-color.par.value",
-      "source": "/elevation-accessor",
-      "target": "/elevation-color",
-      "sourceHandle": "out.accessor",
-      "targetHandle": "par.value"
-    },
-    {
-      "id": "/maplibre-basemap.out.maplibre->/deck.par.basemap",
-      "source": "/maplibre-basemap",
-      "target": "/deck",
-      "sourceHandle": "out.maplibre",
-      "targetHandle": "par.basemap"
-    },
-    {
-      "id": "/geojson-layer.out.layer->/deck.par.layers",
-      "source": "/geojson-layer",
-      "target": "/deck",
-      "sourceHandle": "out.layer",
-      "targetHandle": "par.layers"
-    }
-  ],
-  "viewport": {
-    "x": 149,
-    "y": 48.131400370141876,
-    "zoom": 0.42504626773596543
-  },
   "timeline": {
     "sheetsById": {
       "Noodles": {
@@ -168,6 +267,5 @@
     },
     "definitionVersion": "0.4.0",
     "revisionHistory": []
-  },
-  "version": 6
+  }
 }

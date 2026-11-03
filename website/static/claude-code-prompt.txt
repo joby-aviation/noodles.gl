@@ -1,0 +1,17 @@
+Set up Noodles.gl (https://github.com/joby-aviation/noodles.gl) on this machine, open an example map, make one small change to it, and show me a screenshot. Follow these steps in order. Don't research beyond them.
+
+1. Repo: if the current directory has a `noodles-editor/` folder, use it. Otherwise run `git clone --depth 1 https://github.com/joby-aviation/noodles.gl.git` (reuse `./noodles.gl` if it exists) and work in it. Needs git, Node 22 or later, and Chrome or Edge.
+2. Install: run `npm install` in the repo root.
+3. Dev server: run `npm start` in `noodles-editor/` as a background process. Wait for the `Local:` URL it prints (often http://localhost:5173/) and use it as <URL> below.
+4. Relay: in the repo root, run `claude mcp add webmcp -- npx -y @mcp-b/webmcp-local-relay@4`, unless `claude mcp get webmcp` already finds it.
+5. Change and capture: this session can't use the relay until Claude Code restarts, so run a second session in the repo root. It loads the relay and the repo's `noodles-live` skill, then opens the map, because a tab opened before the relay starts never connects. First tell me a browser tab will open and to leave it visible until you show the screenshot. Then run:
+   `mkdir -p .quick-start && claude -p --allowedTools "mcp__webmcp Skill Bash(sleep *) Bash(<open> *)" --output-format stream-json --verbose "Use the noodles-live skill. Run <open> '<URL>examples/nyc-taxis?externalControl=true'. Call webmcp_list_sources; if no tab URL starts with <URL>examples/nyc-taxis yet, run sleep 5 and check again, up to 6 times. Use that tab; with several tabs, its tool names end in a tab id. Call get_current_project. Make one small visible change to a layer, such as its color. Call capture_visualization, then reply with one sentence on what changed. Stop there." >| .quick-start/run.jsonl`
+   For <open>, use `open -a 'Google Chrome'` on macOS (`open -a 'Microsoft Edge'` if Chrome isn't installed), `xdg-open` on Linux, or `start chrome` on Windows (`start msedge` without Chrome).
+   If it reports that the tab is hidden, bring the browser to the front and run it once more. If it reports no tab, close the Noodles tabs it opened and run it once more.
+6. Screenshot: save the last image from that run with
+   `node -e "let d;for(const l of require('fs').readFileSync('.quick-start/run.jsonl','utf8').split('\n'))JSON.stringify(JSON.parse(l||'{}'),(k,v)=>(v&&v.type==='image'&&v.source&&(d=v.source.data),v));require('fs').writeFileSync('.quick-start/screenshot.jpg',Buffer.from(d,'base64'))"`
+   then read `.quick-start/screenshot.jpg` so I can see it.
+
+You are done when you have shown me the screenshot, said what changed, and given me the file path. Then stop. If a step fails twice, stop and tell me the step and its exact error.
+
+End your last message with: to keep going, run `claude` in the repo folder and ask for a change, for example "make the arcs red and export a 5 second video". The relay and the noodles-live skill load there on their own. Open the editor after Claude Code starts, so the tab finds the relay.

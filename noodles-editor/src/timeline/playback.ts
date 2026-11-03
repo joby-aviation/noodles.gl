@@ -111,18 +111,34 @@ export function connectPlaybackToTimeline(): () => void {
     const store = getTimelineStore()
     if (!store.playing) return
 
-    const { position, sequence, playbackSpeed, loop } = store
+    const { position, sequence, playbackSpeed, loop, loopInOut } = store
     const deltaSeconds = (deltaMs / 1000) * playbackSpeed
     let newPosition = position + deltaSeconds
 
-    // Handle end of sequence
-    if (newPosition >= sequence.length) {
+    // Determine playback boundaries
+    const startBoundary = loopInOut ? (sequence.inPoint ?? 0) : 0
+    const endBoundary = loopInOut ? (sequence.outPoint ?? sequence.length) : sequence.length
+
+    // Handle end of playback range
+    if (newPosition >= endBoundary) {
       if (loop) {
-        // Wrap around to beginning
-        newPosition = newPosition % sequence.length
+        // Wrap around to start of range
+        const overshoot = newPosition - endBoundary
+        newPosition = startBoundary + (overshoot % (endBoundary - startBoundary))
       } else {
         // Stop at end
-        newPosition = sequence.length
+        newPosition = endBoundary
+        store.pause()
+      }
+    }
+
+    // Handle going before start boundary (can happen with negative playback speed)
+    if (newPosition < startBoundary) {
+      if (loop) {
+        const undershoot = startBoundary - newPosition
+        newPosition = endBoundary - (undershoot % (endBoundary - startBoundary))
+      } else {
+        newPosition = startBoundary
         store.pause()
       }
     }

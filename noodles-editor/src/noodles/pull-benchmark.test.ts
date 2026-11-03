@@ -1,6 +1,6 @@
 // Performance benchmark tests for pull-based execution model
 
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { DataField, NumberField } from './fields'
 import { GraphExecutor, topologicalSort } from './graph-executor'
 import { Operator, PullExecutionStatus } from './operators'
@@ -397,5 +397,275 @@ describe('Dependency graph (via topologicalSort)', () => {
     // Check that sink nodes have no downstream
     expect(executor.getDownstream('/sink1').size).toBe(0)
     expect(executor.getDownstream('/sink2').size).toBe(0)
+  })
+})
+
+// Operator that takes a configurable amount of time to execute
+class SlowOp extends Operator<SlowOp> {
+  static displayName = 'Slow'
+  delayMs = 0
+
+  createInputs() {
+    return { value: new NumberField(0) }
+  }
+
+  createOutputs() {
+    return { result: new NumberField() }
+  }
+
+  async execute({ value }: ExtractProps<typeof this.inputs>) {
+    if (this.delayMs > 0) {
+      await new Promise(resolve => setTimeout(resolve, this.delayMs))
+    }
+    return { result: value * 2 }
+  }
+}
+
+describe('Execution indicator timing', () => {
+  beforeEach(() => {
+    vi.useFakeTimers()
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('should not show executing indicator for fast ops (<200ms)', async () => {
+    const op = new SlowOp('/fast-op')
+    op.delayMs = 50
+
+    const states: string[] = []
+    const sub = op.executionState.subscribe(s => states.push(s.status))
+
+    const pullPromise = op.pull()
+    // Advance past the op's 50ms delay but not past the 200ms indicator threshold
+    await vi.advanceTimersByTimeAsync(100)
+    await pullPromise
+
+    sub.unsubscribe()
+
+    expect(states).not.toContain('executing')
+    expect(states).toContain('success')
+  })
+
+  it('should show executing indicator for slow ops (>200ms)', async () => {
+    const op = new SlowOp('/slow-op')
+    op.delayMs = 300
+
+    const states: string[] = []
+    const sub = op.executionState.subscribe(s => states.push(s.status))
+
+    const pullPromise = op.pull()
+    // Advance past the 200ms indicator threshold
+    await vi.advanceTimersByTimeAsync(250)
+    expect(states).toContain('executing')
+
+    // Finish execution
+    await vi.advanceTimersByTimeAsync(100)
+    await pullPromise
+
+    sub.unsubscribe()
+
+    expect(states).toContain('success')
+  })
+
+  it('should clear executing indicator on error', async () => {
+    const op = new SlowOp('/error-op')
+    op.delayMs = 300
+    vi.spyOn(op, 'execute').mockImplementation(async () => {
+      await new Promise(resolve => setTimeout(resolve, 300))
+      throw new Error('test error')
+    })
+
+    const states: string[] = []
+    const sub = op.executionState.subscribe(s => states.push(s.status))
+
+    const pullPromise = op.pull().catch(() => {})
+    await vi.advanceTimersByTimeAsync(250)
+    expect(states).toContain('executing')
+
+    await vi.advanceTimersByTimeAsync(100)
+    await pullPromise
+
+    sub.unsubscribe()
+
+    expect(states).toContain('error')
+  })
+})
+
+describe('markDirty wave benchmarks', () => {
+  // setupTests freezes the clock; these timings need the real one
+  beforeEach(() => {
+    vi.useRealTimers()
+  })
+
+  // The wave writes status through a single private helper; spying on it
+  // counts wave visits exactly (a pruned mark performs zero status writes)
+  const spyOnStatusWrites = () =>
+    vi.spyOn(Operator.prototype as any, '_setPullExecutionStatus' as any)
+
+  // Build a linear dependency chain. markDirty only follows downstream
+  // dependents, so field connections are not needed for marking benchmarks
+  const buildChain = (length: number, prefix: string) => {
+    const ops: ChainOp[] = []
+    for (let i = 0; i < length; i++) {
+      const op = new ChainOp(`${prefix}-${i}`)
+      if (i > 0) {
+        ops[i - 1].addDownstreamDependent(op)
+      }
+      ops.push(op)
+    }
+    return ops
+  }
+
+  it('should prune repeated marks in O(1) regardless of closure size', () => {
+    const ROUNDS = 9
+    const head50 = buildChain(50, '/wave-a50')[0]
+    const head500 = buildChain(500, '/wave-a500')[0]
+
+    // Stamp both closures in the current epoch (building chains bumps it)
+    head50.markDirty()
+    head500.markDirty()
+
+    // One spy for the whole test: swapping the prototype method between
+    // samples can deopt markDirty and bill the recompile to one chain
+    const spy = spyOnStatusWrites()
+    const timeRepeatedMarks = (head: ChainOp, k: number) => {
+      const start = performance.now()
+      for (let i = 0; i < k; i++) {
+        head.markDirty()
+      }
+      return performance.now() - start
+    }
+
+    // Warm up so JIT tiering is not billed to whichever chain runs first
+    timeRepeatedMarks(head50, 1000)
+    timeRepeatedMarks(head500, 1000)
+
+    // Grow the batch until one sample is well above the browser's 0.1 ms
+    // timer resolution, so fast machines still compare real numbers
+    let K = 1000
+    while (K < 1_000_000 && timeRepeatedMarks(head50, K) < 2) {
+      K *= 2
+    }
+
+    // Interleave samples so a GC pause or noisy neighbor on a shared CI
+    // runner hits both chains alike, then compare medians
+    const samples50: number[] = []
+    const samples500: number[] = []
+    for (let r = 0; r < ROUNDS; r++) {
+      samples50.push(timeRepeatedMarks(head50, K))
+      samples500.push(timeRepeatedMarks(head500, K))
+    }
+    expect(spy).toHaveBeenCalledTimes(0) // fully pruned: zero status writes
+    spy.mockRestore()
+
+    const median = (xs: number[]) => [...xs].sort((a, b) => a - b)[Math.floor(xs.length / 2)]
+    const time50 = median(samples50)
+    const time500 = median(samples500)
+
+    console.log(`${K} repeated marks, 50-op chain (median of ${ROUNDS}):`, time50.toFixed(2), 'ms')
+    console.log(
+      `${K} repeated marks, 500-op chain (median of ${ROUNDS}):`,
+      time500.toFixed(2),
+      'ms'
+    )
+    console.log('Ratio (500/50):', (time500 / Math.max(time50, 0.001)).toFixed(2), 'x')
+
+    // Repeated-mark cost must not scale with closure size. The true ratio is
+    // ~1 and a walk of the closure would be ~10x
+    expect(time500).toBeLessThan(time50 * 3)
+  })
+
+  it('should walk the closure exactly once on the first mark after invalidation', () => {
+    const chain = buildChain(500, '/wave-b')
+    const head = chain[0]
+    const tail = chain[chain.length - 1]
+
+    head.markDirty() // everything dirty and stamped
+    // Any operator leaving DIRTY invalidates the prune
+    tail.setCachedOutput({ output: 0 })
+
+    const spy = spyOnStatusWrites()
+    const start = performance.now()
+    head.markDirty()
+    const firstWalkTime = performance.now() - start
+    expect(spy).toHaveBeenCalledTimes(500) // every op visited exactly once
+
+    head.markDirty()
+    expect(spy).toHaveBeenCalledTimes(500) // second wave fully pruned
+    spy.mockRestore()
+
+    console.log('First walk after invalidation (500 ops):', firstWalkTime.toFixed(2), 'ms')
+  })
+
+  it('should mark each op at most once across a scrub burst with 25 entry points', () => {
+    // Real-project shape: 25 keyframed sources with 20-op subtrees converging
+    // on one shared sink (501 ops). A scrub burst marks all 25 sources every
+    // frame for 60 frames with no pulls in between.
+    const sink = new ChainOp('/wave-c-sink')
+    const sources: ChainOp[] = []
+    let totalOps = 1
+    for (let s = 0; s < 25; s++) {
+      const branch = buildChain(20, `/wave-c${s}`)
+      branch[branch.length - 1].addDownstreamDependent(sink)
+      sources.push(branch[0])
+      totalOps += branch.length
+    }
+    expect(totalOps).toBe(501)
+
+    const frames = 60
+    const spy = spyOnStatusWrites()
+    const start = performance.now()
+    for (let frame = 0; frame < frames; frame++) {
+      for (const source of sources) {
+        source.markDirty()
+      }
+    }
+    const burstTime = performance.now() - start
+
+    // Cross-entry pruning: the epoch stamp is shared across waves, so the
+    // sink is written by the first source's wave and pruned in the other 24,
+    // and frames 2-60 prune immediately at each already-stamped source.
+    // Every op is status-written exactly once across all 1500 marks.
+    expect(spy).toHaveBeenCalledTimes(totalOps)
+    spy.mockRestore()
+
+    console.log(
+      `Scrub burst (${frames} frames x 25 sources, ${totalOps} ops):`,
+      burstTime.toFixed(2),
+      'ms'
+    )
+    console.log('Per-frame average:', (burstTime / frames).toFixed(3), 'ms')
+  })
+
+  it('should bound prune-invalidation after a pull to one full walk', async () => {
+    // Chain wired for pulling: field connections and upstream dependencies
+    const length = 100
+    const ops: ChainOp[] = []
+    for (let i = 0; i < length; i++) {
+      const op = new ChainOp(`/wave-d-${i}`)
+      if (i > 0) {
+        op.inputs.input.addConnection(`wave-d-conn-${i}`, ops[i - 1].outputs.output)
+        op.addUpstreamDependency(ops[i - 1])
+        ops[i - 1].addDownstreamDependent(op)
+      }
+      ops.push(op)
+    }
+    const head = ops[0]
+    const tail = ops[length - 1]
+
+    head.markDirty()
+    await tail.pull() // cleans the whole chain (each clean bumps the epoch)
+    expect(tail.pullExecutionStatus).toBe(PullExecutionStatus.CLEAN)
+
+    const spy = spyOnStatusWrites()
+    head.markDirty()
+    expect(spy).toHaveBeenCalledTimes(length) // one full walk after cleaning
+
+    head.markDirty()
+    head.markDirty()
+    expect(spy).toHaveBeenCalledTimes(length) // subsequent marks pruned again
+    spy.mockRestore()
   })
 })

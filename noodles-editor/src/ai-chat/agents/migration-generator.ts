@@ -91,21 +91,29 @@ export class MigrationGeneratorAgent {
     changes: MigrationParams['changes']
   ): string {
     const versionStr = version.toString().padStart(3, '0')
-    const opName = operatorType.replace(/Op$/, '').toLowerCase()
+    const opName = operatorType.replace(/Op$/, '')
+
+    // Migration filenames must be NNN-kebab-case (see utils/migration-numbering.test.ts)
+    const kebab = (name: string) =>
+      name
+        .replace(/([a-z0-9])([A-Z])/g, '$1-$2')
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-|-$/g, '')
 
     switch (changeType) {
       case 'rename_field':
-        return `${versionStr}-${opName}-${changes.oldHandle}-to-${changes.newHandle}`
+        return `${versionStr}-${kebab(`${opName}-${changes.oldHandle}-to-${changes.newHandle}`)}`
       case 'rename_operator':
-        return `${versionStr}-rename-${changes.oldType}-to-${changes.newType}`
+        return `${versionStr}-${kebab(`rename-${changes.oldType}-to-${changes.newType}`)}`
       case 'change_default':
-        return `${versionStr}-${opName}-change-${changes.fieldName}-default`
+        return `${versionStr}-${kebab(`${opName}-change-${changes.fieldName}-default`)}`
       case 'add_field':
-        return `${versionStr}-${opName}-add-${changes.fieldName}`
+        return `${versionStr}-${kebab(`${opName}-add-${changes.fieldName}`)}`
       case 'remove_field':
-        return `${versionStr}-${opName}-remove-${changes.fieldName}`
+        return `${versionStr}-${kebab(`${opName}-remove-${changes.fieldName}`)}`
       default:
-        return `${versionStr}-${opName}-migration`
+        return `${versionStr}-${kebab(`${opName}-migration`)}`
     }
   }
 

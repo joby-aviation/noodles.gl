@@ -1,5 +1,6 @@
-import {Widget} from '@deck.gl/core'
-import type {WidgetPlacement, WidgetProps} from '@deck.gl/core'
+import type { WidgetPlacement, WidgetProps } from '@deck.gl/core'
+import { Widget } from '@deck.gl/core'
+import { escapeHtml } from './utils'
 
 export type LegendWidgetProps = WidgetProps & {
   placement?: WidgetPlacement
@@ -39,7 +40,14 @@ export class LegendWidget extends Widget<LegendWidgetProps> {
   }
 
   onRenderHTML(rootElement: HTMLElement): void {
-    const {colorStops = [], label = '', minValue = 0, maxValue = 1, scale = 1, placement = 'bottom-right'} = this.props
+    const {
+      colorStops = [],
+      label = '',
+      minValue = 0,
+      maxValue = 1,
+      scale = 1,
+      placement = 'bottom-right',
+    } = this.props
 
     const originMap: Record<string, string> = {
       'top-left': 'top left',
@@ -83,8 +91,4 @@ function formatValue(v: number): string {
   if (!Number.isFinite(v)) return String(v)
   const s = v.toPrecision(4)
   return String(parseFloat(s))
-}
-
-function escapeHtml(s: string): string {
-  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
 }

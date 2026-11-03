@@ -1,0 +1,429 @@
+# TableEditorOp: Typed Schema System
+
+## Overview
+
+The TableEditorOp provides a typed schema system, offering an Airtable-like experience with Noodles-native field types.
+
+## Features
+
+### Typed Columns
+
+Each column has a specific type with validation and specialized editors:
+
+| Type | Description | Editor | Example |
+|------|-------------|--------|---------|
+| `number` | Numeric values | Scrubbable input with min/max/step | `42`, `3.14159` |
+| `string` | Text values | Text input | `"Hello World"` |
+| `boolean` | True/false | Toggle switch | `true`, `false` |
+| `color` | Hex colors | Color picker | `#ff5733` |
+| `point2d` | Coordinates [lng, lat] | Dual number inputs + geocoder | `[-74.006, 40.7128]` |
+| `point3d` | 3D coordinates | Triple number inputs | `[x, y, z]` |
+| `vec2` | 2D vectors | Dual number inputs | `[1.0, 2.0]` |
+| `vec3` | 3D vectors | Triple number inputs | `[1.0, 2.0, 3.0]` |
+| `date` | Date values | Date picker | `"2024-01-15"` |
+| `dateTime` | Date and time values | DateTime picker with milliseconds | `"2026-05-02T14:30:45.123"` |
+| `stringLiteral` | Enum values | Dropdown | `"option1"` |
+
+### Schema System
+
+Each TableEditor owns its schema as serialized local state. The schema has no graph handle: it
+cannot be connected to another node and is not exposed as an output. When a table has no saved
+schema, one is inferred from its data. Once edited or pasted, the explicit schema is saved with
+the table and used to validate its rows.
+
+Schemas can be transferred explicitly from the table actions menu:
+
+- **Copy Schema** writes readable, versioned JSON to the clipboard.
+- **Paste Schema Overlay** previews a non-destructive merge. Existing target-only columns remain,
+  matching columns update in place, and new columns append in source order.
+- Column menus provide the same copy/paste workflow for one column.
+- Unsafe type or constraint changes default to **Keep existing**. Choosing **Apply and reset**
+  shows and then resets only values that cannot be converted.
+
+Copied stable column identities let a later paste recognize an intentional source rename and
+remap each target table's own values. A schema paste never creates a live relationship between
+tables.
+
+**Schema Structure:**
+```typescript
+{
+  columns: [
+    {
+      name: 'city',
+      type: 'string',
+      defaultValue: ''
+    },
+    {
+      name: 'position',
+      type: 'point2d',
+      defaultValue: [0, 0],
+      options: {
+        geocoder: true  // Enable geocoder button
+      }
+    },
+    {
+      name: 'population',
+      type: 'number',
+      defaultValue: 0,
+      options: {
+        min: 0,
+        max: 10000000,
+        step: 1
+      }
+    }
+  ]
+}
+```
+
+### Schema Editor Dialog
+
+**Features:**
+- Add, edit, delete, and reorder columns
+- Set column type and options
+- Quick-add templates:
+  - **Position XYZ**: Adds x, y, z number columns
+  - **Color RGB**: Adds r, g, b number columns (0-255)
+  - **Lat/Lng**: Adds a point2d column
+
+**Type-Specific Options:**
+
+**Number:**
+- `min`: Minimum value
+- `max`: Maximum value
+- `step`: Increment step
+
+**Point2D:**
+- `geocoder`: Enable geocoder button for address lookup (coming soon)
+
+**StringLiteral:**
+- `values`: Array of allowed values (dropdown options)
+
+### UI Features
+
+- **Spreadsheet selection**: Click selects a cell; Shift-click or Shift-arrow extends a range
+- **Inline editing**: Double-click, Enter, F2, or typing edits the active cell
+- **Clipboard data transfer**: Copy ranges to Google Sheets and paste Sheets ranges back
+- **Add/delete rows**: Add button in toolbar, delete button per row
+- **Schema management**: Edit Schema dialog for column configuration
+- **Row numbers**: Visual index for each row
+- **Stats display**: Shows row × column count
+- **Keyboard navigation**: Arrows move, Enter/Tab confirm and advance, Escape cancels
+
+### Undo and Redo
+
+Committed data edits to the same table within 1.5 seconds share one graph-history entry. This
+includes an active cell edit flushed immediately before adding or deleting a row. Schema saves
+remain one atomic entry with their data remapping. While a cell editor is still focused,
+Cmd/Ctrl+Z uses the browser's native input undo; after the edit commits, it reaches graph history.
+
+Table history stores only the changed contiguous row slice instead of serializing every operator
+and every row for each edit. Undo and redo apply those row patches in order, so insertions,
+deletions, range pastes, and grouped edits remain reversible.
+
+### Spreadsheet Clipboard
+
+Copying a table selection writes quoted TSV and an HTML table for interoperability with Google
+Sheets, plus a best-effort typed Noodles range payload. Use **Copy with Column Names** when the
+destination should receive a header row. Vectors and other structured cells use JSON text in the
+universal TSV/HTML formats; the typed payload preserves their native values between TableEditors.
+
+Pasting into an existing schema starts at the active cell. Lossless in-bounds data applies
+immediately, and rows are added when the range extends downward. Conversion failures or columns
+that extend past the right edge open a preview instead of truncating data. Pasting into an empty
+TableEditor always opens the preview with header detection enabled.
+
+Unquoted multiline text is a one-column range when pasted into a table, so `Alice\nBob` fills two
+rows. Quoted CSV (`"two\nlines"`), the typed payload, and HTML keep multiline values inside a single
+cell.
+
+Pasting a clearly tabular Sheets, TSV, CSV, or JSON selection on empty canvas opens the same
+preview. Confirming creates one populated TableEditor at the pointer; plain text (including
+multiline text), schema-only clipboard data, and malformed JSON do not create nodes.
+
+### Data Flow
+
+**Public input:**
+- `data`: Array of objects (rows)
+
+The serialized `inputs.schema` property is internal TableEditor state. It is intentionally absent
+from connection discovery and generic field controls.
+
+**Public output:**
+- `data`: Validated data array
+
+**Execution:**
+1. If a local schema is saved → use it
+2. Otherwise → infer schema from data
+3. Validate data against schema
+4. Apply defaults for missing values
+5. Warn about invalid values (console)
+6. Return validated data
+
+## Usage Examples
+
+### Example 1: Cities Table
+
+```json
+{
+  "type": "TableEditorOp",
+  "data": {
+    "inputs": {
+      "schema": {
+        "columns": [
+          { "name": "city", "type": "string" },
+          { "name": "position", "type": "point2d", "options": { "geocoder": true } },
+          { "name": "population", "type": "number", "options": { "min": 0 } },
+          { "name": "color", "type": "color" }
+        ]
+      },
+      "data": [
+        {
+          "city": "NYC",
+          "position": [-74.006, 40.7128],
+          "population": 8336817,
+          "color": "#ff5733"
+        }
+      ]
+    }
+  }
+}
+```
+
+### Example 2: Schema Inference
+
+```json
+{
+  "type": "TableEditorOp",
+  "data": {
+    "inputs": {
+      "data": [
+        {
+          "name": "Alice",
+          "score": 95,
+          "active": true,
+          "color": "#ff0000",
+          "location": [10, 20]
+        }
+      ]
+    }
+  }
+}
+```
+
+Schema automatically inferred as:
+- `name`: string
+- `score`: number
+- `active`: boolean
+- `color`: color (detected from hex format)
+- `location`: point2d (detected from [number, number] array)
+
+### Example 3: Empty Table with Schema
+
+```json
+{
+  "type": "TableEditorOp",
+  "data": {
+    "inputs": {
+      "schema": {
+        "columns": [
+          { "name": "task", "type": "string", "defaultValue": "" },
+          { "name": "priority", "type": "number", "defaultValue": 1, "options": { "min": 1, "max": 5 } },
+          { "name": "completed", "type": "boolean", "defaultValue": false }
+        ]
+      },
+      "data": []
+    }
+  }
+}
+```
+
+Use "Add Row" button to create rows with default values.
+
+## Integration with Noodles
+
+### Connecting to Visualizations
+
+**Example: Scatter plot from table data**
+
+```
+[TableEditorOp].out.data → [ScatterplotLayerOp].par.data
+```
+
+**Accessor expressions:**
+```javascript
+// In ScatterplotLayerOp
+getPosition: "d => d.position"
+getRadius: "d => Math.sqrt(d.population) * 5"
+getFillColor: "d => hexToColor(d.color)"
+```
+
+### Downstream Operations
+
+**Filter by boolean:**
+```javascript
+// In FilterOp
+op('/table').out.data.filter(d => d.active)
+```
+
+**DuckDB queries:**
+```sql
+-- In DuckDbOp
+SELECT city, population
+FROM {{/table.out.data}}
+WHERE population > 1000000
+ORDER BY population DESC
+```
+
+## Migration from Schema Connections
+
+Projects made with schema ports are migrated automatically. The loader materializes the final
+effective schema into each affected table, then removes the old schema edges and visibility
+entries. Existing table data and unrelated edges are preserved. When a legacy schema cannot be
+resolved, the table falls back to schema inference and the project-load diagnostics explain the
+problem.
+
+`op('/table').out.schema` is intentionally removed. Code that referenced it must be updated
+manually; source strings are not rewritten during migration.
+
+## Architecture
+
+### Why TanStack Table?
+
+- **Headless**: Logic-only (~25KB), reuses PrimeReact UI components
+- **Type-safe**: Generic column types map to Noodles Field types
+- **No stale closures**: Reactive state management eliminates the bug from PRs #374 and #286
+- **Observable-friendly**: Callback-based, works with RxJS
+- **Future-proof**: Easy to add cell-level keyframing later
+
+### Key Design Decisions
+
+1. **Hybrid schema approach**: Best of both worlds - works with existing data, enables new capabilities
+2. **Validation on execute**: Data validated on every operator execution, not just on edit
+3. **Local schema snapshots**: Schema reuse is explicit through copy/paste, never a live graph dependency
+4. **Default values**: Missing data gets sensible defaults based on type
+5. **No stale closures**: TanStack's reactive system eliminates synchronization issues
+
+## Future Enhancements
+
+### Planned Features
+
+- **Geocoder integration**: Address → coordinates for Point2D columns
+- **File import/export**: Dedicated CSV files in addition to clipboard-based CSV/TSV import
+- **Row reordering**: Drag-and-drop row reorder
+- **Column reordering**: Drag-and-drop column reorder
+- **Bulk operations**: Select multiple rows, bulk delete/edit
+- **Sort/filter UI**: Built-in sort and filter controls
+- **Cell formulas**: Computed cells (like spreadsheets)
+
+### Future Keyframing Support
+
+**Architecture ready for:**
+```typescript
+interface CellValue {
+  value: unknown
+  expression?: string       // "lerp(10, 100, $time)"
+  keyframes?: Keyframe[]   // Timeline keyframes
+}
+```
+
+**Benefits:**
+- Individual cells can be animated
+- Cells can have reactive expressions
+- Integrates with timeline system
+- No implementation yet - deferred per requirements
+
+## Testing
+
+**Unit Tests:**
+```bash
+npm test table-schema.test.ts
+```
+
+**Manual Testing:**
+1. Load example: `http://localhost:5173/noodles/table-editor-demo`
+2. In Chrome and Safari, copy a real Google Sheets range containing blank cells, quotes, tabs, and
+   multiline text into an empty TableEditor; verify headers/types in the preview and the final cell.
+3. Copy a rectangular Noodles selection back to Sheets with and without column names.
+4. Test single-click selection, double-click/Enter editing, Shift range extension, and number/vector
+   scrubbing.
+5. Paste a 1,000 × 10 range, navigate to the final row, and confirm scrolling stays responsive.
+6. Paste the same range on empty canvas, cancel once, then confirm and undo the created node.
+7. Verify copied graph nodes still paste normally and malformed/plain clipboard text does nothing.
+8. Test schema editor, schema overlays, row operations, and data flow to visualizations.
+
+## Troubleshooting
+
+**Issue: Cell edits not saving**
+- Check browser console for validation errors
+- Ensure cell value matches column type
+- Try refreshing the page
+
+**Issue: Schema editor not opening**
+- Check for JavaScript errors in console
+- Ensure Radix UI dependencies are installed
+
+**Issue: Invalid default values**
+- Check schema defaultValue matches column type
+- Use `getDefaultValue(schema)` helper
+
+**Issue: Geocoder button does nothing**
+- Geocoder integration not yet implemented
+- Button is placeholder for future feature
+
+## API Reference
+
+### TableSchema
+
+```typescript
+interface TableSchema {
+  columns: ColumnSchema[]
+}
+
+interface ColumnSchema {
+  name: string
+  type: ColumnType
+  options?: Record<string, unknown>
+  defaultValue?: unknown
+}
+
+type ColumnType =
+  | 'number'
+  | 'string'
+  | 'boolean'
+  | 'color'
+  | 'point2d'
+  | 'point3d'
+  | 'vec2'
+  | 'vec3'
+  | 'date'
+  | 'stringLiteral'
+```
+
+### Functions
+
+```typescript
+// Infer schema from data
+inferSchema(data: unknown[]): TableSchema
+
+// Get default value for column type
+getDefaultValue(schema: ColumnSchema): unknown
+
+// Validate value against schema
+validateValue(value: unknown, schema: ColumnSchema): boolean
+
+// Validate entire table data
+validateTableData(data: unknown[], schema: TableSchema): unknown[]
+```
+
+## Performance
+
+- **Schema inference**: O(n) where n = number of columns (only first row)
+- **Validation**: O(n×m) where n = rows, m = columns
+- **Rendering**: Virtualized for large tables (TanStack Table)
+- **Memory**: ~25KB bundle size increase (TanStack Table)
+
+## Credits
+
+- Built with [TanStack Table v8](https://tanstack.com/table/v8)
+- Leverages PR #231's custom field infrastructure
+- Fixes stale closure bugs from PRs #374 and #286

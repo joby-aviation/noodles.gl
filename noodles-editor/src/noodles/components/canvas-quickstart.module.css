@@ -1,0 +1,72 @@
+.card {
+  width: 280px;
+  padding: 12px 14px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: rgba(28, 28, 28, 0.97);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+  color: var(--color-text-primary);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.title {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.close {
+  padding: 2px 4px;
+  border: none;
+  background: none;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.close:hover {
+  color: var(--color-text-primary);
+}
+
+.tips {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0 0 10px;
+  padding: 0;
+  list-style: none;
+  color: var(--color-text-secondary);
+}
+
+.tips strong {
+  color: var(--color-text-primary);
+  font-weight: 500;
+}
+
+.gotIt {
+  padding: 4px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  background: var(--color-bg-hover);
+  color: var(--color-text-primary);
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.gotIt:hover {
+  border-color: var(--color-border-hover);
+}
+
+.helpGlyph {
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1;
+}
