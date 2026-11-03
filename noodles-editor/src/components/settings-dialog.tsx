@@ -197,6 +197,8 @@ export function SettingsDialog({ open, setOpen, projectName = null }: SettingsDi
   const setKeyOverride = useKeysStore(state => state.setKeyOverride)
   const setProviderPreference = useKeysStore(state => state.setProviderPreference)
   const setCustomEndpoint = useKeysStore(state => state.setCustomEndpoint)
+  const acpBridgeUrl = useKeysStore(state => state.acpBridgeUrl)
+  const setAcpBridgeUrl = useKeysStore(state => state.setAcpBridgeUrl)
   const getActiveSource = useKeysStore(state => state.getActiveSource)
   const getKey = useKeysStore(state => state.getKey)
   const clearBrowserKey = useKeysStore(state => state.clearBrowserKey)
@@ -212,6 +214,11 @@ export function SettingsDialog({ open, setOpen, projectName = null }: SettingsDi
   const webllmModel = useAgentModelStore(state => state.models.webllm)
   const setModel = useAgentModelStore(state => state.setModel)
   const [webgpuReady, setWebgpuReady] = useState<boolean | null>(null)
+
+  // The ACP bridge URL as typed, saved only once it looks like what the bridge
+  // prints
+  const [acpUrlDraft, setAcpUrlDraft] = useState(acpBridgeUrl ?? '')
+  const [acpUrlError, setAcpUrlError] = useState<string | null>(null)
 
   // Custom endpoint state (local form state)
   const [endpointBaseUrl, setEndpointBaseUrl] = useState(customEndpoint?.baseUrl || '')
@@ -258,6 +265,8 @@ export function SettingsDialog({ open, setOpen, projectName = null }: SettingsDi
       setEndpointApiKey(endpoint?.apiKey || '')
       setEndpointModel(endpoint?.model || '')
       setEndpointDisplayName(endpoint?.displayName || '')
+      setAcpUrlDraft(acpBridgeUrl ?? '')
+      setAcpUrlError(null)
 
       const { author } = getGitSettings()
       setGitAuthorName(author.name)
@@ -273,7 +282,7 @@ export function SettingsDialog({ open, setOpen, projectName = null }: SettingsDi
         }
       }
     }
-  }, [open, customEndpoint])
+  }, [open, customEndpoint, acpBridgeUrl])
 
   // Asked once the dialog is open rather than on mount: requesting a GPU adapter
   // is not free, and nothing outside this tab needs the answer.
@@ -448,6 +457,24 @@ export function SettingsDialog({ open, setOpen, projectName = null }: SettingsDi
     setEndpointModels([])
     setEndpointStatus({ state: 'idle' })
     analytics.track('custom_endpoint_cleared')
+  }
+
+  // Saving also picks the provider: pasting a URL is how the user says they want
+  // the agent
+  const handleSaveAcpBridge = () => {
+    const error = acpUrlProblem(acpUrlDraft)
+    setAcpUrlError(error)
+    if (error) return
+    setAcpBridgeUrl(acpUrlDraft)
+    handleProviderPreferenceChange('acp')
+    analytics.track('acp_bridge_saved')
+  }
+
+  const handleClearAcpBridge = () => {
+    setAcpBridgeUrl(undefined)
+    setAcpUrlDraft('')
+    setAcpUrlError(null)
+    analytics.track('acp_bridge_cleared')
   }
 
   // Fills the form; the user still presses Test and Save, so a preset can never
@@ -812,6 +839,67 @@ export function SettingsDialog({ open, setOpen, projectName = null }: SettingsDi
                         <div className={s.providerOptionDescription}>
                           Slower than a hosted provider, and best at questions and single edits.
                         </div>
+                      </div>
+                    </label>
+
+                    <label
+                      className={`${s.providerOption} ${providerPreference === 'acp' ? s.providerOptionSelected : ''}`}
+                    >
+                      <input
+                        type="radio"
+                        name="providerPreference"
+                        value="acp"
+                        checked={providerPreference === 'acp'}
+                        onChange={e =>
+                          handleProviderPreferenceChange(e.target.value as ProviderPreference)
+                        }
+                        className={s.providerRadio}
+                      />
+                      <div className={s.providerOptionContent}>
+                        <div className={s.providerOptionTitle}>
+                          ACP agent (Claude Code, Codex, more)
+                        </div>
+                        <div className={s.providerOptionDescription}>
+                          Any agent that speaks the Agent Client Protocol, running on this machine
+                          with its own login and models. It can read and change files in the folder
+                          you start it in, and asks before it runs a command.
+                        </div>
+                        <div className={s.providerOptionDescription}>
+                          Start the bridge from a noodles.gl checkout:{' '}
+                          <code>
+                            node noodles-mcp/bin/noodles-mcp.ts acp -- npx -y
+                            @agentclientprotocol/claude-agent-acp
+                          </code>
+                          , then paste the URL it prints.
+                        </div>
+                        <div className={s.connectRow}>
+                          <input
+                            type="password"
+                            value={acpUrlDraft}
+                            onChange={e => setAcpUrlDraft(e.target.value)}
+                            placeholder="ws://127.0.0.1:7341/acp?token=…"
+                            aria-label="ACP bridge URL"
+                            className={`${s.input} ${s.fullWidthInput}`}
+                          />
+                          <button
+                            type="button"
+                            onClick={handleSaveAcpBridge}
+                            disabled={!acpUrlDraft.trim()}
+                            className={s.primaryButton}
+                          >
+                            Save
+                          </button>
+                          {acpBridgeUrl && (
+                            <button
+                              type="button"
+                              onClick={handleClearAcpBridge}
+                              className={s.secondaryButton}
+                            >
+                              Clear
+                            </button>
+                          )}
+                        </div>
+                        {acpUrlError && <div className={s.endpointError}>{acpUrlError}</div>}
                       </div>
                     </label>
                   </div>
@@ -1204,4 +1292,18 @@ export function SettingsDialog({ open, setOpen, projectName = null }: SettingsDi
       </Dialog.Portal>
     </Dialog.Root>
   )
+}
+
+// The bridge listens on loopback only and needs its token, so a URL without
+// either cannot be the one it printed
+export function acpUrlProblem(value: string): string | null {
+  let url: URL
+  try {
+    url = new URL(value.trim())
+  } catch {
+    return 'Paste the whole URL the bridge printed, starting with ws://'
+  }
+  if (url.protocol !== 'ws:') return 'The bridge URL starts with ws://'
+  if (!url.searchParams.get('token')) return 'The URL is missing its token=… part'
+  return null
 }
