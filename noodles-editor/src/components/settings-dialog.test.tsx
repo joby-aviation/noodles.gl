@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { getKeysStore, useKeysStore } from '../noodles/keys-store'
 import { getGitSettings } from '../noodles/utils/git-settings'
 import { getLoadedGoogleMapsKey } from '../utils/geocoding'
-import { SettingsDialog } from './settings-dialog'
+import { acpUrlProblem, SettingsDialog } from './settings-dialog'
 
 vi.mock('../utils/geocoding', () => ({ getLoadedGoogleMapsKey: vi.fn(() => null) }))
 
@@ -193,5 +193,17 @@ describe('SettingsDialog version control', () => {
 
     expect((enable as HTMLInputElement).disabled).toBe(true)
     expect(screen.getByText(/Save the project to a folder/)).toBeTruthy()
+  })
+})
+
+describe('acpUrlProblem', () => {
+  it('accepts what the bridge prints', () => {
+    expect(acpUrlProblem(' ws://127.0.0.1:7341/acp?token=abc ')).toBeNull()
+  })
+
+  it('names what is missing', () => {
+    expect(acpUrlProblem('127.0.0.1:7341')).toMatch(/starting with ws:\/\//)
+    expect(acpUrlProblem('http://127.0.0.1:7341/acp?token=abc')).toMatch(/starts with ws:\/\//)
+    expect(acpUrlProblem('ws://127.0.0.1:7341/acp')).toMatch(/token/)
   })
 })

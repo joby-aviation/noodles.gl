@@ -15,6 +15,7 @@ const NOTHING: Credentials = {
   webllmModel: undefined,
   webgpuReady: false,
   chromeAvailable: false,
+  acpBridgeUrl: undefined,
 }
 
 describe('isProviderReady', () => {
@@ -126,6 +127,17 @@ describe('resolveProviderId', () => {
     expect(resolveProviderId({ ...ready, preference: 'chrome' })).toBe('chrome')
   })
 
+  // A saved URL does not mean the bridge is running, so landing on it unasked
+  // would greet the user with a connection error
+  it('runs an ACP agent only when it is asked for', () => {
+    const ready = { ...NOTHING, acpBridgeUrl: 'ws://127.0.0.1:7341/acp?token=t' }
+    expect(isProviderReady('acp', NOTHING)).toBe(false)
+    expect(isProviderReady('acp', ready)).toBe(true)
+    expect(resolveProviderId({ ...ready, preference: 'automatic' })).toBe('anthropic')
+    expect(resolveProviderId({ ...ready, preference: 'acp' })).toBe('acp')
+    expect(resolveProviderId({ ...NOTHING, preference: 'acp' })).toBe('anthropic')
+  })
+
   // Nothing configured at all: the panel shows its connect screen, which needs a
   // provider id to label. Anthropic is the one it names.
   it('falls back to Anthropic when nothing is ready', () => {
@@ -140,6 +152,7 @@ describe('isOnDevice', () => {
     expect(isOnDevice('anthropic')).toBe(false)
     expect(isOnDevice('openrouter')).toBe(false)
     expect(isOnDevice('custom')).toBe(false)
+    expect(isOnDevice('acp')).toBe(false)
   })
 })
 

@@ -22,6 +22,10 @@
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.32.1",
     "noodles-validate": "0.1.0",
+    "ws": "^8.22.1",
     "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@types/ws": "^8.18.2"
   }
 }

@@ -38,6 +38,7 @@ import {
 import { DEFAULT_RENDER_SETTINGS, type RenderSettings } from './noodles/utils/serialization'
 import { PREVIEW_FRAME_DELAY, useDeckDrawLoop } from './render/draw-loop'
 import { FrameCounter } from './render/frame-stats'
+import { type BasemapLight, type BasemapSky, syncLightAndSky } from './render/map-light-sky'
 import type { RenderSource } from './render/render-analytics'
 import { resetRenderProgress, setRenderProgress } from './render/render-progress-store'
 import {
@@ -141,6 +142,8 @@ export default function TimelineEditor() {
   const customLayersRef = useRef<Set<string>>(new Set())
   // Track style version to trigger layer re-addition after style changes
   const [styleVersion, setStyleVersion] = useState(0)
+  // The map from the last onLoad. mapRef alone can't re-run effects once the map has loaded
+  const [loadedMap, setLoadedMap] = useState<MapLibre | null>(null)
 
   // Trigger a redraw of React, mapbox and deck when the renderer state changes,
   // to ensure that the VideoStreamReader in renderer.ts runs
@@ -327,6 +330,7 @@ export default function TimelineEditor() {
     onLoad: ({ target: map }) => {
       // Redraw react to ensure hooks check for map ref changes
       mapRef.current = map
+      setLoadedMap(map)
       redraw()
     },
     ...basemapProps,
@@ -370,33 +374,16 @@ export default function TimelineEditor() {
     },
   }
 
-  // Apply light and sky settings imperatively to avoid style reloading
+  // Apply light and sky imperatively to avoid style reloading, and again after each style load
   useEffect(() => {
-    const map = mapRef.current
-    if (!map || !map.isStyleLoaded()) return
-
-    // Note: light settings only apply to globe projection
-    if (light) {
-      map.setLight({
-        anchor: light.anchor,
-        position: [1.15, light.azimuthal, light.polar],
-      })
-    }
-
-    if (sky?.enabled) {
-      // Note: skyColor, horizonColor, skyHorizonBlend only apply to mercator projection
-      // Note: atmosphereBlend only applies to globe projection
-      map.setSky({
-        'sky-color': sky.skyColor,
-        'horizon-color': sky.horizonColor,
-        'sky-horizon-blend': sky.skyHorizonBlend,
-        'atmosphere-blend': sky.atmosphereBlend,
-      })
-    } else {
-      // Disable sky - requires MapLibre GL JS 4.6.0+
-      map.setSky(undefined)
-    }
-  }, [light, sky])
+    if (!loadedMap) return
+    // mapProps types these as MapLibre specs, but they hold MaplibreBasemapOp's fields
+    return syncLightAndSky(
+      loadedMap,
+      light as BasemapLight | undefined,
+      sky as BasemapSky | undefined
+    )
+  }, [loadedMap, light, sky])
 
   // Manage custom MapLibre layers
   // biome-ignore lint/correctness/useExhaustiveDependencies: styleVersion re-adds the layers after a style reload

@@ -1,20 +1,21 @@
 import type { EdgeChange, NodeChange } from '@xyflow/react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, type MockInstance, vi } from 'vitest'
 import { analytics } from '../../utils/analytics'
 import { trackAddedEdges, trackAddedNodes } from './graph-analytics'
-
-vi.mock('../../utils/analytics', () => ({
-  analytics: { track: vi.fn() },
-}))
-
-const track = vi.mocked(analytics.track)
 
 const node = (id: string, type?: string) => ({ id, type, position: { x: 0, y: 0 }, data: {} })
 const edge = (id: string) => ({ id, source: '/a', target: '/b' })
 
 describe('graph analytics', () => {
+  // A spy, not vi.mock: browser-mode module mocks occasionally fail to apply in CI
+  let track: MockInstance<typeof analytics.track>
+
   beforeEach(() => {
-    track.mockClear()
+    track = vi.spyOn(analytics, 'track').mockImplementation(() => {})
+  })
+
+  afterEach(() => {
+    track.mockRestore()
   })
 
   it('tracks node_added once per added node with its type', () => {
