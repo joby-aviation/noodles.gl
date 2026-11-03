@@ -15,6 +15,7 @@ import { TopMenuBar } from './noodles/components/top-menu-bar'
 import { ExportActionsProvider } from './noodles/contexts/export-actions-context'
 import { useActiveStorageType, useCurrentDirectory } from './noodles/filesystem-store'
 import { agentBench, externalControl } from './noodles/globals'
+import { getExecutor } from './noodles/graph-executor'
 import { useActiveOutOp } from './noodles/hooks/use-active-outop'
 import { useRenderSettings } from './noodles/hooks/use-render-settings'
 import { getNoodles } from './noodles/noodles'
@@ -128,6 +129,8 @@ function evaluateMapLibreLayerCode(
 
 export default function TimelineEditor() {
   const mapRef = useRef<MapLibre | null>(null)
+  // False from each map render until MapLibre's next idle event (tiles drawn, no fades)
+  const mapIdleRef = useRef(false)
   const deckRef = useRef<Deck>(null)
   const renderSurfaceRef = useRef<HTMLDivElement>(null)
   const isRenderingRef = useRef(false)
@@ -454,6 +457,34 @@ export default function TimelineEditor() {
     customLayersRef.current = desiredLayerIds
   }, [visualization.maplibreLayers, styleVersion])
 
+  // Hooks for the Playwright suite in e2e/: the timeline store, and pendingWork(), which
+  // names what is still loading (operators, deck layers, a basemap not yet idle) so a test
+  // knows when to take a screenshot and a timed-out test can say why.
+  useEffect(() => {
+    const pendingWork = () => {
+      const executor = getExecutor()
+      const ids = executor?.getExecutionOrder() ?? []
+      if (!executor || ids.length === 0) return ['graph']
+      const pending = ids.filter(id => {
+        const node = executor.getNode(id)
+        return !node || node.dirty || node.executionState.value.status === 'executing'
+      })
+      if (basemapEnabled && !mapIdleRef.current) pending.push('basemap')
+      // @ts-expect-error layerManager is protected but accessible
+      const layers = deckRef.current?.layerManager?.getLayers()
+      if (!layers) pending.push('deck')
+      for (const layer of layers ?? []) {
+        if (!layer.isLoaded) pending.push(`layer ${layer.id}`)
+      }
+      return pending
+    }
+    const w = window as Window & { __noodlesTest?: unknown }
+    w.__noodlesTest = { getTimelineStore, pendingWork }
+    return () => {
+      delete w.__noodlesTest
+    }
+  }, [basemapEnabled])
+
   // Clean up custom layers on unmount
   useEffect(() => {
     return () => {
@@ -492,6 +523,12 @@ export default function TimelineEditor() {
 
   // The AI tools read the canvas, deck and frame stats through window globals
   useEffect(() => exposeCanvasToTools(deckRef, frames), [frames])
+
+  // Keep the visualization's own onRender, if it set one
+  mapProps.onRender = event => {
+    basemapProps.onRender?.(event)
+    mapIdleRef.current = false
+  }
 
   // Preview exports capture on MapLibre's 'render' event instead of waiting for 'idle'.
   // A render event can fire before the frame has settled, so preview can drop or repeat
@@ -533,6 +570,7 @@ export default function TimelineEditor() {
   // it is a fallback in case the render event above misses a frame.
   mapProps.onIdle = ({ target: map }) => {
     mapRef.current = map
+    mapIdleRef.current = true
     // Wait for map tiles to load before capturing.
     if (!isMapReady(map)) {
       debugRender('map waiting')
