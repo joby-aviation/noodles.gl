@@ -1181,8 +1181,18 @@ export abstract class Operator<OP extends IOperator> {
       }
     }
 
-    for (const field of Object.values(this.inputs)) {
-      if (supportsChannelPorts(field)) field.closeChannels()
+    // Closing the channels ends their expressions, so keep each expression's source to
+    // set on the reopened channel. Plain channel values come back from the whole value.
+    const oldChannelExpressions = new Map<string, Record<string, unknown>>()
+    for (const [name, field] of Object.entries(this.inputs)) {
+      if (!supportsChannelPorts(field)) continue
+      if (field.channels) {
+        const expressions = Object.entries(field.channels.fields)
+          .filter(([, channel]) => channel.expression !== null)
+          .map(([key, channel]) => [key, channel.serialize()])
+        if (expressions.length > 0) oldChannelExpressions.set(name, Object.fromEntries(expressions))
+      }
+      field.closeChannels()
     }
 
     // Recreate inputs (built-in + custom)
@@ -1229,6 +1239,14 @@ export abstract class Operator<OP extends IOperator> {
 
     // Drop modes for inputs that went away, and reopen channels on the new fields
     this.setInputPortModes(this.inputPortModes.value)
+    for (const [name, expressions] of oldChannelExpressions) {
+      const field = (this.inputs as Record<string, Field>)[name]
+      if (!supportsChannelPorts(field) || !field.channels) continue
+      for (const [key, value] of Object.entries(expressions)) {
+        const channel = field.channels.fields[key]
+        if (channel) applySerializedFieldValue(channel as unknown as Field, value)
+      }
+    }
 
     applyNodeUIMetadata(this.inputs, oldUIMetadata)
 

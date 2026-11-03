@@ -438,6 +438,15 @@ describe('Operator input port modes', () => {
     expect(op.inputs.vec.channels?.fields.y.op).toBe(op)
   })
 
+  it('keeps channel expressions when inputs are rebuilt', () => {
+    const op = new SplitXYOp('/split', { vec: { x: { $expr: '2 * 3' }, y: 1 } })
+    op.rebuildInputs()
+    expect(op.getInputPortMode('vec')).toBe('channels')
+    expect(op.inputs.vec.channels?.fields.x.expression).toBe('2 * 3')
+    expect(op.inputs.vec.channels?.fields.y.expression).toBeNull()
+    expect(op.inputs.vec.serialize()).toEqual({ x: { $expr: '2 * 3' }, y: 1 })
+  })
+
   it('closes channels on dispose', () => {
     const op = new SplitXYOp('/split')
     op.setInputPortMode('vec', 'channels')
