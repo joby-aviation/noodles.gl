@@ -38,7 +38,8 @@ This operator has no input ports.
 | `altitude` | `float` | `1.5` |  |
 | `nearZMultiplier` | `float` | `0.1` |  |
 | `farZMultiplier` | `float` | `1.01` |  |
-| `viewState` | `field` | `{"latitude":40.7128,"longitude":-74.006,"zoom":12}` |  |
+| `resolution` | `float` | `10` |  |
+| `viewState` | `field` | `{"latitude":40.7128,"longitude":-74.006,"zoom":12,"bearing":0,"pitch":0}` |  |
 <!-- gen:end params -->
 
 ## Outputs

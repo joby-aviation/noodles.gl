@@ -2384,12 +2384,18 @@
           "kind": "float",
           "default": 1.01
         },
+        "resolution": {
+          "kind": "float",
+          "default": 10
+        },
         "viewState": {
           "kind": "field",
           "default": {
             "latitude": 40.7128,
             "longitude": -74.006,
-            "zoom": 12
+            "zoom": 12,
+            "bearing": 0,
+            "pitch": 0
           },
           "portType": "value"
         }
