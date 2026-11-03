@@ -1,5 +1,5 @@
 {
-  "version": 22,
+  "version": 23,
   "edges": [
     {
       "id": "/basemap.out.maplibre->/renderer.par.basemap",
@@ -255,11 +255,10 @@
                       "connectedRight": true,
                       "handles": [
                         0.5,
-                        1,
+                        0,
                         0.5,
-                        0
+                        1
                       ],
-                      "type": "bezier",
                       "value": -74.01528014573182
                     },
                     {
@@ -268,11 +267,10 @@
                       "connectedRight": true,
                       "handles": [
                         0.5,
-                        1,
+                        0,
                         0.5,
-                        0
+                        1
                       ],
-                      "type": "bezier",
                       "value": -74.0152298040547
                     },
                     {
@@ -281,11 +279,10 @@
                       "connectedRight": true,
                       "handles": [
                         0.5,
-                        1,
+                        0,
                         0.5,
-                        0
+                        1
                       ],
-                      "type": "bezier",
                       "value": -74.00393041204993
                     },
                     {
@@ -294,11 +291,10 @@
                       "connectedRight": true,
                       "handles": [
                         0.5,
-                        1,
+                        0,
                         0.5,
-                        0
+                        1
                       ],
-                      "type": "bezier",
                       "value": -73.98427479072922
                     },
                     {
@@ -307,11 +303,10 @@
                       "connectedRight": true,
                       "handles": [
                         0.5,
-                        1,
+                        0,
                         0.5,
-                        0
+                        1
                       ],
-                      "type": "bezier",
                       "value": -73.98
                     },
                     {
@@ -320,11 +315,10 @@
                       "connectedRight": true,
                       "handles": [
                         0.5,
-                        1,
+                        0,
                         0.5,
-                        0
+                        1
                       ],
-                      "type": "bezier",
                       "value": -73.97857897544452
                     },
                     {
@@ -333,11 +327,10 @@
                       "connectedRight": true,
                       "handles": [
                         0.5,
-                        1,
+                        0,
                         0.5,
-                        0
+                        1
                       ],
-                      "type": "bezier",
                       "value": -73.99384768869895
                     },
                     {
@@ -346,11 +339,10 @@
                       "connectedRight": false,
                       "handles": [
                         0.5,
-                        1,
+                        0,
                         0.5,
-                        0
+                        1
                       ],
-                      "type": "bezier",
                       "value": -73.99244100531732
                     }
                   ]
@@ -365,11 +357,10 @@
                       "connectedRight": true,
                       "handles": [
                         0.5,
-                        1,
+                        0,
                         0.5,
-                        0
+                        1
                       ],
-                      "type": "bezier",
                       "value": 40.706616771021125
                     },
                     {
@@ -378,11 +369,10 @@
                       "connectedRight": true,
                       "handles": [
                         0.5,
-                        1,
+                        0,
                         0.5,
-                        0
+                        1
                       ],
-                      "type": "bezier",
                       "value": 40.70303169832896
                     },
                     {
@@ -391,11 +381,10 @@
                       "connectedRight": true,
                       "handles": [
                         0.5,
-                        1,
+                        0,
                         0.5,
-                        0
+                        1
                       ],
-                      "type": "bezier",
                       "value": 40.71734981243856
                     },
                     {
@@ -404,11 +393,10 @@
                       "connectedRight": true,
                       "handles": [
                         0.5,
-                        1,
+                        0,
                         0.5,
-                        0
+                        1
                       ],
-                      "type": "bezier",
                       "value": 40.75431303578706
                     },
                     {
@@ -417,11 +405,10 @@
                       "connectedRight": true,
                       "handles": [
                         0.5,
-                        1,
+                        0,
                         0.5,
-                        0
+                        1
                       ],
-                      "type": "bezier",
                       "value": 40.76
                     },
                     {
@@ -430,11 +417,10 @@
                       "connectedRight": true,
                       "handles": [
                         0.5,
-                        1,
+                        0,
                         0.5,
-                        0
+                        1
                       ],
-                      "type": "bezier",
                       "value": 40.76987541463695
                     },
                     {
@@ -443,11 +429,10 @@
                       "connectedRight": true,
                       "handles": [
                         0.5,
-                        1,
+                        0,
                         0.5,
-                        0
+                        1
                       ],
-                      "type": "bezier",
                       "value": 40.709429113152396
                     },
                     {
@@ -456,11 +441,10 @@
                       "connectedRight": false,
                       "handles": [
                         0.5,
-                        1,
+                        0,
                         0.5,
-                        0
+                        1
                       ],
-                      "type": "bezier",
                       "value": 40.7096991343267
                     }
                   ]
@@ -475,11 +459,10 @@
                       "connectedRight": true,
                       "handles": [
                         0.5,
-                        1,
+                        0,
                         0.5,
-                        0
+                        1
                       ],
-                      "type": "bezier",
                       "value": 20
                     },
                     {
@@ -488,11 +471,10 @@
                       "connectedRight": true,
                       "handles": [
                         0.5,
-                        1,
+                        0,
                         0.5,
-                        0
+                        1
                       ],
-                      "type": "bezier",
                       "value": 15.71886755188483
                     },
                     {
@@ -501,11 +483,10 @@
                       "connectedRight": true,
                       "handles": [
                         0.5,
-                        1,
+                        0,
                         0.5,
-                        0
+                        1
                       ],
-                      "type": "bezier",
                       "value": 15.71886755188483
                     },
                     {
@@ -514,11 +495,10 @@
                       "connectedRight": true,
                       "handles": [
                         0.5,
-                        1,
+                        0,
                         0.5,
-                        0
+                        1
                       ],
-                      "type": "bezier",
                       "value": 18.73975411019099
                     },
                     {
@@ -527,11 +507,10 @@
                       "connectedRight": true,
                       "handles": [
                         0.5,
-                        1,
+                        0,
                         0.5,
-                        0
+                        1
                       ],
-                      "type": "bezier",
                       "value": 17
                     },
                     {
@@ -540,11 +519,10 @@
                       "connectedRight": true,
                       "handles": [
                         0.5,
-                        1,
+                        0,
                         0.5,
-                        0
+                        1
                       ],
-                      "type": "bezier",
                       "value": 15
                     },
                     {
@@ -553,11 +531,10 @@
                       "connectedRight": true,
                       "handles": [
                         0.5,
-                        1,
+                        0,
                         0.5,
-                        0
+                        1
                       ],
-                      "type": "bezier",
                       "value": 14.5
                     },
                     {
@@ -566,11 +543,10 @@
                       "connectedRight": false,
                       "handles": [
                         0.5,
-                        1,
+                        0,
                         0.5,
-                        0
+                        1
                       ],
-                      "type": "bezier",
                       "value": 17
                     }
                   ]
@@ -585,11 +561,10 @@
                       "connectedRight": true,
                       "handles": [
                         0.5,
-                        1,
+                        0,
                         0.5,
-                        0
+                        1
                       ],
-                      "type": "bezier",
                       "value": 55.17280350846221
                     },
                     {
@@ -598,11 +573,10 @@
                       "connectedRight": true,
                       "handles": [
                         0.5,
-                        1,
+                        0,
                         0.5,
-                        0
+                        1
                       ],
-                      "type": "bezier",
                       "value": 60
                     },
                     {
@@ -611,11 +585,10 @@
                       "connectedRight": true,
                       "handles": [
                         0.5,
-                        1,
+                        0,
                         0.5,
-                        0
+                        1
                       ],
-                      "type": "bezier",
                       "value": 60
                     },
                     {
@@ -624,11 +597,10 @@
                       "connectedRight": true,
                       "handles": [
                         0.5,
-                        1,
+                        0,
                         0.5,
-                        0
+                        1
                       ],
-                      "type": "bezier",
                       "value": 60
                     },
                     {
@@ -637,11 +609,10 @@
                       "connectedRight": true,
                       "handles": [
                         0.5,
-                        1,
+                        0,
                         0.5,
-                        0
+                        1
                       ],
-                      "type": "bezier",
                       "value": 60
                     },
                     {
@@ -650,11 +621,10 @@
                       "connectedRight": true,
                       "handles": [
                         0.5,
-                        1,
+                        0,
                         0.5,
-                        0
+                        1
                       ],
-                      "type": "bezier",
                       "value": 60
                     },
                     {
@@ -663,11 +633,10 @@
                       "connectedRight": true,
                       "handles": [
                         0.5,
-                        1,
+                        0,
                         0.5,
-                        0
+                        1
                       ],
-                      "type": "bezier",
                       "value": 59.70381797146161
                     },
                     {
@@ -676,11 +645,10 @@
                       "connectedRight": false,
                       "handles": [
                         0.5,
-                        1,
+                        0,
                         0.5,
-                        0
+                        1
                       ],
-                      "type": "bezier",
                       "value": 59.70381797146161
                     }
                   ]
@@ -695,11 +663,10 @@
                       "connectedRight": true,
                       "handles": [
                         0.5,
-                        1,
+                        0,
                         0.5,
-                        0
+                        1
                       ],
-                      "type": "bezier",
                       "value": 2.3531249999999773
                     },
                     {
@@ -708,11 +675,10 @@
                       "connectedRight": true,
                       "handles": [
                         0.5,
-                        1,
+                        0,
                         0.5,
-                        0
+                        1
                       ],
-                      "type": "bezier",
                       "value": 33.00937499999998
                     },
                     {
@@ -721,11 +687,10 @@
                       "connectedRight": true,
                       "handles": [
                         0.5,
-                        1,
+                        0,
                         0.5,
-                        0
+                        1
                       ],
-                      "type": "bezier",
                       "value": 33.00937499999998
                     },
                     {
@@ -734,11 +699,10 @@
                       "connectedRight": true,
                       "handles": [
                         0.5,
-                        1,
+                        0,
                         0.5,
-                        0
+                        1
                       ],
-                      "type": "bezier",
                       "value": 33.00937499999998
                     },
                     {
@@ -747,11 +711,10 @@
                       "connectedRight": true,
                       "handles": [
                         0.5,
-                        1,
+                        0,
                         0.5,
-                        0
+                        1
                       ],
-                      "type": "bezier",
                       "value": 33.00937499999998
                     },
                     {
@@ -760,11 +723,10 @@
                       "connectedRight": true,
                       "handles": [
                         0.5,
-                        1,
+                        0,
                         0.5,
-                        0
+                        1
                       ],
-                      "type": "bezier",
                       "value": 120
                     },
                     {
@@ -773,11 +735,10 @@
                       "connectedRight": true,
                       "handles": [
                         0.5,
-                        1,
+                        0,
                         0.5,
-                        0
+                        1
                       ],
-                      "type": "bezier",
                       "value": 165.36231617647059
                     },
                     {
@@ -786,11 +747,10 @@
                       "connectedRight": false,
                       "handles": [
                         0.5,
-                        1,
+                        0,
                         0.5,
-                        0
+                        1
                       ],
-                      "type": "bezier",
                       "value": 165.36231617647059
                     }
                   ]

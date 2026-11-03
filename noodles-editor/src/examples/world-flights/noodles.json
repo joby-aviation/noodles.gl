@@ -155,7 +155,7 @@
       "id": "/color-ramp.out.color->/scatterplot-layer.par.getFillColor"
     }
   ],
-  "version": 22,
+  "version": 23,
   "name": "World Flights",
   "editorSettings": {
     "layoutMode": "noodles-on-top",
@@ -509,11 +509,10 @@
                       "connectedRight": true,
                       "handles": [
                         0.5,
-                        1,
+                        0,
                         0.5,
-                        0
+                        1
                       ],
-                      "type": "bezier",
                       "value": 1567555200
                     },
                     {
@@ -522,11 +521,10 @@
                       "connectedRight": true,
                       "handles": [
                         0.5,
-                        1,
+                        0,
                         0.5,
-                        0
+                        1
                       ],
-                      "type": "bezier",
                       "value": 1567561720
                     }
                   ]
