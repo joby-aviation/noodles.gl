@@ -1012,6 +1012,17 @@ describe('serializeNodes with vector channel ports', () => {
     expect(reloaded.inputs.vec.value).toEqual({ x: 3, y: 4 })
   })
 
+  it('saves a channel expression whose value equals the default', () => {
+    const op = new SplitXYOp('/split')
+    op.setInputPortMode('vec', 'channels')
+    op.inputs.vec.channels?.fields.x.setExpression('0')
+    setOp('/split', op)
+    expect(op.inputs.vec.value).toEqual({ x: 0, y: 0 })
+
+    const [saved] = serializeNodes(getOpStore(), [node], [])
+    expect(saved.data.inputs).toEqual({ vec: { x: { $expr: '0' }, y: 0 } })
+  })
+
   it('omits port modes for inputs in whole mode', () => {
     setOp('/split', new SplitXYOp('/split', { vec: { x: 1, y: 2 } }))
     const [saved] = serializeNodes(getOpStore(), [node], [])

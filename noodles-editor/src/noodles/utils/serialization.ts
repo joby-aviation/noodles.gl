@@ -6,7 +6,7 @@ import type {
 } from '@xyflow/react'
 import { debugSerialize } from '../../utils/debug'
 import { resizeableNodes } from '../components/op-components'
-import { captureNodeUIMetadata } from '../fields'
+import { captureNodeUIMetadata, supportsChannelPorts } from '../fields'
 import { UnknownOperator } from '../operators'
 import type { useGraphStore } from '../store'
 import { deepEqual } from './deep-equal'
@@ -204,10 +204,13 @@ export function serializeNodes(
         // If parsing fails, use the raw default value
       }
       // Expression-driven fields always serialize — the expression must persist even
-      // when its current evaluated value happens to equal the default
+      // when its current evaluated value happens to equal the default. So does a split
+      // vector with an expression in one of its channels.
+      const hasExpression =
+        field.expression !== null ||
+        (supportsChannelPorts(field) && field.channels?.hasExpressions() === true)
       const hasNonDefaultValue =
-        serialized !== undefined &&
-        (field.expression !== null || !deepEqual(field.value, normalizedDefault))
+        serialized !== undefined && (hasExpression || !deepEqual(field.value, normalizedDefault))
       // Internal state is never legitimately connection-driven, so always persist it even
       // if a malformed/stale edge happens to name the field.
       if (hasNonDefaultValue && (field.internal || !incomingPaths.has(name))) {
