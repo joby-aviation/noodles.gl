@@ -10,6 +10,8 @@ interface TableDataPatch {
   start: number
   removeCount: number
   rows: unknown[]
+  expectedRows: unknown[]
+  expectedLength: number
 }
 
 interface TableHistoryOperation {
@@ -77,11 +79,15 @@ export function createTableHistorySnapshots(
       start: slice.start,
       removeCount: slice.afterRows.length,
       rows: slice.beforeRows,
+      expectedRows: slice.afterRows,
+      expectedLength: after.data.length,
     }
     afterOperation.data = {
       start: slice.start,
       removeCount: slice.beforeRows.length,
       rows: slice.afterRows,
+      expectedRows: slice.beforeRows,
+      expectedLength: before.data.length,
     }
   }
 
@@ -90,9 +96,16 @@ export function createTableHistorySnapshots(
     afterOperation.schema = after.schema ?? null
   }
 
-  return {
-    before: serializeSnapshot([beforeOperation]),
-    after: serializeSnapshot([afterOperation]),
+  try {
+    return {
+      before: serializeSnapshot([beforeOperation]),
+      after: serializeSnapshot([afterOperation]),
+    }
+  } catch {
+    // Unsupported values must not prevent the table edit itself. This mirrors the
+    // best-effort serialization used by the general property-history path.
+    debugHistory('Failed to serialize table history for %s', opId)
+    return null
   }
 }
 
@@ -148,24 +161,39 @@ export function applyTableHistorySnapshot(snapshot: string): boolean {
     let dataChanged = false
     let nextSchema: TableSchema | null | undefined
     let schemaChanged = false
+    let canRestore = true
 
     for (const operation of parsed.operations) {
       if (operation.opId !== opId) continue
+
+      if (operation.data) {
+        const currentRows = nextData.slice(
+          operation.data.start,
+          operation.data.start + operation.data.removeCount
+        )
+        if (
+          nextData.length !== operation.data.expectedLength ||
+          !deepEqual(currentRows, operation.data.expectedRows)
+        ) {
+          debugHistory('Skipped stale table history for %s', opId)
+          canRestore = false
+          break
+        }
+        nextData = [
+          ...nextData.slice(0, operation.data.start),
+          ...operation.data.rows,
+          ...nextData.slice(operation.data.start + operation.data.removeCount),
+        ]
+        dataChanged = true
+      }
 
       if ('schema' in operation) {
         nextSchema = operation.schema
         schemaChanged = true
       }
-
-      if (!operation.data) continue
-      nextData = [
-        ...nextData.slice(0, operation.data.start),
-        ...operation.data.rows,
-        ...nextData.slice(operation.data.start + operation.data.removeCount),
-      ]
-      dataChanged = true
     }
 
+    if (!canRestore) continue
     if (schemaChanged && op.inputs.schema) op.inputs.schema.setValue(nextSchema)
     if (!dataChanged) continue
     dataInput.setValue(nextData)

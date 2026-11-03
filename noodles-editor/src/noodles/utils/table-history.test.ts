@@ -42,8 +42,8 @@ describe('table history patches', () => {
     const snapshots = createTableHistorySnapshots('/table', { data: before }, { data: after })
 
     expect(snapshots).not.toBeNull()
-    expect(snapshots!.before.length).toBeLessThan(200)
-    expect(snapshots!.after.length).toBeLessThan(200)
+    expect(snapshots!.before.length).toBeLessThan(300)
+    expect(snapshots!.after.length).toBeLessThan(300)
     expect(snapshots!.before).not.toContain('Row 9999')
     expect(snapshots!.after).not.toContain('Row 9999')
   })
@@ -94,6 +94,30 @@ describe('table history patches', () => {
     applyTableHistorySnapshot(merged.after)
     expect(op.inputs.data.value).toEqual(after)
     expect(op.inputs.data.setValue).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not apply a patch after upstream rows have changed', () => {
+    const before = [{ value: 'A' }, { value: 'B' }]
+    const after = [{ value: 'A' }, { value: 'Edited' }]
+    const upstream = [{ value: 'B' }, { value: 'A' }]
+    const snapshots = createTableHistorySnapshots('/table', { data: before }, { data: after })!
+    const op = tableOp(upstream)
+    getOp.mockReturnValue(op)
+
+    expect(applyTableHistorySnapshot(snapshots.before)).toBe(true)
+    expect(op.inputs.data.value).toEqual(upstream)
+    expect(op.inputs.data.setValue).not.toHaveBeenCalled()
+    expect(op.outputs.data.setValue).not.toHaveBeenCalled()
+  })
+
+  it('does not let unsupported values block an edit', () => {
+    const before = [{ label: 'Before', hidden: 1n }]
+    const after = [{ label: 'After', hidden: 1n }]
+
+    expect(() =>
+      createTableHistorySnapshots('/table', { data: before }, { data: after })
+    ).not.toThrow()
+    expect(createTableHistorySnapshots('/table', { data: before }, { data: after })).toBeNull()
   })
 
   it('returns null when neither data nor schema changed', () => {
