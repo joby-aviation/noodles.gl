@@ -16,7 +16,8 @@ import { useOpenRouterConnect } from '../noodles/use-openrouter-connect'
 import { recordGraphMutation } from '../noodles/utils/graph-history'
 import { analytics } from '../utils/analytics'
 import { debugAiChat } from '../utils/debug'
-import { useAgentModelStore } from './agent/model-store'
+import { AcpSession, type ModelChoice, type PermissionRequest } from './agent/acp/session'
+import { getAgentModelStore, useAgentModelStore } from './agent/model-store'
 import { createProvider, resolveProviderModel } from './agent/provider-factory'
 import {
   type Credentials,
@@ -41,7 +42,7 @@ import {
   webgpuAvailable,
   webllmModelLabel,
 } from './agent/providers/webllm'
-import { AgentSession } from './agent/session'
+import { AgentSession, type ChatSession } from './agent/session'
 import type { AgentProvider, AgentUsage, DownloadProgress, ProviderId } from './agent/types'
 import { webSearchConfigFor } from './agent/web-search'
 import styles from './chat-panel.module.css'
@@ -90,7 +91,7 @@ export const ChatPanel: FC<ChatPanelProps> = ({
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
   const [contextLoading, setContextLoading] = useState(true)
-  const [session, setSession] = useState<AgentSession | null>(null)
+  const [session, setSession] = useState<ChatSession | null>(null)
   const [mcpTools, setMcpTools] = useState<MCPTools | null>(null)
   const [currentConversationId, setCurrentConversationId] = useState<string | null>(null)
   const [showHistory, setShowHistory] = useState(false)
@@ -124,6 +125,20 @@ export const ChatPanel: FC<ChatPanelProps> = ({
   // until it is resolved: the next run would be planned against a graph the user
   // has not decided on, and its own proposal would have nowhere to go.
   const [pendingProposal, setPendingProposal] = useState<ModificationProposal | null>(null)
+  // An ACP agent asking before it runs a tool. The turn waits on the answer.
+  const [permission, setPermission] = useState<{
+    request: PermissionRequest
+    settle: (optionId: string | null) => void
+  } | null>(null)
+  // What a connected ACP agent calls itself and the models it offers. Both come
+  // from the agent, so neither is known until it connects.
+  const [acpAgent, setAcpAgent] = useState<{
+    name: string
+    models: ModelChoice[]
+    current: string | undefined
+  } | null>(null)
+  // Bumped by Retry, which reconnects to a bridge that was not running yet
+  const [retryKey, setRetryKey] = useState(0)
   const abortRef = useRef<AbortController | null>(null)
   // Bumped when the conversation or the project changes. A run that finishes
   // after that belongs to neither, so its reply and proposal are dropped.
@@ -134,6 +149,7 @@ export const ChatPanel: FC<ChatPanelProps> = ({
   const apiKey = useKeysStore(state => state.getKey('anthropic'))
   const openRouterKey = useKeysStore(state => state.getKey('openrouter'))
   const customEndpoint = useKeysStore(state => state.getCustomEndpoint())
+  const acpBridgeUrl = useKeysStore(state => state.acpBridgeUrl)
 
   // Shared with the settings dialog, so the two cannot disagree about which
   // provider is in use
@@ -152,6 +168,7 @@ export const ChatPanel: FC<ChatPanelProps> = ({
     webllmModel: storedWebLLMModel,
     webgpuReady,
     chromeAvailable,
+    acpBridgeUrl,
   }
 
   // Anthropic unless only another credential is configured, or the user picked
@@ -172,8 +189,12 @@ export const ChatPanel: FC<ChatPanelProps> = ({
 
   // undefined leaves the provider on its own default
   const model = useAgentModelStore(state => state.getModel(providerId))
-  const modelGroups = modelGroupsFor(providerId, customEndpoint, freeModels)
+  const modelGroups = modelGroupsFor(providerId, customEndpoint, freeModels, acpAgent?.models)
   const modelChoices = modelGroups.flatMap(group => group.models)
+  // An ACP agent switches model within its session, so a new choice must not
+  // rebuild the session (and restart the agent) the way it does for the others
+  const sessionModel = providerId === 'acp' ? undefined : model
+  const pickedModel = providerId === 'acp' ? acpAgent?.current : model
 
   // Get the function to open settings dialog
   const setSettingsDialogOpen = useUIStore(state => state.setSettingsDialogOpen)
@@ -201,6 +222,7 @@ export const ChatPanel: FC<ChatPanelProps> = ({
         window.location.hash = 'ai-provider'
         break
       case 'webllm':
+      case 'acp':
         window.location.hash = 'ai-provider'
         break
       case 'chrome':
@@ -295,7 +317,9 @@ export const ChatPanel: FC<ChatPanelProps> = ({
     setStoredModel('openrouter', defaultFreeModel(freeModels))
   }, [connect.status, storedOpenRouterModel, freeModels, setStoredModel])
 
-  // Build the session whenever the provider, model, or key changes
+  // Build the session whenever the provider, model, or key changes, or Retry is
+  // pressed
+  // biome-ignore lint/correctness/useExhaustiveDependencies: retryKey reconnects to a bridge started after the last attempt
   useEffect(() => {
     if (!providerReady) {
       setContextLoading(false)
@@ -307,13 +331,13 @@ export const ChatPanel: FC<ChatPanelProps> = ({
     // on-device session carrying the transcript — so a session this effect built
     // has to be disposed whether it was ever handed to the UI or was superseded
     // while still being built
-    let built: AgentSession | null = null
+    let built: ChatSession | null = null
     let cancelled = false
 
     // Both outcomes report the model that was attempted, so a failed load and a
     // successful one of the same model land under one name
     const attemptedModel =
-      resolveProviderModel({ providerId, model, customEndpoint }) ?? 'unconfigured'
+      resolveProviderModel({ providerId, model: sessionModel, customEndpoint }) ?? 'unconfigured'
 
     const init = async () => {
       setContextLoading(true)
@@ -324,29 +348,61 @@ export const ChatPanel: FC<ChatPanelProps> = ({
         const loader = await globalContextManager.waitForReady()
 
         const tools = new MCPTools(loader)
-        const provider: AgentProvider = await createProvider({
-          providerId,
-          apiKey: providerKey,
-          model,
-          customEndpoint,
-          onDownloadProgress: setDownloadProgress,
-        })
+        let supportsImages: boolean
+        let provider: AgentProvider | null = null
 
-        built = new AgentSession(provider, tools, {
-          webSearch: webSearchConfigFor({
+        if (providerId === 'acp') {
+          const acp = await AcpSession.connect({
+            url: acpBridgeUrl ?? '',
+            tools,
+            preferredModel: getAgentModelStore().getModel('acp'),
+            onPermissionRequest: (request, signal) =>
+              new Promise(resolve => {
+                const settle = (optionId: string | null) => {
+                  signal.removeEventListener('abort', dismiss)
+                  setPermission(null)
+                  resolve(optionId)
+                }
+                const dismiss = () => settle(null)
+                signal.addEventListener('abort', dismiss, { once: true })
+                setPermission({ request, settle })
+              }),
+            onModelsChange: (models, current) =>
+              setAcpAgent(agent => (agent ? { ...agent, models, current } : agent)),
+            onDisconnect: reason => {
+              if (cancelled) return
+              setSession(null)
+              setProviderError(reason)
+            },
+          })
+          built = acp
+          supportsImages = acp.supportsImages
+          setAcpAgent({ name: acp.agentName, models: acp.models, current: acp.currentModel })
+        } else {
+          provider = await createProvider({
             providerId,
-            model: provider.model,
-            anthropicKey: apiKey,
-            openRouterKey,
-          }),
-        })
+            apiKey: providerKey,
+            model: sessionModel,
+            customEndpoint,
+            onDownloadProgress: setDownloadProgress,
+          })
+          built = new AgentSession(provider, tools, {
+            webSearch: webSearchConfigFor({
+              providerId,
+              model: provider.model,
+              anthropicKey: apiKey,
+              openRouterKey,
+            }),
+          })
+          supportsImages = provider.supportsImages
+        }
 
         if (cancelled) {
           built.dispose()
           return
         }
 
-        setProviderSupportsImages(provider.supportsImages)
+        setProviderSupportsImages(supportsImages)
         setMcpTools(tools)
         setSession(built)
         analytics.track('ai_provider_load', {
@@ -358,9 +414,10 @@ export const ChatPanel: FC<ChatPanelProps> = ({
         // OpenRouter learns which models take images from its catalogue, which
         // may land after this session was built. Ask again once it has (the
         // fetch is shared and cached, so this costs no extra request).
-        if (providerId === 'openrouter') {
+        if (provider?.id === 'openrouter') {
+          const openRouter = provider
           fetchOpenRouterFreeModels().then(() => {
-            if (!cancelled) setProviderSupportsImages(provider.supportsImages)
+            if (!cancelled) setProviderSupportsImages(openRouter.supportsImages)
           })
         }
       } catch (error) {
@@ -383,8 +440,20 @@ export const ChatPanel: FC<ChatPanelProps> = ({
     return () => {
       cancelled = true
       built?.dispose()
+      setAcpAgent(null)
+      setPermission(null)
     }
-  }, [providerId, providerKey, providerReady, model, apiKey, openRouterKey, customEndpoint])
+  }, [
+    providerId,
+    providerKey,
+    providerReady,
+    sessionModel,
+    apiKey,
+    openRouterKey,
+    customEndpoint,
+    acpBridgeUrl,
+    retryKey,
+  ])
 
   // Update MCPTools with current project whenever it changes
   useEffect(() => {
@@ -648,6 +717,7 @@ export const ChatPanel: FC<ChatPanelProps> = ({
     // belong to the conversation they came from.
     generationRef.current += 1
     abortRef.current?.abort()
+    session?.reset?.()
     setMessages([])
     setPendingProposal(null)
     setCurrentConversationId(null)
@@ -686,6 +756,7 @@ export const ChatPanel: FC<ChatPanelProps> = ({
     if (conversation) {
       generationRef.current += 1
       abortRef.current?.abort()
+      session?.reset?.()
       setMessages(conversation.messages)
       setPendingProposal(null)
       setCurrentConversationId(id)
@@ -744,6 +815,16 @@ export const ChatPanel: FC<ChatPanelProps> = ({
             </button>
             {/* A load that fails on the default is usually GPU memory, which the
                 fast model needs about half as much of */}
+            {/* The usual cause is a bridge that is not running yet */}
+            {providerId === 'acp' && (
+              <button
+                type="button"
+                onClick={() => setRetryKey(key => key + 1)}
+                className={styles.chatPanelActionBtn}
+              >
+                Retry
+              </button>
+            )}
             {providerId === 'webllm' && model !== FAST_WEBLLM_MODEL && (
               <button
                 type="button"
@@ -859,10 +940,31 @@ export const ChatPanel: FC<ChatPanelProps> = ({
             >
               Chrome (on-device, slower){!chromeAvailable && ' - unavailable'}
             </option>
+            <option
+              value="acp"
+              title="Claude Code, Codex, Gemini CLI or any other ACP agent, running on this machine through noodles-mcp acp."
+            >
+              {acpAgent?.name ?? 'ACP agent'}
+              {!acpBridgeUrl && ' - configure'}
+            </option>
           </select>
           <select
-            value={model ?? modelChoices[0].id}
-            onChange={e => setStoredModel(providerId, e.target.value)}
+            value={pickedModel ?? modelChoices[0].id}
+            onChange={e => {
+              const choice = e.target.value
+              setStoredModel(providerId, choice)
+              if (session instanceof AcpSession) {
+                session.setModel(choice).catch(error => {
+                  setMessages(prev => [
+                    ...prev,
+                    {
+                      role: 'assistant',
+                      content: `Could not switch model: ${error instanceof Error ? error.message : error}`,
+                    },
+                  ])
+                })
+              }
+            }}
             className={styles.modelSelect}
             // Chrome exposes one model, so there is nothing to choose between
             disabled={modelChoices.length < 2}
@@ -986,6 +1088,27 @@ export const ChatPanel: FC<ChatPanelProps> = ({
           </div>
         )}
 
+        {permission && (
+          <section className={styles.proposalCard} aria-label="Permission request">
+            <div className={styles.proposalTitle}>{acpAgent?.name ?? 'The agent'} asks to</div>
+            <p>{permission.request.title}</p>
+            <div className={styles.proposalActions}>
+              {permission.request.options.map(option => (
+                <button
+                  key={option.optionId}
+                  type="button"
+                  className={
+                    option.kind.startsWith('allow') ? styles.chatSendBtn : styles.chatPanelActionBtn
+                  }
+                  onClick={() => permission.settle(option.optionId)}
+                >
+                  {option.name}
+                </button>
+              ))}
+            </div>
+          </section>
+        )}
+
         {pendingProposal && (
           <section className={styles.proposalCard} aria-label="Proposed graph update">
             <div className={styles.proposalTitle}>Review graph update</div>
@@ -1067,6 +1190,7 @@ const PROVIDER_LABELS: Record<ProviderId, string> = {
   custom: 'The custom endpoint',
   webllm: 'The local model',
   chrome: 'Chrome’s built-in model',
+  acp: 'The ACP agent',
 }
 
 function cloudLabelFor(
@@ -1098,9 +1222,14 @@ interface ModelGroup {
 function modelGroupsFor(
   providerId: ProviderId,
   customEndpoint: CustomEndpointConfig | undefined,
-  freeModels: readonly OpenRouterModel[]
+  freeModels: readonly OpenRouterModel[],
+  acpModels: readonly ModelChoice[] | undefined
 ): ModelGroup[] {
   switch (providerId) {
+    // Whatever the connected agent offers. An agent that offers no choice runs
+    // its own default.
+    case 'acp':
+      return [{ models: acpModels?.length ? acpModels : [{ id: '', label: 'Agent default' }] }]
     case 'anthropic':
       return [{ models: ANTHROPIC_MODELS }]
     case 'openrouter':

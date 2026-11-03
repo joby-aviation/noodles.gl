@@ -36,6 +36,18 @@ export interface SendParams {
   onEvent?: (event: AgentEvent) => void
 }
 
+// What the chat panel holds. AgentSession runs this app's own loop on one of the
+// in-browser providers; AcpSession (acp/session.ts) hands the turn to an
+// outside agent that runs its own.
+export interface ChatSession {
+  send(params: SendParams): Promise<ClaudeResponse>
+  // The panel started a new conversation or loaded a saved one. Only a session
+  // that keeps its own transcript has anything to forget; this one is handed
+  // the history on every send.
+  reset?(): void
+  dispose(): void
+}
+
 export interface SessionOptions {
   // Enables web_search when the provider supports it. Omitted, the tool is not
   // offered at all, so the model never promises a search it cannot run.
@@ -44,7 +56,7 @@ export interface SessionOptions {
   maxSteps?: number
 }
 
-export class AgentSession {
+export class AgentSession implements ChatSession {
   private provider: AgentProvider
   private tools: MCPTools
   // Lives as long as the session so tools unlocked on one turn stay available
@@ -165,11 +177,13 @@ export class AgentSession {
 // comes back as a one-line note per call instead of the real blocks, which costs
 // tens of tokens rather than the kilobytes the results themselves would.
 function toAgentMessage(message: Message): AgentMessage {
-  const text = [flattenContent(message.content), describeToolUses(message.toolUses)]
+  return { role: message.role, content: [{ type: 'text', text: historyText(message) }] }
+}
+
+export function historyText(message: Message): string {
+  return [flattenContent(message.content), describeToolUses(message.toolUses)]
     .filter(Boolean)
     .join('\n')
-
-  return { role: message.role, content: [{ type: 'text', text }] }
 }
 
 const MAX_PARAM_CHARS = 60

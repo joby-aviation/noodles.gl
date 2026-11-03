@@ -1,4 +1,4 @@
-// Which of the five providers the chat should actually use.
+// Which of the six providers the chat should actually use.
 //
 // Two questions, and they are not the same one. "Is this provider usable?" is
 // about credentials and hardware; "which one runs?" adds the user's stated
@@ -18,6 +18,7 @@ export interface Credentials {
   webllmModel: string | undefined
   webgpuReady: boolean
   chromeAvailable: boolean
+  acpBridgeUrl: string | undefined
 }
 
 // A provider is usable when whatever it needs is present: a key for the two
@@ -38,6 +39,9 @@ export function isProviderReady(providerId: ProviderId, credentials: Credentials
       return credentials.webgpuReady && Boolean(credentials.webllmModel)
     case 'chrome':
       return credentials.chromeAvailable
+    // Whether the bridge is actually running is only known by connecting
+    case 'acp':
+      return Boolean(credentials.acpBridgeUrl)
   }
 }
 
@@ -46,7 +50,8 @@ export function isProviderReady(providerId: ProviderId, credentials: Credentials
 // WebLLM comes last: it is the weakest that is picked at all, so only when nothing
 // else is configured, and only once a model has been chosen. Chrome is never
 // picked automatically: its tool use and instruction following are too unreliable
-// to land on by default, so it runs only when asked for.
+// to land on by default, so it runs only when asked for. Neither is an ACP agent:
+// it needs a bridge running in a terminal, which a saved URL does not promise.
 export function resolveProviderId(
   options: Credentials & { preference: ProviderPreference }
 ): ProviderId {

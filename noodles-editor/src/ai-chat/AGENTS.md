@@ -4,7 +4,9 @@ The chat panel in the editor (`noodles-editor/src/ai-chat/`) runs its own agent 
 in `ai-chat/agent/`. It is provider-agnostic — the same loop and tool surface serve
 Anthropic, OpenRouter, any OpenAI-compatible endpoint you point it at, a local model
 on the user's own GPU via WebLLM, and Chrome's built-in Gemini Nano — and it bounds
-context cost rather than sending everything it has.
+context cost rather than sending everything it has. An ACP agent (Claude Code, Codex,
+Gemini CLI) is the exception: it runs its own loop, reached through a local bridge
+(`noodles-mcp acp`), and `agent/acp/session.ts` stands in for `AgentSession`.
 
 Five things to know before changing it:
 
@@ -35,7 +37,8 @@ Five things to know before changing it:
    a key": a custom endpoint needs a base URL and a model but no key, and `webllm`
    needs WebGPU **and** a model the user chose — selecting one starts a
    multi-gigabyte download, so it can never be a consequence of no key being
-   configured.
+   configured. `acp`, like Chrome, runs only when pinned: a saved bridge URL does
+   not mean the bridge is running.
 
 One security boundary lives in this code: `resolvePath()` in `ai-chat/agent-files.ts`.
 The assistant reads anywhere under the project's `data/` directory but writes only

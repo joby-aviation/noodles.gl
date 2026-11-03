@@ -12,7 +12,10 @@ export type StopReason = 'end_turn' | 'tool_use' | 'max_tokens' | 'aborted' | 'e
 // matter how many different servers it points at over time.
 // 'webllm' runs the model in this tab via WebGPU, so it needs no account at all —
 // at the price of a multi-gigabyte download the user has to ask for.
-export type ProviderId = 'anthropic' | 'openrouter' | 'custom' | 'webllm' | 'chrome'
+// 'acp' is an outside agent (Claude Code, Codex, Gemini CLI) reached through the
+// local bridge. It runs its own loop, so it is a ChatSession (acp/session.ts)
+// rather than an AgentProvider, and createProvider refuses it.
+export type ProviderId = 'anthropic' | 'openrouter' | 'custom' | 'webllm' | 'chrome' | 'acp'
 
 export type AgentContent =
   | { type: 'text'; text: string }

@@ -27,6 +27,20 @@ The server's instructions tell the client the workflow: start from an example, r
 
 Relative `path`s resolve against the server's working directory, which for Claude Code is the project root.
 
+## ACP bridge
+
+`noodles-mcp acp` connects the editor's chat panel to an agent that speaks the [Agent Client Protocol](https://agentclientprotocol.com/) (Claude Code through `claude-agent-acp`, Codex through `codex-acp`, Gemini CLI, Goose, OpenCode):
+
+```bash
+node noodles-mcp/bin/noodles-mcp.ts acp -- npx -y @agentclientprotocol/claude-agent-acp
+```
+
+It starts the agent and prints a `ws://127.0.0.1:7341/acp?token=…` URL to paste into Settings → AI Provider → ACP agent. `--help` lists the options (`--port`, `--cwd`, `--allow-origin`, `--token`).
+
+- **Transport.** ACP agents speak JSON-RPC over stdio, and a tab cannot start a process. The bridge passes each message between the agent's stdio and one WebSocket. One tab drives one agent process; a second tab connecting replaces the first.
+- **Tools.** The bridge rewrites `session/new` to set the working directory and to give the agent one MCP server, `noodles-mcp acp-tools`. Its `tools/list` and `tools/call` come back to the bridge over HTTP and go to the tab as `noodles/listTools` and `noodles/callTool`, which run the in-app tool definitions. Whatever the tab asked for in `session/new` is replaced, so a page cannot choose commands for the agent to start.
+- **Security.** The agent can run shell commands, so the socket is guarded. It listens on 127.0.0.1 only, accepts the origins on its allowlist (the hosted app and the Vite dev server, plus `--allow-origin`), and requires the token it printed. The tools endpoint refuses any request with an `Origin` header and needs a second token that only the agent's environment holds.
+
 ## Not here
 
 - **A running editor.** To change what's on screen, use the editor's WebMCP tools through the relay (see `dev-docs/claude-code-workflow.md` and the `noodles-live` skill). The `--live` mode in the agent-ready docs spec is dropped: #668 removed the WebSocket proxy it would have wrapped.

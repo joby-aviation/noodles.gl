@@ -39,6 +39,7 @@ export type ProviderPreference =
   | 'custom'
   | 'webllm'
   | 'chrome'
+  | 'acp'
 
 // 'chrome-ai' was the persisted spelling before the preference shared a
 // vocabulary with the agent loop. Read-side only, so a stored value keeps working
@@ -107,6 +108,9 @@ interface KeysState {
   keyOverrides: KeyOverrides
   providerPreference: ProviderPreference
   customEndpoint: CustomEndpointConfig | undefined
+  // The URL the ACP bridge printed, token included. A credential: it lets a page
+  // drive the agent the bridge started.
+  acpBridgeUrl: string | undefined
 
   // NOT persisted (comes from loaded project)
   projectKeys: KeysConfig | undefined
@@ -139,6 +143,7 @@ interface KeysActions {
   markProjectKeysSaved: () => void
   setProviderPreference: (preference: ProviderPreference) => void
   setCustomEndpoint: (config: CustomEndpointConfig | undefined) => void
+  setAcpBridgeUrl: (url: string | undefined) => void
 
   // Computed getters
   getKey: (key: KeyType) => string | undefined
@@ -160,6 +165,7 @@ export const useKeysStore = create<KeysStore>()(
       keyOverrides: {},
       providerPreference: 'automatic',
       customEndpoint: undefined,
+      acpBridgeUrl: undefined,
       projectKeys: undefined,
       savedProjectKeys: undefined,
       projectId: undefined,
@@ -254,6 +260,10 @@ export const useKeysStore = create<KeysStore>()(
 
       setCustomEndpoint: config => {
         set({ customEndpoint: config })
+      },
+
+      setAcpBridgeUrl: url => {
+        set({ acpBridgeUrl: url?.trim() || undefined })
       },
 
       // Saving a project to a new place keeps the choices made for it there, replacing any
@@ -354,6 +364,7 @@ export const useKeysStore = create<KeysStore>()(
         keyOverrides: state.keyOverrides,
         providerPreference: state.providerPreference,
         customEndpoint: state.customEndpoint,
+        acpBridgeUrl: state.acpBridgeUrl,
         // Don't persist projectKeys - comes from project file
       }),
     }
