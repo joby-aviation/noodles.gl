@@ -1,7 +1,7 @@
 import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { type EditorDoc, lowerDocument, OPERATOR_INDEX } from '@noodles.gl/planner'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { registerDeckOperators } from '../runtime/deck-ops'
 import {
   addNode,
@@ -258,6 +258,30 @@ describe('DocStore', () => {
     store.load(doc())
     expect(store.canUndo()).toBe(false)
     expect(store.get().dirty).toBe(false)
+  })
+
+  it('keeps a gesture with longer pauses, such as typing in a table, one step in its window', () => {
+    const now = vi.spyOn(performance, 'now')
+    try {
+      const store = new DocStore(doc())
+      const opacity = () => store.get().doc.nodes.find(n => n.id === 'dots')?.params.opacity
+      now.mockReturnValue(0)
+      store.edit(d => setParam(d, 'dots', 'opacity', 0.2), 'table', 1_500)
+      now.mockReturnValue(1_000)
+      store.edit(d => setParam(d, 'dots', 'opacity', 0.4), 'table', 1_500)
+      store.undo()
+      expect(opacity()).toBeUndefined()
+
+      // The same pause with the usual window is two steps
+      now.mockReturnValue(3_000)
+      store.edit(d => setParam(d, 'dots', 'opacity', 0.2), 'drag')
+      now.mockReturnValue(4_000)
+      store.edit(d => setParam(d, 'dots', 'opacity', 0.4), 'drag')
+      store.undo()
+      expect(opacity()).toBe(0.2)
+    } finally {
+      now.mockRestore()
+    }
   })
 })
 

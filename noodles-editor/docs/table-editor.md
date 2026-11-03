@@ -109,6 +109,14 @@ tables.
 - **Stats display**: Shows row × column count
 - **Keyboard navigation**: Arrows move, Enter/Tab confirm and advance, Escape cancels
 
+### Undo and Redo
+
+Committed data edits to the same table within 1.5 seconds share one undo step. This includes an
+active cell edit flushed immediately before adding or deleting a row. A schema save is one step
+of its own, with its data remapping. While a cell editor is focused, Cmd/Ctrl+Z is the
+browser's own undo for its text; Edit > Undo, or Cmd/Ctrl+Z on the network, undoes committed
+edits.
+
 ### Spreadsheet Clipboard
 
 Copying a table selection writes quoted TSV and an HTML table for interoperability with Google

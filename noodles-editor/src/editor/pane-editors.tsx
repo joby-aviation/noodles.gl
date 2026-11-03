@@ -144,6 +144,10 @@ function RampStopsEditor({ node }: { node: DocNode }) {
 export const cellTarget = (nodeId: string, row: number, column: string) =>
   `${nodeId}.rows.${row}.${column}`
 
+// Cell edits to one table this close together are one undo step: typing down a column, or
+// a cell edit committed as a row is added. A schema change stays a step of its own.
+const TABLE_EDIT_WINDOW_MS = 1_500
+
 function RowsEditor({ node }: { node: DocNode }) {
   const rows = parse<unknown[]>(param(node, 'rows'), [])
   const typed = Array.isArray(rows) ? rows : []
@@ -184,23 +188,27 @@ function RowsEditor({ node }: { node: DocNode }) {
   // An edit to an animated cell sets a keyframe at the playhead, as editing a keyframed
   // parameter does; the typed rows keep their value
   const onDataChange = (next: unknown[]) =>
-    docStore().edit(d => {
-      const kept = next.map((r, i) => {
-        if (!r || typeof r !== 'object') return r
-        const row = { ...(r as Record<string, unknown>) }
-        const before = data[i] as Record<string, unknown> | undefined
-        for (const column of Object.keys(row)) {
-          if (!trackOf(i, column)) continue
-          if (before && row[column] !== before[column] && keyframeable(row[column])) {
-            setKey(d, cellTarget(node.id, i, column), time, row[column])
+    docStore().edit(
+      d => {
+        const kept = next.map((r, i) => {
+          if (!r || typeof r !== 'object') return r
+          const row = { ...(r as Record<string, unknown>) }
+          const before = data[i] as Record<string, unknown> | undefined
+          for (const column of Object.keys(row)) {
+            if (!trackOf(i, column)) continue
+            if (before && row[column] !== before[column] && keyframeable(row[column])) {
+              setKey(d, cellTarget(node.id, i, column), time, row[column])
+            }
+            const original = (typed[i] as Record<string, unknown> | undefined)?.[column]
+            if (original !== undefined) row[column] = original
           }
-          const original = (typed[i] as Record<string, unknown> | undefined)?.[column]
-          if (original !== undefined) row[column] = original
-        }
-        return row
-      })
-      setParam(d, node.id, 'rows', writeRows(kept))
-    })
+          return row
+        })
+        setParam(d, node.id, 'rows', writeRows(kept))
+      },
+      `table-data:${node.id}`,
+      TABLE_EDIT_WINDOW_MS
+    )
 
   return (
     <TableEditor
