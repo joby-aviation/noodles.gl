@@ -551,8 +551,10 @@ describe('Cluster Operator', () => {
     expect(names).toEqual(['a1', 'a2', 'a3', 'b1', 'b2'])
   })
 
-  it('keeps a point whose own properties have a cluster key', () => {
-    const labeled = turf.featureCollection([turf.point([0, 0], { cluster: 4 })])
+  it('keeps a point whose own properties have cluster keys', () => {
+    const labeled = turf.featureCollection([
+      turf.point([0, 0], { cluster: true, cluster_id: 7, point_count: 3 }),
+    ])
     const op = new ClusterOp('/cluster')
     const { featureCollection } = op.execute({ geojson: labeled, zoom: 0, ...options })
 
@@ -569,6 +571,10 @@ describe('Cluster Operator', () => {
 
     op.execute({ geojson, zoom: 8, ...options, radius: 80 })
     expect(load).toHaveBeenCalledTimes(2)
+
+    // Only the latest options are kept, so going back rebuilds
+    op.execute({ geojson, zoom: 8, ...options })
+    expect(load).toHaveBeenCalledTimes(3)
     load.mockRestore()
   })
 

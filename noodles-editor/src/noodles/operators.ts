@@ -10779,29 +10779,31 @@ export class DBScanClusterOp extends Operator<DBScanClusterOp> {
   }
 }
 
-// Supercluster indexes are cached per input collection and options, so changing
-// only the zoom (often keyframed) reuses the index instead of rebuilding it
-const superclusterIndexes = new WeakMap<GeoJSON.FeatureCollection, Map<string, Supercluster>>()
+// The latest Supercluster index is cached per input collection, so changing only
+// the zoom (often keyframed) reuses it. Other options replace it, which keeps a
+// keyframed radius from piling up indexes.
+type SuperclusterCacheEntry = {
+  key: string
+  index: Supercluster
+  // Supercluster returns unclustered points as these same objects
+  points: Set<GeoJSON.Feature>
+}
+const superclusterIndexes = new WeakMap<GeoJSON.FeatureCollection, SuperclusterCacheEntry>()
 
 function getSuperclusterIndex(
   geojson: GeoJSON.FeatureCollection,
   options: { radius: number; maxZoom: number; minPoints: number }
 ) {
-  let byOptions = superclusterIndexes.get(geojson)
-  if (!byOptions) {
-    byOptions = new Map()
-    superclusterIndexes.set(geojson, byOptions)
-  }
   const key = `${options.radius}:${options.maxZoom}:${options.minPoints}`
-  let index = byOptions.get(key)
-  if (!index) {
-    const points = geojson.features.filter(
-      (f): f is Supercluster.PointFeature<Supercluster.AnyProps> => f.geometry?.type === 'Point'
-    )
-    index = new Supercluster(options).load(points)
-    byOptions.set(key, index)
-  }
-  return index
+  const cached = superclusterIndexes.get(geojson)
+  if (cached?.key === key) return cached
+
+  const points = geojson.features.filter(
+    (f): f is Supercluster.PointFeature<Supercluster.AnyProps> => f.geometry?.type === 'Point'
+  )
+  const entry = { key, index: new Supercluster(options).load(points), points: new Set(points) }
+  superclusterIndexes.set(geojson, entry)
+  return entry
 }
 
 export class ClusterOp extends Operator<ClusterOp> {
@@ -10856,10 +10858,10 @@ export class ClusterOp extends Operator<ClusterOp> {
   }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     if (!geojson?.features?.length)
       return { featureCollection: { type: 'FeatureCollection', features: [] } }
-    const index = getSuperclusterIndex(geojson, { radius, maxZoom, minPoints })
+    const { index, points } = getSuperclusterIndex(geojson, { radius, maxZoom, minPoints })
     const features = index.getClusters([-180, -90, 180, 90], Math.floor(zoom)).map(feature => {
-      // Points keep their own properties, which may already hold a 'cluster' key
-      if (!('cluster_id' in (feature.properties ?? {}))) return feature
+      // Input points pass through untouched, even when their properties hold cluster keys
+      if (points.has(feature)) return feature
       const { cluster_id } = feature.properties as Supercluster.ClusterProperties
       return {
         ...feature,
