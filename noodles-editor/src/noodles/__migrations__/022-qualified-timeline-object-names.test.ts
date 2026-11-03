@@ -76,6 +76,28 @@ describe('022-qualified-timeline-object-names', () => {
     expect(trackData[trackIdByPropPath['["pitch"]']]).toEqual(track(2))
   })
 
+  it('treats JSON and dotted prop paths for the same field as one track', async () => {
+    const project = projectWithSequence({
+      tracksByObject: {
+        '/camera': {
+          trackIdByPropPath: { '["zoom"]': 't1', '["viewState","pitch"]': 't2' },
+          trackData: { t1: track(1), t2: track(2) },
+        },
+        camera: {
+          trackIdByPropPath: { zoom: 't1', 'viewState.pitch': 't2' },
+          trackData: { t1: track(10), t2: track(20) },
+        },
+      },
+    })
+
+    const tracksByObject = getSequence(await up(project)).tracksByObject
+
+    expect(tracksByObject.camera).toEqual({
+      trackIdByPropPath: { zoom: 't1', 'viewState.pitch': 't2' },
+      trackData: { t1: track(10), t2: track(20) },
+    })
+  })
+
   it('renames marker track paths', async () => {
     const project = projectWithSequence({
       tracksByObject: { '/camera/camera-1': { trackIdByPropPath: {}, trackData: {} } },

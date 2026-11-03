@@ -28,12 +28,26 @@ function renameTrackPath(trackPath: string): string {
   return [opIdToObjectName(objectName), ...rest].join(' / ')
 }
 
+// The loader reads a prop path as a JSON array ('["viewState","zoom"]') or dot-separated
+// ("viewState.zoom"), so two different keys can name the same field. Copied from
+// loadTimeline in timeline/timeline-store.ts so this migration stays fixed.
+function decodePropPath(propPath: string): string {
+  try {
+    const parsed = JSON.parse(propPath)
+    if (Array.isArray(parsed)) return parsed.map(String).join(' / ')
+  } catch {}
+  return propPath.split('.').join(' / ')
+}
+
 // Copy the legacy object's tracks into the target, keeping tracks the target already has
 function mergeTrackObjects(target: TrackObject, legacy: TrackObject): TrackObject {
   const trackIdByPropPath = { ...target.trackIdByPropPath }
   const trackData = { ...target.trackData }
+  const fields = new Set(Object.keys(trackIdByPropPath).map(decodePropPath))
   for (const [propPath, trackId] of Object.entries(legacy.trackIdByPropPath ?? {})) {
-    if (propPath in trackIdByPropPath) continue
+    const field = decodePropPath(propPath)
+    if (fields.has(field)) continue
+    fields.add(field)
     let id = trackId
     while (id in trackData) id = `${id}_`
     trackIdByPropPath[propPath] = id
