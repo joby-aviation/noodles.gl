@@ -14,6 +14,7 @@ const doc = (): EditorDoc => ({
     { id: 'look', op: 'map-style', name: 'look', x: 0, y: 0, params: {} },
     { id: 'pick', op: 'switch-value', name: 'pick', x: 0, y: 0, params: {} },
     { id: 'map', op: 'deck', name: 'map', x: 300, y: 0, params: {} },
+    { id: 'fit', op: 'fit-bounds', name: 'fit', x: 0, y: 0, params: {} },
   ],
   edges: [],
 })
@@ -53,5 +54,29 @@ describe('value shapes', () => {
     const items = targetsOn(d, 'map', outputKey('pick', 'value'))
     expect(items.map(i => i.key)).toEqual(expect.arrayContaining(['map<viewState', 'map.mapStyle']))
     expect(items.some(i => i.exact)).toBe(false)
+  })
+
+  it('wires bounds into a camera, and a camera never into layers or effects', () => {
+    const d = doc()
+    expect(targetsOn(d, 'map', outputKey('fit', 'bounds')).map(i => [i.key, i.exact])).toEqual([
+      ['map<viewState', true],
+    ])
+    expect(targetsOn(d, 'map', outputKey('shot', 'viewState')).map(i => i.key)).toEqual([
+      'map<viewState',
+    ])
+    expect(validConnection(d, 'shot', 'viewState', 'map', 'layers')).toBe(false)
+    expect(validConnection(d, 'fit', 'bounds', 'map', 'effects')).toBe(false)
+  })
+
+  it('wires a camera or bounds into a View State’s From, and a number into its namesake', () => {
+    const d = doc()
+    for (const port of ['viewState', 'bounds'])
+      expect(targetsOn(d, 'shot', outputKey('fit', port))[0]).toMatchObject({
+        key: 'shot.from',
+        exact: true,
+      })
+    const items = targetsOn(d, 'shot', outputKey('fit', 'longitude'))
+    expect(items[0]).toMatchObject({ key: 'shot.longitude', exact: true })
+    expect(items.filter(i => i.exact)).toHaveLength(1)
   })
 })

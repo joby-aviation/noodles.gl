@@ -76,7 +76,7 @@ export function portType(
 
 /** What one kind of value a port carries (a View State's camera), or undefined for any value. */
 export function portShape(
-  doc: EditorDoc,
+  doc: Pick<EditorDoc, 'nodes'>,
   nodeId: string,
   port: string,
   side: 'in' | 'out'
@@ -109,10 +109,10 @@ export function validConnection(
   const from = portType(doc, source, sourcePort, 'out')
   const to = portType(doc, target, targetPort, 'in')
   if (!from || !to || !canConnect(from as PortType, to)) return false
-  // A camera into a camera, a map style into a map style: a View State never feeds a map style
-  if (
-    !shapesFit(portShape(doc, source, sourcePort, 'out'), portShape(doc, target, targetPort, 'in'))
-  )
+  // A camera into a camera, a map style into a map style: a View State never feeds a map style,
+  // and a value of one shape is never a layer
+  const shape = portShape(doc, source, sourcePort, 'out')
+  if (!shapesFit(shape, portShape(doc, target, targetPort, 'in')) || (shape && to === 'layer'))
     return false
   // No cycles.
   const downstream = new Set<string>([target])

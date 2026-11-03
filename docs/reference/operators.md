@@ -130,7 +130,7 @@ One page per operator. The ports and parameters tables are generated from the op
 - [Deck](./operators/deck.md): The map: layers bottom to top, the basemap, and the camera.
 - [Fill Style](./operators/fill-style.md): Fill polygons with a pattern from an atlas.
 - [FirstPerson View](./operators/first-person-view.md): A deck.gl first person view.
-- [Fit Bounds](./operators/fit-bounds.md): The camera that fits rows into the render surface: wire its view state into the deck, or its longitude, latitude and zoom into a View State.
+- [Fit Bounds](./operators/fit-bounds.md): The camera that fits rows into the render surface: wire its view state or its bounds into the deck or a View State.
 - [FPS Widget](./operators/fps-widget.md): Display frames per second (FPS) and rendering stats widget.
 - [Fullscreen Widget](./operators/fullscreen-widget.md): Enter/exit fullscreen widget.
 - [Globe View](./operators/globe-view.md): A deck.gl globe view.

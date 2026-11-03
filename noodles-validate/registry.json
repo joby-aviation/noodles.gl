@@ -2150,7 +2150,7 @@
       "name": "Fit Bounds",
       "type": "fit-bounds",
       "category": "output",
-      "description": "The camera that fits rows into the render surface: wire its view state into the deck, or its longitude, latitude and zoom into a View State. The bounds are computed in DuckDB.",
+      "description": "The camera that fits rows into the render surface: wire its view state or its bounds into the deck or a View State. The bounds are computed in DuckDB.",
       "inputs": {},
       "outputs": {
         "viewState": {
@@ -2177,7 +2177,7 @@
         },
         "position": {
           "kind": "expr",
-          "default": "[lng, lat]"
+          "default": ""
         },
         "padding": {
           "kind": "float",
@@ -7023,7 +7023,7 @@
       "name": "View State",
       "type": "view-state",
       "category": "output",
-      "description": "A camera: longitude, latitude, zoom, pitch and bearing, which numbers can drive.",
+      "description": "A camera: longitude, latitude, zoom, pitch and bearing, which numbers can drive. A camera, point or bounds wired into From sets the fields it has, and the rest are this node's.",
       "inputs": {},
       "outputs": {
         "viewState": {
@@ -7031,6 +7031,11 @@
         }
       },
       "params": {
+        "from": {
+          "kind": "field",
+          "default": null,
+          "portType": "value"
+        },
         "longitude": {
           "kind": "float",
           "default": -74.006

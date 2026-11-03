@@ -1,6 +1,6 @@
 // Deck operators' build: the deck.gl description each one hands the engine
 import { describe, expect, it } from 'vitest'
-import { DECK_OP_INDEX } from './deck-ops'
+import { asCamera, DECK_OP_INDEX } from './deck-ops'
 
 const env = { surface: { width: 800, height: 600 } }
 
@@ -81,5 +81,56 @@ describe('switch-value', () => {
   it('blends the two either side of a decimal index', () => {
     expect(build(0.5, true)).toEqual({ longitude: -98.2, latitude: 39.25, zoom: 11 })
     expect(build(1, true)).toBe(ny)
+  })
+})
+
+describe('camera inputs', () => {
+  it('read a camera as it is, a point as its center, and bounds as the camera that fits them', () => {
+    expect(asCamera({ longitude: 1, latitude: 2, zoom: 3 }, env.surface)).toEqual({
+      longitude: 1,
+      latitude: 2,
+      zoom: 3,
+    })
+    expect(asCamera({ lng: 1, lat: 2 }, env.surface)).toEqual({ longitude: 1, latitude: 2 })
+    expect(asCamera([1, 2], env.surface)).toEqual({ longitude: 1, latitude: 2 })
+    expect(
+      asCamera({ type: 'Feature', geometry: { type: 'Point', coordinates: [1, 2] } }, env.surface)
+    ).toEqual({ longitude: 1, latitude: 2 })
+    const fit = asCamera(
+      [
+        [-10, -10],
+        [10, 10],
+      ],
+      env.surface
+    )
+    expect(fit.longitude).toBeCloseTo(0)
+    expect(fit.latitude).toBeCloseTo(0)
+    expect(fit.zoom).toBeGreaterThan(0)
+    expect(asCamera('nowhere', env.surface)).toEqual({})
+    expect(asCamera(undefined, env.surface)).toEqual({})
+  })
+
+  it('let a View State take the fields a wired camera has, and keep its own for the rest', () => {
+    const build = (from: unknown) =>
+      DECK_OP_INDEX.get('view-state')?.build(
+        { longitude: 0, latitude: 0, zoom: 12, pitch: 45, bearing: 10, from },
+        'camera',
+        env
+      )
+    expect(build(null)).toEqual({ longitude: 0, latitude: 0, zoom: 12, pitch: 45, bearing: 10 })
+    expect(build({ lng: 5, lat: 6 })).toEqual({
+      longitude: 5,
+      latitude: 6,
+      zoom: 12,
+      pitch: 45,
+      bearing: 10,
+    })
+    const fitted = build([
+      [-10, -10],
+      [10, 10],
+    ]) as Record<string, number>
+    expect(fitted).toMatchObject({ pitch: 45, bearing: 10 })
+    expect(fitted.zoom).not.toBe(12)
+    expect(fitted.longitude).toBeCloseTo(0)
   })
 })

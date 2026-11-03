@@ -37,14 +37,22 @@ export type PortType = 'table' | 'layer' | 'number' | 'value'
 
 /**
  * What a `value` port carries, when it is one kind of thing: a camera (a View State's), a map
- * style, a view, a widget, an extension. Two ports of different shapes don't connect, so a
- * View State dropped on a deck goes to its view state, never its map style. A port without a
- * shape (a Switch Value's, a Merge's, a Code node's) takes and gives anything.
+ * style, a view, a widget, an extension, an effect, MapLibre layers, a point (a Geocoder's
+ * location) or bounds (a Fit Bounds'). Two ports of different shapes don't connect, so a View
+ * State dropped on a deck goes to its view state, never its map style. A port without a shape
+ * (a Switch Value's, a Merge's, a Code node's) takes and gives anything.
  */
-export type ValueShape = 'viewState' | 'mapStyle' | 'view' | 'widget' | 'extension';
+export type ValueShape =
+  | 'viewState' | 'mapStyle' | 'view' | 'widget' | 'extension' | 'effect' | 'maplibreLayer'
+  | 'point' | 'bounds';
+
+// Shapes a port takes besides its own: a camera port reads a point as its center, and bounds
+// as the camera that fits them
+const TAKES: Partial<Record<ValueShape, ValueShape[]>> = { viewState: ['point', 'bounds'] };
 
 /** Whether a value of shape `a` fits a port of shape `b`: either is any value, or they match. */
-export const shapesFit = (a?: ValueShape, b?: ValueShape): boolean => !a || !b || a === b;
+export const shapesFit = (a?: ValueShape, b?: ValueShape): boolean =>
+  !a || !b || a === b || !!TAKES[b]?.includes(a);
 
 export interface PortSpec {
   name: string;
@@ -1585,10 +1593,10 @@ export const OPERATORS: OpDef[] = [
       { name: 'layers', type: 'layer', label: 'layers', multi: true },
       // Host values the planner passes through to deck and MapLibre untouched.
       { name: 'views', type: 'value', shape: 'view', label: 'views', multi: true, optional: true },
-      { name: 'effects', type: 'value', label: 'effects', multi: true, optional: true },
+      { name: 'effects', type: 'value', shape: 'effect', label: 'effects', multi: true, optional: true },
       { name: 'widgets', type: 'value', shape: 'widget', label: 'widgets', multi: true, optional: true },
       { name: 'viewState', type: 'value', shape: 'viewState', label: 'view state', optional: true },
-      { name: 'maplibreLayers', type: 'value', label: 'MapLibre layers', multi: true, optional: true },
+      { name: 'maplibreLayers', type: 'value', shape: 'maplibreLayer', label: 'MapLibre layers', multi: true, optional: true },
     ], outputs: [],
     params: [
       { name: 'basemap', label: 'Basemap', kind: 'menu', default: 'dark-matter', options: [

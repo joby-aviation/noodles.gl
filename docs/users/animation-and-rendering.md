@@ -12,7 +12,7 @@ Scrub the timeline further ahead and change the value to set a new keyframe. It 
 
 ### Camera moves
 
-The camera is the deck node's Longitude, Latitude, Zoom, Pitch and Bearing, or those of a View State node wired into the deck's view state. Exports and screenshots always render through it. Keyframing the camera costs no queries while the animation plays.
+The camera is the deck node's Longitude, Latitude, Zoom, Pitch and Bearing, or those of a View State node wired into the deck's view state. Exports and screenshots always render through it. A camera input (the deck's view state, a View State's From) also takes a point, such as a Geocoder's location, as the camera's center, and bounds, such as a Fit Bounds', as the camera that fits them. It sets the fields it has: a Fit Bounds wired into a View State's From sets its longitude, latitude and zoom, and the View State's own Pitch and Bearing still apply. Properties shows each field a wired camera sets as coming from it. Keyframing the camera costs no queries while the animation plays.
 
 The map has two cameras, as Blender's viewport does. The switch in its top-left corner shows which one you are looking through:
 

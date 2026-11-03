@@ -21,9 +21,10 @@ import { createPortal } from 'react-dom'
 import { inputComponents } from '../noodles/components/field-components'
 import type { Field } from '../noodles/fields'
 import { analytics } from '../utils/analytics'
+import { cameraWire } from './camera-control'
 import { ChannelInput, isChannel } from './channel-input'
 import s from './doc-editor.module.css'
-import { type EngineState, useEngineState } from './doc-engine'
+import { currentEngine, type EngineState, useEngineState } from './doc-engine'
 import { clearTrack, pathTo, promote, removeKey, setKey, setParam } from './doc-ops'
 import { docStore, useEditor } from './doc-store'
 import { disconnectInput, driversFor, driveWith } from './drivers'
@@ -104,7 +105,7 @@ export function ParamRow({
   node,
   def,
   field,
-  wired,
+  wired: wiredHere,
   label,
   onUnpromote,
   inline,
@@ -131,6 +132,11 @@ export function ParamRow({
   const [menu, setMenu] = useState<{ x: number; y: number }>()
   const [picker, setPicker] = useState<{ x: number; y: number }>()
   const key = `${node.id}.${def.name}`
+  // A camera wired into the node's camera input sets this field when it has it, as a wire would
+  const camera = cameraWire(doc, node.id, def.name, (id, port) =>
+    currentEngine()?.hostOutput(id, port)
+  )
+  const wired = wiredHere || !!camera
   const raw: ParamValue | undefined = node.params[def.name]
   const mode =
     isExpr(raw) && def.kind !== 'expr' && def.kind !== 'code'
@@ -146,18 +152,28 @@ export function ParamRow({
   const pendingValue = usePendingKeys(st => st.values[key])
   const changed = pendingValue !== undefined && !!track
   const keyValue = () => (changed ? pendingValue : Number(field.value))
-  const wire = doc.edges.find(e => e.target === node.id && e.targetPort === `par:${def.name}`)
+  const parWire = doc.edges.find(e => e.target === node.id && e.targetPort === `par:${def.name}`)
+  const wire = parWire ?? camera?.edge
   // What the wire carries, from the output it reads: an output computed in SQL, such as an
   // Extent's, has no value here, rather than the parameter's default
-  const wiredValue =
-    wire &&
-    engine.slots.get(
-      slotOfOutput(
-        OPERATOR_INDEX.get(doc.nodes.find(n => n.id === wire.source)?.op ?? ''),
-        wire.source,
-        wire.sourcePort
+  const wiredValue = camera
+    ? camera.value
+    : wire &&
+      engine.slots.get(
+        slotOfOutput(
+          OPERATOR_INDEX.get(doc.nodes.find(n => n.id === wire.source)?.op ?? ''),
+          wire.source,
+          wire.sourcePort
+        )
       )
-    )
+  const wiredText =
+    wire &&
+    `← ${nameOf(doc.nodes.find(n => n.id === wire.source) ?? node)} › ${wire.sourcePort}${
+      // A style or a view is too big to show inline; going to its node shows it
+      wiredValue !== undefined && (typeof wiredValue !== 'object' || Array.isArray(wiredValue))
+        ? ` = ${fmt(wiredValue)}`
+        : ''
+    }`
   const debug = useEditor(st => st.debug)
   // What a change costs is the planner's business; debug mode shows it
   const routes = debug ? routesOf(def, key, engine) : []
@@ -207,7 +223,7 @@ export function ParamRow({
           },
         ]
       : []),
-    ...(wire
+    ...(parWire
       ? [
           {
             label: 'Disconnect input',
@@ -357,13 +373,8 @@ export function ParamRow({
         {wire ? (
           <div className={s.paramDriven}>
             <span className={s.paramLabel}>{label ?? def.label}</span>
-            <span className={s.wired}>
-              ← {nameOf(doc.nodes.find(n => n.id === wire.source) ?? node)} › {wire.sourcePort}
-              {/* A style or a view is too big to show inline; going to its node shows it */}
-              {wiredValue !== undefined &&
-              (typeof wiredValue !== 'object' || Array.isArray(wiredValue))
-                ? ` = ${fmt(wiredValue)}`
-                : ''}
+            <span className={s.wired} title={wiredText}>
+              {wiredText}
             </span>
           </div>
         ) : mode === 'ref' ? (

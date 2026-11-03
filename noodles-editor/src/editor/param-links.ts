@@ -15,6 +15,8 @@ import {
   type ParamDef,
   type PortSpec,
   resolveRef,
+  shapesFit,
+  type ValueShape,
 } from '@noodles.gl/planner'
 import { connect, pathTo, portShape, setParam, validConnection } from './doc-ops'
 import { nodeOfKey, referencePaths } from './layer-stack'
@@ -196,17 +198,19 @@ const outputDef = (port: string): ParamDef => ({
 
 /**
  * What on `nodeId` `source` could drive: its parameters, and for a value output its input ports
- * too (a View State into a deck's view state). One the source's shape matches exactly is
- * `exact` and comes first: a camera onto a deck is its view state, not its map style.
+ * too (a View State into a deck's view state). One made for the source's shape, or named as the
+ * output is, is `exact` and comes first: a camera or bounds onto a deck is its view state, not
+ * its map style, and a Fit Bounds' longitude onto a View State is its longitude.
  */
 export function targetsOn(doc: EditorDoc, nodeId: string, source: string): Candidate[] {
   const node = doc.nodes.find(n => n.id === nodeId)
   const out = asOutput(source)
   if (!node) return []
   const shape = out && portShape(doc, out.nodeId, out.port, 'out')
+  const made = (port?: ValueShape) => !!shape && !!port && shapesFit(shape, port)
   const params = paramsOf(doc, nodeId, key => canLink(doc, source, key)).map(c => ({
     ...c,
-    exact: !!shape && c.def.portShape === shape,
+    exact: made(c.def.portShape) || (!!out && c.def.name === out.port),
   }))
   const inputs = out
     ? (OPERATOR_INDEX.get(node.op)?.inputs ?? [])
@@ -217,7 +221,7 @@ export function targetsOn(doc: EditorDoc, nodeId: string, source: string): Candi
           def: { ...outputDef(p.name), label: p.label ?? p.name },
           label: `${nodePath(doc, node)} › ${p.label ?? p.name}`,
           value: 'input',
-          exact: !!shape && p.shape === shape,
+          exact: made(p.shape),
         }))
     : []
   return [...inputs, ...params].sort((a, b) => Number(b.exact) - Number(a.exact))
