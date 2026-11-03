@@ -37,7 +37,8 @@ Expressions and code read its fields as `op('/globe-view').par.x` (an input) and
 | `altitude` | `NumberField` | `1.5` |
 | `nearZMultiplier` | `NumberField` | `0.1` |
 | `farZMultiplier` | `NumberField` | `1.01` |
-| `viewState` | `CompoundPropsField` | `{"latitude":40.7128,"longitude":-74.006,"zoom":12}` |
+| `resolution` | `NumberField` | `10` |
+| `viewState` | `CompoundPropsField` | `{"latitude":40.7128,"longitude":-74.006,"zoom":12,"bearing":0,"pitch":0}` |
 <!-- gen:end inputs -->
 
 ## Outputs

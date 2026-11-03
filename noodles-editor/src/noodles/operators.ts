@@ -5789,12 +5789,22 @@ export class GlobeViewOp extends Operator<GlobeViewOp> {
         description: 'Camera distance from the screen, in multiples of the viewport height.',
       }),
       ...createGeoViewFields(),
+      resolution: new NumberField(10, {
+        min: 1,
+        max: 90,
+        step: 1,
+        showByDefault: false,
+        description:
+          'Mesh resolution for flat features drawn on the globe, in degrees. Smaller is more detailed.',
+      }),
       viewState: new CompoundPropsField(
         {
           ...createGeoViewStateFields(),
           zoom: new NumberField(12, { min: 0, max: 24, step: 0.1 }),
+          bearing: new NumberField(0, { optional: true }),
+          pitch: new NumberField(0, { min: 0, max: 60, optional: true }),
         },
-        { description: 'Camera latitude, longitude and zoom (0 to 24).' }
+        { description: 'Camera latitude, longitude, zoom (0 to 24), bearing and pitch (0 to 60).' }
       ),
     }
   }
