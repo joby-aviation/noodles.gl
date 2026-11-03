@@ -27,6 +27,7 @@ import { type EngineState, useEngineState } from './doc-engine'
 import { clearTrack, pathTo, promote, removeKey, setKey, setParam } from './doc-ops'
 import { docStore, useEditor } from './doc-store'
 import { disconnectInput, driversFor, driveWith } from './drivers'
+import { ExpressionInput, useInputColumns } from './expression-input'
 import { NodeFields } from './field-adapter'
 import { useParamLinkTarget } from './link-drag'
 import { ContextMenu, type MenuItem } from './menus'
@@ -162,6 +163,9 @@ export function ParamRow({
   const routes = debug ? routesOf(def, key, engine) : []
   const numeric = KEYABLE.has(def.kind)
   const linkTarget = useParamLinkTarget(node, def)
+  // An expression or a column of an input table offers that table's columns as you type
+  const completes = (def.kind === 'expr' || def.kind === 'column') && !!def.of
+  const columns = useInputColumns(node, completes ? def.of : undefined)
 
   // What this parameter reads, and what reads it
   const source = (() => {
@@ -414,6 +418,15 @@ export function ParamRow({
             value={String(raw ?? def.default ?? '')}
             // A channel set back to its default leaves the document, as defaults do
             onCommit={t => set(t === def.default ? undefined : t)}
+            // The input table's columns, offered as you type
+            suggestions={columns.map(c => c.name)}
+          />
+        ) : completes ? (
+          <ExpressionInput
+            id={label ?? def.label}
+            field={field}
+            mode={def.kind === 'column' ? 'column' : 'expr'}
+            columns={columns}
           />
         ) : (
           Widget && (

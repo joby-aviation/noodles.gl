@@ -15,7 +15,7 @@ coalesce(depth, 0)            a fallback for missing values
 hex_color(color)              a "#rrggbb" text column as a color
 ```
 
-- Names are column names exactly as the table has them; case matters. A channel holding just a column name, such as `position` or `Cd`, reads that column.
+- The input lists the table's columns as you type, and the functions once you type a letter. Names are column names exactly as the table has them; case matters. A channel holding just a column name, such as `position` or `Cd`, reads that column.
 - `[a, b]` makes a vector. A column with 2 to 4 numbers per row (`coordinates: [lng, lat]` in JSON) is a vector too: read one item with `coordinates[1]` or `coordinates.y`.
 - A vector attribute, such as a Color Ramp's `magnitude_color` or `position = [lng, lat]`, reads the same way wherever it goes: whole (`magnitude_color`), by index (`magnitude_color[0]`) or by component name (`magnitude_color.r`, `position.x`; `x y z w` and `r g b a` both work). Tables store it as numbered columns (`magnitude_color_0`, `_1`, `_2`); the Spreadsheet shows them under the vector's name, each by its component letter, and a Code node's `d` has it as one array (`d[i].magnitude_color`, which also reads `.r`).
 - Operators: `+ - * / %`, comparisons, `&&`, `||`, `!` and `test ? a : b`.
