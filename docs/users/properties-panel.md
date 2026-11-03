@@ -21,11 +21,14 @@ The editor for each parameter fits its kind:
 | Parameter Kind | Editor |
 |------------|--------|
 | Number | Numeric input with scroll-to-scrub |
-| Text, column, expression | Text input |
+| Text | Text input |
+| Column, expression | Text input that lists the input table's columns, and the functions an expression can call, as you type |
 | Toggle | Checkbox |
 | Color | Color swatch with picker |
 | Menu | Dropdown menu |
 | Code, SQL | Code editor |
+
+A column or expression input lists the columns of the table wired into the node as you type, with their types; an empty one lists them all. Arrow keys move through the list, Enter or Tab takes one, and Escape closes it. While you type, an expression only reaches the map once it parses, so the layers keep drawing; leaving the input applies what is there.
 
 Some parameters only appear for certain values of another: a Filter shows Column and Value in Compare mode, and Expression in Expression mode. Some operators add an editor above their parameters, such as the Map Style node's style editor and the Table node's rows.
 
