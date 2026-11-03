@@ -52,7 +52,6 @@ import type { Tileset3D } from '@loaders.gl/tiles'
 import { brightnessContrast, hueSaturation, vibrance } from '@luma.gl/effects'
 import { fitBounds } from '@math.gl/web-mercator'
 import * as Plot from '@observablehq/plot'
-import Supercluster from 'supercluster'
 import * as turf from '@turf/turf'
 import * as d3 from 'd3'
 import {
@@ -74,6 +73,7 @@ import type {
 } from 'geojson'
 import { BehaviorSubject, combineLatest, Subject, type Subscription } from 'rxjs'
 import { distinctUntilChanged, filter, mergeMap, skip } from 'rxjs/operators'
+import Supercluster from 'supercluster'
 import { Temporal } from 'temporal-polyfill'
 import z from 'zod/v4'
 
@@ -10779,6 +10779,100 @@ export class DBScanClusterOp extends Operator<DBScanClusterOp> {
   }
 }
 
+// Supercluster indexes are cached per input collection and options, so changing
+// only the zoom (often keyframed) reuses the index instead of rebuilding it
+const superclusterIndexes = new WeakMap<GeoJSON.FeatureCollection, Map<string, Supercluster>>()
+
+function getSuperclusterIndex(
+  geojson: GeoJSON.FeatureCollection,
+  options: { radius: number; maxZoom: number; minPoints: number }
+) {
+  let byOptions = superclusterIndexes.get(geojson)
+  if (!byOptions) {
+    byOptions = new Map()
+    superclusterIndexes.set(geojson, byOptions)
+  }
+  const key = `${options.radius}:${options.maxZoom}:${options.minPoints}`
+  let index = byOptions.get(key)
+  if (!index) {
+    const points = geojson.features.filter(
+      (f): f is Supercluster.PointFeature<Supercluster.AnyProps> => f.geometry?.type === 'Point'
+    )
+    index = new Supercluster(options).load(points)
+    byOptions.set(key, index)
+  }
+  return index
+}
+
+export class ClusterOp extends Operator<ClusterOp> {
+  static displayName = 'Cluster'
+  static description = 'Group nearby points into map clusters for a zoom level (Supercluster)'
+  asDownload = () => this.outputData
+  createInputs() {
+    return {
+      geojson: new GeoJsonField(undefined, {
+        description: 'Point features to cluster, as a GeoJSON FeatureCollection.',
+      }),
+      zoom: new NumberField(0, {
+        min: 0,
+        max: 24,
+        step: 0.1,
+        description: 'Map zoom to cluster for, usually the same value as the view zoom.',
+      }),
+      radius: new NumberField(40, {
+        min: 1,
+        softMax: 200,
+        step: 1,
+        description: 'Cluster radius, in pixels at the given zoom.',
+      }),
+      maxZoom: new NumberField(16, {
+        min: 0,
+        max: 24,
+        step: 1,
+        description: 'Highest zoom that still clusters. Above it every point is its own feature.',
+      }),
+      minPoints: new NumberField(2, {
+        min: 2,
+        softMax: 10,
+        step: 1,
+        description: 'Fewest points that form a cluster.',
+      }),
+    }
+  }
+  createOutputs() {
+    return {
+      featureCollection: new GeoJsonField(undefined, {
+        description:
+          "One point per cluster with 'cluster', 'cluster_id', 'point_count' and 'expansion_zoom' properties, plus the points not in any cluster, unchanged.",
+      }),
+    }
+  }
+  execute({
+    geojson,
+    zoom,
+    radius,
+    maxZoom,
+    minPoints,
+  }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    if (!geojson?.features?.length)
+      return { featureCollection: { type: 'FeatureCollection', features: [] } }
+    const index = getSuperclusterIndex(geojson, { radius, maxZoom, minPoints })
+    const features = index.getClusters([-180, -90, 180, 90], Math.floor(zoom)).map(feature => {
+      // Points keep their own properties, which may already hold a 'cluster' key
+      if (!('cluster_id' in (feature.properties ?? {}))) return feature
+      const { cluster_id } = feature.properties as Supercluster.ClusterProperties
+      return {
+        ...feature,
+        properties: {
+          ...feature.properties,
+          expansion_zoom: index.getClusterExpansionZoom(cluster_id),
+        },
+      }
+    })
+    return { featureCollection: { type: 'FeatureCollection', features } }
+  }
+}
+
 export class InterpolateOp extends Operator<InterpolateOp> {
   static displayName = 'Interpolate'
   static description = 'Interpolate scattered point data to a regular grid (IDW)'
@@ -11680,102 +11774,6 @@ export class SmoothOp extends Operator<SmoothOp> {
         ...pt.slice(2), // Preserve altitude, timestamps, etc.
       ]
     })
-  }
-}
-
-// ==================== Clustering ====================
-
-export class ClusterOp extends Operator<ClusterOp> {
-  static displayName = 'Cluster'
-  static description = 'Cluster an array of geo-points using Supercluster'
-
-  private index: Supercluster | null = null
-  private lastDataHash = 0
-
-  createInputs() {
-    return {
-      data: new DataField(),
-      zoom: new NumberField(0, { min: 0, max: 24, step: 0.1 }),
-      radius: new NumberField(60, { min: 1, softMax: 200, step: 1 }),
-      maxZoom: new NumberField(16, { min: 0, max: 24, step: 1 }),
-      minPoints: new NumberField(2, { min: 1, softMax: 10, step: 1 }),
-      getCoordinates: new UnknownField(undefined, { accessor: true }),
-    }
-  }
-
-  createOutputs() {
-    return {
-      clusters: new DataField(),
-    }
-  }
-
-  execute({
-    data,
-    zoom,
-    radius,
-    maxZoom,
-    minPoints,
-    getCoordinates,
-  }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
-    if (!Array.isArray(data) || data.length === 0) {
-      return { clusters: [] }
-    }
-
-    // Default coordinate accessor: [lng, lat] array or {lng, lat} / {longitude, latitude}
-    const coordFn =
-      typeof getCoordinates === 'function'
-        ? getCoordinates
-        : (d: Record<string, unknown>) => {
-            if (Array.isArray(d)) return d
-            if (d.coordinates) return d.coordinates
-            if (d.position) return d.position
-            if (d.lng != null && d.lat != null) return [d.lng, d.lat]
-            if (d.longitude != null && d.latitude != null) return [d.longitude, d.latitude]
-            return [0, 0]
-          }
-
-    // Re-index only when data changes (cheap hash: length + first/last element ref)
-    const hash = data.length + (data.length > 0 ? (data[0] as unknown as number) : 0)
-    if (!this.index || hash !== this.lastDataHash) {
-      const features = data.map((d: unknown) => {
-        const coords = (coordFn as (d: unknown) => [number, number])(d)
-        return {
-          type: 'Feature' as const,
-          geometry: {
-            type: 'Point' as const,
-            coordinates: [coords[0], coords[1]],
-          },
-          properties: { _source: d },
-        }
-      })
-
-      this.index = new Supercluster({ radius, maxZoom, minPoints })
-      this.index.load(features as Supercluster.PointFeature<{ _source: unknown }>[])
-      this.lastDataHash = hash
-    }
-
-    const raw = this.index.getClusters([-180, -90, 180, 90], Math.floor(zoom))
-
-    const clusters = raw.map((f) => {
-      const [lng, lat] = f.geometry.coordinates
-      if (f.properties.cluster) {
-        return {
-          cluster: true,
-          clusterId: f.properties.cluster_id,
-          coordinates: [lng, lat],
-          pointCount: f.properties.point_count,
-          expansionZoom: this.index!.getClusterExpansionZoom(f.properties.cluster_id),
-        }
-      }
-      return {
-        cluster: false,
-        coordinates: [lng, lat],
-        pointCount: 1,
-        source: (f.properties as { _source: unknown })._source,
-      }
-    })
-
-    return { clusters }
   }
 }
 
