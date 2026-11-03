@@ -52,6 +52,30 @@ describe('sanitizeRenderBaseName', () => {
   it('caps the length so a version and frame number still fit', () => {
     expect(sanitizeRenderBaseName('x'.repeat(400))).toHaveLength(200)
   })
+
+  it('caps the length in bytes without splitting a character', () => {
+    // Three bytes each, so 66 fit in 200 bytes
+    const name = sanitizeRenderBaseName('航'.repeat(100))
+    expect(name).toBe('航'.repeat(66))
+    // Two UTF-16 code units, four bytes
+    expect(sanitizeRenderBaseName('🛩'.repeat(60))).toBe('🛩'.repeat(50))
+    const longest = renderFileName({
+      baseName: name,
+      version: 999,
+      extension: 'jpeg',
+      frame: '99999',
+    })
+    expect(new TextEncoder().encode(longest).length).toBeLessThanOrEqual(255)
+  })
+
+  it('keeps Windows device names out', () => {
+    expect(sanitizeRenderBaseName('CON')).toBe('CON_')
+    expect(sanitizeRenderBaseName('nul.png')).toBe('nul_')
+    expect(sanitizeRenderBaseName('com1.final')).toBe('com1.final_')
+    expect(sanitizeRenderBaseName('', 'aux')).toBe('aux_')
+    // Only the whole name is reserved
+    expect(sanitizeRenderBaseName('console')).toBe('console')
+  })
 })
 
 describe('renderFileName', () => {

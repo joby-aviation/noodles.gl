@@ -10,24 +10,41 @@ const TRAILING_EXTENSION_RE = new RegExp(`\\.(?:${EXTENSION_PATTERN})$`, 'i')
 // Not allowed in file names on Windows or macOS, or path separators
 const INVALID_CHARACTERS_RE = /[\\/:*?"<>|]+/g
 // File systems cap names at 255 bytes; this leaves room for -vN, a frame number and the extension
-const MAX_BASE_NAME_LENGTH = 200
+const MAX_BASE_NAME_BYTES = 200
+// Windows can't create files named after devices, with or without an extension
+const RESERVED_NAME_RE = /^(?:con|prn|aux|nul|com[0-9¹²³]|lpt[0-9¹²³])(?:\..*)?$/i
+
+const encoder = new TextEncoder()
+
+// Cuts whole characters, so a multi-byte character is never split
+function truncateToBytes(text: string, maxBytes: number): string {
+  let bytes = 0
+  let result = ''
+  for (const character of text) {
+    bytes += encoder.encode(character).length
+    if (bytes > maxBytes) break
+    result += character
+  }
+  return result
+}
 
 function clean(value: unknown): string {
   // An expression can produce a number; anything else is not a name
   const text = typeof value === 'number' && Number.isFinite(value) ? String(value) : value
   if (typeof text !== 'string') return ''
-  return (
+  const name = truncateToBytes(
     Array.from(text)
       // Control characters
       .filter(character => character.charCodeAt(0) >= 32 && character.charCodeAt(0) !== 127)
       .join('')
       .trim()
       .replace(TRAILING_EXTENSION_RE, '')
-      .replace(INVALID_CHARACTERS_RE, '-')
-      .slice(0, MAX_BASE_NAME_LENGTH)
-      // Leading dots hide the file, and Windows drops trailing dots and spaces
-      .replace(/^[.\s]+|[.\s]+$/g, '')
+      .replace(INVALID_CHARACTERS_RE, '-'),
+    MAX_BASE_NAME_BYTES
   )
+    // Leading dots hide the file, and Windows drops trailing dots and spaces
+    .replace(/^[.\s]+|[.\s]+$/g, '')
+  return RESERVED_NAME_RE.test(name) ? `${name}_` : name
 }
 
 // A base name that is safe to write, from a project name or a file name setting, which can
