@@ -995,6 +995,13 @@
   white-space: nowrap;
 }
 
+.wiredValue {
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 11px;
+  color: #9fc0ff;
+  white-space: nowrap;
+}
+
 .evaluated {
   font-family: ui-monospace, "SF Mono", Menlo, monospace;
   font-size: 10.5px;

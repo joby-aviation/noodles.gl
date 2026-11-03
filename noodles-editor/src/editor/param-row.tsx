@@ -166,14 +166,13 @@ export function ParamRow({
           wire.sourcePort
         )
       )
-  const wiredText =
-    wire &&
-    `← ${nameOf(doc.nodes.find(n => n.id === wire.source) ?? node)} › ${wire.sourcePort}${
-      // A style or a view is too big to show inline; going to its node shows it
-      wiredValue !== undefined && (typeof wiredValue !== 'object' || Array.isArray(wiredValue))
-        ? ` = ${fmt(wiredValue)}`
-        : ''
-    }`
+  const wiredFrom =
+    wire && `← ${nameOf(doc.nodes.find(n => n.id === wire.source) ?? node)} › ${wire.sourcePort}`
+  // A style or a view is too big to show inline; going to its node shows it
+  const wiredShown =
+    wiredValue !== undefined && (typeof wiredValue !== 'object' || Array.isArray(wiredValue))
+      ? fmt(wiredValue)
+      : undefined
   const debug = useEditor(st => st.debug)
   // What a change costs is the planner's business; debug mode shows it
   const routes = debug ? routesOf(def, key, engine) : []
@@ -373,9 +372,11 @@ export function ParamRow({
         {wire ? (
           <div className={s.paramDriven}>
             <span className={s.paramLabel}>{label ?? def.label}</span>
-            <span className={s.wired} title={wiredText}>
-              {wiredText}
+            <span className={s.wired} title={wiredFrom}>
+              {wiredFrom}
             </span>
+            {/* The value stays in view when a narrow pane cuts where it comes from */}
+            {wiredShown !== undefined && <span className={s.wiredValue}>= {wiredShown}</span>}
           </div>
         ) : mode === 'ref' ? (
           <div className={s.paramDriven}>
