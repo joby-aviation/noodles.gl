@@ -5079,6 +5079,10 @@ export class MapViewStateOp extends Operator<MapViewStateOp> {
         { lng: DEFAULT_LONGITUDE, lat: DEFAULT_LATITUDE },
         {
           returnType: 'object',
+          channels: {
+            lng: { min: -180, max: 180, step: 0.001 },
+            lat: { min: -90, max: 90, step: 0.001 },
+          },
           description:
             'Camera center, as longitude (-180 to 180) and latitude (-90 to 90) in degrees.',
         }

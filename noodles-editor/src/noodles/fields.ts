@@ -46,12 +46,20 @@ type BaseFieldOptions = {
   internal?: boolean // Serialized state hidden from generic UI and unavailable as a graph port.
 }
 
+// Limits for each component of a vector input, keyed by channel ("lng", "x", ...). They
+// apply to the joined inputs and to the channel ports when the input is split.
+export type VectorChannelLimits = Partial<
+  Record<string, { min?: number; max?: number; step?: number }>
+>
+
 type PointFieldOptions = BaseFieldOptions & {
   returnType?: 'object' | 'tuple'
+  channels?: VectorChannelLimits
 }
 
 type Vec2FieldOptions = BaseFieldOptions & {
   returnType?: 'object' | 'tuple'
+  channels?: VectorChannelLimits
 }
 
 type SubSchemaOptions<S extends z.ZodType = z.ZodType> = BaseFieldOptions & {
@@ -728,6 +736,7 @@ export class NumberField extends Field<z.ZodNumber, NumberFieldOptions> {
 
 type VectorFieldOptions = BaseFieldOptions & {
   returnType?: 'object' | 'tuple'
+  channels?: VectorChannelLimits
 }
 
 function channelNumber(value: unknown, key: string, index: number): number | undefined {
@@ -758,7 +767,7 @@ export class VectorChannels {
       keys.map((key, index) => {
         const channel = new NumberField(
           channelNumber(initial, key, index) ?? channelNumber(fallback, key, index) ?? 0,
-          { accessor: parent.accessor, label: key }
+          { accessor: parent.accessor, label: key, ...parent.channelLimits[key] }
         )
         channel.op = parent.op
         channel.pathToProps = [...parent.pathToProps, key]
@@ -847,6 +856,13 @@ export abstract class VectorField<
   abstract returnType: 'object' | 'tuple'
 
   channels: VectorChannels | null = null
+
+  channelLimits: VectorChannelLimits = {}
+
+  constructor(initialValue?: z.input<S> | undefined | Partial<O>, options?: Partial<O>) {
+    super(initialValue, options)
+    this.channelLimits = options?.channels ?? {}
+  }
 
   get channelKeys(): readonly string[] {
     return (this.constructor as typeof VectorField).channelKeys
