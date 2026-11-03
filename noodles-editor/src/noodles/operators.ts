@@ -73,6 +73,7 @@ import type {
 } from 'geojson'
 import { BehaviorSubject, combineLatest, Subject, type Subscription } from 'rxjs'
 import { distinctUntilChanged, filter, mergeMap, skip } from 'rxjs/operators'
+import Supercluster from 'supercluster'
 import { Temporal } from 'temporal-polyfill'
 import z from 'zod/v4'
 
@@ -10778,6 +10779,102 @@ export class DBScanClusterOp extends Operator<DBScanClusterOp> {
   }
 }
 
+// The latest Supercluster index is cached per input collection, so changing only
+// the zoom (often keyframed) reuses it. Other options replace it, which keeps a
+// keyframed radius from piling up indexes.
+type SuperclusterCacheEntry = {
+  key: string
+  index: Supercluster
+  // Supercluster returns unclustered points as these same objects
+  points: Set<GeoJSON.Feature>
+}
+const superclusterIndexes = new WeakMap<GeoJSON.FeatureCollection, SuperclusterCacheEntry>()
+
+function getSuperclusterIndex(
+  geojson: GeoJSON.FeatureCollection,
+  options: { radius: number; maxZoom: number; minPoints: number }
+) {
+  const key = `${options.radius}:${options.maxZoom}:${options.minPoints}`
+  const cached = superclusterIndexes.get(geojson)
+  if (cached?.key === key) return cached
+
+  const points = geojson.features.filter(
+    (f): f is Supercluster.PointFeature<Supercluster.AnyProps> => f.geometry?.type === 'Point'
+  )
+  const entry = { key, index: new Supercluster(options).load(points), points: new Set(points) }
+  superclusterIndexes.set(geojson, entry)
+  return entry
+}
+
+export class ClusterOp extends Operator<ClusterOp> {
+  static displayName = 'Cluster'
+  static description = 'Group nearby points into map clusters for a zoom level (Supercluster)'
+  asDownload = () => this.outputData
+  createInputs() {
+    return {
+      geojson: new GeoJsonField(undefined, {
+        description: 'Point features to cluster, as a GeoJSON FeatureCollection.',
+      }),
+      zoom: new NumberField(0, {
+        min: 0,
+        max: 24,
+        step: 0.1,
+        description: 'Map zoom to cluster for, usually the same value as the view zoom.',
+      }),
+      radius: new NumberField(40, {
+        min: 1,
+        softMax: 200,
+        step: 1,
+        description: 'Cluster radius, in pixels at the given zoom.',
+      }),
+      maxZoom: new NumberField(16, {
+        min: 0,
+        max: 24,
+        step: 1,
+        description: 'Highest zoom that still clusters. Above it every point is its own feature.',
+      }),
+      minPoints: new NumberField(2, {
+        min: 2,
+        softMax: 10,
+        step: 1,
+        description: 'Fewest points that form a cluster.',
+      }),
+    }
+  }
+  createOutputs() {
+    return {
+      featureCollection: new GeoJsonField(undefined, {
+        description:
+          "One point per cluster with 'cluster', 'cluster_id', 'point_count' and 'expansion_zoom' properties, plus the points not in any cluster, unchanged.",
+      }),
+    }
+  }
+  execute({
+    geojson,
+    zoom,
+    radius,
+    maxZoom,
+    minPoints,
+  }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    if (!geojson?.features?.length)
+      return { featureCollection: { type: 'FeatureCollection', features: [] } }
+    const { index, points } = getSuperclusterIndex(geojson, { radius, maxZoom, minPoints })
+    const features = index.getClusters([-180, -90, 180, 90], Math.floor(zoom)).map(feature => {
+      // Input points pass through untouched, even when their properties hold cluster keys
+      if (points.has(feature)) return feature
+      const { cluster_id } = feature.properties as Supercluster.ClusterProperties
+      return {
+        ...feature,
+        properties: {
+          ...feature.properties,
+          expansion_zoom: index.getClusterExpansionZoom(cluster_id),
+        },
+      }
+    })
+    return { featureCollection: { type: 'FeatureCollection', features } }
+  }
+}
+
 export class InterpolateOp extends Operator<InterpolateOp> {
   static displayName = 'Interpolate'
   static description = 'Interpolate scattered point data to a regular grid (IDW)'
@@ -13034,6 +13131,7 @@ export const opTypes = {
   ChoroplethLayerOp,
   ClipExtensionOp,
   ClipOp,
+  ClusterOp,
   CodeOp,
   CollisionFilterExtensionOp,
   CompassWidgetOp,

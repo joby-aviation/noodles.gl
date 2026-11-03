@@ -1,4 +1,5 @@
 import * as turf from '@turf/turf'
+import Supercluster from 'supercluster'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import {
   AggregateOp,
@@ -7,6 +8,7 @@ import {
   BufferOp,
   CentroidOp,
   ClipOp,
+  ClusterOp,
   ConvexHullOp,
   DBScanClusterOp,
   DifferenceOp,
@@ -509,6 +511,81 @@ describe('Clustering Operators', () => {
       minPoints: 2,
     })
     expect(result.featureCollection.features).toHaveLength(points.features.length)
+  })
+})
+
+describe('Cluster Operator', () => {
+  // Two groups about 1 km across, about 4,000 km apart, plus a line to ignore
+  const groups = turf.featureCollection<GeoJSON.Geometry>([
+    turf.point([-74.0, 40.7], { name: 'a1' }),
+    turf.point([-74.01, 40.71], { name: 'a2' }),
+    turf.point([-74.02, 40.7], { name: 'a3' }),
+    turf.point([-118.24, 34.05], { name: 'b1' }),
+    turf.point([-118.25, 34.06], { name: 'b2' }),
+    turf.lineString([
+      [0, 0],
+      [1, 1],
+    ]),
+  ])
+  const options = { radius: 40, maxZoom: 16, minPoints: 2 }
+
+  it('merges nearby points into clusters at low zoom', () => {
+    const op = new ClusterOp('/cluster')
+    const { featureCollection } = op.execute({ geojson: groups, zoom: 3, ...options })
+
+    const counts = featureCollection.features
+      .map((f: GeoJSON.Feature) => f.properties?.point_count)
+      .sort()
+    expect(counts).toEqual([2, 3])
+    for (const feature of featureCollection.features) {
+      expect(feature.properties).toMatchObject({ cluster: true })
+      expect(feature.properties?.expansion_zoom).toBeGreaterThan(3)
+    }
+  })
+
+  it('returns the original points above maxZoom, ignoring other geometry', () => {
+    const op = new ClusterOp('/cluster')
+    const { featureCollection } = op.execute({ geojson: groups, zoom: 17, ...options })
+
+    const names = featureCollection.features.map((f: GeoJSON.Feature) => f.properties?.name).sort()
+    expect(names).toEqual(['a1', 'a2', 'a3', 'b1', 'b2'])
+  })
+
+  it('keeps a point whose own properties have cluster keys', () => {
+    const labeled = turf.featureCollection([
+      turf.point([0, 0], { cluster: true, cluster_id: 7, point_count: 3 }),
+    ])
+    const op = new ClusterOp('/cluster')
+    const { featureCollection } = op.execute({ geojson: labeled, zoom: 0, ...options })
+
+    expect(featureCollection.features).toEqual(labeled.features)
+  })
+
+  it('reuses the index when only the zoom changes', () => {
+    const load = vi.spyOn(Supercluster.prototype, 'load')
+    const op = new ClusterOp('/cluster')
+    const geojson = structuredClone(groups)
+    op.execute({ geojson, zoom: 3, ...options })
+    op.execute({ geojson, zoom: 8, ...options })
+    expect(load).toHaveBeenCalledTimes(1)
+
+    op.execute({ geojson, zoom: 8, ...options, radius: 80 })
+    expect(load).toHaveBeenCalledTimes(2)
+
+    // Only the latest options are kept, so going back rebuilds
+    op.execute({ geojson, zoom: 8, ...options })
+    expect(load).toHaveBeenCalledTimes(3)
+    load.mockRestore()
+  })
+
+  it('returns an empty collection for empty input', () => {
+    const op = new ClusterOp('/cluster')
+    const { featureCollection } = op.execute({
+      geojson: { type: 'FeatureCollection', features: [] },
+      zoom: 3,
+      ...options,
+    })
+    expect(featureCollection.features).toEqual([])
   })
 })
 

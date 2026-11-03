@@ -72,6 +72,7 @@ export const categories = {
     'Aggregate',
     'Along',
     'Area',
+    'Cluster',
     'DBScanCluster',
     'Interpolate',
     'Isoline',

@@ -961,6 +961,42 @@
         }
       }
     },
+    "ClusterOp": {
+      "name": "Cluster",
+      "type": "ClusterOp",
+      "category": "analysis",
+      "description": "Group nearby points into map clusters for a zoom level (Supercluster)",
+      "inputs": {
+        "geojson": {
+          "type": "GeoJsonField",
+          "default": {
+            "type": "FeatureCollection",
+            "features": []
+          }
+        },
+        "zoom": {
+          "type": "NumberField",
+          "default": 0
+        },
+        "radius": {
+          "type": "NumberField",
+          "default": 40
+        },
+        "maxZoom": {
+          "type": "NumberField",
+          "default": 16
+        },
+        "minPoints": {
+          "type": "NumberField",
+          "default": 2
+        }
+      },
+      "outputs": {
+        "featureCollection": {
+          "type": "GeoJsonField"
+        }
+      }
+    },
     "CodeOp": {
       "name": "Code",
       "type": "CodeOp",
