@@ -18,7 +18,13 @@ import {
 import type { GraphRef } from '../types'
 import { trackAddedEdges, trackAddedNodes } from './graph-analytics'
 import { type LockChange, redoLockChange, undoLockChange } from './lock-history'
-import { applyOperatorInputs, captureOperatorInputs, UI_STATE_KEY } from './property-history'
+import {
+  applyOperatorInputs,
+  captureOperatorInputs,
+  type PropertyMutationOptions,
+  UI_STATE_KEY,
+} from './property-history'
+import { mergeTableHistorySnapshots } from './table-history'
 
 interface HistoryEntry {
   id: string
@@ -39,6 +45,7 @@ interface HistoryEntry {
   operatorStateAfter?: string
   // Operator lock or unlock, with any outputs to put back on undo
   lockChange?: LockChange
+  mergeKey?: string
 }
 
 interface UndoRedoState {
@@ -604,13 +611,19 @@ export function useUndoRedo(options?: UseUndoRedoOptions) {
 
   // Record a pure operator property change (no node/edge/timeline changes) into the unified history
   const recordPropertyChange = useCallback(
-    (desc: string, operatorStateBefore: string, operatorStateAfter: string) => {
+    (
+      desc: string,
+      operatorStateBefore: string,
+      operatorStateAfter: string,
+      options?: PropertyMutationOptions
+    ) => {
       if (isRestoringRef.current) return
       const { nodes, edges } = getSnapshot()
       const timelineState = captureTimelineState()
+      const timestamp = Date.now()
       const entry: HistoryEntry = {
         id: crypto.randomUUID(),
-        timestamp: Date.now(),
+        timestamp,
         description: desc,
         nodeChanges: [],
         edgeChanges: [],
@@ -622,9 +635,41 @@ export function useUndoRedo(options?: UseUndoRedoOptions) {
         timelineStateAfter: timelineState,
         operatorStateBefore,
         operatorStateAfter,
+        mergeKey: options?.mergeKey,
       }
       setUndoRedoState(prev => {
         const newHistory = prev.history.slice(0, prev.currentIndex + 1)
+
+        const previousEntry = newHistory.at(-1)
+        const canMerge =
+          options?.mergeKey !== undefined &&
+          previousEntry?.mergeKey === options.mergeKey &&
+          prev.currentIndex === prev.history.length - 1 &&
+          timestamp - previousEntry.timestamp <= (options.mergeWindowMs ?? 0) &&
+          previousEntry.operatorStateBefore !== undefined &&
+          previousEntry.operatorStateAfter !== undefined
+
+        if (canMerge && previousEntry) {
+          const mergedSnapshots = mergeTableHistorySnapshots(
+            {
+              before: previousEntry.operatorStateBefore as string,
+              after: previousEntry.operatorStateAfter as string,
+            },
+            { before: operatorStateBefore, after: operatorStateAfter }
+          )
+          if (mergedSnapshots) {
+            const mergedEntry: HistoryEntry = {
+              ...previousEntry,
+              timestamp,
+              description: options.mergedDescription ?? previousEntry.description,
+              operatorStateBefore: mergedSnapshots.before,
+              operatorStateAfter: mergedSnapshots.after,
+            }
+            newHistory[newHistory.length - 1] = mergedEntry
+            return { history: newHistory, currentIndex: newHistory.length - 1 }
+          }
+        }
+
         newHistory.push(entry)
         let finalHistory = newHistory
         let newIndex = prev.currentIndex + 1
