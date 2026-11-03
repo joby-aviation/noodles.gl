@@ -1,4 +1,4 @@
-// noodles.json (schema 21) -> the planner's EditorDoc.
+// noodles.json (schema 22) -> the planner's EditorDoc.
 //
 // Noodles graphs pass JS rows between operators, and a layer's per-row values arrive as accessor
 // functions built by AccessorOp, MapRange, ColorRamp and Math. The planner passes tables, and a
@@ -71,9 +71,9 @@ export class MigrationError extends Error {}
 
 // ---------------------------------------------------------------------------
 /** The operator-graph schema this conversion reads: the latest migration's. */
-export const CONVERTED_SCHEMA = 21
+export const CONVERTED_SCHEMA = 22
 
-// Noodles defaults (schema 21), for the inputs this conversion reads
+// Noodles defaults (schema 22), for the inputs this conversion reads
 // ---------------------------------------------------------------------------
 
 export const DEFAULTS: Record<string, Record<string, unknown>> = {
@@ -3692,14 +3692,25 @@ function trackTarget(path: string, nodes: DocNode[]): string | undefined {
     path.includes(' / ') && !path.includes('.par.') ? objectNameToFieldPath(path) : path
   const at = fieldPath.indexOf('.par.')
   if (at < 0) return undefined
-  const id = fieldPath.slice(0, at)
+  let id = fieldPath.slice(0, at)
   // Theatre names a property by a JSON path: `["viewState","zoom"]`.
   let field = fieldPath.slice(at + 5)
   try {
     const path = JSON.parse(field)
     if (Array.isArray(path)) field = path.join('.')
   } catch {}
-  const node = nodes.find(n => n.id === id)
+  let node = nodes.find(n => n.id === id)
+  // A node inside a container is named by its whole path, `group / dots / opacity`, which
+  // reads as node `/group` and field `dots.opacity`: the node is the longest path that exists
+  const parts = field.split('.')
+  for (let i = parts.length - 1; !node && i > 0; i--) {
+    const nested = nodes.find(n => n.id === `${id}/${parts.slice(0, i).join('/')}`)
+    if (nested) {
+      node = nested
+      id = nested.id
+      field = parts.slice(i).join('.')
+    }
+  }
   // A basemap's camera is the deck's.
   const camera = /^viewState\.(longitude|latitude|zoom|pitch|bearing)$/.exec(field)
   if (camera && !node) {

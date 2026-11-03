@@ -73,7 +73,9 @@ export async function up(project: NoodlesProjectJSON): Promise<NoodlesProjectJSO
     ...sourceSettings,
   }
 
-  // Find the OutOp node and add render settings to its inputs
+  // Find the OutOp node and add render settings to its inputs. Projects saved before this
+  // migration can already have render settings as OutOp inputs (e.g. {width: 3840}); those
+  // are what the user set, so they win over the migrated and default values.
   const nodes = project.nodes.map(node => {
     if (node.type === 'OutOp') {
       return {
@@ -81,7 +83,6 @@ export async function up(project: NoodlesProjectJSON): Promise<NoodlesProjectJSO
         data: {
           ...node.data,
           inputs: {
-            ...(node.data?.inputs || {}),
             display: fullSettings.display,
             width: fullSettings.resolution.width,
             height: fullSettings.resolution.height,
@@ -93,6 +94,7 @@ export async function up(project: NoodlesProjectJSON): Promise<NoodlesProjectJSO
             scaleControl: fullSettings.scaleControl,
             framerate: fullSettings.framerate,
             captureDelay: fullSettings.captureDelay,
+            ...(node.data?.inputs || {}),
           },
         },
       }

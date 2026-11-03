@@ -760,7 +760,7 @@ describe('TableEditor', () => {
     )
 
     fireEvent.doubleClick(getByText('Downtown Skyport'))
-    fireEvent.change(container.querySelector('input.p-inputtext') as HTMLInputElement, {
+    fireEvent.change(container.querySelector('.p-inputtext') as HTMLInputElement, {
       target: { value: 'Edited Skyport' },
     })
 
