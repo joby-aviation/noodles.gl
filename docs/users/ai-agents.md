@@ -167,7 +167,7 @@ npm run validate:projects -- path/to/noodles.json
 
 The file is done when it prints `OK`.
 
-For editor autocompletion, the file shape is also published as a JSON Schema at [noodles.gl/schema/noodles-project.schema.json](https://noodles.gl/schema/noodles-project.schema.json). Map `noodles.json` files to it in your code editor (in VS Code, the `json.schemas` setting), or to `noodles-project.v<N>.schema.json` to pin a version. The schema checks shape only, so still run the validator.
+For editor autocompletion, the file shape is also published as a JSON Schema at [noodles.gl/schema/noodles-project.schema.json](https://noodles.gl/schema/noodles-project.schema.json). Map `noodles.json` files to it in your code editor (in VS Code, the `json.schemas` setting), or to `noodles-document.v<N>.schema.json` to pin a version. Projects saved before documents match `noodles-project.v20.schema.json`. The schema checks shape only, so still run the validator.
 
 ### Register the `noodles` server
 

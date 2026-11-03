@@ -1,24 +1,6 @@
 // Type definitions for Claude AI integration
 import { z } from 'zod'
 
-export interface Manifest {
-  version: string
-  generated: string
-  commit: string
-  bundles: {
-    codeIndex: BundleInfo
-    operatorRegistry: BundleInfo
-    docsIndex: BundleInfo
-    examples: BundleInfo
-  }
-}
-
-export interface BundleInfo {
-  file: string
-  size: number
-  hash: string
-}
-
 export interface CodeIndex {
   version: string
   files: Record<string, FileIndex>
@@ -54,33 +36,6 @@ export interface Export {
   name: string
   type: string
   line: number
-}
-
-export interface OperatorRegistry {
-  version: string
-  operators: Record<string, OperatorSchema>
-  categories: Record<string, string[]>
-}
-
-export interface OperatorSchema {
-  name: string
-  type: string
-  category: 'data' | 'layer' | 'renderer' | 'accessor' | 'utility' | 'container'
-  description: string
-  docstring?: string
-  inputs: Record<string, FieldSchema>
-  outputs: Record<string, FieldSchema>
-  sourceFile: string
-  sourceLine: number
-}
-
-export interface FieldSchema {
-  name: string
-  type: string
-  description?: string
-  required: boolean
-  defaultValue?: unknown
-  internal?: boolean
 }
 
 export interface DocsIndex {
@@ -139,7 +94,7 @@ export interface NodeAnnotation {
 }
 
 export interface LoadProgress {
-  stage: 'manifest' | 'code' | 'operators' | 'docs' | 'examples' | 'complete'
+  stage: 'manifest' | 'code' | 'docs' | 'examples' | 'complete'
   loaded: number
   total: number
   bytesLoaded: number
@@ -261,8 +216,35 @@ export function parseModifications(input: unknown): ProjectModification[] | null
     return arrayResult.data
   }
 
+  // Document-shaped edits ({type, op, params} without a data wrapper): applyModifications
+  // validates them against the operators, so only the shape is checked here.
+  const list = Array.isArray(parsed)
+    ? parsed
+    : (parsed as { modifications?: unknown } | null)?.modifications
+  if (
+    Array.isArray(list) &&
+    list.length > 0 &&
+    list.every(
+      m =>
+        typeof m === 'object' &&
+        m !== null &&
+        !('data' in m) &&
+        MODIFICATION_TYPES.has((m as { type?: unknown }).type as string)
+    )
+  ) {
+    return list as ProjectModification[]
+  }
+
   return null
 }
+
+const MODIFICATION_TYPES = new Set([
+  'add_node',
+  'update_node',
+  'delete_node',
+  'add_edge',
+  'delete_edge',
+])
 
 // Validate a single modification object.
 // Returns the validated modification or null if invalid.

@@ -1,251 +1,173 @@
 # Operator Reference
 
 <!-- gen:begin coverage -->
-176 operators in 15 categories. 7 of 176 have written Remarks.
+134 operators in 10 categories. 7 of 134 have written Remarks.
 <!-- gen:end coverage -->
 
-One page per operator, grouped by the category it has in the Add Node menu. Each page gives the type name a node uses in `noodles.json`, the operator's inputs with their field types and defaults, and its outputs. The tables are generated from the operator classes, so they match the editor built from the same commit. Remarks and Examples are written by hand and cover what the tables can't: which input wins when two disagree, defaults that differ from deck.gl, and mistakes that are easy to make.
-
-To update the pages after changing an operator, run `npm run generate:registry` and then `npm run generate:op-docs` in `noodles-editor/`. The generator rewrites each page's title and the text between its `gen:begin` and `gen:end` markers. Add `## Remarks` and `## Examples` anywhere else on the page and they're kept. `npm test` fails when a page is out of date or when a JSON example on it doesn't pass [noodles-validate](https://github.com/joby-aviation/noodles.gl/tree/main/noodles-validate).
+One page per operator. The ports and parameters tables are generated from the operator catalog; Remarks and Examples are written by hand.
 
 <!-- gen:begin operators -->
-## Code
-
-- [Accessor](./operators/accessor.md): A function called for each row of your data and passed to Deck.gl layer properties.
-- [Code](./operators/code.md): Run custom JavaScript code to transform your data.
-- [DuckDB](./operators/duck-db.md): Query a DuckDB database using sql.
-- [Expression](./operators/expression.md): Evaluate a JavaScript expression to compute a single value.
-- [JSON](./operators/json.md): Parse a JSON string.
-
-## Grouping
-
-- [Container](./operators/container.md): Encapsulates a subgraph of operators.
-- [ForLoopBegin](./operators/for-loop-begin.md): Start a loop that processes each item in an array.
-- [ForLoopEnd](./operators/for-loop-end.md): End a loop started by ForLoopBegin.
-- [GraphInput](./operators/graph-input.md): Receives input from the parent Container.
-- [GraphOutput](./operators/graph-output.md): Provides output to the parent Container.
-
-## Color
-
-- [CategoricalColorRamp](./operators/categorical-color-ramp.md): Map a string category to a color.
-- [Color](./operators/color.md): A color.
-- [ColorRamp](./operators/color-ramp.md): Interpolate a color from a color ramp, value range 0-1.
-- [CombineRGBA](./operators/combine-rgba.md): Combine r, g, b, and a into a color (range 0-255).
-- [HSL](./operators/hsl.md): A color in HSL (hue, saturation, lightness) format.
-- [SplitRGBA](./operators/split-rgba.md): Split a color into its red, green, blue, and alpha components (range 0-255).
-
 ## Data
 
-- [Arc](./operators/arc.md): Generate an arc path between two points at a given altitude.
-- [BoundingBox](./operators/bounding-box.md): Calculate the geographic bounds of your points (with lat/lng keys) or GeoJSON and get a camera position (center, zoom) that fits them all in view.
-- [Bounds](./operators/bounds.md): Create a bounding box from two points.
-- [BrushableHistogram](./operators/brushable-histogram.md): Interactive histogram with brushable range selection for data filtering.
-- [Chart](./operators/chart.md): Create charts using Observable Plot (bar, histogram, scatter).
-- [Concat](./operators/concat.md): Concatenate multiple arrays into a single array.
-- [Cross](./operators/cross.md): Generate all unique pairs from an array.
-- [DateTime](./operators/date-time.md): A date and time.
-- [DeckRenderer](./operators/deck-renderer.md): Render a deck.gl visualization with layers and effects.
-- [Directions](./operators/directions.md): Get driving, traffic-aware driving, or transit directions between points.
-- [File](./operators/file.md): Fetch a file from a URL or text.
-- [FilterOp](./operators/filter.md): Filter an array of data based on a condition.
-- [GeoParquet](./operators/geo-parquet.md): Load a GeoParquet file and output GeoJSON FeatureCollection via DuckDB Spatial.
-- [Geocoder](./operators/geocoder.md): Get the location of a query string.
-- [Merge](./operators/merge.md): Merge multiple objects into one (think Object.assign).
-- [Network](./operators/network.md): Generate a network of routes between a set of points (usually skyports).
-- [Out](./operators/out.md): Output a visualization.
-- [Overpass](./operators/overpass.md): Query OpenStreetMap data using Overpass API.
-- [RandomizeAttribute](./operators/randomize-attribute.md): Randomize a numeric attribute on data elements within a given range.
-- [Scatter](./operators/scatter.md): Scatter points randomly within a bounding box.
-- [Select](./operators/select.md): Select an element from an array using an index (clamped to array bounds by default, or wrapped around array bounds).
-- [Shapefile](./operators/shapefile.md): Load a Shapefile (.shp) and convert to GeoJSON, with attributes from the .dbf file beside it.
-- [Slice](./operators/slice.md): Slice an array of data.
-- [Sort](./operators/sort.md): Sort an array of data based on a key.
-- [Switch](./operators/switch.md): Select one value from a list using an index (0, 1, 2...).
-- [TableEditor](./operators/table-editor.md): Edit a local table with typed columns and an internal schema.
-- [TimeSeries](./operators/time-series.md): Interpolate time-varying data at a given time.
-- [Viewer](./operators/viewer.md): Inspect data in the viewer.
+- [Code](./operators/code.md): Rows made by JavaScript: `d` is the input's rows as objects (an empty array with nothing wired), or a JSON file parsed whole when a URL is set, and the body returns an array of rows or GeoJSON.
+- [File](./operators/file.md): Read a CSV, JSON or Parquet file by URL.
+- [Generate](./operators/generate.md): N rows numbered 0…N−1.
+- [GeoJSON](./operators/geojson.md): A GeoJSON file, or any vector file DuckDB spatial reads (shapefile, GeoPackage…), as rows: `features` has one row per feature with its geometry; polygons, lines and points have one row per vertex, ready for a layer; `all` has every vertex row with a `kind` column.
+- [Overpass](./operators/overpass.md): OpenStreetMap features an Overpass QL query finds, as a table of features: tagged nodes as points, ways as lines or polygons, multipolygon relations.
+- [DuckDB SQL](./operators/sql.md): Any SELECT.
+- [Table](./operators/table.md): Rows you type in, kept in the document: a table the engine loads once per edit.
 
-## GeoJSON
+## Tables
 
-- [ChoroplethJoin](./operators/choropleth-join.md): Join tabular data onto geographic boundaries (US states, world countries, Canadian provinces) to produce a colored FeatureCollection.
-- [ChoroplethLayer](./operators/choropleth-layer.md): All-in-one choropleth: joins tabular data onto geographic boundaries and renders with a color scale.
-- [Clip](./operators/clip.md): Clip features to a bounding polygon (mask).
-- [Explode](./operators/explode.md): Break multi-part geometries into individual features, or extract all vertices as points.
-- [GeoEditor](./operators/geo-editor.md): Draw and edit GeoJSON geometry with a visual editor.
-- [GeoJson](./operators/geo-json.md): Create a GeoJSON FeatureCollection from a list of features.
-- [GeoJsonTransform](./operators/geo-json-transform.md): Transform a GeoJSON feature with scale, translate, and rotate operations.
-- [KmlToGeoJson](./operators/kml-to-geo-json.md): Convert KML string to GeoJSON FeatureCollection.
-- [Line Interpolation](./operators/line-interpolation.md): Interpolate GeoJSON lines with D3 curves or round corners with a physical turn radius.
-- [LineToPolygon](./operators/line-to-polygon.md): Convert closed LineString features to Polygon features.
-- [Point](./operators/point.md): Create a GeoJSON Point feature from coordinates.
-- [PolygonToLine](./operators/polygon-to-line.md): Convert Polygon features to LineString features (extract boundaries).
-- [Rectangle](./operators/rectangle.md): Generate a rectangle GeoJSON geometry from a center point and dimensions in kilometers.
-- [Reproject](./operators/reproject.md): Transform coordinates between WGS84 and Web Mercator projections.
-- [Smooth](./operators/smooth.md): Apply smoothing to LineString coordinates using Gaussian or boxcar kernel.
+- [Aggregate](./operators/aggregate.md): GROUP BY with aggregates, one per line: name = count(), total = sum(pop).
+- [Grid Bin](./operators/grid.md): Count rows per square cell and emit one row per cell at its center (P), with n and the weight sum w.
+- [Join](./operators/join.md): Match rows of two tables on key columns.
+- [Limit](./operators/limit.md): The first N rows.
+- [Sort](./operators/sort.md): Order rows by a column; with a limit, keep the top N.
+- [Time Series](./operators/time-series.md): Each path's place at one time, interpolated between the two vertices around it, holding the first and last vertex outside the path's span.
+- [Union](./operators/union.md): All rows of every input, columns matched by name.
+- [Unnest](./operators/unnest.md): List columns to rows, in lockstep.
 
 ## Geometry
 
-- [Buffer](./operators/buffer.md): Create a buffer zone around input geometry at a given distance.
-- [Centroid](./operators/centroid.md): Calculate the centroid (center of mass) of each feature.
-- [ConvexHull](./operators/convex-hull.md): Calculate the convex hull (smallest enclosing polygon) of features.
-- [Difference](./operators/difference.md): Subtract one polygon from another (A minus B).
-- [Dissolve](./operators/dissolve.md): Dissolve polygons that share a common property value into single features.
-- [HexGrid](./operators/hex-grid.md): Generate a hexagonal grid within a bounding box.
-- [Intersect](./operators/intersect.md): Find the overlapping area between two polygons.
-- [PointGrid](./operators/point-grid.md): Generate a regular grid of points within a bounding box.
-- [Simplify](./operators/simplify.md): Simplify GeoJSON geometries using Ramer-Douglas-Peucker algorithm.
-- [SquareGrid](./operators/square-grid.md): Generate a square grid within a bounding box.
-- [TransformRotate](./operators/transform-rotate.md): Rotate features by an angle around a pivot point.
-- [TransformScale](./operators/transform-scale.md): Scale features by a factor around their center.
-- [TransformTranslate](./operators/transform-translate.md): Move features by a distance in a direction.
-- [Union](./operators/union.md): Merge multiple polygons into a single combined polygon.
-- [Voronoi](./operators/voronoi.md): Generate Voronoi polygons from a set of points.
+- [Aggregate Within](./operators/aggregate-within.md): Each polygon with a count, sum, mean, min or max of the points inside it, as a new column `<operation>_<column>` (0 for none).
+- [Along](./operators/along.md): The point a distance along each line, as turf.along; past the end is the end.
+- [Area](./operators/area.md): A column with each feature’s area on the spheroid, as turf.area; 0 for points and lines.
+- [Buffer](./operators/buffer.md): Each feature grown by a distance on the ground (shrunk, for a negative one), as turf.buffer.
+- [Grid Cells](./operators/cells.md): Rows with a grid cell id (H3, S2, A5, geohash or quadkey) as polygon features of their cells, keeping their columns; a column of H3 id lists draws each list’s merged outline.
+- [Centroid](./operators/centroid.md): Each feature as a point at its center of mass, keeping its properties.
+- [Choropleth Join](./operators/choropleth-join.md): Rows joined onto boundaries by a key: US states, world countries or Canadian provinces.
+- [Clip](./operators/clip.md): Each feature cut by a mask (the union of its features): the part inside, as turf.intersect and a clip do, or the part outside, as turf.difference does.
+- [Cluster](./operators/cluster.md): Points labeled with a `cluster` number by k-means (turf.clustersKmeans) or by density (turf.clustersDbscan, with `dbscan` noise/core/edge).
+- [Convex Hull](./operators/convex-hull.md): One polygon enclosing every feature, as turf.convex.
+- [Dissolve](./operators/dissolve.md): Polygons merged: all of them, or those sharing a value of a column (turf.dissolve, turf.union).
+- [Explode](./operators/explode.md): Each multi-part feature as one row per part (turf.flatten), or every feature as one point row per vertex (turf.explode).
+- [Features](./operators/features.md): GeoJSON written into the node (a FeatureCollection, a Feature or a bare geometry) or WKT, as a table of features.
+- [Grid Features](./operators/geo-grid.md): Hexagons, squares or points of one cell size covering a bounding box, as turf.hexGrid, squareGrid and pointGrid make them.
+- [Inside / Outside](./operators/inside.md): Features split by whether they touch any feature of a second table (a point inside a polygon, on its edge included, as turf.booleanPointInPolygon): `inside` and `outside`.
+- [Interpolate](./operators/interpolate.md): A grid of points valued by inverse-distance weighting of a column of the input points, as turf.interpolate.
+- [Isolines](./operators/isolines.md): Contour lines through a grid of points at each break value of a column, as turf.isolines (the input must be a point grid, such as Interpolate makes).
+- [Length](./operators/length.md): A column with each feature’s length on the spheroid (a polygon’s perimeter), as turf.length.
+- [Line Slice](./operators/line-slice.md): The part of each line between two distances from its start, as turf.lineSliceAlong.
+- [Line to Polygon](./operators/line-to-polygon.md): Each line as the polygon it outlines, closed if it is open, as turf.lineToPolygon.
+- [Nearest](./operators/nearest.md): The feature nearest a point, with its distance in kilometers in `distanceToPoint`, as turf.nearestPoint.
+- [Point](./operators/point.md): One point feature at a longitude and latitude, which numbers can drive.
+- [Polygon to Line](./operators/polygon-to-line.md): Each polygon as its outline, holes included, as turf.polygonToLine.
+- [Rectangle](./operators/rectangle.md): One rectangle feature of a width and height on the ground, centered on a point.
+- [Reproject](./operators/reproject.md): Coordinates from one CRS to another, as PROJ names them (EPSG:4326 is lng/lat).
+- [Simplify](./operators/simplify.md): Fewer vertices: Douglas–Peucker with a tolerance in degrees, as turf.simplify.
+- [Smooth Lines](./operators/smooth-lines.md): Lines with their corners rounded: a moving average of each vertex and its neighbors (gaussian or boxcar), or a spline through the vertices (Catmull–Rom, cardinal, basis, natural, monotone, or a fixed turn radius).
+- [Spatial Join](./operators/spatial-join.md): Each feature with the columns of a feature of the other table it intersects, lies within, or contains, as Noodles' spatial join: the first match, and a same-named column takes the match's value.
+- [TIN](./operators/tin.md): Triangles joining the input points (Delaunay), as turf.tin; with a column, each triangle has its corners’ values as a, b and c.
+- [Transform](./operators/transform.md): Each feature rotated (degrees clockwise), scaled about its centroid or bounding-box center, then moved a distance along a compass bearing, as turf.transformRotate, transformScale and transformTranslate.
+- [Voronoi](./operators/voronoi.md): One cell per point, the area nearer it than any other, clipped to the points' bounding box and carrying the point's properties, as turf.voronoi.
 
-## Analysis
+## Rows
 
-- [Aggregate](./operators/aggregate.md): Aggregate point data into polygons (count, sum, mean, min, max per zone).
-- [Along](./operators/along.md): Find a point at a specified distance along a line.
-- [Area](./operators/area.md): Calculate the area of polygon features in specified units.
-- [DBScanCluster](./operators/db-scan-cluster.md): Cluster points using DBSCAN density-based algorithm.
-- [Interpolate](./operators/interpolate.md): Interpolate scattered point data to a regular grid (IDW).
-- [Isoline](./operators/isoline.md): Generate isolines (contour lines) from point data with Z values.
-- [KMeansCluster](./operators/k-means-cluster.md): Cluster points into k groups using k-means algorithm.
-- [Length](./operators/length.md): Calculate the length of line features in specified units.
-- [LineSlice](./operators/line-slice.md): Extract a segment of a line between two distances along it.
-- [NearestPoint](./operators/nearest-point.md): Find the nearest point in a collection to a target point.
-- [PointInPolygon](./operators/point-in-polygon.md): Filter points that fall within a polygon boundary.
-- [SpatialJoin](./operators/spatial-join.md): Join attributes from one layer to another based on spatial relationship.
-- [Tin](./operators/tin.md): Generate a Triangulated Irregular Network (TIN) from points.
+- [Attribute Create](./operators/attribute.md): Create or overwrite one attribute from an expression.
+- [Brushable Histogram](./operators/brushable-histogram.md): Keep rows whose column lies in a brushed range, drawn over the column's histogram in the parameter pane.
+- [Distance](./operators/distance.md): Great-circle distance in km between two lng/lat points (haversine).
+- [Extent](./operators/extent.md): The minimum and maximum of an expression over the rows that reach it, computed in SQL.
+- [Filter](./operators/filter.md): Keep rows matching a condition.
+- [Distance to Geometry](./operators/geo-distance.md): Distance from each row's point to a line, polygon or set of points: zero inside a polygon.
+- [JS Function](./operators/js-function.md): A JavaScript function any expression can call by name, run by DuckDB per row.
+- [Map Range](./operators/map-range.md): Rescale a value from one range to another, linearly, on a log scale or a square root.
+- [Point Position](./operators/position.md): Build the position attribute P from longitude, latitude and altitude.
+- [Range Filter](./operators/range.md): Keep rows whose column lies between two values.
+- [Region Filter](./operators/region.md): Keep rows inside, outside or near a polygon.
+- [Attribute Wrangle](./operators/wrangle.md): A VEX-style body: @name = expr; var t = expr; fn f(x) = expr;.
 
-## Layer
+## Color
 
-- [A5Layer](./operators/a5-layer.md): Render filled and/or stroked polygons using the A5 geospatial indexing system.
-- [ArcLayer](./operators/arc-layer.md): Render a set of arcs on the map.
-- [BitmapLayer](./operators/bitmap-layer.md): Render a raster image at specified boundaries.
-- [ColumnLayer](./operators/column-layer.md): Render extruded cylinders (columns) at given positions.
-- [ContourLayer](./operators/contour-layer.md): Aggregate data and render contour lines or filled contour bands.
-- [GeoJsonLayer](./operators/geo-json-layer.md): Render GeoJSON data with points, lines, and polygons.
-- [GeohashLayer](./operators/geohash-layer.md): Render filled and/or stroked polygons based on geohash strings.
-- [GreatCircleLayer](./operators/great-circle-layer.md): Render great circle arcs between pairs of source and target coordinates.
-- [GridCellLayer](./operators/grid-cell-layer.md): Render a grid of cells at specified coordinates.
-- [GridLayer](./operators/grid-layer.md): Aggregate data into a grid and render as columns.
-- [H3ClusterLayer](./operators/h3-cluster-layer.md): Render hexagons from H3 hexagon indices and cluster them by density.
-- [H3HexagonLayer](./operators/h3-hexagon-layer.md): Render a hexagon grid on the map using the H3 grid system.
-- [HeatmapLayer](./operators/heatmap-layer.md): Render a heatmap from points on the map.
-- [HexagonLayer](./operators/hexagon-layer.md): Aggregate data into hexagonal bins and render as hexagonal columns.
-- [IconLayer](./operators/icon-layer.md): Render a set of icons on the map.
-- [LineLayer](./operators/line-layer.md): Render straight lines between source and target coordinates.
-- [MVTLayer](./operators/mvt-layer.md): Render Mapbox Vector Tiles (MVT).
-- [PathLayer](./operators/path-layer.md): Render a path on the map.
-- [PointCloudLayer](./operators/point-cloud-layer.md): Render a point cloud with millions of 3D points.
-- [PolygonLayer](./operators/polygon-layer.md): Render filled and/or stroked polygons.
-- [QuadkeyLayer](./operators/quadkey-layer.md): Render filled and/or stroked polygons based on quadkey strings.
-- [RasterTileLayer](./operators/raster-tile-layer.md): Render a raster tile layer on the map.
-- [S2Layer](./operators/s2-layer.md): Render filled and/or stroked polygons based on S2 tokens.
-- [ScatterplotLayer](./operators/scatterplot-layer.md): Render a scatterplot of points as circles on the map.
-- [ScenegraphLayer](./operators/scenegraph-layer.md): Render a 3D model on the map.
-- [ScreenGridLayer](./operators/screen-grid-layer.md): Aggregate data into a grid in screen space and visualize as a heatmap.
-- [SimpleMeshLayer](./operators/simple-mesh-layer.md): Render simple 3D meshes/models at specified positions.
-- [SolidPolygonLayer](./operators/solid-polygon-layer.md): Render a set of solid polygons on the map.
-- [TerrainLayer](./operators/terrain-layer.md): Render a terrain mesh from heightmap tiles.
-- [TextLayer](./operators/text-layer.md): Render a set of text labels on the map.
-- [TileLayer](./operators/tile-layer.md): Render data organized in a tiled format (generic tile layer).
-- [Tile3DLayer](./operators/tile3d-layer.md): Render 3D tiles on the map (Google, Cesium, or a custom tileset URL).
-- [TripsLayer](./operators/trips-layer.md): Render a set of trips with timestamps for animation on the map.
+- [Color](./operators/color.md): A color other parameters reference, so several layers can share one.
+- [Color Ramp](./operators/color-ramp.md): Map a value through a color ramp into an RGB attribute.
 
-## Extension
+## Layers
 
-- [BrightnessContrastExtension](./operators/brightness-contrast-extension.md): Adjust brightness and contrast of a layer.
-- [BrushingExtension](./operators/brushing-extension.md): Only render the points within a given radius of the mouse position.
-- [ClipExtension](./operators/clip-extension.md): Clip layers by a rectangular bounds.
-- [CollisionFilterExtension](./operators/collision-filter-extension.md): Hide overlapping objects (e.g., labels).
-- [DataFilterExtension](./operators/data-filter-extension.md): Filter data by one or more numeric ranges.
-- [FillStyleExtension](./operators/fill-style-extension.md): Add patterns and styles to polygon fills.
-- [HueSaturationExtension](./operators/hue-saturation-extension.md): Adjust hue and saturation of a layer.
-- [MaskExtension](./operators/mask-extension.md): Show/hide layer objects by a geofence.
-- [Mask3DExtension](./operators/mask3d-extension.md): Show only a sphere around a lng/lat/alt (meters) of a Tile3DLayer, fading to white at the edge.
-- [PathStyleExtension](./operators/path-style-extension.md): Style a path (used with PathLayer, PolygonLayer, and GeoJSONLayer).
-- [TerrainExtension](./operators/terrain-extension.md): Render a terrain layer on the map.
-- [VibranceExtension](./operators/vibrance-extension.md): Adjust vibrance of a layer.
+- [Arc Layer](./operators/arc.md): An arc per row between two positions.
+- [Bitmap Layer](./operators/bitmap.md): Render a raster image at specified boundaries.
+- [Choropleth Layer](./operators/choropleth.md): Rows joined onto boundaries (as Choropleth Join does) and filled by a color ramp over a column, its domain the column's minimum to maximum; a boundary with no value is gray.
+- [Column Layer](./operators/column.md): An extruded column per row: bars on a map.
+- [Contour Layer](./operators/contour.md): Rows binned into a grid of a cell size in meters, drawn as iso-lines at thresholds or bands between them.
+- [Grid Cell Layer](./operators/grid-cell.md): A square column per row, of a cell size in meters, raised by a per-row elevation.
+- [Grid Layer](./operators/grid-layer.md): Rows binned into square cells, colored and raised by per-row weights deck sums per bin.
+- [Heatmap Layer](./operators/heatmap.md): A density surface of the rows' positions, weighted per row.
+- [Hexagon Layer](./operators/hexagon.md): Rows binned into hexagons, colored and raised by per-row weights deck sums per bin.
+- [Icon Layer](./operators/icon.md): An icon per row from an atlas image: a string column names each row’s icon in the mapping.
+- [Line Layer](./operators/line.md): A straight segment per row between two positions.
+- [Simple Mesh Layer](./operators/mesh.md): A 3D model per row, positioned, oriented (pitch, yaw, roll in degrees), scaled and colored by channels.
+- [MVT Layer](./operators/mvt.md): Render Mapbox Vector Tiles (MVT).
+- [Path Layer](./operators/path.md): A path per row when Position reads a list of positions or a geometry; otherwise rows are vertices, grouped into paths by an id column and ordered by another.
+- [Point Cloud Layer](./operators/point-cloud.md): A lit point per row, sized in pixels or meters.
+- [Polygon Layer](./operators/polygon.md): A polygon per row when Position reads a geometry (holes and multi-polygons included); otherwise rows are vertices, grouped into polygons by an id, into rings by another (the first ring is the outline, the rest are holes), ordered by a third.
+- [Raster Tile Layer](./operators/raster-tiles.md): Render a raster tile layer on the map.
+- [Scatterplot Layer](./operators/scatter.md): A circle per row.
+- [Scenegraph Layer](./operators/scenegraph.md): A 3D model per row, positioned, oriented (pitch, yaw, roll in degrees), scaled and colored by channels.
+- [Screen Grid Layer](./operators/screen-grid.md): Rows binned into square cells of a size on screen, colored by their summed or averaged weight.
+- [Terrain Layer](./operators/terrain.md): Render a terrain mesh from heightmap tiles.
+- [Text Layer](./operators/text.md): A label per row from a string column.
+- [Tile 3D Layer](./operators/tile-3d.md): Render 3D tiles on the map (Google, Cesium, or a custom tileset URL).
+- [Trips Layer](./operators/trips.md): Animated trails: a trip per row when Position reads a list of positions and Timestamp a list of times; otherwise vertex rows with a timestamp each.
 
-## Number
+## Numbers
 
-- [BezierCurve](./operators/bezier-curve.md): Bezier curve for mapping input values using an interactive graph editor.
-- [DateMath](./operators/date-math.md): Add, subtract, compare, or interpolate dates.
-- [DateParts](./operators/date-parts.md): Split a date into year, month, day, hour, and other components.
-- [Extent](./operators/extent.md): Find the minimum and maximum values in your data (e.g., to set color scale ranges or determine data bounds).
-- [MapRange](./operators/map-range.md): Remap a number from one range to another (e.g., map 0-100 to 0-1, or temperature to color intensity).
-- [Math](./operators/math.md): Perform a mathematical operation.
-- [Number](./operators/number.md): A number.
-- [Ramp](./operators/ramp.md): Map a position (0–1) to a value using a user-defined curve.
-- [Time](./operators/time.md): Get the current clock, timeline, and session time.
+- [Bezier Curve](./operators/bezier-curve.md): A number from a curve: the curve’s height at a factor from 0 to 1.
+- [Expression](./operators/expression.md): A number from an expression over a, b, T (seconds), F (frame) and ch() references.
+- [Math](./operators/math.md): Combine two numbers.
+- [Mouse](./operators/mouse.md): The pointer over the map, in pixels from its top left.
+- [Number](./operators/number.md): A constant, a slider, or a keyframed value.
+- [Ramp](./operators/ramp.md): A number from stops: the value at a position, between stops linearly, smoothly (monotone) or held.
+- [Time](./operators/time.md): Timeline seconds × speed + offset.
 
-## String
-
-- [DateFormat](./operators/date-format.md): Format a date as a string, e.g.
-- [String](./operators/string.md): A string.
-
-## Utility
-
-- [Blending](./operators/blending.md): Configure WebGL blending mode for layers (additive, normal, subtractive).
-- [Boolean](./operators/boolean.md): A boolean.
-- [Comment](./operators/comment.md): A note that explains the nodes beside it.
-- [Console](./operators/console.md): Log data to the console.
-- [ForLoopMeta](./operators/for-loop-meta.md): Access iteration metadata and accumulator within a ForLoop scope.
-- [LayerProps](./operators/layer-props.md): Add additional props to a layer (e.g., operation: "mask" for mask layers, beforeId for maplibre layer ordering).
-- [MapStyleConfigurator](./operators/map-style-configurator.md): Visually edit Maplibre style layer colors, fonts, and visibility.
-- [Mouse](./operators/mouse.md): Get the current mouse position on the screen.
-- [Project](./operators/project.md): Project a lat/lng point to a screen position.
-- [Reroute](./operators/reroute.md): Pass-through for organizing graph layout.
-- [Unproject](./operators/unproject.md): Unproject a screen position to a lat/lng point.
-
-## Vector
-
-- [CombineXY](./operators/combine-xy.md): Combine x and y into a 2D vector.
-- [SplitXY](./operators/split-xy.md): Split a 2D vector into its x and y components.
-- [SplitXYZ](./operators/split-xyz.md): Split a 3D vector into its x, y, and z components.
-
-## View
-
-- [CustomMapLibreLayer](./operators/custom-map-libre-layer.md): Define a custom MapLibre GL layer with WebGL rendering.
-- [FirstPersonView](./operators/first-person-view.md): A deck.gl first person view.
-- [GlobeView](./operators/globe-view.md): A deck.gl globe view.
-- [MapView](./operators/map-view.md): A deck.gl map view.
-- [MapViewState](./operators/map-view-state.md): Create a react-map-gl MapViewState for controlling the camera.
-- [MaplibreBasemap](./operators/maplibre-basemap.md): A MapLibre basemap with sky and lighting settings.
-- [OrbitView](./operators/orbit-view.md): A deck.gl orbit view.
-- [OrthographicView](./operators/orthographic-view.md): A deck.gl orthographic view.
-- [PMTiles](./operators/pm-tiles.md): Load a PMTiles archive as a MapLibre vector or raster source.
-- [SplitMapViewState](./operators/split-map-view-state.md): Split a viewState object into its individual components.
-- [XYZTile](./operators/xyz-tile.md): Configure a raster XYZ tile source from a URL template (\{z\}/\{x\}/\{y\}).
-
-## Widget
+## Output
 
 - [Bitmap Overlay](./operators/bitmap-overlay-widget.md): Display a bitmap image as a screen-space overlay.
-- [CompassWidget](./operators/compass-widget.md): Compass and bearing reset widget.
-- [FpsWidget](./operators/fps-widget.md): Display frames per second (FPS) and rendering stats widget.
-- [FullscreenWidget](./operators/fullscreen-widget.md): Enter/exit fullscreen widget.
-- [LegendWidget](./operators/legend-widget.md): Display a color scale legend overlay on the visualization.
-- [ScaleWidget](./operators/scale-widget.md): Display a map distance scale widget.
-- [ScreenshotWidget](./operators/screenshot-widget.md): Download current frame as PNG widget.
-- [ZoomWidget](./operators/zoom-widget.md): Zoom in/out buttons widget.
+- [Brightness / Contrast](./operators/brightness-contrast.md): Adjust brightness and contrast of a layer.
+- [Brushing](./operators/brushing.md): Show only objects near the pointer.
+- [Clip Extension](./operators/clip-extension.md): Clip layers by a rectangular bounds.
+- [Collision Filter](./operators/collision-filter.md): Hide overlapping objects, keeping the higher priority one.
+- [Compass Widget](./operators/compass-widget.md): Compass and bearing reset widget.
+- [Deck](./operators/deck.md): The map: layers bottom to top, the basemap, and the camera.
+- [Fill Style](./operators/fill-style.md): Fill polygons with a pattern from an atlas.
+- [FirstPerson View](./operators/first-person-view.md): A deck.gl first person view.
+- [Fit Bounds](./operators/fit-bounds.md): The camera that fits rows into the render surface: wire its view state into the deck, or its longitude, latitude and zoom into a View State.
+- [FPS Widget](./operators/fps-widget.md): Display frames per second (FPS) and rendering stats widget.
+- [Fullscreen Widget](./operators/fullscreen-widget.md): Enter/exit fullscreen widget.
+- [Globe View](./operators/globe-view.md): A deck.gl globe view.
+- [Hue / Saturation](./operators/hue-saturation.md): Adjust hue and saturation of a layer.
+- [Layer Props](./operators/layer-props.md): Props added to a layer: operation "mask" for a mask layer, beforeId to draw under a MapLibre layer, or any others as JSON.
+- [Legend Widget](./operators/legend-widget.md): Display a color scale legend overlay on the visualization.
+- [Map Style](./operators/map-style.md): A basemap style with your changes: layers hidden or recolored, from the style editor.
+- [Map View](./operators/map-view.md): A deck.gl map view.
+- [Mask 3D Extension](./operators/mask-3d-extension.md): Show only a sphere around a lng/lat/alt (meters) of a Tile3DLayer, fading to white at the edge.
+- [Mask Extension](./operators/mask-extension.md): Show/hide layer objects by a geofence.
+- [Merge](./operators/merge.md): One object from several, later ones winning, as Object.assign does: view states, layer props.
+- [Orbit View](./operators/orbit-view.md): A deck.gl orbit view.
+- [Orthographic View](./operators/orthographic-view.md): A deck.gl orthographic view.
+- [Path Style](./operators/path-style.md): Dashed and offset paths.
+- [PMTiles](./operators/pmtiles.md): Load a PMTiles archive as a MapLibre vector or raster source.
+- [Scale Widget](./operators/scale-widget.md): Display a map distance scale widget.
+- [Screenshot Widget](./operators/screenshot-widget.md): Download current frame as PNG widget.
+- [Terrain Extension](./operators/terrain-extension.md): Render a terrain layer on the map.
+- [Vibrance](./operators/vibrance.md): Adjust vibrance of a layer.
+- [View State](./operators/view-state.md): A camera: longitude, latitude, zoom, pitch and bearing, which numbers can drive.
+- [XYZ Tiles](./operators/xyz-tiles.md): Configure a raster XYZ tile source from a URL template (\{z\}/\{x\}/\{y\}).
+- [Zoom Widget](./operators/zoom-widget.md): Zoom in/out buttons widget.
+
+## Structure
+
+- [Comment](./operators/comment.md): A note that explains the nodes beside it.
+- [Subnetwork](./operators/subnet.md): A network inside a node.
+- [Subnet Input](./operators/subnet-input.md): Inside a subnet: what is connected to the subnet's input.
+- [Subnet Output](./operators/subnet-output.md): Inside a subnet: what the subnet outputs.
+- [Switch](./operators/switch.md): Pass one of several layers through, chosen by index.
+
+## Host operators
+
+- [Chart](./operators/chart.md): Create charts using Observable Plot (bar, histogram, scatter).
+- [Code](./operators/code-host.md): Run custom JavaScript code to transform your data.
+- [CustomMapLibreLayer](./operators/custom-map-libre-layer.md): Define a custom MapLibre GL layer with WebGL rendering.
+- [Directions](./operators/directions.md): Get driving, traffic-aware driving, or transit directions between points.
+- [Geocoder](./operators/geocoder.md): Get the location of a query string.
+- [TileLayer](./operators/tile-layer.md): Render data organized in a tiled format (generic tile layer).
 <!-- gen:end operators -->
-
-## Field types
-
-The Type column names the field class of each input and output. The ones that come up most:
-
-| Type | Holds |
-|------|-------|
-| `DataField` | Any array or object, usually rows of data, from one connection. |
-| `ListField` | A list built from several connections. Each edge into it adds one item, in connection order, like `layers` on [DeckRenderer](./operators/deck-renderer.md). |
-| `ArrayField` | One array whose items all have the same field type, from a single connection. |
-| `GeoJsonField` | A GeoJSON object. The default is an empty FeatureCollection. |
-| `CompoundPropsField` | An object of named sub-fields, such as a camera's `latitude`, `longitude` and `zoom`. The Default column shows the whole object. |
-| `StringLiteralField` | One string from a fixed set of values. |
-| `CodeField`, `ExpressionField` | Source text the operator compiles: JavaScript, or SQL for DuckDB. |
-| `FunctionField` | A function, such as an Accessor's output. |
-| `LayerField`, `ViewField`, `ExtensionField` | deck.gl layer, view and extension descriptions from the matching operators. |
-| `UnknownField` | Any value. Nothing checks it. |
-
-Layer inputs whose names start with `get`, such as `getPosition`, take either a constant of the listed type or a per-row function from an [Accessor](./operators/accessor.md). For how fields work inside the editor, see [Field System](../developers/field-system.md).

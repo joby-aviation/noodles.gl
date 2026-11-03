@@ -174,34 +174,18 @@ Always include a `noodles.json` file that reviewers can save and load:
 
 ```json
 {
-  "version": 18,
+  "version": 1,
+  "name": "threshold-test",
   "nodes": [
-    {
-      "id": "/test-data",
-      "type": "FileOp",
-      "position": {"x": 100, "y": 100},
-      "data": {
-        "inputs": {
-          "url": "@/data/sample.csv",
-          "format": "csv"
-        }
-      }
-    },
-    {
-      "id": "/viewer",
-      "type": "ViewerOp",
-      "position": {"x": 400, "y": 100},
-      "data": {}
-    }
+    { "id": "n1", "op": "file", "name": "test-data", "x": 0, "y": 0,
+      "params": { "url": "@/sample.csv", "format": "csv" } },
+    { "id": "n2", "op": "scatter", "name": "points", "x": 300, "y": 0,
+      "params": { "position": "[lng, lat]" } },
+    { "id": "n3", "op": "deck", "name": "deck", "x": 600, "y": 0, "params": {} }
   ],
   "edges": [
-    {
-      "id": "/test-data.out.data->/viewer.par.data",
-      "source": "/test-data",
-      "target": "/viewer",
-      "sourceHandle": "out.data",
-      "targetHandle": "par.data"
-    }
+    { "id": "e1", "source": "n1", "sourcePort": "out", "target": "n2", "targetPort": "in" },
+    { "id": "e2", "source": "n2", "sourcePort": "out", "target": "n3", "targetPort": "layers", "index": 0 }
   ]
 }
 ```
@@ -252,10 +236,10 @@ For changes affecting video export or rendering performance:
 ### Adding a New Operator
 
 **Checklist:**
-- [ ] Operator class implemented
-- [ ] Registered in operators.ts
-- [ ] Added to category in categories.ts
-- [ ] Unit tests added
+- [ ] `OpDef` added to `packages/planner/src/operators.ts` (or a deck operator in `runtime/deck-ops.ts`)
+- [ ] Values bound with `ctx.bind`, so changing them is routed rather than recompiled
+- [ ] Conversion from the Noodles operator it replaces, if any, with a test
+- [ ] Unit tests added (planner, and a `*.node.test.ts` that runs the SQL)
 - [ ] Example project provided for manual testing
 - [ ] Documentation added (if complex)
 

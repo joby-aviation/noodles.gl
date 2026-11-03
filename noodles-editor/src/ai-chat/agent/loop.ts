@@ -530,7 +530,7 @@ async function executeTool(
   // next request instead of it guessing at the arguments again.
   if (!router.isCallable(name)) router.findTools({ query: name, limit: 1 })
 
-  return definition.execute(tools, input, () => tools.getProject())
+  return definition.execute(tools, input)
 }
 
 function accumulateUsage(total: AgentUsage, turn: AgentUsage | null) {

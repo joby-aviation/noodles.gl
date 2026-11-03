@@ -5,15 +5,22 @@ _Adapted from [Kepler.gl examples](https://kepler.gl/demo/nyctrips)_
 ## Overview
 This example visualizes NYC taxi trips as a three-layer visualization: purple circles for pickup locations, blue circles for dropoff locations, and arcs connecting each pickup to its corresponding dropoff. This creates a flow map that reveals transportation patterns, with the arcs showing the direction and path of each trip.
 
-## Key Techniques
-- **Data source**: `FileOp` loads taxi trip data in CSV format
-- **Position accessors**: `AccessorOp` nodes extract pickup and dropoff coordinates from separate columns
-- **Colors**: `ColorOp` nodes define colors for pickup (purple) and dropoff (blue) points
-- **Point layers**: Two `ScatterplotLayerOp` nodes for pickup and dropoff locations
-- **Arc layer**: `ArcLayerOp` draws routes from pickup to dropoff
-- **Blending**: `BlendingOp` with `additive` mode brightens overlapping points and arcs
-- **Basemap**: `MaplibreBasemapOp` with dark matter style
-- **Camera animation**: two timeline keyframes on the basemap's `viewState.bearing` turn the camera a full circle over 20 seconds at a constant speed, so playback loops without a jump. Press play in the timeline to watch it
+## Nodes
+- **`data-source`** (File) loads `@/data.csv`
+- **`pickup-position`** (Attribute Create) writes `pickup_position` as `[pickup_longitude, pickup_latitude]`
+- **`dropoff-position`** (Attribute Create) writes `dropoff_position` as `[dropoff_longitude, dropoff_latitude]`
+- **`pickup`** and **`dropoff`** (Color) hold the purple and blue
+- **`arc-layer`** (Arc Layer) draws from `pickup_position` to `dropoff_position` in those colors
+- **`pickup-layer`** and **`dropoff-layer`** (Scatterplot Layer) draw the endpoints
+- All three layers use `blend: "additive"`, which brightens overlapping points and arcs
+- **`deck`** (Deck) holds the Carto Dark Matter basemap and the camera. Two timeline keyframes on `deck.bearing` turn the camera a full circle over 20 seconds at a constant speed, so playback loops without a jump. Press play in the timeline to watch it
+
+## Pipeline
+```
+data-source → pickup-position → dropoff-position → arc-layer     → deck
+                                                 → pickup-layer  → deck
+                                                 → dropoff-layer → deck
+```
 
 ## Data Structure
 The CSV file contains taxi trip records with fields:

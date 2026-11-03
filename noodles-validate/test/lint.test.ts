@@ -7,8 +7,6 @@ const registry = loadRegistry()
 const VALID = JSON.parse(
   readFileSync(new URL('./fixtures/valid/noodles.json', import.meta.url), 'utf8')
 )
-// The fixture is a current project whatever the latest migration is
-VALID.version = registry.projectVersion
 
 type Project = typeof VALID
 type Node = Project['nodes'][number]
@@ -20,19 +18,16 @@ function project(change: (p: Project) => void = () => {}): Project {
   return copy
 }
 
-function edge(source: string, sourceHandle: string, target: string, targetHandle: string): Edge {
-  return {
-    id: `${source}.${sourceHandle}->${target}.${targetHandle}`,
-    source,
-    sourceHandle,
-    target,
-    targetHandle,
-  }
+let edgeCount = 0
+function edge(source: string, sourcePort: string, target: string, targetPort: string): Edge {
+  return { id: `x${edgeCount++}`, source, sourcePort, target, targetPort }
 }
 
-function node(id: string, type: string, inputs: Record<string, unknown> = {}): Node {
-  return { id, type, position: { x: 0, y: 0 }, data: { inputs } }
+function node(id: string, op: string, params: Record<string, unknown> = {}, extra = {}): Node {
+  return { id, op, name: id, x: 0, y: 0, params, ...extra }
 }
+
+const byId = (p: Project, id: string): Node => p.nodes.find((n: Node) => n.id === id)
 
 function rules(p: unknown): Rule[] {
   const { errors, warnings } = validateProject(p, registry)
@@ -45,21 +40,12 @@ function messages(p: unknown): string[] {
 }
 
 describe('validateProject', () => {
-  it('passes a current, correctly wired project with no warnings', () => {
-    const result = validateProject(project(), registry)
-    assert.deepEqual(result, { valid: true, errors: [], warnings: [] })
-  })
-
-  it('reads the schema version from the registry', () => {
-    assert.equal(typeof registry.projectVersion, 'number')
-    const stale = validateProject(
-      project(p => (p.version = registry.projectVersion - 1)),
-      registry
-    )
-    assert.deepEqual(
-      stale.errors.map(d => d.rule),
-      ['version']
-    )
+  it('passes a correctly wired document with no warnings', () => {
+    assert.deepEqual(validateProject(project(), registry), {
+      valid: true,
+      errors: [],
+      warnings: [],
+    })
   })
 
   describe('project shape', () => {
@@ -68,341 +54,230 @@ describe('validateProject', () => {
     })
 
     it('rejects missing nodes and edges arrays', () => {
-      const result = validateProject({ version: registry.projectVersion }, registry)
-      assert.equal(result.valid, false)
+      const result = validateProject({ version: 1, name: 'p' }, registry)
       assert.deepEqual(
         result.errors.map(d => d.at),
         ['nodes', 'edges']
       )
     })
 
-    it('rejects a missing version', () => {
-      assert.deepEqual(
-        rules(
-          project(p => {
-            delete p.version
-          })
-        ),
-        ['project-shape']
-      )
+    it('rejects a node without a position', () => {
+      const p = project(p => {
+        delete byId(p, 'n3').x
+      })
+      assert.deepEqual(rules(p), ['project-shape'])
     })
   })
 
   describe('version', () => {
-    it('says to migrate an older file, not to edit the number', () => {
-      const result = validateProject(
-        project(p => (p.version = 6)),
-        registry
+    it('warns, and checks nothing else, on an operator-graph file', () => {
+      const old = {
+        version: 19,
+        nodes: [{ id: '/a', type: 'NopeOp', data: {} }],
+        edges: [],
+      }
+      const result = validateProject(old, registry)
+      assert.equal(result.valid, true)
+      assert.deepEqual(
+        result.warnings.map(d => d.rule),
+        ['operator-graph']
       )
-      assert.equal(result.errors[0].rule, 'version')
-      assert.match(result.errors[0].message, /migrate-projects/)
-      assert.match(result.errors[0].message, /rather than changing the number/)
+      assert.match(result.warnings[0].message, /converts it when it opens/)
     })
 
-    it('rejects a file newer than the registry', () => {
+    it('tells schema 1 of the operator graph from a document by its nodes', () => {
+      const old = { version: 1, nodes: [{ id: '/a', type: 'FileOp', data: {} }], edges: [] }
+      assert.deepEqual(rules(old), ['operator-graph'])
+    })
+
+    it('rejects a version no editor reads', () => {
       const result = validateProject(
-        project(p => (p.version = registry.projectVersion + 1)),
+        project(p => (p.version = registry.convertsFrom + 1)),
         registry
       )
-      assert.equal(result.errors[0].rule, 'version')
-      assert.match(result.errors[0].message, /newer than this checkout/)
+      assert.deepEqual(
+        result.errors.map(d => d.rule),
+        ['version']
+      )
     })
   })
 
   describe('nodes', () => {
-    it('suggests the Op type for a display name', () => {
-      const p = project(p => (p.nodes[0].type = 'File'))
-      assert.deepEqual(rules(p), ['unknown-operator'])
-      assert.match(messages(p)[0], /Did you mean: FileOp\?/)
+    it('suggests the operator for a display name', () => {
+      const p = project(p => (byId(p, 'n1').op = 'File'))
+      assert.match(messages(p)[0], /Did you mean: file\?/)
     })
 
-    it('says where every type is listed when nothing is close', () => {
-      const p = project(p => (p.nodes[0].type = 'QwertyOp'))
-      assert.match(messages(p)[0], /registry\.json in noodles-validate lists every type\./)
+    it('says what an operator class from an older file is now', () => {
+      const p = project(p => (byId(p, 'n4').op = 'ScatterplotLayerOp'))
+      assert.deepEqual(rules(p), ['unknown-operator'])
       assert.match(
-        unknownType('QwertyOp', registry, 'list_operators shows every type.'),
-        /Unknown operator type QwertyOp\. list_operators shows every type\./
+        messages(p)[0],
+        /operator class from older files\. In a document it is scatter\./
       )
     })
 
-    it('suggests a type one typo away', () => {
-      const p = project(p => (p.nodes[2].type = 'ScaterplotLayerOp'))
-      assert.match(messages(p)[0], /ScatterplotLayerOp/)
+    it('says where every operator is listed when nothing is close', () => {
+      const p = project(p => (byId(p, 'n1').op = 'qwertyuiop'))
+      assert.match(messages(p)[0], /registry\.json in noodles-validate lists every operator\./)
+      assert.match(
+        unknownType('qwertyuiop', registry, 'list_operators shows every operator.'),
+        /list_operators shows every operator\./
+      )
     })
 
     it('does not also report the edges of an unknown operator', () => {
-      assert.deepEqual(rules(project(p => (p.nodes[0].type = 'NopeOp'))), ['unknown-operator'])
+      assert.deepEqual(rules(project(p => (byId(p, 'n1').op = 'nope'))), ['unknown-operator'])
     })
 
-    it('rejects an input the operator does not have, listing near names', () => {
-      const p = project(p => (p.nodes[2].data.inputs.radius = 3))
-      assert.deepEqual(rules(p), ['unknown-input'])
-      assert.match(messages(p)[0], /has no input radius\. Did you mean: getRadius/)
+    it('rejects duplicate ids', () => {
+      const p = project(p => p.nodes.push(node('n5', 'number', {}, { name: 'other' })))
+      assert.deepEqual(rules(p), ['duplicate-node-id'])
     })
 
-    it('accepts inputs the node declares in customInputs', () => {
+    it('rejects two nodes with one name in a network, and allows it across networks', () => {
+      const p = project(p => p.nodes.push(node('n6', 'number', {}, { name: 'size' })))
+      assert.deepEqual(rules(p), ['duplicate-name'])
+      const nested = project(p => {
+        p.nodes.push(node('sub', 'subnet', {}, { name: 'group' }))
+        p.nodes.push(node('n6', 'number', {}, { name: 'size', parent: 'sub' }))
+      })
+      assert.deepEqual(rules(nested), [])
+    })
+
+    it('rejects a parent that is not a subnet', () => {
+      const p = project(p => p.nodes.push(node('n6', 'number', {}, { parent: 'n1' })))
+      assert.deepEqual(rules(p), ['unknown-parent'])
+    })
+
+    it('warns about a name the editor would give', () => {
+      const p = project(p => (byId(p, 'n1').name = 'file1'))
+      assert.deepEqual(rules(p), ['generic-node-name'])
+    })
+  })
+
+  describe('parameters', () => {
+    it('rejects a parameter the operator does not have, listing near names', () => {
+      const p = project(p => (byId(p, 'n4').params.radiusScal = 3))
+      assert.deepEqual(rules(p), ['unknown-param'])
+      assert.match(messages(p)[0], /has no parameter radiusScal\. Did you mean: .*radiusScale/)
+    })
+
+    it('rejects a menu value that is not a choice', () => {
+      const p = project(p => (byId(p, 'n4').params.radiusUnits = 'feet'))
+      assert.deepEqual(rules(p), ['param-value'])
+      assert.match(messages(p)[0], /not one of its choices/)
+    })
+
+    it('rejects an expression object with more than the expression', () => {
+      const p = project(p => (byId(p, 'n4').params.opacity = { expr: 'T', value: 1 }))
+      assert.deepEqual(rules(p), ['param-value'])
+    })
+
+    it('rejects a reference to a node or parameter that is not there', () => {
+      const missingNode = project(p => (byId(p, 'n4').params.opacity = { ref: 'sise/value' }))
+      assert.deepEqual(rules(missingNode), ['unknown-reference'])
+      assert.match(messages(missingNode)[0], /no node named sise.*Did you mean size\?/)
+      const missingParam = project(
+        p => (byId(p, 'n4').params.radiusScale = { expr: "ch('size/val') * 2" })
+      )
+      assert.deepEqual(rules(missingParam), ['unknown-reference'])
+      assert.match(messages(missingParam)[0], /size \(number\) has no parameter val\./)
+    })
+
+    it('resolves references up out of a subnet', () => {
       const p = project(p => {
-        p.nodes[0].data.customInputs = [{ id: 'a', name: 'threshold', type: 'number', order: 0 }]
-        p.nodes[0].data.inputs.threshold = 4
+        p.nodes.push(node('sub', 'subnet', {}, { name: 'group' }))
+        p.nodes.push(
+          node('inner', 'number', { value: { ref: '../size/value' } }, { parent: 'sub' })
+        )
       })
       assert.deepEqual(rules(p), [])
-    })
-
-    it('rejects ids that are not absolute paths', () => {
-      assert.deepEqual(rules(project(p => p.nodes.push(node('basemap-2', 'NumberOp')))), [
-        'node-id',
-      ])
-      assert.deepEqual(rules(project(p => p.nodes.push(node('/trailing/', 'NumberOp')))), [
-        'node-id',
-      ])
-    })
-
-    it('rejects a duplicate node id', () => {
-      assert.deepEqual(rules(project(p => p.nodes.push(node('/deck', 'NumberOp')))), [
-        'duplicate-node-id',
-      ])
-    })
-
-    it('does not take Object properties for operator types', () => {
-      for (const type of ['constructor', 'toString', '__proto__', 'hasOwnProperty']) {
-        assert.deepEqual(rules(project(p => p.nodes.push(node('/odd', type)))), [
-          'unknown-operator',
-        ])
-      }
-    })
-
-    it('rejects a custom input type the editor cannot load', () => {
-      const p = project(p => {
-        p.nodes[0].data.customInputs = [
-          { id: 'a', name: 'threshold', type: 'NumberField', order: 0 },
-        ]
-        p.nodes[0].data.inputs.threshold = 4
-      })
-      assert.deepEqual(rules(p), ['custom-input'])
-      assert.match(messages(p)[0], /type "NumberField".*Custom input types are: number, string/)
-    })
-
-    it('rejects custom inputs without a name, or not in an array', () => {
-      const unnamed = project(p => {
-        p.nodes[0].data.customInputs = [{ id: 'a', type: 'number', order: 0 }]
-      })
-      assert.deepEqual(rules(unnamed), ['custom-input'])
-      const notArray = project(p => {
-        p.nodes[0].data.customInputs = { name: 'threshold' }
-      })
-      assert.deepEqual(rules(notArray), ['custom-input'])
-    })
-
-    it('skips React Flow group nodes', () => {
-      assert.deepEqual(rules(project(p => p.nodes.push(node('/loop-group', 'group')))), [])
-    })
-
-    it('warns about generic names', () => {
-      assert.deepEqual(rules(project(p => p.nodes.push(node('/number-1', 'NumberOp')))), [
-        'generic-node-name',
-      ])
-      assert.deepEqual(rules(project(p => p.nodes.push(node('/duckdb-0', 'DuckDbOp')))), [
-        'generic-node-name',
-      ])
-    })
-
-    it('leaves names that end in a number but say what they hold', () => {
-      for (const id of ['/flights-2024', '/route-66']) {
-        assert.deepEqual(rules(project(p => p.nodes.push(node(id, 'NumberOp')))), [])
-      }
     })
   })
 
   describe('edges', () => {
-    it('rejects an edge to a node that does not exist, suggesting the near one', () => {
-      const p = project(p => {
-        p.edges[0].target = '/quakes-layr'
-      })
-      assert.ok(rules(p).includes('edge-unknown-node'))
-      assert.match(messages(p).join('\n'), /Did you mean \/quakes-layer\?/)
-    })
-
-    it('rejects an output that does not exist', () => {
-      const p = project(p => {
-        p.edges[2] = edge('/quakes-layer', 'out.vis', '/deck', 'par.layers')
-      })
-      assert.deepEqual(rules(p), ['edge-handle'])
-      assert.match(messages(p)[0], /has no output vis\. Outputs on \/quakes-layer: out\.layer/)
-    })
-
-    it('rejects an in. prefix and a bare field name', () => {
-      const inPrefix = project(p => {
-        p.edges[5] = edge('/deck', 'out.vis', '/out', 'in.vis')
-      })
-      assert.match(messages(inPrefix)[0], /in\.vis is malformed.*Did you mean: par\.vis/)
-
-      const bare = project(p => {
-        p.edges[0] = edge('/earthquakes', 'data', '/quakes-layer', 'par.data')
-      })
-      assert.match(messages(bare)[0], /sourceHandle data is malformed.*out\.data/)
-    })
-
-    it('rejects handles on the wrong side', () => {
-      const p = project(p => {
-        p.edges[0] = edge('/earthquakes', 'par.data', '/quakes-layer', 'out.data')
-      })
-      assert.deepEqual(rules(p), ['edge-handle', 'edge-handle'])
-      assert.match(messages(p)[0], /on the wrong side/)
-    })
-
-    it('accepts edges into custom inputs', () => {
-      const p = project(p => {
-        p.nodes[1].data.customInputs = [{ id: 'a', name: 'scale', type: 'number', order: 0 }]
-        p.edges.push(edge('/earthquakes', 'out.data', '/position', 'par.scale'))
-      })
-      assert.deepEqual(rules(p), [])
-    })
-
-    it('rejects a repeated connection', () => {
-      assert.deepEqual(rules(project(p => p.edges.push({ ...p.edges[0] }))), ['duplicate-edge'])
-    })
-
-    it('rejects two connections sharing an id', () => {
-      const p = project(p => {
-        p.edges[1].id = p.edges[0].id
-      })
-      assert.ok(rules(p).includes('duplicate-edge-id'))
-    })
-
-    it('rejects two edges into an input that takes one', () => {
-      const p = project(p => {
-        p.nodes.push(node('/other-data', 'FileOp'))
-        p.edges.push(edge('/other-data', 'out.data', '/quakes-layer', 'par.data'))
-      })
-      assert.deepEqual(rules(p), ['multiple-inputs'])
-    })
-
-    it('accepts several edges into a list input', () => {
-      // The fixture already sends two layers into /deck par.layers
-      assert.equal(VALID.edges.filter((e: Edge) => e.targetHandle === 'par.layers').length, 2)
-      assert.deepEqual(rules(project()), [])
-    })
-
-    it('warns about a canonical id naming other endpoints', () => {
-      const p = project(p => {
-        p.edges[0].id = '/old-name.out.data->/quakes-layer.par.data'
-      })
-      assert.deepEqual(rules(p), ['stale-edge-id'])
-      assert.match(messages(p)[0], /becomes \/earthquakes\.out\.data->\/quakes-layer\.par\.data/)
-    })
-
-    it('leaves legacy and repaired ids alone', () => {
-      const p = project(p => {
-        p.edges[0].id = 'reactflow__edge-1'
-        p.edges[1].id = '/position.accessor->/quakes-layer.getPosition'
-        p.edges[2].id = `${p.edges[2].id}#2`
-      })
-      assert.deepEqual(rules(p), [])
-    })
-
-    it('ignores saved ReferenceEdges, which load re-derives', () => {
-      const p = project(p => {
-        p.edges.push({ ...edge('/nowhere', 'out.x', '/deck', 'par.code'), type: 'ReferenceEdge' })
-      })
-      assert.deepEqual(rules(p), [])
-    })
-
-    it('rejects an edge missing its handles', () => {
-      const p = project(p => {
-        delete p.edges[0].sourceHandle
-      })
+    it('rejects an edge missing a port', () => {
+      const p = project(p => delete p.edges[0].targetPort)
       assert.deepEqual(rules(p), ['edge-shape'])
     })
 
-    it("gives a GraphInputOp its container's custom inputs on both sides", () => {
-      const withContainer = (customInputs: unknown[]) =>
-        project(p => {
-          const container = node('/scaled', 'ContainerOp')
-          container.data.customInputs = customInputs
-          p.nodes.push(
-            container,
-            node('/scaled/graph-input', 'GraphInputOp', { threshold: 2 }),
-            node('/scaled/times', 'MathOp', { operator: 'multiply' })
-          )
-          p.edges.push(
-            edge('/scaled', 'par.threshold', '/scaled/graph-input', 'par.threshold'),
-            edge('/scaled/graph-input', 'out.threshold', '/scaled/times', 'par.a')
-          )
-        })
-      const threshold = [{ id: 'a', name: 'threshold', type: 'number', order: 0 }]
-      assert.deepEqual(rules(withContainer(threshold)), [])
-      // Without the declaration, every use of the field is reported
-      assert.deepEqual(rules(withContainer([])), [
-        'unknown-input',
-        'edge-handle',
-        'edge-handle',
-        'edge-handle',
-      ])
+    it('says an edge names a node by its name rather than its id', () => {
+      const p = project(p => (p.edges[0].source = 'quakes'))
+      assert.deepEqual(rules(p), ['edge-unknown-node'])
+      assert.match(messages(p)[0], /Edges use node ids; quakes is the name of n1\./)
     })
 
-    it('rejects edges that form a loop, naming the nodes in order', () => {
+    it('rejects ports the operators do not have, with the old handle spelled out', () => {
       const p = project(p => {
-        p.nodes.push(node('/a', 'MathOp'), node('/b', 'MathOp'))
-        p.edges.push(
-          edge('/a', 'out.result', '/b', 'par.a'),
-          edge('/b', 'out.result', '/a', 'par.a')
-        )
+        p.edges[0].sourcePort = 'out.data'
+        p.edges[1].targetPort = 'par.in'
+      })
+      assert.deepEqual(rules(p), ['edge-port', 'edge-port'])
+      assert.match(messages(p)[1], /par\.in is an old handle; write in\./)
+    })
+
+    it('drives a parameter through par:, from a number only', () => {
+      const ok = project(p => p.edges.push(edge('n3', 'out', 'n4', 'par:radiusScale')))
+      assert.deepEqual(rules(ok), [])
+      const table = project(p => p.edges.push(edge('n1', 'out', 'n4', 'par:radiusScale')))
+      assert.deepEqual(rules(table), ['edge-type'])
+      const unknown = project(p => p.edges.push(edge('n3', 'out', 'n4', 'par:size')))
+      assert.deepEqual(rules(unknown), ['edge-port'])
+    })
+
+    it('rejects a table wired into a deck', () => {
+      const p = project(p => p.edges.push(edge('n1', 'out', 'n5', 'layers')))
+      assert.deepEqual(rules(p), ['edge-type'])
+    })
+
+    it('rejects an edge across networks', () => {
+      const p = project(p => {
+        p.nodes.push(node('sub', 'subnet', {}, { name: 'group' }))
+        p.nodes.push(node('inner', 'attribute', {}, { parent: 'sub' }))
+        p.edges.push(edge('n1', 'out', 'inner', 'in'))
+      })
+      assert.deepEqual(rules(p), ['edge-network'])
+    })
+
+    it('rejects a repeated connection and a repeated id', () => {
+      const repeated = project(p => p.edges.push({ ...p.edges[0], id: 'e9' }))
+      assert.deepEqual(rules(repeated), ['duplicate-edge'])
+      const sameId = project(p =>
+        p.edges.push({ ...edge('n3', 'out', 'n4', 'par:opacity'), id: 'e1' })
+      )
+      assert.deepEqual(rules(sameId), ['duplicate-edge-id'])
+    })
+
+    it('takes several edges into a multi-input port only', () => {
+      const layers = project(p => {
+        p.nodes.push(node('more', 'scatter', { position: 'position' }))
+        p.edges.push(edge('n2', 'out', 'more', 'in'), edge('more', 'out', 'n5', 'layers'))
+      })
+      assert.deepEqual(rules(layers), [])
+      const single = project(p => p.edges.push(edge('n1', 'out', 'n4', 'in')))
+      assert.deepEqual(rules(single), ['multiple-inputs'])
+    })
+
+    it('reports a loop once, with its path', () => {
+      const p = project(p => {
+        p.nodes.push(node('again', 'attribute', { name: 'x', expression: '1' }))
+        p.edges.push(edge('n2', 'out', 'again', 'in'))
+        p.edges[0].source = 'again'
       })
       assert.deepEqual(rules(p), ['cycle'])
-      assert.match(messages(p)[0], /loop: \/a -> \/b -> \/a\./)
+      assert.match(messages(p)[0], /n2 -> again -> n2|again -> n2 -> again/)
     })
+  })
 
-    it('rejects a node wired to itself', () => {
-      const p = project(p => {
-        p.nodes.push(node('/a', 'MathOp'))
-        p.edges.push(edge('/a', 'out.result', '/a', 'par.b'))
-      })
-      assert.deepEqual(rules(p), ['cycle'])
-      assert.match(messages(p)[0], /loop: \/a -> \/a\./)
-    })
-
-    it('reports one loop through three nodes once', () => {
-      const p = project(p => {
-        p.nodes.push(node('/a', 'MathOp'), node('/b', 'MathOp'), node('/c', 'MathOp'))
-        p.edges.push(
-          edge('/a', 'out.result', '/b', 'par.a'),
-          edge('/b', 'out.result', '/c', 'par.a'),
-          edge('/c', 'out.result', '/a', 'par.a')
-        )
-      })
-      assert.deepEqual(rules(p), ['cycle'])
-      assert.match(messages(p)[0], /\/a -> \/b -> \/c -> \/a/)
-    })
-
-    // transform-graph.ts wires any field to any field, so a container's input
-    // reaches a child directly as well as through its GraphInputOp
-    it("accepts an edge from a container's input straight to a child", () => {
-      const p = project(p => {
-        p.nodes.push(node('/c', 'ContainerOp'), node('/c/filter', 'MathOp'))
-        p.edges.push(edge('/c', 'par.in', '/c/filter', 'par.a'))
-      })
-      assert.deepEqual(rules(p), [])
-    })
-
-    it('accepts container boundary edges from par. and into out.', () => {
-      const p = project(p => {
-        p.nodes.push(
-          node('/doubled', 'ContainerOp'),
-          node('/doubled/graph-input', 'GraphInputOp'),
-          node('/doubled/times-two', 'MathOp', { operator: 'multiply', b: 2 }),
-          node('/doubled/graph-output', 'GraphOutputOp'),
-          node('/radius', 'NumberOp', { val: 3 })
-        )
-        p.edges.push(
-          edge('/radius', 'out.val', '/doubled', 'par.in'),
-          edge('/doubled', 'par.in', '/doubled/graph-input', 'par.parentValue'),
-          edge('/doubled/graph-input', 'out.value', '/doubled/times-two', 'par.a'),
-          edge('/doubled/times-two', 'out.result', '/doubled/graph-output', 'par.value'),
-          edge('/doubled/graph-output', 'out.propagatedValue', '/doubled', 'out.out'),
-          edge('/doubled', 'out.out', '/quakes-layer', 'par.getRadius')
-        )
-      })
-      assert.deepEqual(rules(p), [])
+  describe('timeline', () => {
+    it('warns about a track whose node or parameter is not there', () => {
+      const p = project(p => p.timeline.tracks.push({ target: 'n9.opacity', keys: [] }))
+      assert.deepEqual(rules(p), ['timeline-target'])
+      const param = project(p => (p.timeline.tracks[0].target = 'n4.opacityy'))
+      assert.deepEqual(rules(param), ['timeline-target'])
+      const component = project(p => (p.timeline.tracks[0].target = 'n4.fillColor.0'))
+      assert.deepEqual(rules(component), [])
     })
   })
 })

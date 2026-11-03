@@ -17,8 +17,8 @@ const MAX_SNIFF_BYTES = 2 * 1024 * 1024
 
 const USAGE = `Usage: validate-projects [--json] [path ...]
 
-Checks noodles.json project files against the operator registry: schema
-version, operator types, input names, edge handles, duplicate edges.
+Checks noodles.json documents against the operator catalog: operators,
+parameters, ports, wire types, names, references, loops.
 
   path     A project file, or a directory to search for them. Defaults to
            noodles-editor/src/examples.
@@ -83,7 +83,7 @@ export function run(argv: string[], io: Io, registry: Registry = loadRegistry())
         {
           valid,
           registry: {
-            projectVersion: registry.projectVersion,
+            documentVersion: registry.documentVersion,
             operators: Object.keys(registry.operators).length,
           },
           files: results,
@@ -148,7 +148,7 @@ function formatResults(results: FileResult[], registry: Registry): string {
   const warned = warnings > 0 ? `, ${plural(warnings, 'warning')}` : ''
   if (errors === 0) {
     lines.push(
-      `OK: ${files} valid against ${Object.keys(registry.operators).length} operators, schema version ${registry.projectVersion}${warned}.`
+      `OK: ${files} valid against ${Object.keys(registry.operators).length} operators, document version ${registry.documentVersion}${warned}.`
     )
   } else {
     lines.push(

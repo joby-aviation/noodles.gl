@@ -1,6 +1,6 @@
 ---
 id: t3-add-heatmap
-taskVersion: 1
+taskVersion: 2
 family: build
 tier: T3
 tags: [heatmap, existing-project]
@@ -10,15 +10,15 @@ budget:
   maxWallClockSeconds: 420
 grader:
   checks:
-    - type: nodeTypesPresent
-      types: [HeatmapLayerOp]
-    - { type: edgeExists, source: /data-source, targetType: HeatmapLayerOp, targetHandle: par.data }
-    # Reusing the existing accessor or writing a new one both count
-    - { type: edgeExists, sourceType: AccessorOp, targetType: HeatmapLayerOp, targetHandle: par.getPosition }
-    - { type: edgeExists, sourceType: HeatmapLayerOp, target: /deck, targetHandle: par.layers }
+    - type: opsPresent
+      ops: [heatmap]
+    # Fed by a table carrying the pickup positions, drawn in the deck
+    - { type: edgeExists, targetOp: heatmap, targetPort: in }
+    - { type: paramMatches, op: heatmap, param: position, pattern: 'pickup' }
+    - { type: edgeExists, sourceOp: heatmap, target: /deck, targetPort: layers }
     - type: edgesValid
     - type: applySucceeded
-    - type: noNewOperatorErrors
+    - type: noNewErrors
 ---
 
 Add a heatmap of the pickup locations alongside the existing layers.

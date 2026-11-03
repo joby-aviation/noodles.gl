@@ -4,8 +4,10 @@
 
 import type { PickingInfo } from '@deck.gl/core'
 import { type PointerEvent, useCallback, useEffect, useMemo, useRef } from 'react'
+import { OPERATOR_INDEX } from '@noodles.gl/planner'
+import { docStore } from '../../editor/doc-store'
+import { getUIStore } from '../../editor/ui-store'
 import { analytics } from '../../utils/analytics'
-import { getGraphStore, getOp, getUIStore, useGraphStore, useNestingStore } from '../store'
 import {
   findPickedOperatorId,
   isClickNotDrag,
@@ -13,7 +15,6 @@ import {
   placeLabel,
   type ScreenPoint,
 } from '../utils/map-pick'
-import { getParentPath } from '../utils/path-utils'
 import s from './map-click-to-edit.module.css'
 
 // Offset of the label from the pointer, so it never sits under the cursor
@@ -22,31 +23,30 @@ const LABEL_OFFSET = 14
 const deckDefaultCursor = ({ isDragging }: { isDragging: boolean }) =>
   isDragging ? 'grabbing' : 'grab'
 
-// Selects a node from the map: only that node, in its own container, then asks the graph
+// Selects a node from the map: only that node, in its own network, then asks the graph
 // to bring it into view and pulse it
 export function selectNodeFromMap(nodeId: string) {
-  const container = getParentPath(nodeId) ?? '/'
-  const nesting = useNestingStore.getState()
-  if (nesting.currentContainerId !== container) nesting.setCurrentContainerId(container)
-  useGraphStore.setState(({ nodes }) => ({
-    nodes: nodes.map(node =>
-      node.id === nodeId
-        ? node.selected
-          ? node
-          : { ...node, selected: true }
-        : node.selected
-          ? { ...node, selected: false }
-          : node
-    ),
-  }))
+  const store = docStore()
+  const node = store.get().doc.nodes.find(n => n.id === nodeId)
+  store.set({ network: node?.parent, selection: [nodeId] })
   getUIStore().focusNodeFromMap(nodeId)
 }
 
-// Layer operators are the ones whose display name ends in Layer, as for the starter node
-const isLayerOperator = (id: string) => {
-  const op = getOp(id)
-  const displayName = op && (op.constructor as { displayName?: string }).displayName
-  return Boolean(displayName?.endsWith('Layer'))
+// The document node a deck layer id names: the engine ids a node's layer `<node>:<kind>`
+// (`<node>:outline` for a polygon's outline), and a layer deck loads itself `<node>`
+const docNodeOf = (layerId: string) => {
+  const { nodes } = docStore().get().doc
+  const exact = nodes.find(n => n.id === layerId)
+  if (exact) return exact
+  const at = layerId.lastIndexOf(':')
+  return at > 0 ? nodes.find(n => n.id === layerId.slice(0, at)) : undefined
+}
+
+// A node draws a layer when its operator outputs one; a switch passes one through, but its
+// id never names a deck layer
+const isLayerOperator = (layerId: string) => {
+  const node = docNodeOf(layerId)
+  return Boolean(node && OPERATOR_INDEX.get(node.op)?.outputs.some(o => o.type === 'layer'))
 }
 
 const pickedOperatorId = (info: PickingInfo) =>
@@ -112,10 +112,10 @@ export function useMapClickToEdit(enabled: boolean) {
     if (!enabledRef.current || !info.picked || !info.layer) return
     const { down, up } = pressRef.current
     if (!isClickNotDrag(down, up)) return
-    const nodeId = pickedOperatorId(info)
-    const node = nodeId ? getGraphStore().nodes.find(n => n.id === nodeId) : undefined
+    const layerId = pickedOperatorId(info)
+    const node = layerId ? docNodeOf(layerId) : undefined
     analytics.track('map_feature_clicked', {
-      operatorType: node?.type ?? 'unknown',
+      operatorType: node?.op ?? 'unknown',
       selected: Boolean(node),
     })
     if (node) selectNodeFromMap(node.id)

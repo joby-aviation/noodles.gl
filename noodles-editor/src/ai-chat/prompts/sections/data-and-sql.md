@@ -1,47 +1,25 @@
-# Inspecting data and querying with SQL
+# Data and SQL
 
-## Inspecting
+Every table runs in DuckDB. A data node reads one, and every node after it is planned into SQL, a CPU pass or the GPU, whichever is cheapest for the edit at hand.
 
-`get_node_output` reads the output of any operator, not just data sources. Use it to see real field names and value ranges before writing an accessor or a filter, and to confirm each transform did what you intended. Guessing at a schema is the most common cause of a silently empty visualization.
+## Reading data
 
-Check for: coordinates stored as strings, swapped longitude/latitude (Noodles wants `[lng, lat]`), nulls on a subset of rows, and row counts that collapse to zero after a filter.
+- `file`: `{ "url": "…", "format": "csv" | "json" | "parquet" }`. A project file is `@/name.csv`.
+- `geojson`: `{ "url": "…" }`. Its outputs are rows per vertex: `polygons` (with `id`, `ring`, `vertex`, `lng`, `lat`), `lines` (`id`, `vertex`), `points`, or `all` with a `kind` column. Feature properties are columns.
+- `sql`: any SELECT. `{{input0}}` names the table wired into `in0`; `ch('node/param')` reads a parameter, so a slider can drive a WHERE clause.
 
-## DuckDbOp
-
-`DuckDbOp` runs full SQL — `SELECT`, `WHERE`, `JOIN`, `GROUP BY`, window functions, CTEs — over files and over upstream operator output.
-
-```sql
-SELECT * FROM data WHERE magnitude > 5
+```json
+{ "type": "add_node", "op": "sql", "name": "big", "params": {
+  "query": "SELECT * FROM {{input0}} WHERE pop > ch('threshold/value') ORDER BY pop DESC" } }
 ```
 
-It can read files directly:
+## Shaping tables
 
-```sql
-SELECT * FROM 'earthquakes.csv' WHERE depth < 100
-```
+- `filter` (mode `compare`, `match` or `expression`) and `range` keep rows.
+- `sort`, `limit`, `join` (left, inner, cross; keys by name), `union`, `aggregate` (`groupBy` and lines like `n = count()`, `total = sum(pop)`).
+- `unnest` turns list columns into rows: `{ "lists": "path, timestamps", "split": "path: lng lat", "rename": "timestamps: t" }` gives one row per vertex, which `path` and `trips` layers draw.
+- `grid` bins points into cells with a count.
 
-SQL supports reactive references to other operators with mustache syntax, so a query can be driven by a `NumberOp` or a `StringOp` the user can then keyframe or drag:
+## Checking
 
-```sql
-SELECT * FROM data
-WHERE magnitude > {{/threshold.par.value}}
-  AND region = {{./config.par.region}}
-```
-
-Paths follow the usual rules: `/name` absolute, `./name` a sibling, `../name` up one container.
-
-## Choosing between DuckDbOp and CodeOp
-
-- **`DuckDbOp`** for large datasets, aggregation, and joins. It pushes work into DuckDB-WASM instead of materializing rows in JavaScript, so it stays fast where a `CodeOp` would stall.
-- **`CodeOp`** for modest datasets and for logic that is awkward in SQL — reshaping nested objects, geometry work via `turf`, per-row arithmetic. One `CodeOp` also replaces a whole `FilterOp → MapOp → SortOp` chain:
-
-```javascript
-return data
-  .filter(d => d.status === 'active')
-  .sort((a, b) => b.value - a.value)
-  .slice(0, 100)
-```
-
-`CodeOp` has `d3`, `turf`, `deck`, `Plot`, `Temporal`, and `utils` available as globals.
-
-Always confirm the result with `get_node_output` before wiring it into a layer.
+`get_node_output` on any node returns its columns and a sample. Use it before writing an expression or a query over a table: names are case-sensitive, and JSON files often type numbers as text (arithmetic reads them as numbers; comparisons do not).

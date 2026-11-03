@@ -1,9 +1,10 @@
-import { useEdges, useReactFlow } from '@xyflow/react'
+import { nameOf, OPERATOR_INDEX, type ParamDef } from '@noodles.gl/planner'
+import { useReactFlow } from '@xyflow/react'
 import { useCallback, useMemo, useState } from 'react'
+import { setParam } from '../../editor/doc-ops'
+import { docStore, useEditor } from '../../editor/doc-store'
+import { colorToFieldHex, fieldHexToColor } from '../../editor/field-adapter'
 import { analytics } from '../../utils/analytics'
-import type { Operator } from '../operators'
-import { useOperatorStore } from '../store'
-import { getBaseName } from '../utils/path-utils'
 import s from './layer-panel.module.css'
 
 interface LayerInfo {
@@ -14,166 +15,133 @@ interface LayerInfo {
   opacity: number
 }
 
-const STYLE_FIELDS: Record<string, string[]> = {
-  ScatterplotLayer: ['getFillColor', 'getLineColor', 'getRadius', 'stroked', 'radiusScale'],
-  PathLayer: ['getColor', 'getWidth', 'widthScale', 'capRounded'],
-  ArcLayer: ['getSourceColor', 'getTargetColor', 'getWidth', 'getHeight'],
-  GeoJsonLayer: ['getFillColor', 'getLineColor', 'getLineWidth', 'filled', 'stroked', 'extruded'],
-  PolygonLayer: ['getFillColor', 'getLineColor', 'getLineWidth', 'filled', 'stroked', 'extruded'],
-  HeatmapLayer: ['intensity', 'radiusPixels', 'threshold'],
-  ColumnLayer: ['getFillColor', 'getLineColor', 'getElevation', 'radius', 'extruded'],
-  H3HexagonLayer: ['getFillColor', 'getLineColor', 'getElevation', 'extruded'],
-  IconLayer: ['getSize', 'getColor', 'sizeScale'],
-  TextLayer: ['getColor', 'getSize', 'sizeScale'],
-}
+/** A layer's style parameters: the plain colors, numbers and toggles in its Style folder. */
+const isStyle = (d: ParamDef) =>
+  d.folder === 'Style' &&
+  ['color', 'float', 'int', 'toggle'].includes(d.kind) &&
+  d.name !== 'opacity'
 
-function isColorField(field: { constructor: { name: string } }): boolean {
-  return field.constructor.name === 'ColorField'
-}
+function StyleEditor({ layerId }: StyleEditorProps) {
+  const node = useEditor(st => st.doc.nodes.find(n => n.id === layerId))
+  const time = useEditor(st => st.time)
+  if (!node) return null
+  const defs = (OPERATOR_INDEX.get(node.op)?.params ?? []).filter(isStyle)
+  if (defs.length === 0) return null
+  const value = (d: ParamDef) => node.params[d.name] ?? d.default
+  const set = (d: ParamDef, v: unknown) =>
+    docStore().edit(
+      doc => setParam(doc, layerId, d.name, v as never, time),
+      `p:${layerId}.${d.name}`
+    )
 
-function isNumberField(field: { constructor: { name: string } }): boolean {
-  return field.constructor.name === 'NumberField'
-}
-
-function isBooleanField(field: { constructor: { name: string } }): boolean {
-  return field.constructor.name === 'BooleanField'
+  return (
+    <div className={s.styleEditor}>
+      {defs.map(d => {
+        if (d.kind === 'color') {
+          return (
+            <div key={d.name} className={s.styleRow}>
+              <span className={s.styleLabel}>{d.label}</span>
+              <input
+                type="color"
+                className={s.colorInput}
+                value={colorToFieldHex(value(d))}
+                onChange={e => set(d, fieldHexToColor(e.target.value))}
+              />
+            </div>
+          )
+        }
+        if (d.kind === 'toggle') {
+          const on = value(d) === true
+          return (
+            <div key={d.name} className={s.styleRow}>
+              <span className={s.styleLabel}>{d.label}</span>
+              <button
+                type="button"
+                className={`${s.toggleButton} ${on ? s.toggleOn : ''}`}
+                onClick={() => set(d, !on)}
+              >
+                {on ? 'On' : 'Off'}
+              </button>
+            </div>
+          )
+        }
+        const min = d.min ?? 0
+        const max = d.max ?? 100
+        const step = d.step ?? (max <= 1 ? 0.01 : 1)
+        const n = Number(value(d) ?? 0)
+        return (
+          <div key={d.name} className={s.styleRow}>
+            <span className={s.styleLabel}>{d.label}</span>
+            <div className={s.numberControl}>
+              <input
+                type="range"
+                className={s.styleSlider}
+                min={min}
+                max={max}
+                step={step}
+                value={Number.isFinite(n) ? n : 0}
+                onChange={e => set(d, Number(e.target.value))}
+              />
+              <span className={s.numberValue}>
+                {Number.isFinite(n) ? n.toFixed(step < 1 ? 2 : 0) : '0'}
+              </span>
+            </div>
+          </div>
+        )
+      })}
+    </div>
+  )
 }
 
 interface StyleEditorProps {
   layerId: string
 }
 
-function StyleEditor({ layerId }: StyleEditorProps) {
-  const op = useOperatorStore(state => state.operators.get(layerId))
-  if (!op) return null
-
-  const displayName = (op.constructor as typeof Operator).displayName
-  const fieldNames = STYLE_FIELDS[displayName] ?? []
-  const editableFields = fieldNames.filter(name => name in op.inputs)
-
-  if (editableFields.length === 0) return null
-
-  return (
-    <div className={s.styleEditor}>
-      {editableFields.map(name => {
-        const field = op.inputs[name]
-        if (!field) return null
-
-        if (isColorField(field)) {
-          return (
-            <div key={name} className={s.styleRow}>
-              <span className={s.styleLabel}>{formatLabel(name)}</span>
-              <input
-                type="color"
-                className={s.colorInput}
-                value={typeof field.value === 'string' ? field.value : '#ffffff'}
-                onChange={e => field.setValue(e.target.value)}
-              />
-            </div>
-          )
-        }
-
-        if (isNumberField(field)) {
-          const opts = field.options ?? {}
-          const min = opts.min ?? 0
-          const max = opts.softMax ?? opts.max ?? 100
-          const step = opts.step ?? (max <= 1 ? 0.01 : 1)
-          return (
-            <div key={name} className={s.styleRow}>
-              <span className={s.styleLabel}>{formatLabel(name)}</span>
-              <div className={s.numberControl}>
-                <input
-                  type="range"
-                  className={s.styleSlider}
-                  min={min}
-                  max={max}
-                  step={step}
-                  value={field.value ?? 0}
-                  onChange={e => field.setValue(Number(e.target.value))}
-                />
-                <span className={s.numberValue}>
-                  {typeof field.value === 'number' ? field.value.toFixed(step < 1 ? 2 : 0) : '0'}
-                </span>
-              </div>
-            </div>
-          )
-        }
-
-        if (isBooleanField(field)) {
-          return (
-            <div key={name} className={s.styleRow}>
-              <span className={s.styleLabel}>{formatLabel(name)}</span>
-              <button
-                type="button"
-                className={`${s.toggleButton} ${field.value ? s.toggleOn : ''}`}
-                onClick={() => field.setValue(!field.value)}
-              >
-                {field.value ? 'On' : 'Off'}
-              </button>
-            </div>
-          )
-        }
-
-        return null
-      })}
-    </div>
-  )
-}
-
-function formatLabel(fieldName: string): string {
-  return fieldName
-    .replace(/^get/, '')
-    .replace(/([A-Z])/g, ' $1')
-    .trim()
-}
-
 export function LayerPanel() {
-  const operators = useOperatorStore(state => state.operators)
-  const edges = useEdges()
+  const doc = useEditor(st => st.doc)
   const reactFlow = useReactFlow()
   const [expandedLayer, setExpandedLayer] = useState<string | null>(null)
 
+  // What the deck draws, in its order: the wires into its layers port
   const layers = useMemo(() => {
-    const rendererIds = new Set(
-      Array.from(operators.entries())
-        .filter(([, op]) => (op.constructor as typeof Operator).displayName === 'DeckRenderer')
-        .map(([id]) => id)
-    )
+    const deck = doc.nodes.find(n => n.op === 'deck')
+    if (!deck) return []
+    return doc.edges
+      .filter(e => e.target === deck.id && e.targetPort === 'layers')
+      .sort((a, b) => (a.index ?? 0) - (b.index ?? 0))
+      .map(e => doc.nodes.find(n => n.id === e.source))
+      .filter((n): n is NonNullable<typeof n> => !!n)
+      .map(
+        n =>
+          ({
+            id: n.id,
+            name: nameOf(n),
+            displayName: OPERATOR_INDEX.get(n.op)?.label ?? n.op,
+            visible: !n.flags?.bypass,
+            opacity: Number(
+              n.params.opacity ??
+                OPERATOR_INDEX.get(n.op)?.params.find(p => p.name === 'opacity')?.default ??
+                1
+            ),
+          }) satisfies LayerInfo
+      )
+  }, [doc])
 
-    const layerNodeIds = edges
-      .filter(e => rendererIds.has(e.target) && e.targetHandle === 'par.layers')
-      .map(e => e.source)
-
-    return layerNodeIds
-      .map(id => {
-        const op = operators.get(id)
-        if (!op) return null
-        const displayName = (op.constructor as typeof Operator).displayName
-        const visible = op.inputs.visible?.value ?? true
-        const opacity = op.inputs.opacity?.value ?? 1
-        return {
-          id,
-          name: getBaseName(id) || id,
-          displayName,
-          visible,
-          opacity,
-        } satisfies LayerInfo
-      })
-      .filter((l): l is LayerInfo => l !== null)
-  }, [operators, edges])
-
+  // Hiding a layer bypasses it: the deck draws without it, and its parameters stay
   const handleToggleVisible = useCallback((id: string) => {
-    const op = useOperatorStore.getState().operators.get(id)
-    if (!op?.inputs.visible) return
-    const current = op.inputs.visible.value ?? true
-    op.inputs.visible.setValue(!current)
-    analytics.track('layer_panel_toggle_visible', { visible: !current })
+    const store = docStore()
+    const node = store.get().doc.nodes.find(n => n.id === id)
+    const visible = !node?.flags?.bypass
+    store.edit(d => {
+      const n = d.nodes.find(x => x.id === id)
+      if (n) n.flags = { ...n.flags, bypass: visible }
+    })
+    analytics.track('layer_panel_toggle_visible', { visible: !visible })
   }, [])
 
   const handleOpacityChange = useCallback((id: string, value: number) => {
-    const op = useOperatorStore.getState().operators.get(id)
-    if (!op?.inputs.opacity) return
-    op.inputs.opacity.setValue(value)
+    const store = docStore()
+    store.edit(d => setParam(d, id, 'opacity', value, store.get().time), `p:${id}.opacity`)
   }, [])
 
   const handleSelectLayer = useCallback((id: string) => {
@@ -182,7 +150,7 @@ export function LayerPanel() {
 
   const handleNavigateToNode = useCallback(
     (id: string) => {
-      reactFlow.setNodes(ns => ns.map(n => ({ ...n, selected: n.id === id })))
+      docStore().set({ selection: [id] })
       reactFlow.fitView({ nodes: [{ id }], duration: 300, padding: 0.5 })
     },
     [reactFlow]

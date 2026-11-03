@@ -121,18 +121,13 @@ describe('toolDefinitions', () => {
     expect(getToolDefinition('nonexistent_tool')).toBeUndefined()
   })
 
-  it('injects the current project into analyze_project', async () => {
+  it('runs analyze_project on the document, without a project passed in', async () => {
     const analyzeProject = vi.fn(async () => ({ success: true }))
     const tools = { analyzeProject } as unknown as MCPTools
     const definition = getToolDefinition('analyze_project')
     if (!definition) throw new Error('analyze_project not defined')
-
-    const project = { nodes: [], edges: [] }
-    await definition.execute(tools, { analysisType: 'validation' }, () => project)
-    expect(analyzeProject).toHaveBeenCalledWith({ project, analysisType: 'validation' })
-
-    const noProject = await definition.execute(tools, { analysisType: 'validation' }, () => null)
-    expect(noProject.success).toBe(false)
-    expect(noProject.error).toContain('No project loaded')
+    const result = await definition.execute(tools, {}, () => null)
+    expect(result.success).toBe(true)
+    expect(analyzeProject).toHaveBeenCalled()
   })
 })

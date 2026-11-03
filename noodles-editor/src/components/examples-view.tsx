@@ -4,12 +4,11 @@ import { ChevronLeftIcon } from '@radix-ui/react-icons'
 import { useCallback, useMemo } from 'react'
 import { useLocation } from 'wouter'
 import hiddenExamples from '../examples/hidden.json'
-import type { NoodlesProjectJSON } from '../noodles/utils/serialization'
 import { analytics } from '../utils/analytics'
 import s from './quick-start-modal.module.css'
 
 // Vite glob imports for examples
-const exampleProjects = import.meta.glob<NoodlesProjectJSON>('../examples/**/noodles.json', {
+const exampleProjects = import.meta.glob<{ name?: string }>('../examples/*/noodles.json', {
   eager: true,
   import: 'default',
 })

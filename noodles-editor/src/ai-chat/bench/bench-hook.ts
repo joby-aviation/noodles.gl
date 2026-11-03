@@ -4,13 +4,10 @@
 // factory and modification applier the chat panel uses, so a benchmark run is a
 // user's session minus the UI. Dev builds only — app.tsx never imports it in prod.
 
-import type {
-  ModificationResult,
-  ProjectModification as ReactFlowModification,
-} from '../../noodles/hooks/use-project-modifications'
+import type { EditorDoc } from '@noodles.gl/planner'
+import { currentEngine, engineState, nodeErrors } from '../../editor/doc-engine'
+import { docStore } from '../../editor/doc-store'
 import { getKeysStore } from '../../noodles/keys-store'
-import { getAllOps } from '../../noodles/store'
-import { getCurrentProject, getModificationApplier, onProjectChange } from '../../webmcp/bridge'
 import { createProvider } from '../agent/provider-factory'
 import { DEFAULT_CONTEXT_WINDOW, DEFAULT_WEBLLM_MODEL } from '../agent/providers/webllm'
 import { AgentSession } from '../agent/session'
@@ -21,17 +18,18 @@ import type {
   DiagnosticKind,
   ProviderId,
 } from '../agent/types'
+import { applyModifications, type DocModification } from '../doc-tools'
 import { globalContextManager } from '../global-context-manager'
-import { MCPTools } from '../mcp-tools'
-import { getOperatorRegistry } from '../runtime-operator-registry'
-import type { Message, NoodlesProject, ProjectModification } from '../types'
+import { editorDocContext, MCPTools } from '../mcp-tools'
+import type { Message } from '../types'
+import { paramsOf, registryOf } from './snapshot'
 
 export interface BenchTask {
   id: string
   // First entry is the task prompt; the rest are scripted follow-ups
   turns: string[]
   // Applied before the first turn, e.g. to break a project for a debug task
-  setupModifications?: ProjectModification[]
+  setupModifications?: DocModification[]
   maxWallClockSeconds?: number
 }
 
@@ -58,6 +56,12 @@ export interface BenchKnobs {
   steps?: number
 }
 
+// What applying a batch of edits came to
+export interface ApplyResult {
+  success: boolean
+  error?: string
+}
+
 export interface BenchToolCall {
   name: string
   params: Record<string, unknown>
@@ -76,7 +80,9 @@ export interface BenchTurn {
   diagnostics: { kind: DiagnosticKind; detail?: string }[]
   stopReasons: string[]
   modificationsCount: number
-  apply: ModificationResult | null
+  // Edits the model wrote out as JSON rather than calling a tool: the panel applies these after
+  // the run. Tool calls apply as they run and are in toolCalls.
+  apply: ApplyResult | null
   ms: number
   // Time to the first streamed token or tool call, the latency a user notices
   firstEventMs: number | null
@@ -86,22 +92,22 @@ export interface BenchResult {
   taskId: string
   provider: { id: ProviderId; model: string; contextWindow: number }
   knobs: BenchKnobs
-  setupApply: ModificationResult | null
+  setupApply: ApplyResult | null
   turns: BenchTurn[]
-  // The graph after setup, before the first turn, so a judge can tell what the
-  // agent kept from what it removed or overwrote. Absent in older raw results.
-  initialProject?: NoodlesProject | null
-  finalProject: NoodlesProject | null
-  // Every operator's serialized input values as the graph holds them, which is
-  // what the grader compares against: node data can lag the operator. Output
-  // names come from the live instance so fields a CodeOp added are included.
-  finalOps: Record<string, { inputs: Record<string, unknown>; outputs: string[] }>
-  // Errors present before the first turn (after setup), so a check can tell what
-  // the agent broke from what was already broken — or what it fixed
-  initialOperatorErrors: { id: string; error: string }[]
-  operatorErrors: { id: string; error: string }[]
-  // type -> input and output handle names, for grading edges without the app
-  registry: Record<string, { inputs: string[]; outputs: string[] }>
+  // The document after setup, before the first turn, so a judge can tell what the agent kept
+  // from what it removed or overwrote
+  initialDoc: EditorDoc | null
+  finalDoc: EditorDoc | null
+  // Every node's parameters with its operator's defaults filled in, which is what the grader
+  // compares against: the document stores only what was set
+  finalParams: Record<string, Record<string, unknown>>
+  // Errors present before the first turn (after setup), so a check can tell what the agent
+  // broke from what was already broken, or what it fixed
+  initialErrors: { id: string; error: string }[]
+  errors: { id: string; error: string }[]
+  // Operator type -> its ports and parameters, for grading edges without the app. Inputs
+  // include a parameter's `par:` port.
+  registry: Record<string, { inputs: string[]; outputs: string[]; params: string[] }>
   loadMs: number
   error?: string
   timedOut: boolean
@@ -109,8 +115,6 @@ export interface BenchResult {
 
 const PREVIEW_CHARS = 400
 const SETTLE_TIMEOUT_MS = 15_000
-// Consecutive idle frames before the graph counts as settled
-const SETTLED_FRAMES = 3
 
 declare global {
   interface Window {
@@ -128,9 +132,9 @@ declare global {
 export function installBenchHook() {
   window.__noodlesAgentBench = {
     run: runBenchTask,
-    // The runner polls this before calling run(): the editor has to have loaded
-    // the project and registered its applier
-    ready: () => getModificationApplier() !== null && (getCurrentProject()?.nodes?.length ?? 0) > 0,
+    // The runner polls this before calling run(): the editor has to have loaded the document
+    // and the engine to have drawn it once
+    ready: () => docStore().get().loadId > 0 && engineState().ready,
   }
 }
 
@@ -146,8 +150,8 @@ async function runBenchTask(
     ? await applyAndSettle(task.setupModifications)
     : null
   await settleGraph()
-  const initialOperatorErrors = operatorErrors()
-  const initialProject = getCurrentProject()
+  const initialErrors = errorsNow()
+  const initialDoc = docStore().get().doc
 
   let provider: AgentProvider
   try {
@@ -171,13 +175,13 @@ async function runBenchTask(
       },
       knobs,
       setupApply,
-      initialProject,
       turns: [],
-      finalProject: getCurrentProject(),
-      finalOps: opSnapshot(),
-      initialOperatorErrors,
-      operatorErrors: initialOperatorErrors,
-      registry: registrySnapshot(),
+      initialDoc,
+      finalDoc: docStore().get().doc,
+      finalParams: paramsOf(docStore().get().doc),
+      initialErrors,
+      errors: initialErrors,
+      registry: registryOf(),
       loadMs: performance.now() - loadStart,
       error: `provider failed to load: ${e instanceof Error ? e.message : String(e)}`,
       timedOut: false,
@@ -186,9 +190,6 @@ async function runBenchTask(
   const loadMs = performance.now() - loadStart
 
   const tools = new MCPTools(loader)
-  const project = getCurrentProject()
-  if (project) tools.setProject(project)
-  const unsubscribe = onProjectChange(p => tools.setProject(p))
   // No web search: it would make runs depend on the network and on a second key
   const session = new AgentSession(provider, tools, { maxSteps: knobs.steps })
 
@@ -216,7 +217,6 @@ async function runBenchTask(
     error = e instanceof Error ? e.message : String(e)
   } finally {
     if (timer) clearTimeout(timer)
-    unsubscribe()
     session.dispose()
   }
 
@@ -231,13 +231,13 @@ async function runBenchTask(
     provider: { id: provider.id, model: provider.model, contextWindow: provider.contextWindow },
     knobs,
     setupApply,
-    initialProject,
     turns,
-    finalProject: getCurrentProject(),
-    finalOps: opSnapshot(),
-    initialOperatorErrors,
-    operatorErrors: operatorErrors(),
-    registry: registrySnapshot(),
+    initialDoc,
+    finalDoc: docStore().get().doc,
+    finalParams: paramsOf(docStore().get().doc),
+    initialErrors,
+    errors: errorsNow(),
+    registry: registryOf(),
     loadMs,
     error,
     timedOut,
@@ -270,7 +270,8 @@ async function runTurn(
     onEvent,
   })
 
-  // Applied after the run, as the chat panel does when the user accepts the proposal
+  // Edits written out as JSON are applied after the run, as the chat panel does when the user
+  // accepts the proposal
   const modifications = response.projectModifications ?? []
   const apply = modifications.length ? await applyAndSettle(modifications) : null
 
@@ -295,44 +296,30 @@ async function runTurn(
   }
 }
 
-// The applier closes over the editor's current nodes, so the next apply has to
-// wait for React to re-render and register a fresh one
-async function applyAndSettle(modifications: ProjectModification[]): Promise<ModificationResult> {
-  const applier = getModificationApplier()
-  if (!applier) return { success: false, error: 'Editor not mounted' }
-
-  const changed = new Promise<void>(resolve => {
-    const off = onProjectChange(() => {
-      off()
-      resolve()
-    })
-  })
-  // Same cast chat-panel.tsx makes: the validated modifications carry React Flow shapes
-  const result = applier(modifications as unknown as ReactFlowModification[])
-  if (result.success) await Promise.race([changed, sleep(SETTLE_TIMEOUT_MS)])
+async function applyAndSettle(modifications: unknown[]): Promise<ApplyResult> {
+  const result = applyModifications(editorDocContext(), { modifications })
   await settleGraph()
-  return result
+  return { success: result.success, error: result.error }
 }
 
-// Waits until no operator is mid-execution, so errors from the new graph show up
-// isComputing rather than executionState, which only says 'executing' after
-// 200ms. Idle has to hold for a few frames, because the executor starts a
-// downstream pull on a later frame than the upstream one that fed it.
-// False when the deadline passed with work still running.
+// Waits for the engine to finish what the last edit set in motion: the edit reaches the engine
+// on a later microtask, so yield first. Timers, not frames: a hidden tab runs no frames.
+// False when the deadline passed first.
 async function settleGraph(): Promise<boolean> {
-  const deadline = performance.now() + SETTLE_TIMEOUT_MS
-  let idleFrames = 0
-  while (idleFrames < SETTLED_FRAMES && performance.now() < deadline) {
-    await nextFrame()
-    const busy = getAllOps().some(op => op.isComputing)
-    idleFrames = busy ? 0 : idleFrames + 1
-  }
-  return idleFrames >= SETTLED_FRAMES
+  await sleep(0)
+  const engine = currentEngine()
+  if (!engine) return false
+  const settled = await Promise.race([
+    engine.settle().then(() => true),
+    sleep(SETTLE_TIMEOUT_MS).then(() => false),
+  ])
+  await sleep(0)
+  return settled
 }
 
 // What the chat panel keeps of a turn, so a scripted follow-up sees the same
 // conversation a user's would: the reply with its tool uses, and a note when
-// the editor rejected the turn's edits or applied them with warnings
+// the editor rejected the turn's edits
 export function historyFor(turn: Pick<BenchTurn, 'reply' | 'toolCalls' | 'apply'>): Message[] {
   const messages: Message[] = [
     {
@@ -350,51 +337,13 @@ export function historyFor(turn: Pick<BenchTurn, 'reply' | 'toolCalls' | 'apply'
       role: 'assistant',
       content: `Failed to apply modifications: ${turn.apply.error}`,
     })
-  } else if (turn.apply?.warnings?.length) {
-    messages.push({
-      role: 'assistant',
-      content: `⚠️ Modifications applied with warnings:\n${turn.apply.warnings.map(w => `• ${w}`).join('\n')}`,
-    })
   }
   return messages
 }
 
-function operatorErrors() {
-  const errors: BenchResult['operatorErrors'] = []
-  for (const op of getAllOps()) {
-    const state = op.executionState.value
-    if (state.status === 'error') errors.push({ id: op.id, error: state.error ?? 'unknown' })
-  }
-  return errors
-}
-
-// Large values (inline data, long code) are elided; no check needs them
-const MAX_VALUE_CHARS = 2000
-
-function opSnapshot(): BenchResult['finalOps'] {
-  const snapshot: BenchResult['finalOps'] = {}
-  for (const op of getAllOps()) {
-    const inputs: Record<string, unknown> = {}
-    for (const [name, field] of Object.entries(op.inputs)) {
-      try {
-        const value = field.serialize()
-        const json = JSON.stringify(value)
-        inputs[name] = json && json.length > MAX_VALUE_CHARS ? '[elided]' : value
-      } catch {
-        inputs[name] = '[unserializable]'
-      }
-    }
-    snapshot[op.id] = { inputs, outputs: Object.keys(op.outputs) }
-  }
-  return snapshot
-}
-
-function registrySnapshot(): BenchResult['registry'] {
-  const snapshot: BenchResult['registry'] = {}
-  for (const [type, schema] of Object.entries(getOperatorRegistry().operators)) {
-    snapshot[type] = { inputs: Object.keys(schema.inputs), outputs: Object.keys(schema.outputs) }
-  }
-  return snapshot
+function errorsNow(): BenchResult['errors'] {
+  const engine = currentEngine()
+  return engine ? nodeErrors(engine) : []
 }
 
 function clip(text: string) {
@@ -402,4 +351,3 @@ function clip(text: string) {
 }
 
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
-const nextFrame = () => new Promise(resolve => requestAnimationFrame(() => resolve(null)))

@@ -1,5 +1,6 @@
-import { type Edge, useReactFlow } from '@xyflow/react'
+import { useReactFlow } from '@xyflow/react'
 import { useCallback } from 'react'
+import { docStore } from '../../editor/doc-store'
 import { getRenderSurfaceSize } from '../../render/render-surface-size'
 import { analytics } from '../../utils/analytics'
 import { debugUI } from '../../utils/debug'
@@ -9,53 +10,21 @@ import {
   rowCountBucket,
 } from '../components/tools/detect-coordinates'
 import {
-  createImportPipeline,
+  createImportDoc,
   type DetectedFormat,
   detectFormat,
   detectFormatFromUrl,
   extensionOf,
   isBinaryFormat,
+  sidecarsOf,
 } from '../components/tools/import-pipelines'
 import { useFileSystemStore } from '../filesystem-store'
-import type { Operator } from '../operators'
 import { writeAsset } from '../storage'
-import { useOperatorStore } from '../store'
-import { appendUniqueEdges } from '../utils/edge-integrity'
 import { projectScheme } from '../utils/filesystem'
-import { normalizeMultiInputEdges } from '../utils/multi-input-utils'
-import { resolveNodeOverlaps } from '../utils/node-layout'
 
 // Shared import behaviour for the Import Data dialog and for dropping a file onto
 // the canvas: copy the file into the project, scaffold a pipeline for its format,
 // then select and frame the source node so it is clear what to edit next.
-
-function findRendererId(): string | null {
-  for (const [id, op] of useOperatorStore.getState().operators.entries()) {
-    if ((op.constructor as typeof Operator).displayName === 'DeckRenderer') return id
-  }
-  return null
-}
-
-// Point the renderer's basemap at newly imported data, unless something upstream
-// already drives its camera (a BoundingBox, a keyframe source, ...)
-function fitExistingBasemap(
-  rendererId: string,
-  viewState: { longitude: number; latitude: number; zoom: number },
-  edges: Edge[]
-) {
-  const basemapId = edges.find(
-    e => e.target === rendererId && e.targetHandle === 'par.basemap'
-  )?.source
-  const basemap = basemapId ? useOperatorStore.getState().operators.get(basemapId) : undefined
-  if (!basemap || (basemap.constructor as typeof Operator).displayName !== 'MaplibreBasemap') return
-  const driven = edges.some(
-    e => e.target === basemapId && e.targetHandle?.startsWith('par.viewState')
-  )
-  if (driven) return
-  // fitBounds frames the data from straight above, so drop any tilt or rotation
-  const field = basemap.inputs.viewState
-  field.setValue({ ...(field.value as object), ...viewState, pitch: 0, bearing: 0 })
-}
 
 export interface FileImportResult {
   format: DetectedFormat
@@ -69,7 +38,7 @@ interface UseFileImportOptions {
 }
 
 export function useFileImport({ getBasePosition, onImported }: UseFileImportOptions) {
-  const { addNodes, setEdges, setNodes, fitView, getNodes, getEdges } = useReactFlow()
+  const { fitView } = useReactFlow()
 
   const addPipeline = useCallback(
     (
@@ -78,39 +47,41 @@ export function useFileImport({ getBasePosition, onImported }: UseFileImportOpti
       basePosition: { x: number; y: number },
       detection?: CoordinateDetection
     ) => {
-      const rendererId = findRendererId()
-      const built = createImportPipeline({
+      const store = docStore()
+      const built = createImportDoc({
+        doc: store.get().doc,
         url,
         format,
         basePosition,
         detection,
         // Fit to the surface the renderer draws to, as BoundingBoxOp does
         mapSize: getRenderSurfaceSize(),
-        rendererId,
       })
-      const { edges, primaryNodeId, viewState } = built
-      const nodes = resolveNodeOverlaps(built.nodes, getNodes())
-
-      addNodes(nodes)
-      if (edges.length > 0) {
-        setEdges(current => normalizeMultiInputEdges(appendUniqueEdges(current, edges)))
-      }
-      setNodes(ns => ns.map(n => ({ ...n, selected: n.id === primaryNodeId })))
-      // A scaffolded basemap already has the camera; an existing one is moved to the data
-      if (rendererId && viewState) fitExistingBasemap(rendererId, viewState, getEdges())
+      store.edit(d => {
+        d.nodes.push(...built.nodes)
+        d.edges.push(...built.edges)
+        // A deck already there turns to the data, unless its camera is wired to something
+        const deck = d.nodes.find(n => n.id === built.deckId)
+        const driven = d.edges.some(e => e.target === built.deckId && e.targetPort === 'viewState')
+        if (deck && built.viewState && !built.newDeck && !driven) {
+          Object.assign(deck.params, { ...built.viewState, pitch: 0, bearing: 0 })
+        }
+      })
+      store.set({ selection: [built.primaryNodeId] })
       requestAnimationFrame(() => {
-        fitView({ nodes: nodes.map(n => ({ id: n.id })), duration: 300, padding: 0.3 })
+        fitView({ nodes: built.nodes.map(n => ({ id: n.id })), duration: 300, padding: 0.3 })
       })
     },
-    [addNodes, setEdges, setNodes, fitView, getNodes, getEdges]
+    [fitView]
   )
 
-  // Copy a dropped or picked file into the project's data directory, then build its pipeline
   const importFile = useCallback(
     async (
       file: File,
       basePosition: { x: number; y: number },
-      source: string
+      source: string,
+      // The other files picked or dropped with it: a shapefile's .shx, .dbf, .prj, .cpg
+      siblings: File[] = []
     ): Promise<FileImportResult> => {
       const fileType = extensionOf(file.name) || 'unknown'
       let analyticsTracked = false
@@ -131,6 +102,31 @@ export function useFileImport({ getBasePosition, onImported }: UseFileImportOpti
 
         // Binary formats have to round-trip as a Blob; reading them as text corrupts them
         const probableFormat = detectFormat(file.name)
+        if (probableFormat === 'shapefile') {
+          // Copied first, under the .shp's own name, which is where the engine looks for them
+          const sidecars = sidecarsOf(file.name, siblings)
+          if (!sidecars.some(f => extensionOf(f.name) === 'shx')) {
+            analytics.track('file_import_failed', {
+              fileType,
+              attemptedFormat: probableFormat,
+              reason: 'missing_sidecar',
+              source,
+              fileSize: file.size,
+            })
+            analyticsTracked = true
+            throw new Error(
+              `${file.name} needs the .shx beside it: import the .shp, .shx and .dbf together`
+            )
+          }
+          const stem = file.name.slice(0, -'.shp'.length)
+          for (const sidecar of sidecars) {
+            const name = `${stem}.${extensionOf(sidecar.name)}`
+            const written = await writeAsset(activeStorageType, currentProjectName, name, sidecar)
+            if (!written.success) {
+              throw new Error(written.error?.message || `Failed to write file: ${name}`)
+            }
+          }
+        }
         const binary = isBinaryFormat(probableFormat)
         const contents = binary ? file : await file.text()
 

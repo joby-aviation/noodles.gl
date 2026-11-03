@@ -1,112 +1,115 @@
-// Operator types, input names and edge handles, checked against the registry.
+// Operator types, parameter names and ports, checked against the registry.
 //
-// The editor takes an unknown type or handle without complaint: the node loads
-// as an UnknownOperator, the edge connects nothing, and nothing says why the map
-// is blank. Every message here names what should have been written instead, so
-// the next attempt is a pick from a list rather than another guess.
-//
-// The editor's apply_modifications checks (src/ai-chat/modification-fields.ts)
-// import these too, so an agent sees the same error whether it edits the file
-// or the running app. Nothing here touches Node APIs, so the editor bundles it
-// through the "noodles-validate/fields" export.
+// The editor takes an unknown operator, parameter or port without much complaint: the node
+// draws nothing, the parameter is ignored, the wire carries nothing, and nothing says why the
+// map is blank. Every message here names what should have been written instead, so the next
+// attempt is a pick from a list rather than another guess. Nothing here touches Node APIs.
 
 import type { OperatorInfo, Registry } from './types.ts'
 
-// The editor's runtime registry has the operators but no schema version
-export type OperatorLookup = Pick<Registry, 'operators'>
+export type OperatorLookup = Pick<Registry, 'operators' | 'formerly'>
 
-// How many names a "has no input" error lists
-const FIELD_SUGGESTIONS = 15
+// How many names a "has no parameter" error lists
+const SUGGESTIONS = 15
 
 export type Side = 'inputs' | 'outputs'
 
-// Own properties only: a plain lookup finds "constructor" and "toString" on
-// every object, so a node of type "constructor" would pass as an operator
+// Own properties only: a plain lookup finds "constructor" and "toString" on every object, so a
+// node of op "constructor" would pass as an operator
 export function getOperator(registry: OperatorLookup, type: string): OperatorInfo | undefined {
   return Object.hasOwn(registry.operators, type) ? registry.operators[type] : undefined
 }
 
-// "File", "file", "FileOp" and "fileop" all name FileOp. Resolves a name that
-// matches exactly one operator by type or display name; returned unchanged
-// otherwise.
+// "scatter", "Scatter Layer" and "SCATTER" all name scatter. Resolves a name that matches
+// exactly one operator by type or display name; returned unchanged otherwise.
 export function resolveOperatorType(type: string, registry: OperatorLookup): string {
-  const operators = registry.operators
   if (getOperator(registry, type)) return type
-  if (getOperator(registry, `${type}Op`)) return `${type}Op`
   const wanted = type.trim().toLowerCase()
-  const matches = Object.values(operators).filter(
-    op =>
-      op.type.toLowerCase() === wanted ||
-      op.type.toLowerCase() === `${wanted}op` ||
-      op.name.toLowerCase() === wanted
-  )
-  return matches.length === 1 ? matches[0].type : type
+  const ops = Object.values(registry.operators)
+  const byType = ops.filter(op => op.type.toLowerCase() === wanted)
+  if (byType.length === 1) return byType[0].type
+  const byName = ops.filter(op => op.name.toLowerCase() === wanted)
+  return byName.length === 1 ? byName[0].type : type
 }
 
 // allTypes says where the full list is: list_operators for an agent with tools
 export function unknownType(
   type: string,
   registry: OperatorLookup,
-  allTypes = 'registry.json in noodles-validate lists every type.'
+  allTypes = 'registry.json in noodles-validate lists every operator.'
 ): string {
   const resolved = resolveOperatorType(type, registry)
-  if (resolved !== type) {
-    return `Unknown operator type ${type}. Did you mean: ${resolved}? Types end in "Op", e.g. FileOp, ScatterplotLayerOp.`
+  if (resolved !== type) return `Unknown operator ${type}. Did you mean: ${resolved}?`
+  // An operator class from an older file: say what it is now
+  const former = registry.formerly && Object.hasOwn(registry.formerly, type)
+  if (former) {
+    const now = registry.formerly?.[type] ?? []
+    return `Unknown operator ${type}: that is an operator class from older files. In a document it is ${now.join(' or ')}.`
   }
   const wanted = type.toLowerCase().replace(/op$/, '')
   const similar = Object.values(registry.operators)
     .filter(
       op =>
-        op.type.toLowerCase().includes(wanted) ||
-        wanted.includes(op.name.toLowerCase()) ||
-        isTypo(wanted, op.name.toLowerCase())
+        op.type.includes(wanted) ||
+        (op.type.length > 3 && wanted.includes(op.type)) ||
+        isTypo(wanted, op.type)
     )
     .map(op => op.type)
-    .slice(0, FIELD_SUGGESTIONS)
+    .slice(0, SUGGESTIONS)
   const hint = similar.length > 0 ? ` Did you mean: ${similar.join(', ')}?` : ` ${allTypes}`
-  return `Unknown operator type ${type}.${hint} Types end in "Op", e.g. FileOp, ScatterplotLayerOp.`
+  return `Unknown operator ${type}.${hint}`
 }
 
-export function fieldNames(registry: OperatorLookup, type: string, side: Side): string[] {
+export function portNames(registry: OperatorLookup, type: string, side: Side): string[] {
   return Object.keys(getOperator(registry, type)?.[side] ?? {})
 }
 
-export function unknownInput(id: string, type: string, name: string, known: string[]): string {
-  return `${id} (${type}) has no input ${name}. ${suggest(name, known, 'Inputs')}`
+export function paramNames(registry: OperatorLookup, type: string): string[] {
+  return Object.keys(getOperator(registry, type)?.params ?? {})
 }
 
-// Null when the handle names a real field on the right side of the edge
-export function handleProblem(
-  nodeId: string,
+export function unknownParam(label: string, type: string, name: string, known: string[]): string {
+  return `${label} (${type}) has no parameter ${name}. ${suggest(name, known, 'Parameters')}`
+}
+
+// Null when the port is one the operator has, on the right side of the edge. An input is a
+// port name or `par:<parameter>`.
+export function portProblem(
+  label: string,
   type: string,
-  handle: string,
+  port: string,
   side: Side,
-  known: string[]
+  ports: string[],
+  params: string[]
 ): string | null {
-  const prefix = side === 'outputs' ? 'out' : 'par'
-  const role = side === 'outputs' ? 'sourceHandle' : 'targetHandle'
-  const label = side === 'outputs' ? 'Outputs' : 'Inputs'
-  const match = /^(par|out)\.(.+)$/.exec(handle)
-  if (!match) {
-    return `${role} ${handle} is malformed: ${side} are "${prefix}.<name>". ${suggest(handle, known, label, nodeId, prefix)}`
+  if (side === 'outputs') {
+    if (ports.includes(port)) return null
+    if (port.startsWith('par:') || port.startsWith('out.')) {
+      return `sourcePort ${port} is not an output. ${suggest(port.replace(/^(par:|out\.)/, ''), ports, 'Outputs', label)}`
+    }
+    return `${label} (${type}) has no output ${port}. ${suggest(port, ports, 'Outputs', label)}`
   }
-  if (match[1] !== prefix) {
-    return `${role} ${handle} is on the wrong side: the ${side === 'outputs' ? 'source' : 'target'} of an edge is an ${side === 'outputs' ? 'output' : 'input'}, "${prefix}.<name>". ${suggest(match[2], known, label, nodeId, prefix)}`
+  if (port.startsWith('par:')) {
+    const name = port.slice(4)
+    if (params.includes(name)) return null
+    return `${label} (${type}) has no parameter ${name} for ${port}. ${suggest(name, params, 'Parameters', label, 'par:')}`
   }
-  // The graph looks up everything after the prefix, so 'par.viewState.zoom' is a
-  // field named 'viewState.zoom', not the viewState field
-  if (known.includes(match[2])) return null
-  return `${nodeId} (${type}) has no ${side === 'outputs' ? 'output' : 'input'} ${match[2]}. ${suggest(match[2], known, label, nodeId, prefix)}`
+  if (ports.includes(port)) return null
+  // An old handle (par.data, par.layers) or a parameter without its prefix
+  const bare = port.replace(/^(par|out)\./, '')
+  if (ports.includes(bare)) return `targetPort ${port} is an old handle; write ${bare}.`
+  if (params.includes(bare)) return `targetPort ${port}: a parameter's port is par:${bare}.`
+  return `${label} (${type}) has no input ${port}. ${suggest(bare, ports, 'Inputs', label)}`
 }
 
-// Names containing the wrong one, or one typo away from it, first ("color" ->
-// getFillColor, getLineColor); otherwise the full list
+// Names containing the wrong one, or one typo away from it, first ("color" -> fillColor,
+// lineColor); otherwise the full list
 export function suggest(
   name: string,
   known: string[],
   label: string,
-  nodeId?: string,
-  prefix?: string
+  nodeLabel?: string,
+  prefix = ''
 ): string {
   if (known.length === 0) return `It has no ${label.toLowerCase()}.`
   const wanted = name.toLowerCase()
@@ -117,11 +120,10 @@ export function suggest(
       })
     : []
   const pool = similar.length > 0 ? similar : known
-  const list = pool.slice(0, FIELD_SUGGESTIONS)
+  const list = pool.slice(0, SUGGESTIONS)
   const more = pool.length - list.length
-  const shown = prefix ? list.map(k => `${prefix}.${k}`) : list
-  const where = nodeId ? ` on ${nodeId}` : ''
-  return `${similar.length > 0 ? 'Did you mean' : `${label}${where}`}: ${shown.join(', ')}${more > 0 ? ` (+${more} more)` : ''}.`
+  const where = nodeLabel ? ` on ${nodeLabel}` : ''
+  return `${similar.length > 0 ? 'Did you mean' : `${label}${where}`}: ${list.map(k => `${prefix}${k}`).join(', ')}${more > 0 ? ` (+${more} more)` : ''}.`
 }
 
 // Within two edits, for names long enough that two edits isn't most of the word

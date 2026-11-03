@@ -20,19 +20,19 @@ competent but whose artifacts contradict it scores on the artifacts.
 3. **The transcript**, with line numbers (`L12`). Tool calls show their
    arguments and a clipped result. A turn's reply text is shown after its tool
    calls.
-4. **The artifacts**, with file names and line numbers: `start-project.json`
-   (nodes and edges after task setup, before the first turn), `project.json`
-   (nodes and edges after the session) and `ops.json` (every operator's input
-   values as the running graph holds them — trust this over node data in
-   `project.json` when they disagree). Compare `start-project.json` with
-   `project.json` to judge whether existing work was kept or reused; when
-   `start-project.json` is absent, criteria that need it are `na`.
+4. **The artifacts**, with file names and line numbers: `start-doc.json`
+   (the document's nodes and edges after task setup, before the first turn),
+   `doc.json` (the document after the session) and `params.json` (every node's
+   parameters with its operator's defaults filled in; a node in `doc.json`
+   lists only the parameters that were set). Compare `start-doc.json` with
+   `doc.json` to judge whether existing work was kept or reused; when
+   `start-doc.json` is absent, criteria that need it are `na`.
 5. **Mechanical results** recorded by deterministic checks.
 
 ## Non-negotiable rules
 
 - **Every score and every verdict carries evidence**: a direct quote plus its
-  location (`L12` for transcript lines, `project.json:40` or `ops.json:7` for
+  location (`L12` for transcript lines, `doc.json:40` or `params.json:7` for
   artifacts). A score without a resolvable citation is discarded.
 - Score each dimension independently.
 - Mechanical results are facts. If they say an edge is invalid or an edit did
@@ -59,7 +59,7 @@ Return ONLY a JSON object, no prose around it:
       "style": "checklist",
       "criteria": {
         "<criterion-id>": { "verdict": "pass", "evidence": "\"<verbatim quote>\" (L8)" },
-        "<criterion-id>": { "verdict": "fail", "evidence": "\"<verbatim quote>\" (ops.json:14)" }
+        "<criterion-id>": { "verdict": "fail", "evidence": "\"<verbatim quote>\" (params.json:14)" }
       }
     }
   },

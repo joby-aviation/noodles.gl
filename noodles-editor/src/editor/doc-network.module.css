@@ -1,0 +1,297 @@
+/* Network editor nodes, compact as Houdini's: header, ports, badges. d-d-d's layout in Noodles'
+   colors (the --node-* and --color-* variables from noodles.module.css). */
+
+.node {
+  min-width: 150px;
+  max-width: 230px;
+  background: var(--node-background-color, #282b2fde);
+  border: 1px solid var(--color-border, #333);
+  border-radius: 7px;
+  box-shadow: 0 4px 14px rgb(0 0 0 / 50%);
+  color: var(--node-text-color, #e2dede);
+  font-size: 11.5px;
+  position: relative;
+}
+
+.selected {
+  border-color: var(--node-selected-color, #3367d9);
+  box-shadow:
+    0 0 0 1px var(--node-selected-color, #3367d9),
+    0 4px 14px rgb(0 0 0 / 50%);
+}
+
+.nodeError {
+  border-color: #ff6b6b;
+}
+
+.bypassed {
+  opacity: 0.55;
+}
+
+.displayed {
+  box-shadow:
+    0 0 0 2px #3a8bd9,
+    0 4px 14px rgb(0 0 0 / 50%);
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  border-radius: 6px 6px 0 0;
+  color: var(--node-header-text-color, #dadada);
+  cursor: grab;
+}
+
+.bypassed .header {
+  background-image: repeating-linear-gradient(135deg, #d9b53a40 0 6px, transparent 6px 12px);
+}
+
+.name {
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1;
+}
+
+.type {
+  opacity: 0.75;
+  font-size: 10px;
+  white-space: nowrap;
+}
+
+.body {
+  padding: 3px 0 5px;
+}
+
+.port {
+  position: relative;
+  display: flex;
+  align-items: center;
+  height: 18px;
+  padding: 0 10px;
+  color: var(--color-text-secondary, #888);
+  font-size: 10.5px;
+}
+
+.portOut {
+  justify-content: flex-end;
+}
+
+.paramPort {
+  color: #ff9d9d;
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 10px;
+}
+
+.port :global(.react-flow__handle) {
+  width: 9px;
+  height: 9px;
+  border: 2px solid var(--color-bg-primary-solid, #282b2f);
+}
+
+.port :global(.react-flow__handle).multiHandle {
+  width: 9px;
+  border-radius: 4.5px;
+}
+
+/* A dashed line down the pill, so it reads as slots rather than one fat port */
+.multiHandle::before {
+  content: "";
+  position: absolute;
+  top: 2px;
+  bottom: 2px;
+  left: 50%;
+  width: 1px;
+  transform: translateX(-50%);
+  background: repeating-linear-gradient(
+    to bottom,
+    transparent 0 4px,
+    rgba(255, 255, 255, 0.35) 4px 5.5px
+  );
+  pointer-events: none;
+}
+
+/* Where a dragged wire will drop among a multi input's slots */
+.insertionMark {
+  position: absolute;
+  left: -7px;
+  width: 14px;
+  height: 2px;
+  transform: translateY(-1px);
+  border-radius: 1px;
+  background: var(--accent-color, #3b82f6);
+  box-shadow: 0 0 4px rgba(59, 130, 246, 0.5);
+  pointer-events: none;
+  z-index: 10;
+}
+
+.port .paramHandle {
+  width: 7px;
+  height: 7px;
+}
+
+.portTable {
+  background: #22c55e;
+}
+
+.portLayer {
+  background: #e04ddd;
+}
+
+.portNumber {
+  background: #ef4444;
+}
+
+.portValue {
+  background: #8a92a6;
+}
+
+.portAny {
+  background: #d9d9d9;
+}
+
+.dim {
+  opacity: 0.18;
+}
+
+.badges {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+  padding: 2px 8px 0;
+}
+
+.badge {
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 9.5px;
+  padding: 0 4px;
+  border-radius: 3px;
+  background: var(--color-bg-hover, rgb(255 255 255 / 10%));
+  color: var(--color-text-secondary, #888);
+}
+
+.badge_sql {
+  color: #8fb9ff;
+}
+
+.badge_cpu {
+  color: #e8d27a;
+}
+
+.badge_gpu {
+  color: #f3ae6c;
+}
+
+.badge_memo {
+  color: #c4a6f5;
+}
+
+.badge_rows {
+  color: #9fe3c7;
+}
+
+.error {
+  color: #ff6b6b;
+  font-size: 10px;
+  padding: 2px 8px 0;
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  max-height: 42px;
+  overflow: hidden;
+}
+
+/* The network's path, Houdini's network bar, and the keys it takes */
+
+.reference path {
+  stroke-dasharray: 4 4;
+}
+
+.refHandle {
+  opacity: 0;
+  pointer-events: none;
+  top: 12px;
+}
+
+/* What a node does, on the node: its key parameters, a color's swatch */
+.summary {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px 2px;
+  color: var(--node-text-color, #e2dede);
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 10px;
+  min-width: 0;
+}
+
+.summaryText {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  opacity: 0.85;
+}
+
+/* Houdini's node info: a mark in the header, the card on hover */
+.info {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  border: 1px solid currentcolor;
+  font-size: 8.5px;
+  font-style: italic;
+  font-weight: 700;
+  opacity: 0.55;
+  cursor: help;
+}
+
+.info:hover {
+  opacity: 1;
+}
+
+.infoCard {
+  display: none;
+  position: absolute;
+  top: calc(100% + 8px);
+  left: -12px;
+  z-index: 10;
+  width: 260px;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 10px;
+  border: 1px solid var(--color-border, #333);
+  border-radius: 6px;
+  background: var(--color-bg-primary-solid, #1e2126);
+  box-shadow: 0 6px 18px rgb(0 0 0 / 55%);
+  color: var(--color-text-secondary, #aaa);
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 400;
+  line-height: 1.4;
+  white-space: normal;
+  cursor: default;
+}
+
+.info:hover .infoCard {
+  display: flex;
+}
+
+.infoTitle {
+  color: var(--node-text-color, #e2dede);
+  font-weight: 600;
+}
+
+.infoStat {
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 10.5px;
+  color: var(--node-text-color, #e2dede);
+}
+
+.infoError {
+  color: #ff8a8a;
+}

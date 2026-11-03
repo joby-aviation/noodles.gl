@@ -1,6 +1,9 @@
+import type { EditorDoc } from '@noodles.gl/planner'
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { ReactFlowProvider } from '@xyflow/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { setParam } from '../editor/doc-ops'
+import { docStore } from '../editor/doc-store'
 import { getKeysStore } from '../noodles/keys-store'
 import { AUTH_MESSAGE_TYPE } from '../noodles/openrouter-oauth'
 import { analytics } from '../utils/analytics'
@@ -13,7 +16,7 @@ import type { AgentProvider } from './agent/types'
 import { ChatPanel } from './chat-panel'
 import type { ContextLoader } from './context-loader'
 import { globalContextManager } from './global-context-manager'
-import type { ClaudeResponse, NoodlesProject } from './types'
+import type { ClaudeResponse } from './types'
 
 // The session is built for real; only the provider behind it is a stand-in. The
 // picker only shows once a session has started, and starting a real local model
@@ -112,11 +115,7 @@ describe('ChatPanel after connecting OpenRouter', () => {
     const releaseCatalogue = stubSlowCatalogue()
     render(
       <ReactFlowProvider>
-        <ChatPanel
-          project={{ nodes: [], edges: [] } as NoodlesProject}
-          onClose={() => {}}
-          isVisible={false}
-        />
+        <ChatPanel onClose={() => {}} isVisible={false} />
       </ReactFlowProvider>
     )
 
@@ -134,15 +133,23 @@ describe('ChatPanel after connecting OpenRouter', () => {
 })
 
 describe('ChatPanel graph-edit proposals', () => {
-  const proposalResponse: ClaudeResponse = {
-    message: 'I set the value to 2.',
-    projectModifications: [
-      { type: 'update_node', data: { id: '/number', data: { inputs: { value: 2 } } } },
-    ],
-    toolCalls: [],
+  const start: EditorDoc = {
+    version: 1,
+    name: 'p',
+    nodes: [{ id: 'n1', op: 'number', name: 'number', x: 0, y: 0, params: { value: 1 } }],
+    edges: [],
+  }
+  const value = () => docStore().get().doc.nodes[0]?.params.value
+  const reply: ClaudeResponse = { message: 'I set the value to 2.', toolCalls: [] }
+
+  // A run whose tool calls set the number to 2 as they go, as apply_modifications does
+  const runEdits = () => {
+    docStore().edit(d => setParam(d, 'n1', 'value', 2))
+    return reply
   }
 
   beforeEach(() => {
+    docStore().load(structuredClone(start))
     getKeysStore().setBrowserKey('anthropic', 'sk-ant-test')
     vi.spyOn(globalContextManager, 'waitForReady').mockResolvedValue({} as ContextLoader)
   })
@@ -152,14 +159,9 @@ describe('ChatPanel graph-edit proposals', () => {
     getKeysStore().clearBrowserKey('anthropic')
   })
 
-  const panel = (projectKey = 1) => (
+  const panel = () => (
     <ReactFlowProvider>
-      <ChatPanel
-        project={{ nodes: [], edges: [] } as NoodlesProject}
-        projectKey={projectKey}
-        onClose={() => {}}
-        isVisible
-      />
+      <ChatPanel onClose={() => {}} isVisible />
     </ReactFlowProvider>
   )
 
@@ -171,11 +173,11 @@ describe('ChatPanel graph-edit proposals', () => {
 
   // A reply the test hands back when it chooses, standing in for a run in flight
   function deferSend() {
-    let finish: (response: ClaudeResponse) => void = () => {}
+    let finish: () => void = () => {}
     vi.spyOn(AgentSession.prototype, 'send').mockImplementation(
-      () => new Promise(resolve => (finish = resolve))
+      () => new Promise(resolve => (finish = () => resolve(runEdits())))
     )
-    return (response: ClaudeResponse) => act(async () => finish(response))
+    return () => act(async () => finish())
   }
 
   async function send(text: string) {
@@ -185,14 +187,17 @@ describe('ChatPanel graph-edit proposals', () => {
     })
   }
 
-  it('blocks sending until a pending proposal is accepted or rejected', async () => {
-    const sendSpy = vi.spyOn(AgentSession.prototype, 'send').mockResolvedValue(proposalResponse)
+  it("shows a run's edits for review and blocks sending until they are decided", async () => {
+    const sendSpy = vi
+      .spyOn(AgentSession.prototype, 'send')
+      .mockImplementation(async () => runEdits())
     await renderReadyPanel()
 
-    await send('Set /number to 2')
+    await send('Set number to 2')
     await vi.waitFor(() => expect(screen.getByLabelText('Proposed graph update')).toBeTruthy())
-    expect(screen.getByText('Set value = 2 on /number')).toBeTruthy()
-    expect(screen.getByText('These changes are not applied yet.')).toBeTruthy()
+    expect(screen.getByText('Set value = 2 on number')).toBeTruthy()
+    // The map shows the change while it waits
+    expect(value()).toBe(2)
 
     const textarea = screen.getByRole('textbox') as HTMLTextAreaElement
     expect(textarea.disabled).toBe(true)
@@ -208,57 +213,64 @@ describe('ChatPanel graph-edit proposals', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Reject' }))
     expect(screen.queryByLabelText('Proposed graph update')).toBeNull()
-    expect(screen.getByText('Proposal rejected. Its changes were not applied.')).toBeTruthy()
+    expect(screen.getByText('Proposal rejected. Its changes were undone.')).toBeTruthy()
+    expect(value()).toBe(1)
     expect((screen.getByRole('textbox') as HTMLTextAreaElement).disabled).toBe(false)
 
     await send('And make it 3')
     expect(sendSpy).toHaveBeenCalledTimes(2)
   })
 
-  it('unblocks sending once the proposal is accepted', async () => {
-    vi.spyOn(AgentSession.prototype, 'send').mockResolvedValue({
-      ...proposalResponse,
-      projectModifications: [
-        {
-          type: 'add_node',
-          data: { id: '/number', type: 'NumberOp', position: { x: 0, y: 0 }, data: {} },
-        },
-      ],
+  it('keeps an accepted run as one undo step', async () => {
+    vi.spyOn(AgentSession.prototype, 'send').mockImplementation(async () => {
+      docStore().edit(d => setParam(d, 'n1', 'value', 2))
+      docStore().edit(d => setParam(d, 'n1', 'value', 5))
+      return reply
     })
     await renderReadyPanel()
 
-    await send('Add a number')
-    await vi.waitFor(() => expect(screen.getByText('Add NumberOp /number')).toBeTruthy())
+    await send('Set number to 5')
+    await vi.waitFor(() => expect(screen.getByText('Set value = 5 on number')).toBeTruthy())
     fireEvent.click(screen.getByRole('button', { name: 'Accept' }))
 
     expect(screen.queryByLabelText('Proposed graph update')).toBeNull()
     expect((screen.getByRole('textbox') as HTMLTextAreaElement).disabled).toBe(false)
+    expect(value()).toBe(5)
+    docStore().undo()
+    expect(value()).toBe(1)
+  })
+
+  it('shows no proposal for a run that changed nothing', async () => {
+    vi.spyOn(AgentSession.prototype, 'send').mockResolvedValue(reply)
+    await renderReadyPanel()
+    await send('What is this?')
+    await vi.waitFor(() => expect(screen.getByText('I set the value to 2.')).toBeTruthy())
+    expect(screen.queryByLabelText('Proposed graph update')).toBeNull()
   })
 
   it('drops a pending proposal when another project is opened', async () => {
-    vi.spyOn(AgentSession.prototype, 'send').mockResolvedValue(proposalResponse)
-    const { rerender } = await renderReadyPanel()
+    vi.spyOn(AgentSession.prototype, 'send').mockImplementation(async () => runEdits())
+    await renderReadyPanel()
 
-    await send('Set /number to 2')
+    await send('Set number to 2')
     await vi.waitFor(() => expect(screen.getByLabelText('Proposed graph update')).toBeTruthy())
 
-    rerender(panel(2))
+    act(() => docStore().load({ ...structuredClone(start), name: 'other' }))
 
     expect(screen.queryByLabelText('Proposed graph update')).toBeNull()
-    expect(screen.queryByRole('button', { name: 'Accept' })).toBeNull()
     expect(
-      screen.getByText('Another project was opened, so the proposed graph update was not applied.')
+      screen.getByText('Another project was opened, so the proposed graph update was dropped.')
     ).toBeTruthy()
     expect((screen.getByRole('textbox') as HTMLTextAreaElement).disabled).toBe(false)
   })
 
   it('drops the proposal of a run that finishes after another project is opened', async () => {
     const finish = deferSend()
-    const { rerender } = await renderReadyPanel()
+    await renderReadyPanel()
 
-    await send('Set /number to 2')
-    rerender(panel(2))
-    await finish(proposalResponse)
+    await send('Set number to 2')
+    act(() => docStore().load({ ...structuredClone(start), name: 'other' }))
+    await finish()
 
     expect(screen.queryByLabelText('Proposed graph update')).toBeNull()
     expect(screen.queryByText('I set the value to 2.')).toBeNull()
@@ -268,25 +280,26 @@ describe('ChatPanel graph-edit proposals', () => {
     const finish = deferSend()
     await renderReadyPanel()
 
-    await send('Set /number to 2')
+    await send('Set number to 2')
     fireEvent.click(screen.getByTitle('Start New Conversation'))
-    await finish(proposalResponse)
+    await finish()
 
     expect(screen.queryByLabelText('Proposed graph update')).toBeNull()
     expect(screen.queryByText('I set the value to 2.')).toBeNull()
-    expect(screen.queryByText('Set /number to 2')).toBeNull()
+    expect(screen.queryByText('Set number to 2')).toBeNull()
   })
 
-  it('drops a pending proposal when a new conversation starts', async () => {
-    vi.spyOn(AgentSession.prototype, 'send').mockResolvedValue(proposalResponse)
+  it('undoes a pending proposal when a new conversation starts', async () => {
+    vi.spyOn(AgentSession.prototype, 'send').mockImplementation(async () => runEdits())
     await renderReadyPanel()
 
-    await send('Set /number to 2')
+    await send('Set number to 2')
     await vi.waitFor(() => expect(screen.getByLabelText('Proposed graph update')).toBeTruthy())
 
     fireEvent.click(screen.getByTitle('Start New Conversation'))
 
     expect(screen.queryByLabelText('Proposed graph update')).toBeNull()
+    expect(value()).toBe(1)
     expect((screen.getByRole('textbox') as HTMLTextAreaElement).disabled).toBe(false)
   })
 })
@@ -300,11 +313,7 @@ describe('ChatPanel model picker', () => {
     window.location.hash = ''
     render(
       <ReactFlowProvider>
-        <ChatPanel
-          project={{ nodes: [], edges: [] } as NoodlesProject}
-          onClose={() => {}}
-          isVisible
-        />
+        <ChatPanel onClose={() => {}} isVisible />
       </ReactFlowProvider>
     )
     // Let the WebGPU check and the session start settle
@@ -335,11 +344,7 @@ describe('ChatPanel load reports', () => {
     const track = vi.spyOn(analytics, 'track')
     render(
       <ReactFlowProvider>
-        <ChatPanel
-          project={{ nodes: [], edges: [] } as NoodlesProject}
-          onClose={() => {}}
-          isVisible
-        />
+        <ChatPanel onClose={() => {}} isVisible />
       </ReactFlowProvider>
     )
     await act(() => vi.advanceTimersByTimeAsync(0))
@@ -379,12 +384,7 @@ describe('ChatPanel onboarding with a quick start request', () => {
   } = {}) {
     return render(
       <ReactFlowProvider>
-        <ChatPanel
-          project={{ nodes: [], edges: [] } as NoodlesProject}
-          onClose={onClose}
-          isVisible
-          initialMessage={request ?? undefined}
-        />
+        <ChatPanel onClose={onClose} isVisible initialMessage={request ?? undefined} />
       </ReactFlowProvider>
     )
   }
@@ -510,12 +510,7 @@ describe('ChatPanel onboarding coding agent prompts', () => {
     )
     render(
       <ReactFlowProvider>
-        <ChatPanel
-          project={{ nodes: [], edges: [] } as NoodlesProject}
-          onClose={() => {}}
-          isVisible
-          initialMessage="Map the bike stations"
-        />
+        <ChatPanel onClose={() => {}} isVisible initialMessage="Map the bike stations" />
       </ReactFlowProvider>
     )
     await act(() => vi.advanceTimersByTimeAsync(0))

@@ -35,15 +35,14 @@ export function getExample(repoRoot: string, id: string) {
   if (!isFile(projectPath)) return null
 
   const project = JSON.parse(readFileSync(projectPath, 'utf8'))
-  const types = [...new Set<string>((project.nodes ?? []).map((n: { type: string }) => n.type))]
+  const ops = [...new Set<string>((project.nodes ?? []).map((n: { op: string }) => n.op))]
+  const category = categories(repoRoot)
   return {
     ...summarize(repoRoot, id),
     readme: readme(dir),
     files: readdirSync(dir).sort(),
-    layerTypes: types.filter(t => t.includes('Layer')),
-    dataSourceTypes: types.filter(
-      t => t.includes('File') || t.includes('JSON') || t.includes('DuckDb')
-    ),
+    layerTypes: ops.filter(op => category[op] === 'layer'),
+    dataSourceTypes: ops.filter(op => category[op] === 'data'),
     project: stripLargeData(project),
   }
 }
@@ -88,4 +87,12 @@ function stripLargeData(project: unknown): unknown {
       return value
     })
   )
+}
+
+// Operator type -> category, from the registry the validator reads
+function categories(repoRoot: string): Record<string, string | undefined> {
+  const registry = JSON.parse(
+    readFileSync(join(repoRoot, 'noodles-validate/registry.json'), 'utf8')
+  ) as { operators: Record<string, { category?: string }> }
+  return Object.fromEntries(Object.entries(registry.operators).map(([t, op]) => [t, op.category]))
 }

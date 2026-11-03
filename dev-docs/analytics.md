@@ -74,8 +74,8 @@ VITE_GA_MEASUREMENT_ID=G-XXXXXXXXXX
 | `project_saved` | `storageType, isFirstSave` | menu.tsx |
 | `project_save_failed` | `storageType, error` | menu.tsx |
 | `project_exported` | `storageType` | menu.tsx |
-| `project_opened` | `storageType, source` | menu.tsx, noodles.tsx, project-not-found-dialog.tsx |
-| `project_open_failed` | `storageType, error` or `storageType, reason, source` | menu.tsx, noodles.tsx, project-not-found-dialog.tsx |
+| `project_opened` | `storageType, source` | menu.tsx, doc-noodles.tsx, project-not-found-dialog.tsx |
+| `project_open_failed` | `storageType, error` or `storageType, reason, source` | menu.tsx, doc-noodles.tsx, project-not-found-dialog.tsx |
 | `project_permission_granted` | `source` | projects-view.tsx, project-not-found-dialog.tsx |
 | `project_permission_denied` | `source, state` | projects-view.tsx, project-not-found-dialog.tsx |
 | `project_removed_from_list` | `storageType, source` | projects-view.tsx |
@@ -94,35 +94,36 @@ Opening a saved project by its URL (`/projects/:name`, which is where Recent pro
 
 | Event | Properties | Location |
 |-------|-----------|----------|
-| `node_added` | `nodeType` (`CommentOp` for a comment) | use-project-modifications.ts |
+| `node_added` | `nodeType` (`comment` for a comment) | use-project-modifications.ts |
 | `node_deleted` | `count` | use-project-modifications.ts |
 | `edge_added` | `count` | use-project-modifications.ts |
 | `edge_deleted` | `count` | use-project-modifications.ts |
-| `starter_node_selected` | `operatorType` | noodles.tsx |
+| `starter_node_selected` | `operatorType` | doc-noodles.tsx |
 | `ai_modification_proposed` | `provider, modificationCount` | chat-panel.tsx |
 | `ai_modification_proposal_resolved` | `provider, outcome, modificationCount` | chat-panel.tsx |
 
 - `outcome`: `accepted`, `rejected`, or `failed` (accepted, but the editor refused the batch)
-- `starter_node_selected`: an example opened and the editor selected a node for it (its main layer, or the example's `editorSettings.startNode`), so the properties panel shows controls. Sent once per example per page load, only for the bundled example file, and never with `?externalControl=true` or agent bench mode. `operatorType` is the operator class, such as `ScatterplotLayerOp`
+- `starter_node_selected`: an example opened and the editor selected a node for it (its main layer, or the example's `meta.startNode`), so the parameter pane shows controls. Sent once per example per page load, only for the bundled example file, and never with `?externalControl=true` or agent bench mode. `operatorType` is the node's operator, such as `scatter`
 
 ### Editor Interactions
 
 | Event | Properties | Location |
 |-------|-----------|----------|
-| `field_value_changed` | `fieldType, operatorType, source` (a comment edit is `operatorType: 'CommentOp'`, `source: 'node'`; the text isn't sent) | field-edit-analytics.tsx (from property-history.ts commitChange) |
+| `field_value_changed` | `fieldType, operatorType, source` | field-edit-analytics.ts (from field-adapter.ts NodeFields.write) |
+| `map_feature_clicked` | `operatorType, selected` | map-click-to-edit.tsx |
 | `panel_toggled` | `panel, visible` | layout.tsx, timeline-editor.tsx, top-menu-bar.tsx |
 | `map_mode_changed` | `mode` | layout.tsx, top-menu-bar.tsx |
 | `map_interacted` | `kind` | editor-analytics.ts (from timeline-editor.tsx) |
-| `map_feature_clicked` | `operatorType, selected` | map-click-to-edit.tsx |
-| `chat_opened` | `source` | top-menu-bar.tsx, noodles.tsx |
-| `chat_closed` | `source` | top-menu-bar.tsx, noodles.tsx |
+| `chat_opened` | `source` | top-menu-bar.tsx, doc-noodles.tsx |
+| `chat_closed` | `source` | top-menu-bar.tsx, doc-noodles.tsx |
+| `brushable_histogram_opened` | none | histogram-editor.tsx, when the parameter pane shows a Brushable Histogram |
 
-- `field_value_changed` counts edits the user commits in a field's control, at the same point an undo step is recorded, and only when a value changed. Project loads, keyframe playback, upstream connections, undo/redo and AI modifications set values without a commit, so they are not counted. Commits to the same field less than 1 second apart are one edit and send one event after a second of quiet, so dragging a slider or typing sends one event, not one per frame or keystroke.
-- `fieldType`: the field's type (`number`, `color`, `boolean`, `string-literal`, `code`, ...), or `custom` for a node's own controls such as histogram brushes. `operatorType`: the node type (`ScatterplotLayerOp`). `source`: `node` or `properties_panel`. The value, field name, node id and code are never sent.
+- `field_value_changed` counts edits the user makes in a parameter's widget in the parameter pane, where the widget writes its parameter, and only when the value changed. Project loads, keyframe playback, undo/redo and AI modifications reach the widgets without a write, so they are not counted. Commits to the same field less than 1 second apart are one edit and send one event after a second of quiet, so dragging a slider or typing sends one event, not one per frame or keystroke.
+- `fieldType`: the widget's field type (`number`, `color`, `boolean`, `string-literal`, `code`, ...). `operatorType`: the node's operator (`scatter`). `source`: `properties_panel`. The value, field name, node id and code are never sent.
 - `panel`: `sidebar`, `properties`, `timeline` or `spreadsheet`. The sidebar and properties panel are tracked when a resize makes them appear or disappear (dragging the separator, the sidebar chevron, Cmd+F); the timeline when its tab or collapse button is clicked; the spreadsheet from Editor > Show spreadsheet. The timeline opening by itself for an animated project is not counted.
 - `mode`: `docked`, `floating` or `underlay` (the map behind the node graph)
 - `map_interacted` fires once per page load for each `kind`: `pan`, `zoom` or `rotate` (rotate includes pitch). Only user gestures count: deck's controller interaction state, or MapLibre events that carry the input event that caused them. Camera keyframes and programmatic camera moves are not counted.
-- `map_feature_clicked` fires when a click on the map lands on a feature, after the layer's own `onClick` (if any) passed on it. `selected` is true when the editor found the node that drew the feature and selected it; `operatorType` is that node's type (`ScatterplotLayerOp`), or `unknown` for a layer no node drew. Drags, clicks on empty map, and clicks while a map tool is armed, during an export, or with `?externalControl=true` are not counted. No ids, coordinates or feature data are sent.
+- `map_feature_clicked` fires when a click on the map lands on a feature, after the layer's own `onClick` (if any) passed on it. `selected` is true when the editor found the node that drew the feature and selected it; `operatorType` is that node's operator (`scatter`), or `unknown` for a layer no node drew. Drags, clicks on empty map, and clicks while a map tool is armed, during an export, or with `?externalControl=true` are not counted. No ids, coordinates or feature data are sent.
 - `chat_opened` `source`: `toolbar` (the top bar's Assistant button) or `quick_start` (the Quick Start dialog's AI path). `chat_closed` `source`: `toolbar` (the same button, labeled Hide while the assistant is open) or `panel` (the panel's own close button).
 
 ### Rendering and Export
@@ -154,7 +155,7 @@ When a CSV or JSON table is imported, the editor looks for coordinate columns so
 |-------|-----------|----------|
 | `coordinates_detected` | `source, fileFormat, detected, method, reason, sizedByColumn, rowCountBucket` | use-file-import.ts |
 | `quick_start_create_from_file` | `fileSize, mode, detected` | quick-start-modal.tsx |
-| `quick_start_file_action_handled` | `mode` | noodles.tsx |
+| `quick_start_file_action_handled` | `mode` | doc-noodles.tsx |
 
 - `source`: `canvas_drop`, `quickstart` or `tools_shelf` (the Import Data dialog)
 - `method`: `lat_lng`, `geometry` (a WKT or GeoJSON column) or `none`; `reason` is set only for `none`: `no_rows`, `no_columns` or `out_of_range` (columns named like coordinates whose values aren't longitude and latitude)

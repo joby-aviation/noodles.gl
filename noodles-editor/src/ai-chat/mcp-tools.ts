@@ -1,16 +1,10 @@
 // MCPTools - Client-side tool implementations for Claude AI
 
-import type { z } from 'zod'
-import type { Operator } from '../noodles/operators'
-import { getOpStore } from '../noodles/store'
+import { OPERATOR_INDEX } from '@noodles.gl/planner'
+import { currentEngine, errorsOf } from '../editor/doc-engine'
+import { docStore } from '../editor/doc-store'
 import { safeStringify } from '../noodles/utils/serialization'
-import {
-  captureTimelineState,
-  fireTimelineMutation,
-  getTimelineStore,
-  useTimelineStore,
-} from '../timeline/timeline-store'
-import type { Keyframe, KeyframeValue, Track } from '../timeline/types'
+import { getTimelineStore } from '../timeline/timeline-store'
 import {
   type GrepFilesParams,
   grepFiles,
@@ -22,6 +16,8 @@ import {
   writeFile,
 } from './agent-files'
 import type { ContextLoader } from './context-loader'
+import type { DocToolContext } from './doc-tools'
+import * as docTools from './doc-tools'
 import { searchDocumentation } from './docs-search'
 import {
   type ExportStatusParams,
@@ -29,195 +25,158 @@ import {
   exportVideo,
   getExportStatus,
 } from './export-video'
-import {
-  checkFields,
-  customInputNames,
-  qualifyHandle,
-  resolveOperatorType,
-} from './modification-fields'
 import { type RunCodeParams, runCode } from './run-code'
-import {
-  type ConsoleError,
-  type FileIndex,
-  type NoodlesProject,
-  type OperatorRegistry,
-  type ProjectModification,
-  ProjectModificationSchema,
-  type SearchCodeParams,
-  type SearchCodeResult,
-  type ToolResult,
+import type {
+  ConsoleError,
+  FileIndex,
+  SearchCodeParams,
+  SearchCodeResult,
+  ToolResult,
 } from './types'
 
-// Longest string input value list_nodes reports in full. CodeOp.code and
-// DuckDbOp.sql are routinely kilobytes each, which dominated the payload when
-// every node in the project reported every input verbatim.
-const INPUT_PREVIEW_CHARS = 200
+const MAX_DOC_RESULTS = 5
+const DOC_EXCERPT_CHARS = 600
 
-// Clips long string inputs for the project-wide listing. get_node_info still
-// returns inputs verbatim, so the full value is always one call away.
-function previewInputs(inputs: unknown): Record<string, unknown> {
-  if (typeof inputs !== 'object' || inputs === null) return {}
+// Words too common in a docs query to discriminate between topics
+const DOC_STOP_WORDS = new Set([
+  'a',
+  'an',
+  'the',
+  'to',
+  'of',
+  'for',
+  'in',
+  'on',
+  'and',
+  'or',
+  'is',
+  'it',
+  'how',
+  'do',
+  'does',
+  'can',
+  'my',
+  'me',
+  'with',
+  'what',
+  'when',
+  'why',
+  'use',
+  'using',
+  'noodles',
+  'should',
+  'would',
+  'could',
+  'want',
+  'need',
+  'get',
+  'set',
+  'make',
+  'best',
+  'any',
+  'some',
+  'this',
+  'that',
+])
 
-  const out: Record<string, unknown> = {}
-  for (const [key, value] of Object.entries(inputs as Record<string, unknown>)) {
-    if (typeof value === 'string' && value.length > INPUT_PREVIEW_CHARS) {
-      out[key] = {
-        preview: value.slice(0, INPUT_PREVIEW_CHARS),
-        length: value.length,
-        hint: 'clipped — call get_node_info for the full value',
-      }
-    } else {
-      out[key] = value
+function docTerms(query: string): string[] {
+  return query
+    .toLowerCase()
+    .split(/[^a-z0-9]+/)
+    .filter(term => term.length > 1 && !DOC_STOP_WORDS.has(term))
+}
+
+// Per-term scoring, rather than matching the whole query as one substring: a
+// natural question like "how do I animate opacity over time" shares no literal
+// substring with any page, so whole-query matching found nothing. matchIndex is
+// where to centre the excerpt.
+function scoreTopic(
+  topic: { title: string; content: string; headings: Array<{ text: string }> },
+  query: string
+): { score: number; matchIndex: number } {
+  const terms = docTerms(query)
+  if (terms.length === 0) return { score: 0, matchIndex: 0 }
+
+  const title = topic.title.toLowerCase()
+  const content = topic.content.toLowerCase()
+  const headings = topic.headings.map(h => h.text.toLowerCase())
+
+  let score = 0
+  let matchIndex = -1
+
+  for (const term of terms) {
+    if (title.includes(term)) score += 8
+    if (headings.some(heading => heading.includes(term))) score += 3
+
+    // Presence only, not occurrence count. Counting repeats let the longest
+    // pages (the changelog above all) outrank the topic actually about the
+    // subject, purely by mentioning every word somewhere.
+    const found = content.indexOf(term)
+    if (found !== -1) {
+      score += 1
+      if (matchIndex === -1 || found < matchIndex) matchIndex = found
     }
   }
-  return out
+
+  // Every term present is a much stronger signal than the same score spread
+  // across a subset of them
+  const allTermsPresent = terms.every(
+    term => title.includes(term) || content.includes(term) || headings.some(h => h.includes(term))
+  )
+  if (allTermsPresent && terms.length > 1) score += 4
+
+  return { score, matchIndex: Math.max(0, matchIndex) }
 }
 
-// How many ids a "node not found" error lists
-const NOT_FOUND_SUGGESTIONS = 15
+// A window of content centred on the match, snapped outward to line boundaries
+// so the excerpt does not start or end mid-word
+function excerptAround(content: string, matchIndex: number): string {
+  if (content.length <= DOC_EXCERPT_CHARS) return content
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
+  const half = Math.floor(DOC_EXCERPT_CHARS / 2)
+  let start = Math.max(0, matchIndex - half)
+  let end = Math.min(content.length, start + DOC_EXCERPT_CHARS)
+
+  const lineStart = content.lastIndexOf('\n', start)
+  if (lineStart !== -1 && start - lineStart < 120) start = lineStart + 1
+
+  const lineEnd = content.indexOf('\n', end)
+  if (lineEnd !== -1 && lineEnd - end < 120) end = lineEnd
+
+  const prefix = start > 0 ? '…' : ''
+  const suffix = end < content.length ? '…' : ''
+  return `${prefix}${content.slice(start, end)}${suffix}`
 }
 
-function absoluteId(id: unknown): string | null {
-  if (typeof id !== 'string' || !id.trim()) return null
-  const trimmed = id.trim().replace(/^\.\//, '')
-  return trimmed.startsWith('/') ? trimmed : `/${trimmed}`
-}
-
-// Zod's messages name the schema, not the fix. The common small-model mistakes get
-// a sentence saying what to send instead.
-function describeIssue(issue: z.core.$ZodIssue, exampleId: string): string {
-  const path = issue.path.join('.')
-  if (path === 'data.id') {
-    return `data.id is required — the id of the node or edge, e.g. ${exampleId}`
+/** The editor's document, engine and playhead: what the tools act on in the app. */
+export function editorDocContext(): DocToolContext {
+  return {
+    store: docStore(),
+    engine: currentEngine,
+    playhead: {
+      position: () => getTimelineStore().position,
+      playing: () => getTimelineStore().playing,
+      seek: seconds => getTimelineStore().setPosition(seconds),
+      play: () => getTimelineStore().play(),
+      pause: () => getTimelineStore().pause(),
+    },
   }
-  if (path === 'type') {
-    return 'type must be one of add_node, update_node, delete_node, add_edge, delete_edge'
-  }
-  if (path === 'data') return 'data is required and must be an object'
-  return `${path || 'modification'}: ${issue.message}`
-}
-
-type TargetCheck = {
-  existing: Set<string>
-  known: string[]
-  edgeIds: Set<string>
-  addedSoFar: Set<string>
-}
-
-// null when the modification can apply, otherwise the reason it cannot
-function checkTarget(
-  mod: ProjectModification,
-  ids: TargetCheck,
-  notFound: (id: string) => string
-): string | null {
-  const missing = (id: string) => (ids.known.includes(id) ? null : notFound(id))
-  switch (mod.type) {
-    case 'add_node':
-      // Even when the batch deletes it first: the editor's delete settles after
-      // its add, and takes a replacement with the same id down with it
-      if (ids.existing.has(mod.data.id) || ids.addedSoFar.has(mod.data.id)) {
-        return `${mod.data.id} already exists; use update_node to change it or pick a new id`
-      }
-      return null
-    case 'update_node': {
-      if (!ids.known.includes(mod.data.id)) return notFound(mod.data.id)
-      const { id: _id, ...changes } = mod.data
-      if (Object.keys(changes).length === 0) {
-        return `update_node for ${mod.data.id} changes nothing. Input values go under data.data.inputs: {"type":"update_node","data":{"id":"${mod.data.id}","data":{"inputs":{"<input name>":<value>}}}}`
-      }
-      return null
-    }
-    case 'delete_node':
-      return missing(mod.data.id)
-    case 'add_edge':
-      return missing(mod.data.source) ?? missing(mod.data.target)
-    case 'delete_edge':
-      return ids.edgeIds.has(mod.data.id)
-        ? null
-        : `Edge not found: ${mod.data.id}. Edge ids look like /source.out.data->/target.par.data; list_nodes shows each node's connections`
-  }
-}
-
-// Custom inputs a modification gives a node before its operator exists: an
-// add_node's own, or an update_node's when the node is new this run. An update
-// to a node that already exists does not rebuild its inputs, so it adds none.
-function declaredInputs(
-  mod: ProjectModification,
-  isNew: (id: string) => boolean
-): Array<[string, string[]]> {
-  if (mod.type === 'add_node') return [[mod.data.id, customInputNames(mod.data.data)]]
-  if (mod.type === 'update_node' && isNew(mod.data.id)) {
-    const names = customInputNames(mod.data.data as Record<string, unknown> | undefined)
-    return names.length > 0 ? [[mod.data.id, names]] : []
-  }
-  return []
-}
-
-// Fields the live operator has, including user-defined custom inputs the class
-// does not declare. Empty for a node that exists only in this run's queue.
-function liveFieldNames(nodeId: string, side: 'inputs' | 'outputs'): string[] {
-  const op = getOpStore().getOp(nodeId)
-  return op ? Object.keys(op[side] ?? {}) : []
 }
 
 export class MCPTools {
   private consoleErrors: ConsoleError[] = []
-  private project: NoodlesProject | null = null
-  // Accepted by apply_modifications but not yet in the project. The chat applies
-  // edits when the run ends, so a later call in the same run has to see them.
-  // Node id -> operator type, so edges and updates aimed at them can be checked
-  private queuedNodes = new Map<string, string>()
-  private queuedEdges = new Set<string>()
-  // Custom inputs a queued add_node declared, which an edge may target before
-  // the node exists
-  private queuedCustomInputs = new Map<string, string[]>()
+  private doc: DocToolContext
 
-  constructor(private contextLoader?: ContextLoader) {
+  constructor(
+    private contextLoader?: ContextLoader,
+    doc?: DocToolContext
+  ) {
+    this.doc = doc ?? editorDocContext()
     this.setupConsoleTracking()
   }
 
-  // Set current project for MCP tools to access
-  setProject(project: NoodlesProject) {
-    this.project = project
-    // The project can change mid-run for unrelated reasons, so only what has
-    // landed stops being queued
-    for (const node of project.nodes ?? []) {
-      this.queuedNodes.delete(node.id)
-      this.queuedCustomInputs.delete(node.id)
-    }
-    for (const edge of project.edges ?? []) this.queuedEdges.delete(edge.id)
-  }
-
-  // Called when a run starts. Whatever the last run queued has landed or never
-  // will (the request failed, or the editor rejected the batch), and an id left
-  // here would block the retry as "already exists".
-  clearQueuedModifications() {
-    this.queuedNodes.clear()
-    this.queuedEdges.clear()
-    this.queuedCustomInputs.clear()
-  }
-
-  getProject(): NoodlesProject | null {
-    return this.project
-  }
-
-  // Extract common operator properties to avoid duplication
-  private mapOperatorProperties(op: {
-    type: string
-    name: string
-    category: string
-    description: string
-  }) {
-    return {
-      type: op.type,
-      name: op.name,
-      category: op.category,
-      description: op.description,
-    }
-  }
+  // Edits apply as they are made, so a run has nothing queued to forget.
+  clearQueuedModifications() {}
 
   // Extract common example properties to avoid duplication
   private mapExampleProperties(ex: {
@@ -241,7 +200,6 @@ export class MCPTools {
     if (!this.contextLoader) return false
     return (
       this.contextLoader.getCodeIndex() !== null ||
-      this.contextLoader.getOperatorRegistry() !== null ||
       this.contextLoader.getDocsIndex() !== null ||
       this.contextLoader.getExamples() !== null
     )
@@ -326,57 +284,6 @@ export class MCPTools {
           lines: fileIndex.lines.slice(startLine - 1, endLine),
           fullText: fileIndex.lines.slice(startLine - 1, endLine).join('\n'),
         },
-      }
-    } catch (error) {
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Unknown error',
-      }
-    }
-  }
-
-  // Get schema for a specific operator type
-  async getOperatorSchema(params: { type: string }): Promise<ToolResult> {
-    try {
-      const registry = this.contextLoader?.getOperatorRegistry()
-      if (!registry) {
-        return { success: false, error: 'Operator registry not loaded' }
-      }
-
-      const schema = registry.operators[params.type]
-      if (!schema) {
-        return {
-          success: false,
-          error: `Operator type not found: ${params.type}`,
-        }
-      }
-
-      return { success: true, data: schema }
-    } catch (error) {
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Unknown error',
-      }
-    }
-  }
-
-  // List all available operators, optionally filtered by category
-  async listOperators(params: { category?: string }): Promise<ToolResult> {
-    try {
-      const registry = this.contextLoader?.getOperatorRegistry()
-      if (!registry) {
-        return { success: false, error: 'Operator registry not loaded' }
-      }
-
-      let operators = Object.values(registry.operators)
-
-      if (params.category) {
-        operators = operators.filter(op => op.category === params.category)
-      }
-
-      return {
-        success: true,
-        data: operators.map(op => this.mapOperatorProperties(op)),
       }
     } catch (error) {
       return {
@@ -534,30 +441,6 @@ export class MCPTools {
           symbol: references[0],
           references,
         },
-      }
-    } catch (error) {
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Unknown error',
-      }
-    }
-  }
-
-  // Analyze the current project for issues and suggestions
-  async analyzeProject(params: {
-    project: NoodlesProject
-    analysisType: 'validation' | 'performance' | 'suggestions'
-  }): Promise<ToolResult> {
-    try {
-      const { project, analysisType } = params
-
-      switch (analysisType) {
-        case 'validation':
-          return this.validateProject(project)
-        case 'performance':
-          return this.analyzePerformance(project)
-        default:
-          return { success: false, error: `Unknown analysis type: ${analysisType}` }
       }
     } catch (error) {
       return {
@@ -795,201 +678,74 @@ export class MCPTools {
 
   // Project state manipulation tools
 
-  // Validate modifications against the project before the editor sees them. The
-  // chat applies them only after the run, once the user accepts them, so this
-  // result is the model's only chance to learn an edit was malformed or aimed at
-  // a node that does not exist.
-  // Every problem in the batch is reported at once and nothing is queued.
+  // --- graph tools, on the document (doc-tools.ts) ---------------------------------
+
+  async listNodes(): Promise<ToolResult> {
+    return docTools.listNodes(this.doc)
+  }
+
+  async getNodeInfo(params: { nodeId: string }): Promise<ToolResult> {
+    return docTools.getNodeInfo(this.doc, params)
+  }
+
+  async getNodeOutput(params: { nodeId: string; maxRows?: number }): Promise<ToolResult> {
+    return docTools.getNodeOutput(this.doc, params)
+  }
+
+  async getCurrentProject(): Promise<ToolResult> {
+    return docTools.getCurrentProject(this.doc)
+  }
+
   async applyModifications(params: { modifications: unknown[] }): Promise<ToolResult> {
-    const modifications = params.modifications
-    if (!Array.isArray(modifications) || modifications.length === 0) {
-      return {
-        success: false,
-        error: 'modifications must be a non-empty array',
-      }
-    }
-
-    const existing = new Set([
-      ...(this.project?.nodes ?? []).map(n => n.id),
-      ...this.queuedNodes.keys(),
-    ])
-    const edgeIds = new Set([...(this.project?.edges ?? []).map(e => e.id), ...this.queuedEdges])
-    // Nodes added anywhere in the batch count, since the editor adds nodes before edges
-    const added = modifications
-      .filter(isRecord)
-      .filter(mod => mod.type === 'add_node' && isRecord(mod.data))
-      .map(mod => absoluteId((mod.data as Record<string, unknown>).id))
-      .filter((id): id is string => id !== null)
-    const known = [...existing, ...added]
-    const exampleId = known[0] ?? '/my-node'
-    const registry = this.contextLoader?.getOperatorRegistry() ?? null
-    const types = new Map<string, string>([
-      ...(this.project?.nodes ?? []).map(n => [n.id, n.type] as [string, string]),
-      ...this.queuedNodes,
-    ])
-
-    const errors: string[] = []
-    const accepted: Array<{ label: string; mod: ProjectModification }> = []
-    const addedSoFar = new Set<string>()
-    // A node this run creates: the editor merges updates into it before it builds
-    // the operator, so custom inputs an update declares become real fields
-    const isNew = (id: string) => addedSoFar.has(id) || this.queuedNodes.has(id)
-    for (const [index, raw] of modifications.entries()) {
-      const label = `modifications[${index}]${isRecord(raw) && typeof raw.type === 'string' ? ` (${raw.type})` : ''}`
-      const parsed = ProjectModificationSchema.safeParse(
-        this.resolveModificationIds(raw, known, registry)
-      )
-      if (!parsed.success) {
-        const issues = parsed.error.issues.map(issue => describeIssue(issue, exampleId))
-        errors.push(`${label}: ${issues.join('; ')}`)
-        continue
-      }
-      const mod = parsed.data
-      const problem = this.project
-        ? checkTarget(mod, { existing, known, edgeIds, addedSoFar }, id => this.nodeNotFound(id))
-        : null
-      if (problem) {
-        errors.push(`${label}: ${problem}`)
-        continue
-      }
-      if (mod.type === 'add_node') {
-        addedSoFar.add(mod.data.id)
-        types.set(mod.data.id, mod.data.type)
-      }
-      // The editor adds a batch's edges before deleting any, so a later
-      // delete_edge may cancel one this batch adds
-      if (mod.type === 'add_edge') edgeIds.add(mod.data.id)
-      accepted.push({ label, mod })
-    }
-
-    // Types and handles second, once every add_node in the batch has a type an
-    // edge can be checked against, wherever in the batch the edge sits
-    if (registry) {
-      const declared = new Map(this.queuedCustomInputs)
-      for (const { mod } of accepted) {
-        for (const [id, names] of declaredInputs(mod, isNew)) {
-          declared.set(id, [...(declared.get(id) ?? []), ...names])
-        }
-      }
-      const liveFields = (nodeId: string, side: 'inputs' | 'outputs') => [
-        ...liveFieldNames(nodeId, side),
-        ...(side === 'inputs' ? (declared.get(nodeId) ?? []) : []),
-      ]
-      const context = { registry, types, liveFields }
-      for (const { label, mod } of accepted) {
-        for (const problem of checkFields(mod, context)) errors.push(`${label}: ${problem}`)
-      }
-    }
-
-    if (errors.length > 0) {
-      return {
-        success: false,
-        error: `Nothing was applied. Fix these and send the whole batch again:\n${errors.join('\n')}`,
-      }
-    }
-
-    const mods = accepted.map(entry => entry.mod)
-    for (const mod of mods) {
-      if (mod.type === 'add_node') this.queuedNodes.set(mod.data.id, mod.data.type)
-      for (const [id, names] of declaredInputs(mod, isNew)) {
-        this.queuedCustomInputs.set(id, [...(this.queuedCustomInputs.get(id) ?? []), ...names])
-      }
-      if (mod.type === 'add_edge') this.queuedEdges.add(mod.data.id)
-    }
-
-    // Returned rather than applied: the panel shows them to the user, who accepts or rejects them
-    return {
-      success: true,
-      data: {
-        modificationsCount: mods.length,
-        modifications: mods,
-        message: `${mods.length} modification(s) proposed. They apply when the user accepts them.`,
-      },
-    }
+    return docTools.applyModifications(this.doc, params)
   }
 
-  // Small models drop the leading slash or the container path ("map-range" for
-  // "/map-range"). Resolves an id that names exactly one node; null otherwise.
-  private resolveNodeId(raw: unknown, candidates?: string[]): string | null {
-    if (typeof raw !== 'string' || !raw.trim()) return null
-    const ids = candidates ?? (this.project?.nodes ?? []).map(n => n.id)
-    const id = raw.trim()
-    if (ids.includes(id)) return id
-    const bare = id.replace(/^\.?\//, '')
-    if (ids.includes(`/${bare}`)) return `/${bare}`
-    const byName = ids.filter(candidate => candidate.split('/').pop() === bare)
-    return byName.length === 1 ? byName[0] : null
+  async listOperators(params: { category?: string }): Promise<ToolResult> {
+    return docTools.listOperators(params)
   }
 
-  // Names the ids that do exist, so the next call can be right rather than a guess
-  private nodeNotFound(raw: unknown): string {
-    const ids = (this.project?.nodes ?? []).map(n => n.id)
-    const shown = String(raw)
-    if (ids.length === 0) return `Node not found: ${shown}. The project has no nodes yet.`
-    const token = shown.replace(/^\.?\//, '').toLowerCase()
-    const similar = token ? ids.filter(id => id.toLowerCase().includes(token)) : []
-    const list = (similar.length > 0 ? similar : ids).slice(0, NOT_FOUND_SUGGESTIONS)
-    const more = (similar.length > 0 ? similar : ids).length - list.length
-    return `Node not found: ${shown}. ${similar.length > 0 ? 'Did you mean' : 'Nodes in this project'}: ${list.join(', ')}${more > 0 ? ` (+${more} more)` : ''}. Node ids are absolute paths like ${ids[0]}.`
+  async getOperatorSchema(params: { type: string }): Promise<ToolResult> {
+    return docTools.getOperatorSchema(params)
   }
 
-  private resolveModificationIds(
-    raw: unknown,
-    known: string[],
-    registry: OperatorRegistry | null
-  ): unknown {
-    if (!isRecord(raw) || !isRecord(raw.data)) return raw
-    const data = { ...raw.data }
-    const resolve = (value: unknown) => this.resolveNodeId(value, known) ?? value
-    // get_node_info takes nodeId, and a small model carries the name over to
-    // the edit (Qwen3.5-4B did on every failed T2 run)
-    if (data.id === undefined && typeof data.nodeId === 'string') {
-      data.id = data.nodeId
-      delete data.nodeId
+  // Problems the engine found: nodes that lowered to nothing, failed queries, host errors,
+  // and nodes nothing reads.
+  async analyzeProject(_params?: unknown): Promise<ToolResult> {
+    const { doc } = this.doc.store.get()
+    const issues: { nodeId: string; severity: 'error' | 'warning'; message: string }[] = []
+    const e = this.doc.engine()
+    for (const err of e ? errorsOf(e) : []) {
+      issues.push({ nodeId: err.nodeId, severity: 'error', message: err.message })
     }
-    // Small models put inputs one level up, beside the id. The schema would
-    // strip them silently, so move them to where the editor reads them.
-    if ((raw.type === 'add_node' || raw.type === 'update_node') && isRecord(data.inputs)) {
-      const nodeData = isRecord(data.data) ? data.data : {}
-      const inputs = isRecord(nodeData.inputs) ? nodeData.inputs : {}
-      data.data = { ...nodeData, inputs: { ...data.inputs, ...inputs } }
-      delete data.inputs
-    }
-    switch (raw.type) {
-      case 'add_node':
-        data.id = absoluteId(data.id) ?? data.id
-        // "File" for FileOp: the display name get_operator_schema shows beside the type
-        if (registry && typeof data.type === 'string') {
-          data.type = resolveOperatorType(data.type, registry)
-        }
-        break
-      case 'update_node':
-      case 'delete_node':
-        data.id = resolve(data.id)
-        break
-      case 'add_edge': {
-        const source = resolve(data.source)
-        const target = resolve(data.target)
-        const sourceHandle = qualifyHandle(data.sourceHandle, 'source')
-        const targetHandle = qualifyHandle(data.targetHandle, 'target')
-        const moved =
-          source !== data.source ||
-          target !== data.target ||
-          sourceHandle !== data.sourceHandle ||
-          targetHandle !== data.targetHandle
-        Object.assign(data, { source, target, sourceHandle, targetHandle })
-        // The id is derived from the endpoints, so it follows them
-        if (
-          (moved || data.id === undefined) &&
-          typeof data.sourceHandle === 'string' &&
-          typeof data.targetHandle === 'string'
-        ) {
-          data.id = `${source}.${data.sourceHandle}->${target}.${data.targetHandle}`
-        }
-        break
+    const read = new Set(doc.edges.map(edge => edge.source))
+    for (const n of doc.nodes) {
+      const op = OPERATOR_INDEX.get(n.op)
+      if (!op) issues.push({ nodeId: n.id, severity: 'error', message: `Unknown operator ${n.op}` })
+      else if (op.outputs.length && !read.has(n.id) && n.op !== 'deck') {
+        issues.push({
+          nodeId: n.id,
+          severity: 'warning',
+          message: `${n.name ?? n.id}: nothing reads its output`,
+        })
       }
     }
-    return { ...raw, data }
+    return { success: true, data: { issues } }
+  }
+
+  getTimeline(): ToolResult {
+    return docTools.getTimeline(this.doc)
+  }
+
+  setKeyframe(params: Parameters<typeof docTools.setKeyframe>[1]): ToolResult {
+    return docTools.setKeyframe(this.doc, params)
+  }
+
+  deleteKeyframe(params: Parameters<typeof docTools.deleteKeyframe>[1]): ToolResult {
+    return docTools.deleteKeyframe(this.doc, params)
+  }
+
+  setPlaybackPosition(params: { position: number; play?: boolean }): ToolResult {
+    return docTools.setPlaybackPosition(this.doc, params)
   }
 
   // Evaluate JavaScript in CodeOp's sandbox. The implementation lives in run-code.ts
@@ -1028,492 +784,7 @@ export class MCPTools {
     return grepFiles(params)
   }
 
-  // Get current project state (nodes and edges)
-  async getCurrentProject(): Promise<ToolResult> {
-    try {
-      if (!this.project) {
-        return {
-          success: false,
-          error: 'No project loaded',
-        }
-      }
-
-      return {
-        success: true,
-        data: {
-          nodeCount: (this.project.nodes || []).length,
-          edgeCount: (this.project.edges || []).length,
-          nodes: (this.project.nodes || []).map(n => ({
-            id: n.id,
-            type: n.type,
-            position: n.position,
-            inputs: n.data?.inputs || {},
-          })),
-          edges: (this.project.edges || []).map(e => ({
-            id: e.id,
-            source: e.source,
-            target: e.target,
-            sourceHandle: e.sourceHandle,
-            targetHandle: e.targetHandle,
-          })),
-        },
-      }
-    } catch (error) {
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Failed to get project state',
-      }
-    }
-  }
-
-  // Read operator output data
-  async getNodeOutput(params: { nodeId: string; maxRows?: number }): Promise<ToolResult> {
-    try {
-      const nodeId = this.resolveNodeId(params.nodeId) ?? params.nodeId
-      const operator = getOpStore().getOp(nodeId)
-
-      if (!operator) {
-        return {
-          success: false,
-          error: this.project
-            ? this.nodeNotFound(params.nodeId)
-            : `Operator not found: ${params.nodeId}. Make sure the node exists and has been executed.`,
-        }
-      }
-
-      // Get the output data from the operator
-      const outputData: Record<string, unknown> = {}
-      // biome-ignore lint/suspicious/noExplicitAny: dynamic operator outputs object
-      const outputs = (operator as any).outputs || {}
-      const { displayName } = operator.constructor as typeof Operator
-
-      for (const [key, field] of Object.entries(outputs) as [string, unknown][]) {
-        const value =
-          field && typeof field === 'object' && 'value' in field
-            ? (field as Record<string, unknown>).value
-            : undefined
-        outputData[key] = value
-      }
-
-      // If there's a 'data' output, try to sample it
-      if (outputData.data) {
-        const data = outputData.data
-        const maxRows = params.maxRows || 10
-
-        // Sample the data for inspection
-        let sample = data
-        let totalRows = 0
-
-        if (Array.isArray(data)) {
-          totalRows = data.length
-          sample = data.slice(0, maxRows)
-        } else if (data && typeof data === 'object' && 'features' in data) {
-          // GeoJSON
-          const geoJsonData = data as { features: unknown[] }
-          totalRows = geoJsonData.features.length
-          sample = {
-            ...data,
-            features: geoJsonData.features.slice(0, maxRows),
-          }
-        }
-
-        return {
-          success: true,
-          data: {
-            nodeId,
-            operatorType: displayName,
-            outputs: Object.keys(outputs),
-            dataSample: sample,
-            totalRows,
-            sampleRows: Math.min(maxRows, totalRows),
-            // biome-ignore lint/suspicious/noExplicitAny: accessing dynamic operator state
-            executionState: (operator as any).executionState?.value || null,
-          },
-        }
-      }
-
-      // If no data output, return all outputs
-      return {
-        success: true,
-        data: {
-          nodeId,
-          operatorType: displayName,
-          outputs: Object.keys(outputs),
-          outputData,
-          // biome-ignore lint/suspicious/noExplicitAny: accessing dynamic operator state
-          executionState: (operator as any).executionState?.value || null,
-        },
-      }
-    } catch (error) {
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Failed to read operator output',
-      }
-    }
-  }
-
-  // List all nodes in the project with their current state
-  async listNodes(): Promise<ToolResult> {
-    try {
-      if (!this.project) {
-        return {
-          success: false,
-          error: 'No project loaded',
-        }
-      }
-
-      const { getOp } = getOpStore()
-
-      const nodes = (this.project.nodes || []).map(node => {
-        const operator = getOp(node.id)
-        // biome-ignore lint/suspicious/noExplicitAny: accessing dynamic operator state
-        const executionState = operator ? (operator as any).executionState?.value : null
-
-        // Position is omitted deliberately: it is layout-only noise for the
-        // model, and get_node_info still reports it when actually needed
-        return {
-          id: node.id,
-          type: node.type,
-          inputs: previewInputs(node.data?.inputs),
-          locked: node.data?.locked || false,
-          executionState: executionState
-            ? {
-                status: executionState.status,
-                lastExecuted: executionState.lastExecuted,
-                executionTime: executionState.executionTime,
-                error: executionState.error,
-              }
-            : null,
-        }
-      })
-
-      // Group by type for easier analysis
-      const byType: Record<string, number> = {}
-      nodes.forEach(n => {
-        byType[n.type] = (byType[n.type] || 0) + 1
-      })
-
-      // Role groupings carry ids only. They used to re-serialize the whole node
-      // objects, duplicating the bulk of the payload for no extra information.
-      return {
-        success: true,
-        data: {
-          nodes,
-          totalCount: nodes.length,
-          byType,
-          dataNodeIds: nodes
-            .filter(n => ['FileOp', 'JSONOp', 'DuckDbOp', 'CSVOp'].includes(n.type))
-            .map(n => n.id),
-          layerNodeIds: nodes.filter(n => n.type.includes('Layer')).map(n => n.id),
-          rendererNodeIds: nodes
-            .filter(n => ['DeckRendererOp', 'OutOp'].includes(n.type))
-            .map(n => n.id),
-        },
-      }
-    } catch (error) {
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Failed to list nodes',
-      }
-    }
-  }
-
-  // Get detailed information about a specific node
-  async getNodeInfo(params: { nodeId: string }): Promise<ToolResult> {
-    try {
-      if (!this.project) {
-        return {
-          success: false,
-          error: 'No project loaded',
-        }
-      }
-
-      const nodeId = this.resolveNodeId(params.nodeId)
-      const node = (this.project.nodes || []).find(n => n.id === nodeId)
-      if (!node) {
-        return {
-          success: false,
-          error: this.nodeNotFound(params.nodeId),
-        }
-      }
-
-      const operator = getOpStore().getOp(node.id)
-      const edges = this.project.edges || []
-
-      // Find incoming and outgoing edges
-      const incomingEdges = edges.filter(e => e.target === node.id)
-      const outgoingEdges = edges.filter(e => e.source === node.id)
-
-      // Get execution state
-      // biome-ignore lint/suspicious/noExplicitAny: executionState is a dynamic operator property not in type definitions
-      const executionState = operator ? (operator as any).executionState?.value : null
-
-      // Get available inputs and outputs from operator schema
-      const registry = this.contextLoader?.getOperatorRegistry()
-      const schema = registry?.operators[node.type]
-
-      return {
-        success: true,
-        data: {
-          id: node.id,
-          type: node.type,
-          position: node.position,
-          inputs: node.data?.inputs || {},
-          locked: node.data?.locked || false,
-          executionState: executionState
-            ? {
-                status: executionState.status,
-                lastExecuted: executionState.lastExecuted,
-                executionTime: executionState.executionTime,
-                error: executionState.error,
-              }
-            : null,
-          connections: {
-            incoming: incomingEdges.map(e => ({
-              from: e.source,
-              sourceHandle: e.sourceHandle,
-              targetHandle: e.targetHandle,
-            })),
-            outgoing: outgoingEdges.map(e => ({
-              to: e.target,
-              sourceHandle: e.sourceHandle,
-              targetHandle: e.targetHandle,
-            })),
-          },
-          schema: schema
-            ? {
-                description: schema.description,
-                category: schema.category,
-                inputs: schema.inputs,
-                outputs: schema.outputs,
-              }
-            : null,
-        },
-      }
-    } catch (error) {
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Failed to get node info',
-      }
-    }
-  }
-
-  // Get the current timeline state
-  getTimeline(): ToolResult {
-    try {
-      const store = getTimelineStore()
-      const tracks: Record<
-        string,
-        {
-          keyframes: Array<{ id: string; position: number; value: unknown; interpolation: string }>
-        }
-      > = {}
-
-      for (const [trackId, track] of store.tracks) {
-        tracks[trackId] = {
-          keyframes: track.keyframes.map((kf: Keyframe) => ({
-            id: kf.id,
-            position: kf.position,
-            value: kf.value,
-            interpolation: kf.interpolation,
-          })),
-        }
-      }
-
-      return {
-        success: true,
-        data: {
-          sequence: {
-            length: store.sequence.length,
-            fps: store.sequence.fps,
-            inPoint: store.sequence.inPoint,
-            outPoint: store.sequence.outPoint,
-          },
-          position: store.position,
-          playing: store.playing,
-          trackCount: store.tracks.size,
-          tracks,
-        },
-      }
-    } catch (error) {
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Failed to get timeline state',
-      }
-    }
-  }
-
-  // Add or update a keyframe on an animated field.
-  // Writes directly to useTimelineStore.setState so that both track creation
-  // and keyframe insertion land in a single undo entry (addKeyframe() fires
-  // its own internal history entry after track creation, leaving a ghost track
-  // on undo — bypassing it here fixes that).
-  setKeyframe(params: {
-    trackId: string
-    position: number
-    value: unknown
-    interpolation?: 'bezier' | 'hold'
-  }): ToolResult {
-    try {
-      const { trackId, position, value, interpolation = 'bezier' } = params
-      const kfValue = value as KeyframeValue
-      const store = getTimelineStore()
-      const frameDuration = 1 / store.sequence.fps
-
-      // Capture before ANY mutation so undo covers the full operation
-      const before = captureTimelineState()
-
-      const existingTrack = store.tracks.get(trackId)
-      const nearbyKf = existingTrack?.keyframes.find(
-        (kf: Keyframe) => Math.abs(kf.position - position) < frameDuration
-      )
-
-      if (nearbyKf) {
-        // Update in place — updateKeyframe has no internal history, so we fire it
-        store.updateKeyframe(trackId, nearbyKf.id, { value: kfValue, interpolation })
-        fireTimelineMutation('Update keyframe via AI', before)
-        return {
-          success: true,
-          data: { keyframeId: nearbyKf.id, action: 'updated', trackId, position, value },
-        }
-      }
-
-      // Add new keyframe — write directly so track creation + insertion share one undo entry
-      const keyframeId = `kf_${Math.random().toString(36).slice(2, 10)}`
-      const newKf: Keyframe = { id: keyframeId, position, value: kfValue, interpolation }
-
-      useTimelineStore.setState(state => {
-        const newTracks = new Map(state.tracks)
-        const track = newTracks.get(trackId)
-        if (track) {
-          const keyframes = [...track.keyframes, newKf].sort(
-            (a: Keyframe, b: Keyframe) => a.position - b.position
-          )
-          newTracks.set(trackId, { ...track, keyframes })
-        } else {
-          const newTrack: Track = {
-            id: trackId,
-            fieldPath: trackId,
-            keyframes: [newKf],
-            defaultValue: kfValue,
-          }
-          newTracks.set(trackId, newTrack)
-        }
-        return { tracks: newTracks }
-      })
-
-      fireTimelineMutation('Add keyframe via AI', before)
-      return { success: true, data: { keyframeId, action: 'added', trackId, position, value } }
-    } catch (error) {
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Failed to set keyframe',
-      }
-    }
-  }
-
-  // Delete a keyframe by ID
-  deleteKeyframe(params: { trackId: string; keyframeId: string }): ToolResult {
-    try {
-      const { trackId, keyframeId } = params
-      const store = getTimelineStore()
-      const track = store.tracks.get(trackId)
-
-      if (!track) {
-        return { success: false, error: `Track not found: ${trackId}` }
-      }
-
-      const exists = track.keyframes.some((kf: Keyframe) => kf.id === keyframeId)
-      if (!exists) {
-        return { success: false, error: `Keyframe not found: ${keyframeId}` }
-      }
-
-      store.deleteKeyframe(trackId, keyframeId)
-      return { success: true, data: { deleted: keyframeId, trackId } }
-    } catch (error) {
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Failed to delete keyframe',
-      }
-    }
-  }
-
-  // Set the current playback position (scrub to a time)
-  setPlaybackPosition(params: { position: number; play?: boolean }): ToolResult {
-    try {
-      const store = getTimelineStore()
-      const clamped = Math.max(0, Math.min(params.position, store.sequence.length))
-      store.setPosition(clamped)
-      if (params.play === true) store.play()
-      else if (params.play === false) store.pause()
-      // Re-read store after mutations — the snapshot in `store` is stale
-      return { success: true, data: { position: clamped, playing: getTimelineStore().playing } }
-    } catch (error) {
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Failed to set playback position',
-      }
-    }
-  }
-
   // Private helper methods
-
-  private validateProject(project: NoodlesProject): ToolResult {
-    // biome-ignore lint/suspicious/noExplicitAny: dynamic issue structure
-    const issues: any[] = []
-    const registry = this.contextLoader?.getOperatorRegistry()
-
-    if (!registry) {
-      return { success: false, error: 'Registry not loaded' }
-    }
-
-    const connectedNodes = new Set<string>()
-    ;(project.edges || []).forEach(edge => {
-      connectedNodes.add(edge.source)
-      connectedNodes.add(edge.target)
-    })
-    ;(project.nodes || []).forEach(node => {
-      if (!connectedNodes.has(node.id) && node.type !== 'OutOp') {
-        issues.push({
-          type: 'disconnected',
-          severity: 'warning',
-          nodeId: node.id,
-          message: `Node ${node.id} is not connected to the graph`,
-        })
-      }
-
-      const schema = registry.operators[node.type]
-      if (!schema) {
-        issues.push({
-          type: 'unknown-operator',
-          severity: 'error',
-          nodeId: node.id,
-          message: `Unknown operator type: ${node.type}`,
-        })
-      }
-    })
-
-    return { success: true, data: { issues } }
-  }
-
-  private analyzePerformance(project: NoodlesProject): ToolResult {
-    // biome-ignore lint/suspicious/noExplicitAny: dynamic suggestion structure
-    const suggestions: any[] = []
-
-    const dataOps = (project.nodes || []).filter(n =>
-      ['FileOp', 'DuckDbOp', 'JSONOp'].includes(n.type)
-    )
-
-    if (dataOps.length > 5) {
-      suggestions.push({
-        type: 'performance',
-        severity: 'info',
-        message: `Found ${dataOps.length} data operations. Consider consolidating with DuckDbOp.`,
-      })
-    }
-
-    return { success: true, data: { suggestions } }
-  }
 
   private findSymbolAtLine(file: FileIndex, line: number): string | undefined {
     return file.symbols.find(s => s.line <= line && s.endLine >= line)?.name

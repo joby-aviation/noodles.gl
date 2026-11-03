@@ -10,40 +10,41 @@ Create charts using Observable Plot (bar, histogram, scatter).
 
 <!-- gen:begin syntax -->
 ```json
-{
-  "id": "/chart",
-  "type": "ChartOp",
-  "position": { "x": 0, "y": 0 },
-  "data": { "inputs": {} }
-}
+{ "id": "n1", "op": "ChartOp", "name": "chart", "x": 0, "y": 0, "params": {} }
 ```
 
-Expressions and code read its fields as `op('/chart').par.data` (an input) and `op('/chart').out.chart` (an output). Edges name the same fields as handles: `par.data`, `out.chart`.
+One out of it starts at `"sourcePort": "chart"`.
 <!-- gen:end syntax -->
 
 ## Inputs
 
 <!-- gen:begin inputs -->
-| Name | Type | Default |
-|------|------|---------|
-| `data` | `DataField` | `[]` |
-| `chartType` | `StringLiteralField` | `"bar"` |
-| `xField` | `StringLiteralField` | `""` |
-| `yField` | `StringLiteralField` | `""` |
-| `width` | `NumberField` | `640` |
-| `height` | `NumberField` | `400` |
-| `color` | `ColorField` | `"#4269d0"` |
-| `title` | `StringField` | `""` |
-| `xLabel` | `StringField` | `""` |
-| `yLabel` | `StringField` | `""` |
+This operator has no input ports.
 <!-- gen:end inputs -->
+
+## Parameters
+
+<!-- gen:begin params -->
+| Parameter | Kind | Default | Choices |
+|-----------|------|---------|---------|
+| `data` | `field` | `[]` |  |
+| `chartType` | `field` | `"bar"` |  |
+| `xField` | `field` | `""` |  |
+| `yField` | `field` | `""` |  |
+| `width` | `field` | `640` |  |
+| `height` | `field` | `400` |  |
+| `color` | `field` | `"#4269d0ff"` |  |
+| `title` | `field` | `""` |  |
+| `xLabel` | `field` | `""` |  |
+| `yLabel` | `field` | `""` |  |
+<!-- gen:end params -->
 
 ## Outputs
 
 <!-- gen:begin outputs -->
-| Name | Type |
+| Port | Type |
 |------|------|
-| `chart` | `UnknownField` |
+| `chart` | `value` |
 <!-- gen:end outputs -->
 
 <!-- Add hand-written "## Remarks" and "## Examples" sections here. See the operator reference index for what goes in them. -->
@@ -51,8 +52,9 @@ Expressions and code read its fields as `op('/chart').par.data` (an input) and `
 ## Details
 
 <!-- gen:begin details -->
-- **Category:** [Data](../operators.md#data)
-- **Type name:** `ChartOp`
+- **Category:** [Host operators](../operators.md#host)
+- **Operator:** `ChartOp`
+- **Runs:** on the page, not in the engine: it cannot be compiled to SQL or an expression
 <!-- gen:end details -->
 
 <!-- gen:begin history -->
