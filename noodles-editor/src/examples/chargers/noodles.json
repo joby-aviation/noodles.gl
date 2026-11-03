@@ -1,5 +1,5 @@
 {
-  "version": 22,
+  "version": 23,
   "name": "EV Chargers with Live API Data",
   "edges": [
     {
@@ -27,15 +27,15 @@
       "source": "/charger-bounds",
       "sourceHandle": "out.longitude",
       "target": "/auto-view",
-      "targetHandle": "par.longitude",
-      "id": "/charger-bounds.out.longitude->/auto-view.par.longitude"
+      "targetHandle": "par.center.lng",
+      "id": "/charger-bounds.out.longitude->/auto-view.par.center.lng"
     },
     {
       "source": "/charger-bounds",
       "sourceHandle": "out.latitude",
       "target": "/auto-view",
-      "targetHandle": "par.latitude",
-      "id": "/charger-bounds.out.latitude->/auto-view.par.latitude"
+      "targetHandle": "par.center.lat",
+      "id": "/charger-bounds.out.latitude->/auto-view.par.center.lat"
     },
     {
       "id": "/auto-view.out.viewState->/basemap.par.viewState",
@@ -214,7 +214,10 @@
         "inputs": {
           "zoom": 10.8
         },
-        "locked": false
+        "locked": false,
+        "inputPortModes": {
+          "center": "channels"
+        }
       }
     },
     {

@@ -2020,6 +2020,20 @@ describe('vector channel ports', () => {
     expect((field.value as Record<string, number>)[keys[0]]).toBe(10)
   })
 
+  it('gives channel fields the limits set for each component', () => {
+    const field = new Point2DField(
+      { lng: 10, lat: 20 },
+      { channels: { lat: { min: -90, max: 90, step: 0.001 } } }
+    )
+    const { lng, lat } = field.openChannels()
+    expect([lat.min, lat.max, lat.step]).toEqual([-90, 90, 0.001])
+    expect([lng.min, lng.max]).toEqual([-Infinity, Infinity])
+    // The channel's schema rejects a value outside its limits
+    lat.setValue(100)
+    expect(lat.value).toBe(20)
+    expect((field.value as { lat: number }).lat).toBe(20)
+  })
+
   it.each(vectorFields)('$name mirrors whole-value edits into channels', ({ create, keys }) => {
     const field = create()
     const channels = field.openChannels()

@@ -649,6 +649,24 @@ describe('VectorFieldComponent', () => {
       expect(inputs[1]).toHaveValue(15)
     })
 
+    it('limits each component to its channel limits', () => {
+      const field = new Vec2Field(
+        { x: 10, y: 20 },
+        { channels: { y: { min: -90, max: 90, step: 0.001 } } }
+      )
+      render(<VectorFieldComponent id="test-field" field={field} disabled={false} />)
+
+      const [x, y] = screen.getAllByRole('spinbutton')
+      expect(x).toHaveAttribute('step', '0.1')
+      expect(x).not.toHaveAttribute('max')
+      expect(y).toHaveAttribute('step', '0.001')
+      expect(y).toHaveAttribute('max', '90')
+
+      fireEvent.change(y, { target: { value: '150' } })
+      fireEvent.blur(y)
+      expect(field.value).toEqual({ x: 10, y: 90 })
+    })
+
     it('does not render lookup button for non-point fields', () => {
       const field = new Vec2Field({ x: 10, y: 20 })
       render(<VectorFieldComponent id="test-field" field={field} disabled={false} />)

@@ -2,7 +2,7 @@ import { type Subscription, skip } from 'rxjs'
 import { type Field, getFieldReferences, isSerializedExpression } from './fields'
 import { type Edge as ExecutorEdge, updateGraph } from './graph-executor'
 import type { IOperator, Operator } from './operators'
-import { inputFieldEntries, resolveHandleField } from './utils/field-resolution'
+import { inputAliasPath, inputFieldEntries, resolveHandleField } from './utils/field-resolution'
 import type { GraphNode } from './utils/for-loop-group-utils'
 import { edgeId } from './utils/id-utils'
 import { parseHandleId } from './utils/path-utils'
@@ -63,6 +63,15 @@ function serializedInputEntries(inputs: Record<string, unknown>): [string, unkno
     }
   }
   return entries
+}
+
+// `op('/view').par.longitude` reads a deprecated alias of `center.lng` (see
+// Operator.inputAliases), so the reference depends on `par.center`
+function referenceSourceHandle(op: Operator<IOperator> | undefined, handleId: string): string {
+  const handle = parseHandleId(handleId)
+  if (!op || handle?.namespace !== 'par') return handleId
+  const path = inputAliasPath(op, handle.fieldName)
+  return path === handle.fieldName ? handleId : `par.${path.split('.')[0]}`
 }
 
 function fieldReferenceText(field: Field): string | null {
@@ -208,7 +217,8 @@ class ReferenceDependencyModel {
         for (const ref of getFieldReferences(text, node.id)) {
           if (!nodeIds.has(ref.opId)) continue
           const sourceOp = this.operators.get(ref.opId)
-          const sourceHandle = parseHandleId(ref.handleId)
+          const sourceHandleId = referenceSourceHandle(sourceOp, ref.handleId)
+          const sourceHandle = parseHandleId(sourceHandleId)
           const sourceField = sourceHandle
             ? sourceOp?.[sourceHandle.namespace === 'par' ? 'inputs' : 'outputs'][
                 sourceHandle.fieldName
@@ -217,7 +227,7 @@ class ReferenceDependencyModel {
           if (!field.connectable || !sourceField?.connectable) continue
           const connection = {
             source: ref.opId,
-            sourceHandle: ref.handleId,
+            sourceHandle: sourceHandleId,
             target: node.id,
             targetHandle: `par.${fieldName}`,
           }

@@ -29,7 +29,7 @@ const sidebars: SidebarsConfig = {
       type: 'category',
       label: 'Working with Data',
       collapsed: true,
-      items: ['users/data-guide', 'users/expressions'],
+      items: ['users/data-guide', 'users/expressions', 'users/vector-input-ports'],
     },
     {
       type: 'category',

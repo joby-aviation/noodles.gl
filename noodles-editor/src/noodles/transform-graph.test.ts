@@ -10,6 +10,7 @@ import {
   type DeckRendererOp,
   type GeoJsonLayerOp,
   type IOperator,
+  type MapViewStateOp,
   MathOp,
   NumberOp,
   type Operator,
@@ -1985,5 +1986,33 @@ describe('vector channel ports', () => {
     ])
     num.inputs.val.setValue(9)
     expect(split.inputs.vec.value).toEqual({ x: 0, y: 10 })
+  })
+
+  it('follows a read of a deprecated input alias to the input it names', () => {
+    transformGraph({
+      nodes: [
+        {
+          id: '/view',
+          type: 'MapViewStateOp',
+          position,
+          data: { inputs: { center: { lng: 10, lat: 20 } } },
+        },
+        {
+          id: '/num',
+          type: 'NumberOp',
+          position,
+          data: { inputs: { val: { $expr: "op('/view').par.longitude" } } },
+        },
+      ],
+      edges: [],
+    })
+    const view = getOpStore().getOp('/view') as MapViewStateOp
+    const num = getOpStore().getOp('/num') as NumberOp
+    expect(referenceDependencyModel.getSnapshot().map(edge => edge.id)).toEqual([
+      '/view.par.center->/num.par.val',
+    ])
+    expect(num.inputs.val.value).toBe(10)
+    view.inputs.center.setValue({ lng: 30, lat: 20 })
+    expect(num.inputs.val.value).toBe(30)
   })
 })

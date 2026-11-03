@@ -767,6 +767,9 @@ function VectorNumberInput({
   onChange,
   onCommit,
   onInteractionStart,
+  min,
+  max,
+  step = 0.1,
 }: {
   keyName: string
   value: number
@@ -775,12 +778,16 @@ function VectorNumberInput({
   onChange: (key: string | number, val: number) => void
   onCommit: () => void
   onInteractionStart?: () => void
+  min?: number
+  max?: number
+  step?: number
 }) {
   const handleChange = useCallback(
     (val: number) => {
-      onChange(objectKey, val)
+      // Dragging stops at the limits, but a typed value can be outside them
+      onChange(objectKey, Math.min(Math.max(val, min ?? -Infinity), max ?? Infinity))
     },
-    [objectKey, onChange]
+    [objectKey, onChange, min, max]
   )
 
   return (
@@ -792,7 +799,9 @@ function VectorNumberInput({
         onChange={handleChange}
         onCommit={onCommit}
         onInteractionStart={onInteractionStart}
-        step={0.1}
+        min={min}
+        max={max}
+        step={step}
         className={cx(s.fieldInput, s.fieldInputVector, s.fieldInputNumber)}
         title={`${keyName}: ${value}`}
         placeholder={keyName}
@@ -915,6 +924,7 @@ export function VectorFieldComponent({
               onChange={onChange}
               onCommit={onCommit}
               onInteractionStart={captureStart}
+              {...field.channelLimits[key]}
             />
           )
         })}

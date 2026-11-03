@@ -26,6 +26,7 @@ import { fnWithSource, freeExports } from '../operators'
 import { getOp } from '../store'
 import { deepEqual } from './deep-equal'
 import { getEnableExpressionDependencies } from './enable-expression-evaluator'
+import { inputAliasPath } from './field-resolution'
 import { getTimelineContext } from './timeline-context'
 
 const TIMELINE_IDENTIFIER_RE = /\b(?:sequenceTime|frame|totalFrames|sequence)\b/
@@ -196,11 +197,13 @@ function ensureReactiveSubscriptions(field: Field, expr: string): void {
   const seen = new Set<Field>()
   for (const dep of getEnableExpressionDependencies(processed)) {
     let target: Field | undefined
+    // `par.longitude` on a MapViewState reads `center` (Operator.inputAliases)
+    const parName = inputAliasPath(owner, dep.field).split('.')[0]
     if (dep.type === 'local-par') {
-      target = owner?.inputs?.[dep.field] as Field | undefined
+      target = owner?.inputs?.[parName] as Field | undefined
     } else if (dep.opPath && owner && getOp(dep.opPath, owner.id) === owner) {
       const fields = dep.type === 'remote-par' ? owner.inputs : owner.outputs
-      target = fields?.[dep.field] as Field | undefined
+      target = fields?.[dep.type === 'remote-par' ? parName : dep.field] as Field | undefined
     }
     // Never subscribe a field to itself — a driven field referencing its own value
     // would re-trigger forever
