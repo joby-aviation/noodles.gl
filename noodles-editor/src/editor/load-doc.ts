@@ -1,5 +1,5 @@
 // Any project file as an editor document. Documents are saved as `EditorDoc` JSON; older
-// projects are operator graphs (noodles.json schema 1–22), migrated to the latest schema and converted.
+// projects are operator graphs (noodles.json schema 1–23), migrated to the latest schema and converted.
 
 import type { EditorDoc } from '@noodles.gl/planner'
 import { migrateProject } from '../noodles/utils/migrate-schema'
