@@ -257,6 +257,20 @@ describe('validateProject', () => {
       assert.deepEqual(rules(layers), [])
       const single = project(p => p.edges.push(edge('n1', 'out', 'n4', 'in')))
       assert.deepEqual(rules(single), ['multiple-inputs'])
+      // A list parameter's port takes several, as a Switch Value's values do; another doesn't
+      const list = project(p => {
+        p.nodes.push(node('a', 'view-state'), node('b', 'view-state'), node('pick', 'switch-value'))
+        p.edges.push(
+          edge('a', 'viewState', 'pick', 'par:values'),
+          edge('b', 'viewState', 'pick', 'par:values')
+        )
+      })
+      assert.deepEqual(rules(list), [])
+      const twice = project(p => {
+        p.nodes.push(node('a', 'number'), node('b', 'number'))
+        p.edges.push(edge('a', 'out', 'n4', 'par:opacity'), edge('b', 'out', 'n4', 'par:opacity'))
+      })
+      assert.deepEqual(rules(twice), ['multiple-inputs'])
     })
 
     it('reports a loop once, with its path', () => {

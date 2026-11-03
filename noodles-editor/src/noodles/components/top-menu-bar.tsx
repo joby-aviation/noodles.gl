@@ -10,6 +10,8 @@ import { docStore, useEditor } from '../../editor/doc-store'
 import type { CopyControlsRef, UndoRedoHandlerRef } from '../../editor/edit-menu'
 import { renderSettingsOf } from '../../editor/render-settings'
 import { type MapMode, useUIStore } from '../../editor/ui-store'
+import { setEditorShown, useWorkspaceStore } from '../../editor/workspace-store'
+import { WorkspaceTabs } from '../../editor/workspace-tabs'
 import type { RenderSource } from '../../render/render-analytics'
 import { exportsTransparentVideo } from '../../render/video-export'
 import { analytics } from '../../utils/analytics'
@@ -20,6 +22,7 @@ import {
   trackChatOpened,
   trackMapModeChanged,
   trackPanelToggled,
+  trackWorkspaceReset,
 } from '../utils/editor-analytics'
 import { shouldBlockKeyboardShortcut } from '../utils/input-detection'
 import { Breadcrumbs } from './breadcrumbs'
@@ -463,6 +466,16 @@ export function TopMenuBar({
                         </DropdownMenu.ItemIndicator>
                         Show spreadsheet
                       </DropdownMenu.CheckboxItem>
+                      <DropdownMenu.Item
+                        className={s.dropdownItem}
+                        onSelect={() => {
+                          const { active, reset } = useWorkspaceStore.getState()
+                          trackWorkspaceReset(active)
+                          reset(active)
+                        }}
+                      >
+                        Reset workspace layout
+                      </DropdownMenu.Item>
                       <DropdownMenu.CheckboxItem
                         className={s.dropdownItem}
                         checked={autoLayoutOnConnect}
@@ -489,6 +502,9 @@ export function TopMenuBar({
                               value={mapMode}
                               onValueChange={value => {
                                 if (value !== mapMode) trackMapModeChanged(value as MapMode)
+                                // Docking needs a Map area, and the underlay a Node Graph area
+                                if (value === 'docked') setEditorShown('map', true)
+                                if (value === 'underlay') setEditorShown('graph', true)
                                 setMapMode(value as MapMode)
                               }}
                             >
@@ -596,6 +612,7 @@ export function TopMenuBar({
         )}
 
         <div className={s.rightSection}>
+          <WorkspaceTabs />
           <ExportButton
             deckName={deckName}
             transparentVideo={exportsTransparentVideo(renderSettings)}

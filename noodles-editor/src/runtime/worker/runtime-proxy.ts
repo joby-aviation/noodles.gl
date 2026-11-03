@@ -122,8 +122,11 @@ export class RuntimeProxy {
     return this.request({ type: 'query', sql })
   }
 
-  relationRows(relation: string): Promise<Record<string, unknown>[]> {
-    return this.request({ type: 'relationRows', relation })
+  relationRows(
+    relation: string,
+    vectors: readonly { name: string; width: number }[] = []
+  ): Promise<Record<string, unknown>[]> {
+    return this.request({ type: 'relationRows', relation, vectors: [...vectors] })
   }
 
   registerFile(name: string, bytes: Uint8Array): Promise<void> {

@@ -197,6 +197,27 @@ describe('deck operators', () => {
     })
   })
 
+  it('report a statistic that fails to compute as the node’s own error', async () => {
+    const fit: EditorDoc = {
+      version: 1,
+      name: 'fit',
+      nodes: [
+        { id: '/rows', op: 'sql', x: 0, y: 0, params: { query: 'SELECT 1 AS name' } },
+        { id: '/fit', op: 'fit-bounds', x: 0, y: 0, params: {} },
+      ],
+      edges: [
+        { id: 'd', source: '/rows', sourcePort: 'out', target: '/fit', targetPort: 'par:data' },
+      ],
+    }
+    const runner = new HostRunner()
+    const report = await runner.run(fit, {
+      ...inputs(),
+      aggregate: () => Promise.reject(new Error('Set Position')),
+    })
+    expect(report.errors).toEqual([{ nodeId: '/fit', message: 'Set Position' }])
+    expect(runner.output('/fit', 'viewState')).toBeUndefined()
+  })
+
   it('build a Tile 3D layer again when the key it loads with changes', async () => {
     const tiles: EditorDoc = {
       version: 1,

@@ -10,84 +10,204 @@
   flex-shrink: 0;
 }
 
-.rootGroup {
+/* Areas: the workspace tree's leaves, each an editor under a header (editor/workspace.ts) */
+.workspace {
   flex: 1;
+  min-height: 0;
+  display: flex;
+}
+
+.group {
+  flex: 1;
+  min-width: 0;
   min-height: 0;
 }
 
-/* Panels */
-.sidebarPanel {
-  background: var(--color-bg-base);
-  overflow: hidden;
+.panel {
   display: flex;
   flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
 }
 
-.sidebarToggle {
-  position: fixed;
-  left: 0;
-  top: 50%;
-  transform: translateY(-50%);
-  z-index: var(--z-index-chrome);
+.area {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  background: var(--color-bg-base);
+}
+
+.area[data-editor="properties"] {
+  background-color: var(--property-panel-background-color);
+}
+
+.areaHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-shrink: 0;
+  height: 24px;
+  padding: 0 4px;
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-bg-base);
+  font-size: 11px;
+  color: var(--color-text-secondary);
+}
+
+.editorPicker {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 20px;
+  padding: 0 6px;
+  background: transparent;
+  border: none;
+  border-radius: 3px;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.editorPicker:hover,
+.editorPicker[data-state="open"] {
+  background: var(--color-bg-hover);
+  color: var(--color-text-primary);
+}
+
+.editorPicker i {
+  font-size: 11px;
+}
+
+.editorPicker .editorPickerChevron {
+  font-size: 8px;
+  opacity: 0.7;
+}
+
+.areaActions {
+  display: flex;
+  gap: 2px;
+  opacity: 0;
+  transition: opacity 150ms ease;
+}
+
+.areaHeader:hover .areaActions,
+.areaActions:focus-within {
+  opacity: 1;
+}
+
+.areaAction {
   display: flex;
   align-items: center;
   justify-content: center;
   width: 20px;
-  height: 40px;
+  height: 20px;
   padding: 0;
-  background: var(--color-bg-base);
-  border: 1px solid var(--color-border);
-  border-left: none;
-  border-radius: 0 4px 4px 0;
-  cursor: pointer;
+  background: transparent;
+  border: none;
+  border-radius: 3px;
   color: var(--color-text-secondary);
-  transition: all 0.2s ease;
+  cursor: pointer;
 }
 
-.sidebarToggle:hover {
+.areaAction:hover {
   background: var(--color-bg-hover);
   color: var(--color-text-primary);
-  width: 24px;
 }
 
-.sidebarToggle i {
+.areaAction i {
   font-size: 10px;
 }
 
-.rightPanel {
-  background-color: var(--property-panel-background-color);
-  overflow: hidden;
+/* Map and graph areas are empty; their panes are pinned over this rect */
+.areaContent {
+  flex: 1;
+  position: relative;
   display: flex;
   flex-direction: column;
-}
-
-.outputArea {
-  position: relative;
-  height: 100%;
-  overflow: hidden;
-}
-
-.mapHost {
-  position: relative;
-  width: 100%;
-  height: 100%;
-  overflow: hidden;
-}
-
-.nodeGraphArea {
-  position: relative;
-  /* Above the map underlay pane (see dockable-pane.module.css) */
-  z-index: var(--z-index-docked);
-  height: 100%;
   min-width: 0;
+  min-height: 0;
   overflow: hidden;
 }
 
-/* Empty rect the map underlay pane pins to; the graph renders over it */
-.mapUnderlayAnchor {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
+.measured {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.menu {
+  min-width: 180px;
+  padding: 4px;
+  background: var(--color-bg-base);
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  box-shadow: 0 10px 38px -10px rgba(0, 0, 0, 0.35);
+  z-index: var(--z-index-chrome);
+}
+
+.menuItem {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 3px;
+  font-size: 12px;
+  color: var(--color-text-primary);
+  cursor: pointer;
+  outline: none;
+  user-select: none;
+}
+
+.menuItem[data-highlighted] {
+  background: var(--color-bg-hover);
+}
+
+.menuItem i {
+  width: 14px;
+  font-size: 11px;
+  color: var(--color-text-secondary);
+}
+
+.menuItemCurrent {
+  font-weight: 600;
+}
+
+.menuHint {
+  margin-left: auto;
+  font-size: 10px;
+  color: var(--color-text-secondary);
+}
+
+.emptyArea {
+  flex: 1;
+  display: flex;
+  flex-wrap: wrap;
+  align-content: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 16px;
+  font-size: 12px;
+  color: var(--color-text-secondary);
+}
+
+.emptyAreaChoice {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  background: transparent;
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  color: var(--color-text-primary);
+  font: inherit;
+  cursor: pointer;
+}
+
+.emptyAreaChoice:hover {
+  background: var(--color-bg-hover);
 }
 
 .paneActionButton {
@@ -113,31 +233,12 @@
   font-size: 11px;
 }
 
-.underlayRestoreButton {
-  position: absolute;
-  top: 8px;
-  right: 8px;
-  z-index: 1;
-  opacity: 0.4;
-  transition:
-    opacity 150ms ease,
-    color 150ms ease;
-}
-
-.underlayRestoreButton:hover {
-  opacity: 1;
-}
-
-.timelinePanel {
-  overflow: hidden;
-}
-
 .timelineCollapseTab {
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 6px;
-  flex-shrink: 0;
+  flex: 1;
   width: 100%;
   height: 24px;
   background: linear-gradient(180deg, #1b2230 0%, #151b27 100%);

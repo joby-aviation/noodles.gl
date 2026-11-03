@@ -36,7 +36,9 @@ const fileName = (url: unknown) =>
     .filter(Boolean)
     .at(-1) ?? ''
 
-export function summaryOf(node: DocNode, op: OpDef): string | undefined {
+/** `camera` names the node wired into its camera input, which sets the camera it shows. */
+export function summaryOf(node: DocNode, op: OpDef, camera?: string): string | undefined {
+  if (camera) return clip(`camera ← ${camera}`)
   const value = (name: string): ParamValue | undefined =>
     node.params[name] ?? op.params.find(p => p.name === name)?.default
   const v = (name: string) => shownValue(value(name))

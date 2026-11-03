@@ -14,7 +14,7 @@ export type Request =
   | { type: 'forget' }
   | { type: 'registerFile'; name: string; bytes: Uint8Array }
   | { type: 'query'; sql: string }
-  | { type: 'relationRows'; relation: string }
+  | { type: 'relationRows'; relation: string; vectors?: { name: string; width: number }[] }
   | { type: 'preview'; nodeId: string; limit: number }
   | { type: 'nodeSql'; nodeId: string; columns?: string[] }
 

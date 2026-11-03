@@ -19,6 +19,7 @@ import {
   type Graph, type RenderNode, type Bin2dNode, type RawNode, type ParamSpec, type RampName,
   statExpr, statParamName, RAMP_LUT_SIZE,
 } from './types.js';
+import { substituteColumns } from './functions.js';
 import {
   analyze, PlanError, externalAttributes, type Analysis, type AnalyzedNode, type Schema, type Stage,
   type RenderChannels, type LayerAnalysis, type ColumnTypes, type PathColumns,
@@ -578,7 +579,9 @@ function emit(
     // rather than sharing text with the row query, whose numbering differs.
     const bind = new SqlParams();
     const items = s.ops.map((op) => {
-      const emitted = toSql(parseExpr(statExpr(op, s.column)), bind);
+      // A computed column is read as its expression: the relation does not have it
+      const tree = substituteColumns(parseExpr(statExpr(op, s.column)), analysis.statsBindings.get(s.id) ?? new Map());
+      const emitted = toSql(tree, bind);
       return `${emitted.code} AS ${quoteIdent(op)}`;
     });
     const where = emitWhere(whereExprs, bind);

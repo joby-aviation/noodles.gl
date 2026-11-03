@@ -36,10 +36,18 @@ An edge into it ends at `"targetPort": "in"`; one out of it starts at `"sourcePo
 | `colorAggregation` | `menu` | `"SUM"` | `SUM`, `MEAN`, `MIN`, `MAX`, `COUNT` |
 | `upperPercentile` | `float` | `100` |  |
 | `lowerPercentile` | `float` | `0` |  |
+| `colorScaleType` | `menu` | `"quantize"` | `quantize`, `linear`, `quantile`, `ordinal` |
+| `colorDomain` | `string` | `""` |  |
 | `colorRange` | `menu` | `""` | ``, `viridis`, `magma`, `turbo`, `cividis` |
 | `extruded` | `toggle` | `false` |  |
 | `elevationAggregation` | `menu` | `"SUM"` | `SUM`, `MEAN`, `MIN`, `MAX`, `COUNT` |
 | `elevationScale` | `float` | `1` |  |
+| `elevationScaleType` | `menu` | `"linear"` | `linear`, `quantile` |
+| `elevationRange` | `string` | `"0, 1000"` |  |
+| `elevationDomain` | `string` | `""` |  |
+| `elevationUpperPercentile` | `float` | `100` |  |
+| `elevationLowerPercentile` | `float` | `0` |  |
+| `coverage` | `float` | `1` |  |
 | `ramp` | `menu` | `"viridis"` | 37 choices |
 | `opacity` | `float` | `1` |  |
 | `blend` | `menu` | `"normal"` | `normal`, `additive`, `subtractive` |

@@ -99,7 +99,7 @@ export class EngineHost {
       case 'query':
         return this.runtime.query(message.sql)
       case 'relationRows':
-        return this.runtime.relationRows(message.relation)
+        return this.runtime.relationRows(message.relation, message.vectors)
       case 'preview':
         return this.runtime.preview(message.nodeId, message.limit)
       case 'nodeSql':

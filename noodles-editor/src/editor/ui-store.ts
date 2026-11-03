@@ -3,6 +3,7 @@
 
 import type { Edge as ReactFlowEdge } from '@xyflow/react'
 import { create } from 'zustand'
+import type { LinkDrag } from './param-links'
 
 export interface PendingInsertionIndex {
   nodeId: string
@@ -47,8 +48,6 @@ interface UIStoreState {
   setQuickStartModalOpen: (open: boolean) => void
   timelineExpanded: boolean
   setTimelineExpanded: (expanded: boolean) => void
-  spreadsheetVisible: boolean
-  setSpreadsheetVisible: (visible: boolean) => void
   pinnedSpreadsheetNodeId: string | null
   setPinnedSpreadsheetNodeId: (id: string | null) => void
   mapMode: MapMode
@@ -64,11 +63,14 @@ interface UIStoreState {
   // The node the graph outlines for a second after it was picked on the map
   pulsingNodeId: string | null
   setPulsingNodeId: (id: string | null) => void
+  // A parameter port or a node being dragged to link a parameter (param-links.ts)
+  linkDrag: LinkDrag | null
+  setLinkDrag: (drag: LinkDrag | null) => void
 }
 
-// docked: map in its own panel above the node graph
+// docked: map in its own area of the workspace
 // floating: map in a draggable window
-// underlay: map fills the node graph area, drawn behind the graph
+// underlay: map fills the node graph's area, drawn behind the graph
 export type MapMode = 'docked' | 'floating' | 'underlay'
 
 const MAP_MODES: MapMode[] = ['docked', 'floating', 'underlay']
@@ -100,8 +102,6 @@ export const useUIStore = create<UIStoreState>(set => ({
   setQuickStartModalOpen: open => set({ quickStartModalOpen: open }),
   timelineExpanded: false,
   setTimelineExpanded: expanded => set({ timelineExpanded: expanded }),
-  spreadsheetVisible: false,
-  setSpreadsheetVisible: visible => set({ spreadsheetVisible: visible }),
   pinnedSpreadsheetNodeId: null,
   setPinnedSpreadsheetNodeId: id => set({ pinnedSpreadsheetNodeId: id }),
   mapMode: loadMapMode(),
@@ -116,6 +116,8 @@ export const useUIStore = create<UIStoreState>(set => ({
     set(state => ({ mapPickFocus: { nodeId, seq: (state.mapPickFocus?.seq ?? 0) + 1 } })),
   pulsingNodeId: null,
   setPulsingNodeId: id => set({ pulsingNodeId: id }),
+  linkDrag: null,
+  setLinkDrag: drag => set({ linkDrag: drag }),
 }))
 
 export const getUIStore = () => useUIStore.getState()

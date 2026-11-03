@@ -100,8 +100,8 @@ export {
   type EditorDoc, type DocNode, type DocEdge, type ParamValue, type PromotedParam,
 } from './doc.js';
 export {
-  OPERATORS, OPERATOR_INDEX, operator, bindingOf, histogramSql, canConnect, paramAccepts, paramPort, safeId, registerRamp, registerOperator,
-  type OpDef, type ParamDef, type ParamKind, type PortSpec, type PortType, type Category,
+  OPERATORS, OPERATOR_INDEX, operator, bindingOf, histogramSql, canConnect, shapesFit, paramAccepts, paramPort, safeId, registerRamp, registerOperator,
+  type OpDef, type ParamDef, type ParamKind, type PortSpec, type PortType, type ValueShape, type Category,
   type LowerCtx, type LowerResult, type ScalarParams,
 } from './operators.js';
 export {

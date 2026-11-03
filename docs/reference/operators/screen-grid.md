@@ -34,6 +34,7 @@ An edge into it ends at `"targetPort": "in"`; one out of it starts at `"sourcePo
 | `cellSizePixels` | `float` | `100` |  |
 | `cellMarginPixels` | `float` | `2` |  |
 | `aggregation` | `menu` | `"SUM"` | `SUM`, `MEAN`, `MIN`, `MAX` |
+| `colorDomain` | `string` | `""` |  |
 | `colorRange` | `menu` | `""` | ``, `viridis`, `magma`, `turbo`, `cividis` |
 | `opacity` | `float` | `1` |  |
 | `blend` | `menu` | `"normal"` | `normal`, `additive`, `subtractive` |

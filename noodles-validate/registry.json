@@ -150,6 +150,10 @@
           "kind": "expr",
           "default": ""
         },
+        "tiltBy": {
+          "kind": "expr",
+          "default": ""
+        },
         "ramp": {
           "kind": "menu",
           "default": "viridis",
@@ -210,6 +214,10 @@
           "kind": "float",
           "default": 1
         },
+        "tilt": {
+          "kind": "float",
+          "default": 0
+        },
         "greatCircle": {
           "kind": "toggle",
           "default": false
@@ -229,6 +237,18 @@
             60,
             120
           ]
+        },
+        "numSegments": {
+          "kind": "int",
+          "default": 50
+        },
+        "widthMinPixels": {
+          "kind": "float",
+          "default": 0
+        },
+        "widthMaxPixels": {
+          "kind": "float",
+          "default": 0
         },
         "opacity": {
           "kind": "float",
@@ -406,7 +426,8 @@
         "extensions": {
           "kind": "field",
           "default": [],
-          "portType": "value"
+          "portType": "value",
+          "multi": true
         }
       }
     },
@@ -1162,9 +1183,17 @@
         },
         "elevation": {
           "kind": "expr",
-          "default": "n"
+          "default": ""
         },
         "color": {
+          "kind": "expr",
+          "default": ""
+        },
+        "lineColorChannel": {
+          "kind": "expr",
+          "default": ""
+        },
+        "lineWidth": {
           "kind": "expr",
           "default": ""
         },
@@ -1215,6 +1244,15 @@
           "kind": "float",
           "default": 250
         },
+        "radiusUnits": {
+          "kind": "menu",
+          "default": "meters",
+          "options": [
+            "meters",
+            "pixels",
+            "common"
+          ]
+        },
         "elevationScale": {
           "kind": "float",
           "default": 20
@@ -1225,6 +1263,62 @@
             255,
             170,
             60
+          ]
+        },
+        "diskResolution": {
+          "kind": "int",
+          "default": 12
+        },
+        "coverage": {
+          "kind": "float",
+          "default": 1
+        },
+        "offsetX": {
+          "kind": "float",
+          "default": 0
+        },
+        "offsetY": {
+          "kind": "float",
+          "default": 0
+        },
+        "extruded": {
+          "kind": "toggle",
+          "default": true
+        },
+        "filled": {
+          "kind": "toggle",
+          "default": true
+        },
+        "wireframe": {
+          "kind": "toggle",
+          "default": false
+        },
+        "flatShading": {
+          "kind": "toggle",
+          "default": false
+        },
+        "stroked": {
+          "kind": "toggle",
+          "default": false
+        },
+        "lineColor": {
+          "kind": "color",
+          "default": [
+            255,
+            255,
+            255
+          ]
+        },
+        "lineWidthScale": {
+          "kind": "float",
+          "default": 1
+        },
+        "lineWidthUnits": {
+          "kind": "menu",
+          "default": "meters",
+          "options": [
+            "meters",
+            "pixels"
           ]
         },
         "opacity": {
@@ -1488,14 +1582,14 @@
           "kind": "float",
           "default": 0
         },
-        "follow": {
-          "kind": "toggle",
-          "default": false
-        },
         "mapStyle": {
           "kind": "url",
           "default": "",
           "portType": "value"
+        },
+        "styleOverrides": {
+          "kind": "text",
+          "default": ""
         },
         "projection": {
           "kind": "menu",
@@ -2056,7 +2150,7 @@
       "name": "Fit Bounds",
       "type": "fit-bounds",
       "category": "output",
-      "description": "The camera that fits rows into the render surface: wire its view state into the deck, or its longitude, latitude and zoom into a View State. The bounds are computed in DuckDB.",
+      "description": "The camera that fits rows into the render surface: wire its view state or its bounds into the deck or a View State. The bounds are computed in DuckDB.",
       "inputs": {},
       "outputs": {
         "viewState": {
@@ -2083,7 +2177,7 @@
         },
         "position": {
           "kind": "expr",
-          "default": "[lng, lat]"
+          "default": ""
         },
         "padding": {
           "kind": "float",
@@ -2463,6 +2557,14 @@
           "kind": "expr",
           "default": ""
         },
+        "lineColorChannel": {
+          "kind": "expr",
+          "default": ""
+        },
+        "lineWidth": {
+          "kind": "expr",
+          "default": ""
+        },
         "ramp": {
           "kind": "menu",
           "default": "viridis",
@@ -2528,6 +2630,42 @@
             255,
             170,
             60
+          ]
+        },
+        "filled": {
+          "kind": "toggle",
+          "default": true
+        },
+        "wireframe": {
+          "kind": "toggle",
+          "default": false
+        },
+        "flatShading": {
+          "kind": "toggle",
+          "default": false
+        },
+        "stroked": {
+          "kind": "toggle",
+          "default": false
+        },
+        "lineColor": {
+          "kind": "color",
+          "default": [
+            255,
+            255,
+            255
+          ]
+        },
+        "lineWidthScale": {
+          "kind": "float",
+          "default": 1
+        },
+        "lineWidthUnits": {
+          "kind": "menu",
+          "default": "meters",
+          "options": [
+            "meters",
+            "pixels"
           ]
         },
         "opacity": {
@@ -2601,6 +2739,20 @@
           "kind": "float",
           "default": 0
         },
+        "colorScaleType": {
+          "kind": "menu",
+          "default": "quantize",
+          "options": [
+            "quantize",
+            "linear",
+            "quantile",
+            "ordinal"
+          ]
+        },
+        "colorDomain": {
+          "kind": "string",
+          "default": ""
+        },
         "colorRange": {
           "kind": "menu",
           "default": "",
@@ -2628,6 +2780,34 @@
           ]
         },
         "elevationScale": {
+          "kind": "float",
+          "default": 1
+        },
+        "elevationScaleType": {
+          "kind": "menu",
+          "default": "linear",
+          "options": [
+            "linear",
+            "quantile"
+          ]
+        },
+        "elevationRange": {
+          "kind": "string",
+          "default": "0, 1000"
+        },
+        "elevationDomain": {
+          "kind": "string",
+          "default": ""
+        },
+        "elevationUpperPercentile": {
+          "kind": "float",
+          "default": 100
+        },
+        "elevationLowerPercentile": {
+          "kind": "float",
+          "default": 0
+        },
+        "coverage": {
           "kind": "float",
           "default": 1
         },
@@ -2867,6 +3047,20 @@
           "kind": "float",
           "default": 0
         },
+        "colorScaleType": {
+          "kind": "menu",
+          "default": "quantize",
+          "options": [
+            "quantize",
+            "linear",
+            "quantile",
+            "ordinal"
+          ]
+        },
+        "colorDomain": {
+          "kind": "string",
+          "default": ""
+        },
         "colorRange": {
           "kind": "menu",
           "default": "",
@@ -2894,6 +3088,34 @@
           ]
         },
         "elevationScale": {
+          "kind": "float",
+          "default": 1
+        },
+        "elevationScaleType": {
+          "kind": "menu",
+          "default": "linear",
+          "options": [
+            "linear",
+            "quantile"
+          ]
+        },
+        "elevationRange": {
+          "kind": "string",
+          "default": "0, 1000"
+        },
+        "elevationDomain": {
+          "kind": "string",
+          "default": ""
+        },
+        "elevationUpperPercentile": {
+          "kind": "float",
+          "default": 100
+        },
+        "elevationLowerPercentile": {
+          "kind": "float",
+          "default": 0
+        },
+        "coverage": {
           "kind": "float",
           "default": 1
         },
@@ -3085,6 +3307,18 @@
         "sizeMinPixels": {
           "kind": "float",
           "default": 0
+        },
+        "sizeMaxPixels": {
+          "kind": "float",
+          "default": 0
+        },
+        "sizeBasis": {
+          "kind": "menu",
+          "default": "height",
+          "options": [
+            "height",
+            "width"
+          ]
         },
         "billboard": {
           "kind": "toggle",
@@ -3540,6 +3774,10 @@
           "kind": "float",
           "default": 0
         },
+        "widthMaxPixels": {
+          "kind": "float",
+          "default": 0
+        },
         "lineColor": {
           "kind": "color",
           "default": [
@@ -3893,7 +4131,8 @@
         "objects": {
           "kind": "field",
           "default": null,
-          "portType": "value"
+          "portType": "value",
+          "multi": true
         }
       }
     },
@@ -3944,6 +4183,10 @@
         "wireframe": {
           "kind": "toggle",
           "default": false
+        },
+        "texture": {
+          "kind": "url",
+          "default": ""
         },
         "modelColor": {
           "kind": "color",
@@ -4113,7 +4356,8 @@
         "extensions": {
           "kind": "field",
           "default": [],
-          "portType": "value"
+          "portType": "value",
+          "multi": true
         }
       }
     },
@@ -4466,6 +4710,26 @@
             255
           ]
         },
+        "capRounded": {
+          "kind": "toggle",
+          "default": true
+        },
+        "jointRounded": {
+          "kind": "toggle",
+          "default": true
+        },
+        "miterLimit": {
+          "kind": "float",
+          "default": 4
+        },
+        "billboard": {
+          "kind": "toggle",
+          "default": false
+        },
+        "wrapLongitude": {
+          "kind": "toggle",
+          "default": false
+        },
         "opacity": {
           "kind": "float",
           "default": 1
@@ -4765,6 +5029,10 @@
           "kind": "expr",
           "default": ""
         },
+        "lineWidth": {
+          "kind": "expr",
+          "default": ""
+        },
         "elevation": {
           "kind": "expr",
           "default": ""
@@ -4852,7 +5120,23 @@
           "kind": "float",
           "default": 1
         },
+        "lineWidthMaxPixels": {
+          "kind": "float",
+          "default": 0
+        },
+        "lineJointRounded": {
+          "kind": "toggle",
+          "default": false
+        },
+        "lineMiterLimit": {
+          "kind": "float",
+          "default": 4
+        },
         "extruded": {
+          "kind": "toggle",
+          "default": false
+        },
+        "wireframe": {
           "kind": "toggle",
           "default": false
         },
@@ -5028,7 +5312,8 @@
         "extensions": {
           "kind": "field",
           "default": [],
-          "portType": "value"
+          "portType": "value",
+          "multi": true
         }
       }
     },
@@ -5203,6 +5488,14 @@
           "kind": "expr",
           "default": ""
         },
+        "lineColorChannel": {
+          "kind": "expr",
+          "default": ""
+        },
+        "lineWidth": {
+          "kind": "expr",
+          "default": ""
+        },
         "ramp": {
           "kind": "menu",
           "default": "viridis",
@@ -5265,6 +5558,38 @@
             140,
             0
           ]
+        },
+        "stroked": {
+          "kind": "toggle",
+          "default": false
+        },
+        "lineColor": {
+          "kind": "color",
+          "default": [
+            255,
+            255,
+            255
+          ]
+        },
+        "lineWidthScale": {
+          "kind": "float",
+          "default": 1
+        },
+        "lineWidthUnits": {
+          "kind": "menu",
+          "default": "pixels",
+          "options": [
+            "pixels",
+            "meters"
+          ]
+        },
+        "billboard": {
+          "kind": "toggle",
+          "default": false
+        },
+        "antialiasing": {
+          "kind": "toggle",
+          "default": true
         },
         "opacity": {
           "kind": "float",
@@ -5450,6 +5775,10 @@
             "MIN",
             "MAX"
           ]
+        },
+        "colorDomain": {
+          "kind": "string",
+          "default": ""
         },
         "colorRange": {
           "kind": "menu",
@@ -5747,22 +6076,50 @@
       "name": "Switch",
       "type": "switch",
       "category": "structure",
-      "description": "Pass one of several layers through, chosen by index. A change re-plans, and the memo keeps every layer it is not showing, so switching back costs at most that layer's query.",
+      "description": "Pass one of several tables or layers through, chosen by index. A change re-plans, and the memo keeps every input it is not showing, so switching back costs at most that input's query. For numbers, cameras and other values, use Switch Value.",
       "inputs": {
         "in": {
-          "type": "layer",
+          "type": "any",
           "multi": true
         }
       },
       "outputs": {
         "out": {
-          "type": "layer"
+          "type": "any"
         }
       },
       "params": {
         "index": {
           "kind": "int",
           "default": 0
+        }
+      }
+    },
+    "switch-value": {
+      "name": "Switch Value",
+      "type": "switch-value",
+      "category": "output",
+      "description": "One of several values, chosen by Index: a camera from several View States wired into the deck, say. Keyframe Index to cut between cameras; with Blend, a decimal Index blends the two either side, so keyframing it flies from one camera to the next.",
+      "inputs": {},
+      "outputs": {
+        "value": {
+          "type": "value"
+        }
+      },
+      "params": {
+        "values": {
+          "kind": "field",
+          "default": null,
+          "portType": "value",
+          "multi": true
+        },
+        "index": {
+          "kind": "float",
+          "default": 0
+        },
+        "blend": {
+          "kind": "toggle",
+          "default": false
         }
       }
     },
@@ -5851,7 +6208,8 @@
         "extensions": {
           "kind": "field",
           "default": [],
-          "portType": "value"
+          "portType": "value",
+          "multi": true
         }
       }
     },
@@ -5906,6 +6264,14 @@
           "default": ""
         },
         "sizeBy": {
+          "kind": "expr",
+          "default": ""
+        },
+        "borderColorChannel": {
+          "kind": "expr",
+          "default": ""
+        },
+        "borderWidthBy": {
           "kind": "expr",
           "default": ""
         },
@@ -5973,6 +6339,18 @@
             230
           ]
         },
+        "sizeScale": {
+          "kind": "float",
+          "default": 1
+        },
+        "sizeMinPixels": {
+          "kind": "float",
+          "default": 0
+        },
+        "sizeMaxPixels": {
+          "kind": "float",
+          "default": 0
+        },
         "offsetX": {
           "kind": "float",
           "default": 0
@@ -6015,6 +6393,22 @@
           "kind": "toggle",
           "default": true
         },
+        "lineHeight": {
+          "kind": "float",
+          "default": 1
+        },
+        "wordBreak": {
+          "kind": "menu",
+          "default": "break-word",
+          "options": [
+            "break-word",
+            "break-all"
+          ]
+        },
+        "maxWidth": {
+          "kind": "float",
+          "default": 0
+        },
         "outlineWidth": {
           "kind": "float",
           "default": 2
@@ -6038,6 +6432,26 @@
             255,
             255
           ]
+        },
+        "backgroundPadding": {
+          "kind": "float",
+          "default": 0
+        },
+        "borderColor": {
+          "kind": "color",
+          "default": [
+            0,
+            0,
+            0
+          ]
+        },
+        "borderWidth": {
+          "kind": "float",
+          "default": 0
+        },
+        "backgroundBorderRadius": {
+          "kind": "float",
+          "default": 0
         },
         "opacity": {
           "kind": "float",
@@ -6134,7 +6548,8 @@
         "extensions": {
           "kind": "field",
           "default": [],
-          "portType": "value"
+          "portType": "value",
+          "multi": true
         }
       }
     },
@@ -6412,6 +6827,10 @@
           "kind": "expr",
           "default": ""
         },
+        "width": {
+          "kind": "expr",
+          "default": ""
+        },
         "ramp": {
           "kind": "menu",
           "default": "viridis",
@@ -6490,6 +6909,22 @@
             128,
             93
           ]
+        },
+        "capRounded": {
+          "kind": "toggle",
+          "default": true
+        },
+        "jointRounded": {
+          "kind": "toggle",
+          "default": true
+        },
+        "miterLimit": {
+          "kind": "float",
+          "default": 4
+        },
+        "billboard": {
+          "kind": "toggle",
+          "default": false
         },
         "opacity": {
           "kind": "float",
@@ -6594,7 +7029,7 @@
       "name": "View State",
       "type": "view-state",
       "category": "output",
-      "description": "A camera: longitude, latitude, zoom, pitch and bearing, which numbers can drive.",
+      "description": "A camera: longitude, latitude, zoom, pitch and bearing, which numbers can drive. A camera, point or bounds wired into From sets the fields it has, and the rest are this node's.",
       "inputs": {},
       "outputs": {
         "viewState": {
@@ -6602,6 +7037,11 @@
         }
       },
       "params": {
+        "from": {
+          "kind": "field",
+          "default": null,
+          "portType": "value"
+        },
         "longitude": {
           "kind": "float",
           "default": -74.006

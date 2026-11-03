@@ -110,6 +110,8 @@ export const LAYER_SPECS: Record<LayerKind, LayerKindSpec> = {
       { name: 'position', type: 'vec', required: true, fallback: 'position' },
       { name: 'color', type: 'color', fallback: 'color' },
       { name: 'radius', type: 'num', fallback: 'size' },
+      { name: 'lineColor', type: 'color' },
+      { name: 'lineWidth', type: 'num' },
     ],
   },
   arc: {
@@ -119,6 +121,7 @@ export const LAYER_SPECS: Record<LayerKind, LayerKindSpec> = {
       { name: 'sourceColor', type: 'color' },
       { name: 'targetColor', type: 'color' },
       { name: 'width', type: 'num' },
+      { name: 'tilt', type: 'num' },
     ],
   },
   path: {
@@ -135,6 +138,7 @@ export const LAYER_SPECS: Record<LayerKind, LayerKindSpec> = {
       { name: 'position', type: 'vec', required: true, fallback: 'position' },
       { name: 'timestamp', type: 'num', required: true },
       { name: 'color', type: 'color', fallback: 'color' },
+      { name: 'width', type: 'num' },
     ],
   },
   column: {
@@ -142,6 +146,8 @@ export const LAYER_SPECS: Record<LayerKind, LayerKindSpec> = {
       { name: 'position', type: 'vec', required: true, fallback: 'position' },
       { name: 'elevation', type: 'num' },
       { name: 'color', type: 'color', fallback: 'color' },
+      { name: 'lineColor', type: 'color' },
+      { name: 'lineWidth', type: 'num' },
     ],
   },
   text: {
@@ -150,6 +156,8 @@ export const LAYER_SPECS: Record<LayerKind, LayerKindSpec> = {
       { name: 'text', type: 'str', required: true },
       { name: 'color', type: 'color', fallback: 'color' },
       { name: 'size', type: 'num' },
+      { name: 'borderColor', type: 'color' },
+      { name: 'borderWidth', type: 'num' },
     ],
   },
   polygon: {
@@ -159,6 +167,7 @@ export const LAYER_SPECS: Record<LayerKind, LayerKindSpec> = {
       { name: 'position', type: 'vec', required: true, fallback: 'position' },
       { name: 'color', type: 'color', fallback: 'color' },
       { name: 'lineColor', type: 'color' },
+      { name: 'lineWidth', type: 'num' },
       { name: 'elevation', type: 'num' },
     ],
   },

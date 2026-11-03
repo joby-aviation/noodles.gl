@@ -1,11 +1,13 @@
-// Analytics for editor chrome: panels shown and hidden, the AI assistant opened and closed,
-// the map's layout, and the first time the user moves the map camera.
+// Analytics for editor chrome: panels shown and hidden, workspaces and their areas, the AI
+// assistant opened and closed, the map's layout, and the first time the user moves the map
+// camera.
 //
 // Each helper is called from the control the user clicked (or, for panels resized by
 // dragging, from the panel's resize transition), never from code that changes the same
 // state on its own, such as opening the timeline for an animated project.
 
 import type { MapMode } from '../../editor/ui-store'
+import type { EditorType, WorkspaceId } from '../../editor/workspace'
 import { analytics } from '../../utils/analytics'
 
 export type ToggledPanel = 'sidebar' | 'properties' | 'timeline' | 'spreadsheet'
@@ -25,6 +27,22 @@ export function trackChatOpened(source: ChatOpenSource) {
 
 export function trackChatClosed(source: ChatCloseSource) {
   analytics.track('chat_closed', { source })
+}
+
+export function trackWorkspaceSelected(workspace: WorkspaceId) {
+  analytics.track('workspace_selected', { workspace })
+}
+
+export function trackWorkspaceReset(workspace: WorkspaceId) {
+  analytics.track('workspace_reset', { workspace })
+}
+
+// An area's header: its editor changed, or the area was split or closed. editor is the one
+// chosen, or the one the area showed when it was split or closed.
+export type AreaEdit = 'editor' | 'split' | 'close'
+
+export function trackAreaEdited(action: AreaEdit, editor: EditorType) {
+  analytics.track('area_edited', { action, editor })
 }
 
 export function trackMapModeChanged(mode: MapMode) {

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { parseExpr, enginesFor, columnsOf, paramsOf, isAggregate, simplifyExpr, vectorItems, widthOf } from './expr.js';
-import { toSql, toSqlColumns } from './backends/sql.js';
+import { parseExpr, enginesFor, columnsOf, componentColumns, paramsOf, isAggregate, simplifyExpr, vectorItems, widthOf } from './expr.js';
+import { SqlParams, toSql, toSqlColumns } from './backends/sql.js';
 import { toWgsl, type Resolver } from './backends/wgsl.js';
 
 /** Test resolver: every column is a scalar named `a_<name>` unless listed wider. */
@@ -236,5 +236,24 @@ describe('simplifyExpr', () => {
   it('is what makes a point built from scalars SQL-feasible', () => {
     expect(enginesFor(parseExpr('[lng, lat].x * 2')).has('sql')).toBe(false);
     expect(enginesFor(simp('[lng, lat].x * 2')).has('sql')).toBe(true);
+  });
+});
+
+describe('vectors held as component columns', () => {
+  const widths = new Map([['c', 3]]);
+  const sql = (src: string) => toSql(componentColumns(parseExpr(src), widths), new SqlParams()).code;
+
+  it('reads an index or a swizzle as the component column, in SQL', () => {
+    expect(sql('c[0] * 2')).toBe(toSql(parseExpr('c_0 * 2'), new SqlParams()).code);
+    expect(sql('c.r + c.g')).toBe(toSql(parseExpr('c_0 + c_1'), new SqlParams()).code);
+    expect(enginesFor(componentColumns(parseExpr('c.b'), widths)).has('sql')).toBe(true);
+  });
+
+  it('reads the vector whole as its components, and leaves other columns alone', () => {
+    expect(componentColumns(parseExpr('c'), widths)).toEqual(parseExpr('[c_0, c_1, c_2]'));
+    expect(componentColumns(parseExpr('c.xy'), widths)).toEqual(parseExpr('[c_0, c_1]'));
+    expect(componentColumns(parseExpr('d.x + 1'), widths)).toEqual(parseExpr('d.x + 1'));
+    // A component the vector doesn't have stays as written, for the error to name it
+    expect(componentColumns(parseExpr('c.w'), widths)).toEqual(parseExpr('c.w'));
   });
 });

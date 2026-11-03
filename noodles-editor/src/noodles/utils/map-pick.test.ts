@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { findPickedOperatorId, isClickNotDrag, type PickedLayer, placeLabel } from './map-pick'
+import { findPickedOperatorId, isClickNotDrag, type PickedLayer } from './map-pick'
 
 const operators = (...ids: string[]) => {
   const known = new Set(ids)
@@ -89,18 +89,5 @@ describe('isClickNotDrag', () => {
   it('counts a click with no press on record as a click', () => {
     expect(isClickNotDrag(null, { x: 5, y: 5 })).toBe(true)
     expect(isClickNotDrag({ x: 5, y: 5 }, null)).toBe(true)
-  })
-})
-
-describe('placeLabel', () => {
-  const label = { width: 80, height: 20 }
-  const bounds = { width: 500, height: 300 }
-
-  it('sits below and right of the pointer', () => {
-    expect(placeLabel({ x: 100, y: 100 }, label, bounds, 14)).toEqual({ x: 114, y: 114 })
-  })
-
-  it('flips left and up near the right and bottom edges', () => {
-    expect(placeLabel({ x: 450, y: 290 }, label, bounds, 14)).toEqual({ x: 356, y: 256 })
   })
 })

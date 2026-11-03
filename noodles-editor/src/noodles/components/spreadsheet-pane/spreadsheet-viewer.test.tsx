@@ -1,6 +1,6 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { SpreadsheetViewer } from './spreadsheet-viewer'
+import { SpreadsheetViewer, vectorGroups } from './spreadsheet-viewer'
 
 // CSS modules
 vi.mock('./spreadsheet-viewer.module.css', () => ({
@@ -156,5 +156,39 @@ describe('SpreadsheetViewer', () => {
       render(<SpreadsheetViewer data={[{ meta: { x: 1 } }]} operatorId="/op" />)
       expect(screen.getByText('{"x":1}')).toBeTruthy()
     })
+  })
+})
+
+describe('vector columns', () => {
+  afterEach(() => cleanup())
+  const rows = [
+    {
+      id: 1,
+      magnitude_color_0: 0.1,
+      magnitude_color_1: 0.2,
+      magnitude_color_2: 0.3,
+      position_0: 5,
+      position_1: 6,
+    },
+  ]
+
+  it('groups a vector’s components under its name, each by its swizzle letter', () => {
+    render(<SpreadsheetViewer data={rows} operatorId="op" />)
+    expect(screen.getByText('magnitude_color')).toBeTruthy()
+    expect(screen.getByText('position')).toBeTruthy()
+    for (const letter of ['r', 'g', 'b', 'x', 'y']) expect(screen.getByText(letter)).toBeTruthy()
+    expect(screen.queryByText('magnitude_color_0')).toBeNull()
+    // The group spans its components
+    const group = screen.getByText('magnitude_color').closest('th')
+    expect(group?.colSpan).toBe(3)
+  })
+
+  it('leaves numbered columns that are no vector as they are', () => {
+    const groups = vectorGroups([
+      { name: 'lone_0', type: 'number' },
+      { name: 'label_0', type: 'string' },
+      { name: 'label_1', type: 'string' },
+    ] as never)
+    expect(groups.map(g => g.name)).toEqual(['lone_0', 'label_0', 'label_1'])
   })
 })

@@ -636,6 +636,12 @@ export function vectorItems(
         const comps = n.target.kind === 'col' ? packed(n.target.name) : undefined;
         return { ...n, target: comps ? { kind: 'vec', components: comps } : go(n.target) };
       }
+      // A packed vector read whole is its components: `c` is `[c_0, c_1, c_2]`, which SQL
+      // splits into columns as it does any vector
+      case 'col': {
+        const comps = packed(n.name);
+        return comps ? { kind: 'vec', components: comps } : n;
+      }
       case 'call': {
         const [list, index] = n.args;
         if (n.fn === 'item' && list.kind === 'col' && index.kind === 'num' && Number.isInteger(index.value)) {
@@ -648,6 +654,41 @@ export function vectorItems(
         }
         return { ...n, args: n.args.map(go) };
       }
+      default: return n;
+    }
+  };
+  return go(e);
+}
+
+/**
+ * Reads of vectors a SQL query holds as component columns (`c_0, c_1, c_2`), as those columns:
+ * `c.r` and `c[0]` are `c_0`, `c.xy` is `[c_0, c_1]`, `c` read whole is `[c_0, c_1, c_2]`. A
+ * vector a relation computes (a color ramp's) is stored that way, so this is how a later node
+ * in the same query reads it in SQL.
+ */
+export function componentColumns(e: Expr, widths: ReadonlyMap<string, number>): Expr {
+  if (widths.size === 0) return e;
+  const comp = (name: string, i: number): Expr => ({ kind: 'col', name: `${name}_${i}` });
+  const index = (ch: string) => Math.max('xyzw'.indexOf(ch), 'rgba'.indexOf(ch));
+  const go = (n: Expr): Expr => {
+    switch (n.kind) {
+      case 'col': {
+        const w = widths.get(n.name);
+        return w ? { kind: 'vec', components: Array.from({ length: w }, (_, i) => comp(n.name, i)) } : n;
+      }
+      case 'swizzle': {
+        const w = n.target.kind === 'col' ? widths.get(n.target.name) : undefined;
+        if (n.target.kind !== 'col' || !w) return { ...n, target: go(n.target) };
+        const name = n.target.name;
+        const picks = [...n.channels].map(index);
+        if (picks.some((i) => i < 0 || i >= w)) return n;
+        return picks.length === 1 ? comp(name, picks[0]) : { kind: 'vec', components: picks.map((i) => comp(name, i)) };
+      }
+      case 'unary': return { ...n, operand: go(n.operand) };
+      case 'binary': return { ...n, left: go(n.left), right: go(n.right) };
+      case 'vec': return { ...n, components: n.components.map(go) };
+      case 'cond': return { ...n, test: go(n.test), then: go(n.then), else: go(n.else) };
+      case 'call': return { ...n, args: n.args.map(go) };
       default: return n;
     }
   };

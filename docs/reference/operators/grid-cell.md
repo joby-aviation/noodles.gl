@@ -32,12 +32,21 @@ An edge into it ends at `"targetPort": "in"`; one out of it starts at `"sourcePo
 | `position` | `expr` | `"P"` |  |
 | `elevation` | `expr` | `""` |  |
 | `color` | `expr` | `""` |  |
+| `lineColorChannel` | `expr` | `""` |  |
+| `lineWidth` | `expr` | `""` |  |
 | `ramp` | `menu` | `"viridis"` | 37 choices |
 | `cellSize` | `float` | `1000` |  |
 | `coverage` | `float` | `1` |  |
 | `elevationScale` | `float` | `1` |  |
 | `extruded` | `toggle` | `true` |  |
 | `cellColor` | `color` | `[255,170,60]` |  |
+| `filled` | `toggle` | `true` |  |
+| `wireframe` | `toggle` | `false` |  |
+| `flatShading` | `toggle` | `false` |  |
+| `stroked` | `toggle` | `false` |  |
+| `lineColor` | `color` | `[255,255,255]` |  |
+| `lineWidthScale` | `float` | `1` |  |
+| `lineWidthUnits` | `menu` | `"meters"` | `meters`, `pixels` |
 | `opacity` | `float` | `1` |  |
 | `blend` | `menu` | `"normal"` | `normal`, `additive`, `subtractive` |
 | `extensions` | `field` | `[]` |  |

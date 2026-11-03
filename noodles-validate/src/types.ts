@@ -20,6 +20,8 @@ export interface ParamInfo {
   options?: string[]
   // What a `par:<name>` edge into it takes; a number when absent
   portType?: PortType
+  // Its `par:<name>` port takes several edges, in order: a Switch Value's values
+  multi?: boolean
 }
 
 export interface OperatorInfo {

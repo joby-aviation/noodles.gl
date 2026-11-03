@@ -10,7 +10,7 @@ import { KeyPrompts } from '../components/key-prompts'
 import { getPendingQuickStartAction } from '../components/quick-start-modal'
 import { CreateFromSQLDialog } from '../noodles/components/create-from-sql-dialog'
 import { ErrorBoundary } from '../noodles/components/error-boundary'
-import { LayerPanel } from '../noodles/components/layer-panel'
+import { LayerStack } from '../noodles/components/layer-stack'
 import { NodeTreeSidebar } from '../noodles/components/node-tree-sidebar'
 import { SidebarTabs } from '../noodles/components/sidebar-tabs'
 import { CanvasDropImport } from '../noodles/components/tools/canvas-drop-import'
@@ -32,14 +32,15 @@ import {
 } from '../noodles/utils/serialization'
 import { expandTimelineIfAnimated } from '../noodles/utils/timeline-panel'
 import { TimelineProvider } from '../timeline/timeline-context'
-import { useTimelineStore } from '../timeline/timeline-store'
+import { getTimelineStore, useTimelineStore } from '../timeline/timeline-store'
 import { analytics } from '../utils/analytics'
 import type { Visualization } from '../visualizations'
 import { CanvasPaste } from './canvas-paste'
 import { bindEngine, settleEngine, useEngineState, visCommitted } from './doc-engine'
 import { canPaste, copySelection, DocNetwork, pasteClipboard } from './doc-network'
 import { setParam } from './doc-ops'
-import { getUIStore, useUIStore } from './ui-store'
+import { getUIStore } from './ui-store'
+import { setEditorShown, useEditorShown } from './workspace-store'
 import '../noodles/layers.css'
 import { agentBench, externalControl } from '../noodles/globals'
 import {
@@ -55,6 +56,7 @@ import { DocProperties } from './doc-properties'
 import { docStore, useEditor } from './doc-store'
 import { bindTimeline, resetTimelinePanel } from './doc-timeline'
 import type { CopyControlsRef, UndoRedoHandlerRef } from './edit-menu'
+import { historyShortcut } from './edit-menu'
 import { loadDoc } from './load-doc'
 import { useProjectFiles } from './project-files'
 import { DOC_DECK, renderSettingsOf } from './render-settings'
@@ -144,8 +146,7 @@ export function useDocNoodles(): Visualization {
   const [showOverlay, setShowOverlay] = useState(true)
   const showDebugInfo = useEditor(s => s.debug ?? false)
   const setShowDebugInfo = useCallback((debug: boolean) => docStore().set({ debug }), [])
-  const spreadsheetVisible = useUIStore(state => state.spreadsheetVisible)
-  const setSpreadsheetVisible = useUIStore(state => state.setSpreadsheetVisible)
+  const spreadsheetVisible = useEditorShown('spreadsheet')
   const reactFlowRef = useRef<HTMLDivElement>(null)
   const [showChatPanel, setShowChatPanel] = useState(false)
   const [showGitHistoryPanel, setShowGitHistoryPanel] = useState(false)
@@ -175,8 +176,15 @@ export function useDocNoodles(): Visualization {
   // The engine runs whatever document the store holds, at the timeline's playhead.
   useEffect(() => bindEngine(docStore(), readProjectAsset), [])
   useEffect(() => bindTimeline(docStore()), [])
-  const position = useTimelineStore(s => s.position)
-  useEffect(() => docStore().set({ time: position }), [position])
+  // Copied outside React: a subscription here would render the whole editor each frame of
+  // playback to hand a number on
+  useEffect(() => {
+    docStore().set({ time: getTimelineStore().position })
+    return useTimelineStore.subscribe(
+      s => s.position,
+      position => docStore().set({ time: position })
+    )
+  }, [])
 
   // The route names the project.
   // biome-ignore lint/correctness/useExhaustiveDependencies: a route change opens a project; nothing else should
@@ -363,10 +371,17 @@ export function useDocNoodles(): Visualization {
   }, [gitSettings, storageType, dirty, routePrefix, onSaveProject])
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      const meta = e.metaKey || e.ctrlKey
+      const key = e.key.toLowerCase()
       // mod+shift+h toggles the version history
-      if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === 'h') {
+      if (meta && e.shiftKey && key === 'h') {
         e.preventDefault()
         if (supportsVersioning(storageType)) setShowGitHistoryPanel(prev => !prev)
+      }
+      const step = historyShortcut(e)
+      if (step) {
+        e.preventDefault()
+        docStore()[step]()
       }
     }
     document.addEventListener('keydown', onKey)
@@ -459,8 +474,8 @@ export function useDocNoodles(): Visualization {
       <ErrorBoundary title="Sidebar Error">
         <SidebarTabs
           tabs={[
+            { id: 'layers', label: 'Layers', icon: 'pi-clone', content: <LayerStack /> },
             { id: 'nodes', label: 'Nodes', icon: 'pi-sitemap', content: <NodeTreeSidebar /> },
-            { id: 'layers', label: 'Layers', icon: 'pi-clone', content: <LayerPanel /> },
           ]}
         />
       </ErrorBoundary>
@@ -470,7 +485,7 @@ export function useDocNoodles(): Visualization {
     showDebugInfo,
     onChangeShowDebugInfo: setShowDebugInfo,
     spreadsheetVisible,
-    onChangeSpreadsheetVisible: setSpreadsheetVisible,
+    onChangeSpreadsheetVisible: (visible: boolean) => setEditorShown('spreadsheet', visible),
     projectName: projectName ?? doc.name,
     onSaveProject: files.onSaveProject,
     onSaveAs: files.onSaveAs,

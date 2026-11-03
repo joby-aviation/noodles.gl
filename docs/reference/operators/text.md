@@ -33,10 +33,15 @@ An edge into it ends at `"targetPort": "in"`; one out of it starts at `"sourcePo
 | `text` | `column` | `"name"` |  |
 | `color` | `expr` | `""` |  |
 | `sizeBy` | `expr` | `""` |  |
+| `borderColorChannel` | `expr` | `""` |  |
+| `borderWidthBy` | `expr` | `""` |  |
 | `ramp` | `menu` | `"viridis"` | 37 choices |
 | `size` | `float` | `12` |  |
 | `sizeUnits` | `menu` | `"pixels"` | `pixels`, `meters`, `common` |
 | `textColor` | `color` | `[230,230,230]` |  |
+| `sizeScale` | `float` | `1` |  |
+| `sizeMinPixels` | `float` | `0` |  |
+| `sizeMaxPixels` | `float` | `0` |  |
 | `offsetX` | `float` | `0` |  |
 | `offsetY` | `float` | `-12` |  |
 | `angle` | `float` | `0` |  |
@@ -45,10 +50,17 @@ An edge into it ends at `"targetPort": "in"`; one out of it starts at `"sourcePo
 | `fontFamily` | `string` | `"ui-monospace, SF Mono, Menlo, monospace"` |  |
 | `fontWeight` | `float` | `400` |  |
 | `billboard` | `toggle` | `true` |  |
+| `lineHeight` | `float` | `1` |  |
+| `wordBreak` | `menu` | `"break-word"` | `break-word`, `break-all` |
+| `maxWidth` | `float` | `0` |  |
 | `outlineWidth` | `float` | `2` |  |
 | `outlineColor` | `color` | `[8,9,13]` |  |
 | `background` | `toggle` | `false` |  |
 | `backgroundColor` | `color` | `[255,255,255]` |  |
+| `backgroundPadding` | `float` | `0` |  |
+| `borderColor` | `color` | `[0,0,0]` |  |
+| `borderWidth` | `float` | `0` |  |
+| `backgroundBorderRadius` | `float` | `0` |  |
 | `opacity` | `float` | `1` |  |
 | `blend` | `menu` | `"normal"` | `normal`, `additive`, `subtractive` |
 | `extensions` | `field` | `[]` |  |
