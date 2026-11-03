@@ -127,6 +127,13 @@ class Connection {
       this.close(CLOSE_AGENT_EXITED, `The agent exited with ${how}`)
     })
 
+    // An agent that exits mid-write leaves a write to a closed pipe. Unhandled,
+    // that EPIPE would take the whole bridge down with it.
+    this.agent.stdin?.on('error', error => {
+      log(`Lost the agent's input: ${error.message}`)
+      this.close(CLOSE_AGENT_EXITED, 'The agent stopped reading its input')
+    })
+
     const lines = createInterface({ input: this.agent.stdout as NodeJS.ReadableStream })
     lines.on('line', line => {
       if (!line.trim()) return
@@ -271,7 +278,7 @@ export async function startBridge(options: BridgeOptions): Promise<Bridge> {
   port = (server.address() as AddressInfo).port
 
   return {
-    url: `ws://127.0.0.1:${port}/acp?token=${token}`,
+    url: `ws://127.0.0.1:${port}/acp?token=${encodeURIComponent(token)}`,
     port,
     close: async () => {
       for (const connection of connections.values()) connection.close()

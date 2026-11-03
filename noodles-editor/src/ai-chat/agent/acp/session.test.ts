@@ -433,6 +433,73 @@ describe('AcpSession.send', () => {
     expect(response.message).toBe('')
   })
 
+  it('sends nothing when stopped while a new session starts', async () => {
+    const session = await connect(agent())
+    session.reset()
+    const controller = new AbortController()
+    const sending = session.send({ message: 'hi', signal: controller.signal })
+    controller.abort()
+    expect(await sending).toEqual({ message: '' })
+    expect(FakeAgent.current.methods()).not.toContain('session/prompt')
+  })
+
+  it('refuses editor tools once the turn is stopped', async () => {
+    const controller = new AbortController()
+    const session = await connect(
+      agent((frame, a) => {
+        a.respond = (next, agent) => {
+          if (next.method !== 'session/cancel') return
+          agent.push({
+            jsonrpc: '2.0',
+            id: 'noodles-bridge:0',
+            method: 'noodles/callTool',
+            params: { name: 'apply_modifications', arguments: { modifications: [{ type: 'x' }] } },
+          })
+          queueMicrotask(() => agent.reply(frame, { stopReason: 'cancelled' }))
+        }
+        controller.abort()
+      })
+    )
+    const response = await session.send({ message: 'edit', signal: controller.signal })
+    await vi.waitFor(() => expect(FakeAgent.current.sent.at(-1)?.id).toBe('noodles-bridge:0'))
+    expect(FakeAgent.current.sent.at(-1)?.result).toMatchObject({
+      isError: true,
+      content: [{ type: 'text', text: 'The user stopped this reply.' }],
+    })
+    expect(response.projectModifications).toEqual([])
+  })
+
+  it('shuts down an agent that ignores Stop, so its late output cannot reach the next turn', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout'] })
+    try {
+      const onDisconnect = vi.fn()
+      const controller = new AbortController()
+      const session = await connect(
+        agent((_frame, a) => {
+          a.push(
+            update('s1', {
+              sessionUpdate: 'agent_message_chunk',
+              content: { type: 'text', text: 'partial' },
+            })
+          )
+          controller.abort()
+        }),
+        { onDisconnect }
+      )
+      const sending = session.send({ message: 'long job', signal: controller.signal })
+      await vi.advanceTimersByTimeAsync(5000)
+      const response = await sending
+
+      expect(response.message).toBe('partial')
+      expect(FakeAgent.current.readyState).toBe(3)
+      expect(onDisconnect).toHaveBeenCalledWith(
+        'Claude Code did not stop within 5 seconds of Stop, so it was shut down. Retry to start it again.'
+      )
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('reports why the agent went away', async () => {
     const onDisconnect = vi.fn()
     await connect(agent(), { onDisconnect })

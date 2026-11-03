@@ -30,7 +30,7 @@ class Tab {
   notifications: Message[] = []
   toolCalls: unknown[] = []
   private nextId = 1
-  private waiting = new Map<string | number, (message: Message) => void>()
+  private waiting = new Map<number, (message: Message) => void>()
   readonly socket: WebSocket
 
   constructor(socket: WebSocket) {
@@ -48,8 +48,9 @@ class Tab {
         this.reply(message.id, { content: [{ type: 'text', text: '3 nodes' }] })
       } else if (message.method) {
         this.notifications.push(message)
-      } else if (message.id !== undefined) {
-        this.waiting.get(message.id)?.(message)
+      } else if (typeof message.id === 'number') {
+        const resolve = this.waiting.get(message.id)
+        if (typeof resolve === 'function') resolve(message)
       }
     })
   }
@@ -168,6 +169,52 @@ describe('ACP bridge', () => {
     assert.equal(fromPage.status, 403)
     const noToken = await fetch(tools, { method: 'POST', body })
     assert.equal(noToken.status, 401)
+  })
+})
+
+describe('ACP bridge with an agent that stops reading its input', () => {
+  it('closes that connection and keeps serving', async () => {
+    // Alive, but with its stdin closed, so the bridge's next write hits a
+    // closed pipe. Unhandled, the EPIPE would crash this process.
+    const bridge = await startBridge({
+      command: '/bin/sh',
+      args: ['-c', 'exec 0<&- sleep 30'],
+      cwd: '/tmp',
+      port: 0,
+      origins: [ORIGIN],
+      token: TOKEN,
+    })
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const tab = await Tab.open(bridge)
+      const closed = tab.closed()
+      const flood = setInterval(() => {
+        if (tab.socket.readyState === WebSocket.OPEN) {
+          tab.socket.send(JSON.stringify({ jsonrpc: '2.0', method: 'noop', params: {} }))
+        }
+      }, 10)
+      const { code } = await closed
+      clearInterval(flood)
+      assert.equal(code, CLOSE_AGENT_EXITED)
+    }
+    await bridge.close()
+  })
+})
+
+describe('ACP bridge with a token that needs escaping', () => {
+  it('prints a URL that still authenticates', async () => {
+    const bridge = await startBridge({
+      command: process.execPath,
+      args: [FAKE_AGENT],
+      cwd: '/tmp',
+      port: 0,
+      origins: [ORIGIN],
+      token: 'a+b&c#d e',
+    })
+    const tab = await Tab.open(bridge)
+    const init = await tab.request('initialize', { protocolVersion: 1 })
+    assert.equal(init.result?.protocolVersion, 1)
+    tab.socket.close()
+    await bridge.close()
   })
 })
 

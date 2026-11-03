@@ -228,6 +228,9 @@ export class AcpSession implements ChatSession {
 
     const history = params.conversationHistory ?? []
     const signal = params.signal ?? new AbortController().signal
+    // Stopped while a new session was starting: nothing was sent, so there is
+    // nothing to cancel either
+    if (signal.aborted) return { message: '' }
     const turn: Turn = {
       text: '',
       toolCalls: [],
@@ -245,20 +248,35 @@ export class AcpSession implements ChatSession {
 
     try {
       const prompt = this.request(params, history)
-      const stopped = new Promise<{ stopReason: StopReason }>(resolve => {
-        signal.addEventListener(
-          'abort',
-          () => setTimeout(() => resolve({ stopReason: 'cancelled' }), CANCEL_GRACE_MS),
-          { once: true }
-        )
+      const ignoredCancel = new Promise<null>(resolve => {
+        signal.addEventListener('abort', () => setTimeout(() => resolve(null), CANCEL_GRACE_MS), {
+          once: true,
+        })
       })
-      const { stopReason } = await Promise.race([
+      const result = await Promise.race([
         this.connection.request<{ stopReason: StopReason }>('session/prompt', {
           sessionId: this.sessionId,
           prompt,
         }),
-        stopped,
+        ignoredCancel,
       ])
+
+      // The agent is still running the prompt it was told to stop, and its late
+      // text and tool calls would land in whatever turn came next. Closing the
+      // socket makes the bridge kill it.
+      if (result === null) {
+        this.connection.close()
+        this.options.onDisconnect(
+          `${this.agentName} did not stop within ${CANCEL_GRACE_MS / 1000} seconds of Stop, so it was shut down. Retry to start it again.`
+        )
+        return {
+          message: turn.text,
+          projectModifications: turn.modifications,
+          toolCalls: turn.toolCalls,
+        }
+      }
+
+      const { stopReason } = result
       this.turns++
       this.seen = history.length + 2
       debugAiChat('[acp] turn ended: %s, %d editor tool call(s)', stopReason, turn.toolCalls.length)
@@ -446,12 +464,15 @@ export class AcpSession implements ChatSession {
     const turn = this.turn
     let result: ToolResult
 
-    // Edits made between turns would have no proposal to land in
+    // Edits made between turns would have no proposal to land in, and a stopped
+    // turn is one the user no longer wants anything from
     if (!turn) {
       result = {
         success: false,
         error: 'The editor runs tools only while the user waits on a reply.',
       }
+    } else if (turn.signal.aborted) {
+      result = { success: false, error: 'The user stopped this reply.' }
     } else {
       try {
         const definition = name === FIND_TOOLS_NAME ? null : getToolDefinition(name)
