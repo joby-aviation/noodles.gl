@@ -5,10 +5,45 @@
 // camera while the timeline plays or an export runs. A keyframed camera parameter isn't keyed
 // by moving the map: its new value waits as an unkeyed change (pending-keys.ts).
 
-import { type DocNode, type EditorDoc, evaluateTrack, nameOf } from '@noodles.gl/planner'
-import { setParam } from './doc-ops'
+import {
+  type DocEdge,
+  type DocNode,
+  type EditorDoc,
+  evaluateTrack,
+  nameOf,
+} from '@noodles.gl/planner'
+import { getRenderSurfaceSize } from '../render/render-surface-size'
+import { asCamera } from '../runtime/deck-ops'
+import { portShape, setParam } from './doc-ops'
 
 export const CAMERA_PARAMS = ['longitude', 'latitude', 'zoom', 'pitch', 'bearing'] as const
+
+/** The wire into `nodeId`'s camera input: a deck's view state, a View State's From. */
+export const cameraInput = (
+  doc: Pick<EditorDoc, 'nodes' | 'edges'>,
+  nodeId: string
+): DocEdge | undefined =>
+  doc.edges.find(
+    e => e.target === nodeId && portShape(doc, nodeId, e.targetPort, 'in') === 'viewState'
+  )
+
+/**
+ * What sets camera parameter `param` on `nodeId` in place of its own value: the camera wired
+ * into its camera input, when that camera has the field (Fit Bounds sets no pitch). `output`
+ * reads what the wire carries; undefined until it has run.
+ */
+export function cameraWire(
+  doc: EditorDoc,
+  nodeId: string,
+  param: string,
+  output: (nodeId: string, port: string) => unknown
+): { edge: DocEdge; value: unknown } | undefined {
+  if (!(CAMERA_PARAMS as readonly string[]).includes(param)) return undefined
+  const edge = cameraInput(doc, nodeId)
+  if (!edge) return undefined
+  const camera = asCamera(output(edge.source, edge.sourcePort), getRenderSurfaceSize())
+  return param in camera ? { edge, value: camera[param] } : undefined
+}
 
 export interface CameraControl {
   /** The active camera's node, when the map shows a node's camera. */
@@ -89,6 +124,9 @@ export function cameraControlOf(
   if (isPlaying) return off('Pause the timeline to move the camera.')
   const node = doc.nodes.find(n => n.id === nodeId)
   const name = node ? nameOf(node) : nodeId
+  const from = cameraInput(doc, nodeId)
+  const fromNode = from && doc.nodes.find(n => n.id === from.source)
+  if (fromNode) return off(`${nameOf(fromNode)} drives ${name}'s camera, so the map can't move it.`)
   const wired = CAMERA_PARAMS.filter(p =>
     doc.edges.some(e => e.target === nodeId && e.targetPort === `par:${p}`)
   )

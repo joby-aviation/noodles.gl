@@ -14,6 +14,7 @@ import {
   LayerField,
   ListField,
   NumberField,
+  Point2DField,
 } from '../../noodles/fields'
 import { type IOperator, type Operator, opTypes } from '../../noodles/operators'
 import { registerDeckOperators } from '../deck-ops'
@@ -122,6 +123,8 @@ export function hostOpDef(type: string, instance: Operator<IOperator>): OpDef {
       name,
       // Code returns rows, GeoJSON or layers, so its output feeds a table input or a deck
       type: type === 'CodeOp' ? 'any' : portTypeOf(field),
+      // A point (a Geocoder's location) is a camera's center, never a layer
+      ...(field instanceof Point2DField ? { shape: 'point' as const } : {}),
       multi: field instanceof ListField,
     })),
     params,

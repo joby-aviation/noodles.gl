@@ -25,7 +25,9 @@ import {
   type SqlEngine,
   targetCaps,
 } from '@noodles.gl/planner'
+import { getRenderSurfaceSize } from '../render/render-surface-size'
 import { DeckLayerBuilder } from './deck-layers'
+import { asCamera } from './deck-ops'
 import { parseStyleChanges, styleWithChanges } from './map-style'
 import { flatRow, isFeatureCollection } from './plain-rows'
 import {
@@ -327,11 +329,12 @@ export class Engine {
       return (Array.isArray(v) ? v : v ? [v] : []).flatMap(item => this.asLayer(item))
     })
     const viewStateEdge = into('viewState')[0]
+    // A camera, or a point or bounds read as one
     const hostView = viewStateEdge
-      ? (host?.runner.output(viewStateEdge.source, viewStateEdge.sourcePort) as Record<
-          string,
-          unknown
-        >)
+      ? asCamera(
+          host?.runner.output(viewStateEdge.source, viewStateEdge.sourcePort),
+          getRenderSurfaceSize()
+        )
       : undefined
     // A deck with its own views and no map (an OrbitView, say) keeps the view's own camera:
     // the deck node's longitude and latitude mean nothing to it.

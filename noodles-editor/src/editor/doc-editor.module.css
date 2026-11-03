@@ -989,6 +989,17 @@
   font-family: ui-monospace, "SF Mono", Menlo, monospace;
   font-size: 11px;
   color: #9fc0ff;
+  /* One line in a narrow pane; the title holds it all */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.wiredValue {
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 11px;
+  color: #9fc0ff;
+  white-space: nowrap;
 }
 
 .evaluated {

@@ -35,6 +35,12 @@ describe('node summaries', () => {
     )
   })
 
+  it('name the camera wired in, in place of the camera it replaces', () => {
+    const deck = node('deck', { longitude: -119.963 })
+    expect(summaryOf(deck, op('deck'))).toBe('longitude: -119.963')
+    expect(summaryOf(deck, op('deck'), 'fit_bounds1')).toBe('camera ← fit_bounds1')
+  })
+
   it('write expressions and references as themselves', () => {
     expect(shownValue({ expr: 'sin(T)' })).toBe('sin(T)')
     expect(shownValue({ ref: 'pickup/color' })).toBe('→ pickup/color')

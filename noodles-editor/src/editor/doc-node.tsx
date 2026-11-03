@@ -17,6 +17,7 @@ import { useMemo } from 'react'
 import { categories } from '../noodles/components/categories'
 import { ColorSwatch } from '../noodles/components/color-swatch'
 import ns from '../noodles/noodles.module.css'
+import { cameraInput } from './camera-control'
 import { type EngineState, useEngineState } from './doc-engine'
 import s from './doc-network.module.css'
 import { isListParam, setParam } from './doc-ops'
@@ -236,7 +237,9 @@ export function DocNodeComponent({ id, selected }: NodeProps) {
   const error = status.error
   // How the planner stored and ran a node is for debug mode; what it drew is in the info card
   const badges = debug ? status.badges : []
-  const summary = summaryOf(node, op)
+  const cameraFrom = cameraInput({ nodes: nodeOps, edges }, id)
+  const cameraNode = cameraFrom && nodeOps.find(n => n.id === cameraFrom.source)
+  const summary = summaryOf(node, op, cameraNode && nameOf(cameraNode))
   const info = infoLines(id, engine)
   const swatch = node.op === 'color' ? op.params.find(p => p.kind === 'color') : undefined
   const swatchValue = swatch ? (node.params[swatch.name] ?? swatch.default) : undefined

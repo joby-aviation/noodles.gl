@@ -1,6 +1,7 @@
 import type { DocNode, EditorDoc } from '@noodles.gl/planner'
-import { beforeEach, describe, expect, it } from 'vitest'
-import { cameraControlOf, drivingCamera } from './camera-control'
+import { beforeAll, beforeEach, describe, expect, it } from 'vitest'
+import { registerDeckOperators } from '../runtime/deck-ops'
+import { cameraControlOf, cameraWire, drivingCamera } from './camera-control'
 import {
   cameraOf,
   createViewportStore,
@@ -84,6 +85,48 @@ describe('the active camera', () => {
     expect(cameraControlOf(doc([node('map', 'deck')]), { ...idle, isPlaying: true }).enabled).toBe(
       false
     )
+  })
+})
+
+describe('a camera wired into a camera', () => {
+  beforeAll(() => registerDeckOperators())
+  // Fit Bounds' bounds into a View State's From, the View State into the deck
+  const fitted = doc(
+    [node('map', 'deck'), node('fit', 'fit-bounds'), node('shot', 'view-state', { pitch: 45 })],
+    [
+      { id: 'b', source: 'fit', sourcePort: 'bounds', target: 'shot', targetPort: 'par:from' },
+      { id: 'v', source: 'shot', sourcePort: 'viewState', target: 'map', targetPort: 'viewState' },
+    ]
+  )
+  const outputs: Record<string, unknown> = {
+    'fit>bounds': [
+      [-10, -10],
+      [10, 10],
+    ],
+    'shot>viewState': { longitude: 0, latitude: 0, zoom: 3, pitch: 45, bearing: 0 },
+  }
+  const output = (id: string, port: string) => outputs[`${id}>${port}`]
+
+  it('sets the fields it has in place of the node’s own, and leaves the rest', () => {
+    expect(cameraWire(fitted, 'shot', 'zoom', output)).toMatchObject({
+      edge: { id: 'b' },
+      value: expect.any(Number),
+    })
+    expect(cameraWire(fitted, 'shot', 'pitch', output)).toBeUndefined()
+    expect(cameraWire(fitted, 'map', 'pitch', output)).toMatchObject({
+      edge: { id: 'v' },
+      value: 45,
+    })
+    // Nothing is known to be set until the camera has run
+    expect(cameraWire(fitted, 'shot', 'zoom', () => undefined)).toBeUndefined()
+  })
+
+  it('keeps the map from moving a View State a wired camera drives', () => {
+    expect(cameraControlOf(fitted, idle)).toMatchObject({
+      nodeId: 'shot',
+      enabled: false,
+      reason: "fit drives shot's camera, so the map can't move it.",
+    })
   })
 })
 
