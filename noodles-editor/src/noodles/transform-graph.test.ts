@@ -5,6 +5,7 @@ import { getExecutor } from './graph-executor'
 import type { Edge } from './noodles'
 import {
   type CodeOp,
+  type CombineXYOp,
   type ConcatOp,
   type DeckRendererOp,
   type GeoJsonLayerOp,
@@ -1906,6 +1907,39 @@ describe('vector channel ports', () => {
     const split = getOpStore().getOp('/split') as SplitXYOp
     expect(split.inputs.vec.subscriptions.size).toBe(0)
     expect(split.connectionErrors.value.get(edge.id)).toMatch(/vec is split into vec.x, vec.y/)
+  })
+
+  it('disconnects a whole-value edge when its input is split, and reconnects it when joined', () => {
+    const edge = {
+      id: '/combine.out.xy->/split.par.vec',
+      source: '/combine',
+      target: '/split',
+      sourceHandle: 'out.xy',
+      targetHandle: 'par.vec',
+    }
+    const nodes = (inputPortModes: Record<string, string>) => [
+      { id: '/combine', type: 'CombineXYOp', position, data: { inputs: {} } },
+      { id: '/split', type: 'SplitXYOp', position, data: { inputs: {}, inputPortModes } },
+    ]
+    transformGraph({ nodes: nodes({}), edges: [edge] })
+    const combine = getOpStore().getOp('/combine') as CombineXYOp
+    const split = getOpStore().getOp('/split') as SplitXYOp
+    combine.outputs.xy.next({ x: 1, y: 2 })
+    expect(split.inputs.vec.value).toEqual({ x: 1, y: 2 })
+
+    // update_node switches the layout on the live operator, then the graph is rebuilt
+    split.setInputPortMode('vec', 'channels')
+    transformGraph({ nodes: nodes({ vec: 'channels' }), edges: [edge] })
+    expect(split.inputs.vec.subscriptions.has(edge.id)).toBe(false)
+    split.inputs.vec.channels?.fields.y.setValue(7)
+    combine.outputs.xy.next({ x: 3, y: 4 })
+    expect(split.inputs.vec.value).toEqual({ x: 1, y: 7 })
+
+    split.setInputPortMode('vec', 'whole')
+    transformGraph({ nodes: nodes({}), edges: [edge] })
+    expect(split.inputs.vec.subscriptions.has(edge.id)).toBe(true)
+    expect(split.inputs.vec.value).toEqual({ x: 3, y: 4 })
+    expect(split.connectionErrors.value.has(edge.id)).toBe(false)
   })
 
   it('derives a reference edge for a channel expression', () => {

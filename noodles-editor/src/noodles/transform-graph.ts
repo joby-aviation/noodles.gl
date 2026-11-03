@@ -447,10 +447,15 @@ export function transformGraph<
       const target = resolveOperatorField(targetOp, targetNamespace, targetFieldName)
       const targetField = target?.field
       // A handle the input's port layout doesn't have, e.g. `par.center` while `center`
-      // is split into channels. The edge stays in the project so switching back revives it.
+      // is split into channels. The edge stays in the project so switching back revives it,
+      // but its connection ends, as one to a removed edge does above: the layout can change
+      // on a live operator (update_node) after the edge was connected.
       const layoutError =
         targetNamespace === 'par' ? portLayoutError(targetOp, targetFieldName) : undefined
       if (sourceField && layoutError) {
+        if (targetField?.subscriptions.has(edge.id)) {
+          targetField.removeConnection(edge.id, 'reference')
+        }
         targetOp.addConnectionError(edge.id, layoutError)
         debugExecutor('Inactive port: %s', edge.id)
         continue
