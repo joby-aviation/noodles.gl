@@ -47,6 +47,7 @@ import {
   LineLayerOp,
   MaplibreBasemapOp,
   MapViewOp,
+  MapViewStateOp,
   MathOp,
   MergeOp,
   MVTLayerOp,
@@ -454,6 +455,46 @@ describe('Operator input port modes', () => {
     op.dispose()
     expect(vec.channels).toBeNull()
     expect(op.inputPortModes.closed || op.inputPortModes.isStopped).toBe(true)
+  })
+})
+
+describe('MapViewStateOp', () => {
+  afterEach(() => getOpStore().clearOps())
+
+  it('builds the view state from the center', () => {
+    const op = new MapViewStateOp('/view')
+    const { viewState } = op.execute({
+      center: { lng: 10, lat: 20 },
+      zoom: 3,
+      pitch: 0,
+      bearing: 0,
+    })
+    expect(viewState).toEqual({ longitude: 10, latitude: 20, zoom: 3, pitch: 0, bearing: 0 })
+  })
+
+  it('answers par reads of longitude and latitude from the center', () => {
+    const op = new MapViewStateOp('/view', { center: { lng: 10, lat: 20 } })
+    expect(op.par.longitude).toBe(10)
+    expect(op.par.latitude).toBe(20)
+    expect(op.par.center).toEqual({ lng: 10, lat: 20 })
+    expect(op.out.longitude).toBeUndefined()
+    expect(op.inputs).not.toHaveProperty('longitude')
+  })
+
+  it('re-evaluates a sibling expression that reads longitude when the center changes', () => {
+    const op = new MapViewStateOp('/view', { center: { lng: 10, lat: 20 } })
+    setOp('/view', op)
+    op.inputs.zoom.setExpression('par.longitude / 2')
+    expect(op.inputs.zoom.value).toBe(5)
+    op.inputs.center.setValue({ lng: 8, lat: 20 })
+    expect(op.inputs.zoom.value).toBe(4)
+  })
+
+  it('answers mustache reads of longitude and latitude from the center', () => {
+    setOp('/view', new MapViewStateOp('/view', { center: { lng: 10, lat: 20 } }))
+    const text = '[{{/view.par.longitude}}, {{/view.par.latitude}}]'
+    const json = new JSONOp('/json', { text }, false)
+    expect(json.execute({ text }).data).toEqual([10, 20])
   })
 })
 

@@ -28,7 +28,7 @@ This page covers the ones you'll use most. The [Operator Reference](../reference
 
 ### Views
 - **MaplibreBasemapOp**: Customize the Maplibre basemap
-- **MapViewStateOp**: Create a react-map-gl [ViewState](https://visgl.github.io/react-map-gl/docs/api-reference/maplibre/types#viewstate) for controlling the camera
+- **MapViewStateOp**: Create a react-map-gl [ViewState](https://visgl.github.io/react-map-gl/docs/api-reference/maplibre/types#viewstate) for controlling the camera. Its `center` point can also be wired as [separate longitude and latitude ports](./vector-input-ports.md)
 - **Deck.gl Views**: Create any [deck.gl view](https://deck.gl/docs/developer-guide/views#types-of-views), such as `FirstPersonViewOp`
 
 ### Output

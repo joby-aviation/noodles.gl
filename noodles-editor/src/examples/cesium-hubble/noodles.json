@@ -1,5 +1,5 @@
 {
-  "version": 22,
+  "version": 23,
   "edges": [
     {
       "id": "/basemap.out.maplibre->/renderer.par.basemap",

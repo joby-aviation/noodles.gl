@@ -108,10 +108,36 @@ describe('selected map camera control', () => {
       reason: expect.stringMatching(/Pause the timeline/),
     })
 
-    const connected = [...edges, edge('/source', 'out.val', '/camera', 'par.longitude')]
+    const connected = [...edges, edge('/source', 'out.point', '/camera', 'par.center')]
     expect(getCameraControlState(['/camera'], context(connected)).reason).toMatch(
-      /Disconnect camera inputs.*longitude/
+      /Disconnect camera inputs.*center/
     )
+  })
+
+  it('counts a channel edge only while the center is split', () => {
+    const camera = new MapViewStateOp('/camera')
+    setOp('/camera', camera)
+    const edges = [...wireView(), edge('/source', 'out.val', '/camera', 'par.center.lng')]
+
+    // One port: the channel edge has a connection error and doesn't drive the center
+    expect(getCameraControlState(['/camera'], context(edges)).enabled).toBe(true)
+
+    camera.setInputPortMode('center', 'channels')
+    expect(getCameraControlState(['/camera'], context(edges)).reason).toMatch(
+      /Disconnect camera inputs.*center/
+    )
+  })
+
+  it('treats a center channel expression as driven', () => {
+    const camera = new MapViewStateOp('/camera')
+    setOp('/camera', camera)
+    const edges = wireView()
+    camera.setInputPortMode('center', 'channels')
+
+    camera.inputs.center.channels?.fields.lat.setExpression('12')
+    expect(getCameraControlState(['/camera'], context(edges)).reason).toMatch(/expressions.*center/)
+    expect(updateCameraInputs(camera, { longitude: 1, latitude: 2, zoom: 10 })).toBe(false)
+    expect(camera.inputs.center.channels?.fields.lat.expression).toBe('12')
   })
 
   it('treats expression-driven camera inputs as driven', () => {
@@ -171,6 +197,19 @@ describe('selected map camera control', () => {
       act(() => camera.inputs.pitch.setExpression('10'))
       expect(result.current.reason).toMatch(/expressions.*pitch/)
       act(() => camera.inputs.pitch.clearExpression())
+      expect(result.current.enabled).toBe(true)
+    })
+
+    it('watches center channel expressions once the center is split', () => {
+      const camera = new MapViewStateOp('/camera')
+      setOp('/camera', camera)
+      const edges = wireView()
+      const { result } = renderHook(() => useCameraControlState(['/camera'], context(edges)))
+
+      act(() => camera.setInputPortMode('center', 'channels'))
+      act(() => camera.inputs.center.channels?.fields.lng.setExpression('1'))
+      expect(result.current.reason).toMatch(/expressions.*center/)
+      act(() => camera.inputs.center.channels?.fields.lng.clearExpression())
       expect(result.current.enabled).toBe(true)
     })
   })
@@ -303,7 +342,7 @@ describe('selected map camera control', () => {
     const state = { longitude: 1, latitude: 2, zoom: 3, pitch: 4, bearing: 5 }
 
     expect(updateCameraInputs(camera, state)).toBe(true)
-    expect(camera.data).toMatchObject(state)
+    expect(camera.data).toMatchObject({ center: { lng: 1, lat: 2 }, zoom: 3, pitch: 4, bearing: 5 })
 
     camera.inputs.zoom.addConnection('edge', new NumberOp('/source').outputs.val)
     expect(updateCameraInputs(camera, { ...state, zoom: 10 })).toBe(false)
@@ -319,7 +358,7 @@ describe('selected map camera control', () => {
 
     const camera = new MapViewStateOp('/camera')
     expect(updateCameraInputs(camera, { longitude: 200, latitude: 2, zoom: 3 })).toBe(true)
-    expect(camera.inputs.longitude.value).toBe(-160)
+    expect(camera.inputs.center.value).toEqual({ lng: -160, lat: 2 })
   })
 
   it('only writes camera fields whose values changed', () => {
@@ -328,11 +367,20 @@ describe('selected map camera control', () => {
     updateCameraInputs(camera, state)
 
     const zoomSpy = vi.spyOn(camera.inputs.zoom, 'setValue')
-    const longitudeSpy = vi.spyOn(camera.inputs.longitude, 'setValue')
+    const centerSpy = vi.spyOn(camera.inputs.center, 'setValue')
     updateCameraInputs(camera, { ...state, longitude: 10 })
 
-    expect(longitudeSpy).toHaveBeenCalledWith(10)
+    expect(centerSpy).toHaveBeenCalledWith({ lng: 10, lat: 2 })
     expect(zoomSpy).not.toHaveBeenCalled()
+  })
+
+  it('writes the center through to its channels while split', () => {
+    const camera = new MapViewStateOp('/camera')
+    camera.setInputPortMode('center', 'channels')
+
+    expect(updateCameraInputs(camera, { longitude: 5, latitude: 6, zoom: 3 })).toBe(true)
+    expect(camera.inputs.center.channels?.fields.lng.value).toBe(5)
+    expect(camera.inputs.center.channels?.fields.lat.value).toBe(6)
   })
 
   it('commits one history entry for a gesture with many updates', () => {

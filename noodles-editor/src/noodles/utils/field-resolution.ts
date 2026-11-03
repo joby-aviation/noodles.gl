@@ -73,6 +73,27 @@ export function portLayoutError(
   return `${fieldPath} is a channel port, but ${rootFieldName} is one port. Switch ${rootFieldName} to channel ports first.`
 }
 
+// A `par` read path with a deprecated input name replaced (see Operator.inputAliases):
+// `longitude` gives `center.lng` on a MapViewState. Only for reads by name in code and
+// mustache references, never for edge handles.
+export function inputAliasPath(op: Operator<IOperator> | undefined, fieldPath: string): string {
+  if (!op) return fieldPath
+  const aliases = (op.constructor as { inputAliases?: Readonly<Record<string, string>> })
+    .inputAliases
+  const [name, ...rest] = fieldPath.split('.')
+  if (!aliases || !Object.hasOwn(aliases, name) || name in op.inputs) return fieldPath
+  return [aliases[name], ...rest].join('.')
+}
+
+// The value at `center.lng` (a field name, then keys into its value)
+export function readFieldPath(fields: Record<string, Field>, fieldPath: string): unknown {
+  const [name, ...keys] = fieldPath.split('.')
+  return keys.reduce<unknown>(
+    (value, key) => (value as Record<string, unknown> | null | undefined)?.[key],
+    fields[name]?.value
+  )
+}
+
 // The input a handle belongs to: `center.lng` and `center` both give `center`
 export function rootInputName(op: Operator<IOperator> | undefined, fieldPath: string): string {
   return resolveOperatorField(op, 'par', fieldPath)?.rootFieldName ?? fieldPath

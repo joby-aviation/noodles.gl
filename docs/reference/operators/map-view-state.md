@@ -18,7 +18,7 @@ Create a react-map-gl MapViewState for controlling the camera.
 }
 ```
 
-Expressions and code read its fields as `op('/map-view-state').par.longitude` (an input) and `op('/map-view-state').out.viewState` (an output). Edges name the same fields as handles: `par.longitude`, `out.viewState`.
+Expressions and code read its fields as `op('/map-view-state').par.center` (an input) and `op('/map-view-state').out.viewState` (an output). Edges name the same fields as handles: `par.center`, `out.viewState`.
 <!-- gen:end syntax -->
 
 ## Inputs
@@ -26,8 +26,7 @@ Expressions and code read its fields as `op('/map-view-state').par.longitude` (a
 <!-- gen:begin inputs -->
 | Name | Type | Default |
 |------|------|---------|
-| `longitude` | `NumberField` | `-74.006` |
-| `latitude` | `NumberField` | `40.7128` |
+| `center` | `Point2DField` | `{"lng":-74.006,"lat":40.7128}` |
 | `zoom` | `NumberField` | `12` |
 | `pitch` | `NumberField` | `0` |
 | `bearing` | `NumberField` | `0` |
@@ -43,6 +42,11 @@ Expressions and code read its fields as `op('/map-view-state').par.longitude` (a
 
 <!-- Add hand-written "## Remarks" and "## Examples" sections here. See the operator reference index for what goes in them. -->
 
+## Remarks
+
+- `center` takes a point, or splits into `center.lng` and `center.lat` number ports to wire longitude and latitude separately. See [Vector input ports](../../users/vector-input-ports.md).
+- Before version 23, `longitude` and `latitude` were separate inputs. Expressions and code can still read `par.longitude` and `par.latitude`. Edges must use `par.center.lng` and `par.center.lat`.
+
 ## Details
 
 <!-- gen:begin details -->
@@ -56,4 +60,5 @@ Expressions and code read its fields as `op('/map-view-state').par.longitude` (a
 Schema migrations that changed this operator. Older project files go through them when they open.
 
 - Version 2: [`002-to-new-deck-renderer`](https://github.com/joby-aviation/noodles.gl/blob/main/noodles-editor/src/noodles/__migrations__/002-to-new-deck-renderer.ts)
+- Version 23: [`023-map-view-state-center`](https://github.com/joby-aviation/noodles.gl/blob/main/noodles-editor/src/noodles/__migrations__/023-map-view-state-center.ts)
 <!-- gen:end history -->

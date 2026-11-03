@@ -169,6 +169,7 @@ import {
 } from './utils/choropleth-boundaries'
 import { deepEqual } from './utils/deep-equal'
 import type { ExtractProps } from './utils/extract-props'
+import { inputAliasPath, readFieldPath } from './utils/field-resolution'
 import { projectScheme } from './utils/filesystem'
 import type { OpId } from './utils/id-utils'
 import { isDirectChild } from './utils/path-utils'
@@ -229,6 +230,12 @@ export abstract class Operator<OP extends IOperator> {
 
   // API keys execute() reads, so the operator runs again when the key it would get changes
   static usesKeys: readonly KeyType[] = []
+
+  // Former input names that `par` reads still accept, mapped to a path into a current
+  // input: `{ longitude: 'center.lng' }` keeps `op('/view').par.longitude` and
+  // `{{/view.par.longitude}}` working. Edge handles never use them; a migration renames
+  // saved edges.
+  static inputAliases: Readonly<Record<string, string>> = {}
 
   inputs: ReturnType<OP['createInputs']>
   outputs: ReturnType<OP['createOutputs']>
@@ -2911,7 +2918,8 @@ export class DuckDbOp extends Operator<DuckDbOp> {
         // Resolve reference values
         const positionalParams = references.map(({ opId, inOut, fieldPath }) => {
           const op = getOp(opId, this.id)
-          const [firstKey, ...rest] = fieldPath.split('.')
+          const path = inOut === 'par' ? inputAliasPath(op, fieldPath) : fieldPath
+          const [firstKey, ...rest] = path.split('.')
 
           const field = op?.[inOut === 'par' ? 'inputs' : 'outputs']?.[firstKey]
           if (!field) {
@@ -2986,7 +2994,8 @@ export class JSONOp extends Operator<JSONOp> {
       // If the opId is a relative path (doesn't start with /), make it relative to current context
       const resolvedOpId = opId.startsWith('/') ? opId : `./${opId}`
       const op = getOp(resolvedOpId, this.id)
-      const [fieldName, ...propKeys] = fieldPath.split('.')
+      const path = inOut === 'par' ? inputAliasPath(op, fieldPath) : fieldPath
+      const [fieldName, ...propKeys] = path.split('.')
 
       const field = op?.[inOut === 'par' ? 'inputs' : 'outputs']?.[fieldName]
       if (!field) {
@@ -5062,20 +5071,18 @@ export class UnprojectOp extends Operator<UnprojectOp> {
 export class MapViewStateOp extends Operator<MapViewStateOp> {
   static displayName = 'MapViewState'
   static description = 'Create a react-map-gl MapViewState for controlling the camera.'
+  // longitude and latitude were separate inputs before migration 022
+  static inputAliases = { longitude: 'center.lng', latitude: 'center.lat' }
   createInputs() {
     return {
-      longitude: new NumberField(DEFAULT_LONGITUDE, {
-        min: -180,
-        max: 180,
-        step: 0.001,
-        description: 'Camera center longitude, in degrees (-180 to 180).',
-      }),
-      latitude: new NumberField(DEFAULT_LATITUDE, {
-        min: -90,
-        max: 90,
-        step: 0.001,
-        description: 'Camera center latitude, in degrees (-90 to 90).',
-      }),
+      center: new Point2DField(
+        { lng: DEFAULT_LONGITUDE, lat: DEFAULT_LATITUDE },
+        {
+          returnType: 'object',
+          description:
+            'Camera center, as longitude (-180 to 180) and latitude (-90 to 90) in degrees.',
+        }
+      ),
       zoom: new NumberField(12, {
         min: 0,
         max: 24,
@@ -5109,13 +5116,12 @@ export class MapViewStateOp extends Operator<MapViewStateOp> {
     }
   }
   execute({
-    longitude,
-    latitude,
+    center,
     zoom,
     pitch,
     bearing,
   }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
-    const viewState = { longitude, latitude, zoom, pitch, bearing }
+    const viewState = { longitude: center.lng, latitude: center.lat, zoom, pitch, bearing }
     validateViewState(viewState)
     return { viewState }
   }
@@ -13294,7 +13300,9 @@ function proxyFields(op: Operator<IOperator>, fields: 'inputs' | 'outputs') {
       }
 
       const field = target[fields][prop]
-      return field?.value
+      if (field || fields === 'outputs') return field?.value
+      const path = inputAliasPath(target, prop)
+      return path === prop ? undefined : readFieldPath(target.inputs as Record<string, Field>, path)
     },
     set(_target, _prop: string | symbol, _value) {
       throw new Error('Cannot set value on par or out')

@@ -1,19 +1,25 @@
 import { useEffect, useState } from 'react'
-import { type Observable, skip } from 'rxjs'
+import { merge, skip, switchMap } from 'rxjs'
+import { type Field, supportsChannelPorts } from '../fields'
 import {
   ContainerOp,
   DeckRendererOp,
   GraphInputOp,
   GraphOutputOp,
+  type IOperator,
   MaplibreBasemapOp,
   MapViewStateOp,
+  type Operator,
   RerouteOp,
 } from '../operators'
 import { getOp } from '../store'
+import { channelFields, portLayoutError, resolveHandleField } from './field-resolution'
 import { getParentPath } from './path-utils'
 
-export const CAMERA_INPUT_NAMES = ['longitude', 'latitude', 'zoom', 'pitch', 'bearing'] as const
+export const CAMERA_INPUT_NAMES = ['center', 'zoom', 'pitch', 'bearing'] as const
 type CameraInputName = (typeof CAMERA_INPUT_NAMES)[number]
+
+const VIEW_STATE_KEYS = ['longitude', 'latitude', 'zoom', 'pitch', 'bearing'] as const
 
 export interface CameraViewState {
   longitude: number
@@ -138,7 +144,7 @@ function cameraOpIdFromEdge(edge: GraphEdge | undefined): string | null {
 
 function hasCameraValues(value: unknown): boolean {
   if (!value || typeof value !== 'object') return false
-  return CAMERA_INPUT_NAMES.some(name => name in value) || extractCameraViewState(value) !== null
+  return VIEW_STATE_KEYS.some(name => name in value) || extractCameraViewState(value) !== null
 }
 
 // Returns the id of the MapViewStateOp whose output reaches the rendered view unchanged, or
@@ -217,7 +223,7 @@ export function getCameraControlState(
   // Read connections from the edge list rather than field subscriptions: the edges are
   // React state, so connecting or disconnecting re-renders with the new answer
   const connectedFields = CAMERA_INPUT_NAMES.filter(name =>
-    edges.some(edge => edge.target === selectedOp.id && edge.targetHandle === `par.${name}`)
+    edges.some(edge => edge.target === selectedOp.id && connectsCameraInput(selectedOp, edge, name))
   )
   if (connectedFields.length > 0) {
     return {
@@ -226,8 +232,8 @@ export function getCameraControlState(
       reason: `Disconnect camera inputs to drag the map: ${connectedFields.join(', ')}.`,
     }
   }
-  const expressionFields = CAMERA_INPUT_NAMES.filter(
-    name => selectedOp.inputs[name].expression !== null
+  const expressionFields = CAMERA_INPUT_NAMES.filter(name =>
+    cameraInputFields(selectedOp, name).some(field => field.expression !== null)
   )
   if (expressionFields.length > 0) {
     return {
@@ -240,9 +246,29 @@ export function getCameraControlState(
   return { op: selectedOp, enabled: true, reason: null }
 }
 
+// The fields that hold a camera input's value: the input, plus its channels while split
+function cameraInputFields(op: MapViewStateOp, name: CameraInputName): Field[] {
+  const field = op.inputs[name] as Field
+  if (!supportsChannelPorts(field) || !field.channels) return [field]
+  return [field, ...Object.values(channelFields(field))]
+}
+
+// An edge to `par.center` while center is one port, or to `par.center.lng` while it is
+// split. An edge to the other layout has a connection error and doesn't drive the input.
+function connectsCameraInput(op: MapViewStateOp, edge: GraphEdge, name: CameraInputName) {
+  const handle = edge.targetHandle
+  if (handle !== `par.${name}` && !handle?.startsWith(`par.${name}.`)) return false
+  const target = op as unknown as Operator<IOperator>
+  return (
+    resolveHandleField(target, handle) !== undefined &&
+    portLayoutError(target, handle.slice('par.'.length)) === undefined
+  )
+}
+
 // getCameraControlState as a hook that re-renders when the selected camera is locked or
-// unlocked, or an input enters or leaves expression mode. Those live on RxJS subjects,
-// not React state, so without this the control only updated on an unrelated re-render.
+// unlocked, an input enters or leaves expression mode, or the center is split or joined.
+// Those live on RxJS subjects, not React state, so without this the control only updated
+// on an unrelated re-render.
 // Edges, playback and export state are React state and already re-render the caller.
 export function useCameraControlState(
   selectedNodeIds: string[],
@@ -254,16 +280,23 @@ export function useCameraControlState(
 
   useEffect(() => {
     if (!camera) return
-    const sources: Observable<unknown>[] = [
-      camera.locked,
-      ...CAMERA_INPUT_NAMES.map(name => camera.inputs[name].expression$),
-    ]
-    const bump = () => setVersion(version => version + 1)
-    // BehaviorSubjects replay their current value on subscribe; react to later changes only
-    const subscriptions = sources.map(source => source.pipe(skip(1)).subscribe(bump))
-    return () => {
-      for (const subscription of subscriptions) subscription.unsubscribe()
-    }
+    // BehaviorSubjects replay their current value on subscribe; react to later changes only.
+    // Splitting the center adds channel fields, so their expressions are watched anew.
+    const expressions = camera.inputPortModes.pipe(
+      switchMap(() =>
+        merge(
+          ...CAMERA_INPUT_NAMES.flatMap(name =>
+            cameraInputFields(camera, name).map(field => field.expression$.pipe(skip(1)))
+          )
+        )
+      )
+    )
+    const subscription = merge(
+      camera.locked.pipe(skip(1)),
+      camera.inputPortModes.pipe(skip(1)),
+      expressions
+    ).subscribe(() => setVersion(version => version + 1))
+    return () => subscription.unsubscribe()
   }, [camera])
 
   return getCameraControlState(selectedNodeIds, context)
@@ -288,7 +321,7 @@ export function extractCameraViewState(value: unknown): CameraViewState | null {
 }
 
 // MapLibre reports longitudes outside [-180, 180] after panning across the antimeridian
-// (renderWorldCopies). The longitude NumberField rejects those, so wrap before writing.
+// (renderWorldCopies). Wrap them so the center stays a valid longitude.
 export function wrapLongitude(longitude: number): number {
   if (longitude >= -180 && longitude <= 180) return longitude
   return ((((longitude + 180) % 360) + 360) % 360) - 180
@@ -297,8 +330,9 @@ export function wrapLongitude(longitude: number): number {
 // A connected or expression-driven input gets its value from elsewhere: a write would be
 // overwritten by the connection, or would replace the user's expression with a literal
 function isCameraInputDriven(op: MapViewStateOp, name: CameraInputName): boolean {
-  const field = op.inputs[name]
-  return field.subscriptions.size > 0 || field.expression !== null
+  return cameraInputFields(op, name).some(
+    field => field.subscriptions.size > 0 || field.expression !== null
+  )
 }
 
 export function updateCameraInputs(op: MapViewStateOp, value: unknown): boolean {
@@ -306,17 +340,16 @@ export function updateCameraInputs(op: MapViewStateOp, value: unknown): boolean 
   if (!viewState || op.locked.value) return false
   if (CAMERA_INPUT_NAMES.some(name => isCameraInputDriven(op, name))) return false
 
-  const next: Record<CameraInputName, number | undefined> = {
-    longitude: wrapLongitude(viewState.longitude),
-    latitude: viewState.latitude,
-    zoom: viewState.zoom,
-    pitch: viewState.pitch,
-    bearing: viewState.bearing,
+  // Move events repeat values (a pan leaves zoom, pitch and bearing alone); skip those
+  const lng = wrapLongitude(viewState.longitude)
+  const center = op.inputs.center
+  if (center.value.lng !== lng || center.value.lat !== viewState.latitude) {
+    center.setValue({ lng, lat: viewState.latitude })
   }
-  for (const name of CAMERA_INPUT_NAMES) {
+  const next = { zoom: viewState.zoom, pitch: viewState.pitch, bearing: viewState.bearing }
+  for (const name of ['zoom', 'pitch', 'bearing'] as const) {
     const field = op.inputs[name]
     const nextValue = next[name]
-    // Move events repeat values (a pan leaves zoom, pitch and bearing alone); skip those
     if (nextValue === undefined || field.value === nextValue) continue
     field.setValue(nextValue)
   }

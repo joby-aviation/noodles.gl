@@ -1,5 +1,5 @@
 {
-  "projectVersion": 22,
+  "projectVersion": 23,
   "customFieldTypes": [
     "number",
     "string",
@@ -4289,13 +4289,16 @@
       "category": "view",
       "description": "Create a react-map-gl MapViewState for controlling the camera.",
       "inputs": {
-        "longitude": {
-          "type": "NumberField",
-          "default": -74.006
-        },
-        "latitude": {
-          "type": "NumberField",
-          "default": 40.7128
+        "center": {
+          "type": "Point2DField",
+          "default": {
+            "lng": -74.006,
+            "lat": 40.7128
+          },
+          "channels": [
+            "lng",
+            "lat"
+          ]
         },
         "zoom": {
           "type": "NumberField",

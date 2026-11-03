@@ -58,7 +58,7 @@ A camera you can set by dragging the map, on a light style:
 ```json
 {
   "nodes": [
-    { "id": "/camera", "type": "MapViewStateOp", "position": { "x": 0, "y": 0 }, "data": { "inputs": { "longitude": -122.42, "latitude": 37.77, "zoom": 11, "pitch": 45 } } },
+    { "id": "/camera", "type": "MapViewStateOp", "position": { "x": 0, "y": 0 }, "data": { "inputs": { "center": { "lng": -122.42, "lat": 37.77 }, "zoom": 11, "pitch": 45 } } },
     { "id": "/basemap", "type": "MaplibreBasemapOp", "position": { "x": 300, "y": 0 }, "data": { "inputs": { "mapStyle": "https://basemaps.cartocdn.com/gl/positron-gl-style/style.json" } } },
     { "id": "/deck", "type": "DeckRendererOp", "position": { "x": 600, "y": 0 }, "data": { "inputs": {} } },
     { "id": "/out", "type": "OutOp", "position": { "x": 900, "y": 0 }, "data": { "inputs": {} } }
