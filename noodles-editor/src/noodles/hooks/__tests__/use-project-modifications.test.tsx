@@ -5,7 +5,7 @@ import { act, renderHook } from '@testing-library/react'
 import type { Edge as ReactFlowEdge, Node as ReactFlowNode } from '@xyflow/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { analytics } from '../../../utils/analytics'
-import { ConcatOp, ContainerOp, DeckRendererOp, NumberOp } from '../../operators'
+import { ConcatOp, ContainerOp, DeckRendererOp, NumberOp, SplitXYOp } from '../../operators'
 import { clearOps, getOp, hasOp, setOp, setPendingInsertionIndex } from '../../store'
 import { MULTI_INPUT_EDGE_TYPE } from '../../utils/multi-input-utils'
 import { type ProjectModification, useProjectModifications } from '../use-project-modifications'
@@ -1369,6 +1369,112 @@ describe('useProjectModifications', () => {
       expect(groupIds()).toEqual([listEdgeId('/a'), listEdgeId('/c')])
       expect(edges.map(e => e.data?.orderIndex)).toEqual([0, 1])
       expect(edges.map(e => e.data?.groupSize)).toEqual([2, 2])
+    })
+  })
+
+  describe('vector channel ports', () => {
+    let split: SplitXYOp
+    beforeEach(() => {
+      setOp('/num', new NumberOp('/num', { val: 5 }))
+      split = new SplitXYOp('/split', { vec: { x: 1, y: 2 } })
+      setOp('/split', split)
+      nodes = [
+        { id: '/num', type: 'NumberOp', position: { x: 0, y: 0 }, data: {} },
+        { id: '/split', type: 'SplitXYOp', position: { x: 100, y: 0 }, data: {} },
+      ]
+    })
+
+    const channelEdge: ReactFlowEdge = {
+      id: '/num.out.val->/split.par.vec.x',
+      source: '/num',
+      target: '/split',
+      sourceHandle: 'out.val',
+      targetHandle: 'par.vec.x',
+    }
+
+    function render() {
+      return renderHook(() => useProjectModifications({ getNodes, getEdges, setNodes, setEdges }))
+    }
+
+    it('updateNode switches the port layout before setting channel values', () => {
+      const { result } = render()
+      act(() => {
+        const update = result.current.updateNode('/split', {
+          data: { inputPortModes: { vec: 'channels' }, inputs: { vec: { x: { $expr: '4 * 2' } } } },
+        })
+        expect(update.success).toBe(true)
+      })
+      expect(split.getInputPortMode('vec')).toBe('channels')
+      expect(split.inputs.vec.channels?.fields.x.expression).toBe('4 * 2')
+      expect(split.inputs.vec.value).toEqual({ x: 8, y: 2 })
+      expect(nodes[1].data.inputPortModes).toEqual({ vec: 'channels' })
+    })
+
+    it('addEdge connects a channel of a split input', () => {
+      split.setInputPortMode('vec', 'channels')
+      const { result } = render()
+      act(() => {
+        expect(result.current.addEdge(channelEdge).success).toBe(true)
+      })
+      expect(edges).toEqual([channelEdge])
+    })
+
+    it('addEdge rejects a channel handle while the input is one port', () => {
+      const { result } = render()
+      act(() => {
+        const added = result.current.addEdge(channelEdge)
+        expect(added.success).toBe(false)
+        expect(added.error).toMatch(/Switch vec to channel ports first/)
+      })
+      expect(edges).toHaveLength(0)
+    })
+
+    it('addEdge rejects the whole-value handle while the input is split', () => {
+      split.setInputPortMode('vec', 'channels')
+      setOp('/combine', new SplitXYOp('/combine'))
+      const { result } = render()
+      act(() => {
+        const added = result.current.addEdge({
+          ...channelEdge,
+          id: '/num.out.val->/split.par.vec',
+          targetHandle: 'par.vec',
+        })
+        expect(added.success).toBe(false)
+        expect(added.error).toMatch(/vec is split into vec.x, vec.y/)
+      })
+    })
+
+    it('applyModifications splits an input and connects a channel in one batch', () => {
+      const { result } = render()
+      act(() => {
+        const applied = result.current.applyModifications([
+          {
+            type: 'update_node',
+            data: { id: '/split', data: { inputPortModes: { vec: 'channels' } } },
+          },
+          { type: 'add_edge', data: channelEdge },
+        ])
+        expect(applied.success).toBe(true)
+      })
+      expect(split.getInputPortMode('vec')).toBe('channels')
+      expect(edges.map(edge => edge.targetHandle)).toEqual(['par.vec.x'])
+    })
+
+    it('onConnect wires a channel without overwriting the node inputs', () => {
+      split.setInputPortMode('vec', 'channels')
+      const { result } = render()
+      act(() => {
+        result.current.onConnect({
+          source: '/num',
+          target: '/split',
+          sourceHandle: 'out.val',
+          targetHandle: 'par.vec.x',
+        })
+      })
+      expect(split.inputs.vec.channels?.fields.x.subscriptions.size).toBe(1)
+      ;(getOp('/num') as NumberOp).outputs.val.next(6)
+      expect(split.inputs.vec.value).toEqual({ x: 6, y: 2 })
+      expect(nodes[1].data).toEqual({})
     })
   })
 })

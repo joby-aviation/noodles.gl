@@ -131,6 +131,7 @@ import { instantiateDeckView } from './utils/deck-view'
 import { directoryHandleCache } from './utils/directory-handle-cache'
 import { insertUniqueEdge } from './utils/edge-integrity'
 import { trackChatClosed, trackChatOpened } from './utils/editor-analytics'
+import { inputPortEntries, resolveOperatorField } from './utils/field-resolution'
 import {
   fileExists,
   requestPermission,
@@ -771,8 +772,10 @@ export function getNoodles(): Visualization {
         if (nodeId === params.nodeId) continue
 
         // Check target handles (inputs if dragging from output, outputs if dragging from input)
-        const targetFields = isOutput ? op.inputs : op.outputs
-        for (const targetField of Object.values(targetFields)) {
+        const targetFields = isOutput
+          ? inputPortEntries(op).map(([, field]) => field)
+          : Object.values(op.outputs)
+        for (const targetField of targetFields) {
           const compatible = isOutput
             ? canConnectCached(sourceField, targetField)
             : canConnectCached(targetField, sourceField)
@@ -793,7 +796,7 @@ export function getNoodles(): Visualization {
         if (!targetHandleInfo) continue
         const targetOp = getOp(edge.target)
         if (!targetOp) continue
-        const targetField = targetOp.inputs[targetHandleInfo.fieldName]
+        const targetField = resolveOperatorField(targetOp, 'par', targetHandleInfo.fieldName)?.field
         if (!targetField) continue
         const compatible = isOutput
           ? canConnectCached(sourceField, targetField)

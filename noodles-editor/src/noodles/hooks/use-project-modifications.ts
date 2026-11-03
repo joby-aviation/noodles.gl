@@ -13,12 +13,19 @@ import { useCallback } from 'react'
 import { getTimelineStore } from '../../timeline/timeline-store'
 import { analytics } from '../../utils/analytics'
 import { debugUI } from '../../utils/debug'
-import { type Field, ListField } from '../fields'
+import {
+  applySerializedFieldValue,
+  type Field,
+  isSerializedChannels,
+  isSerializedExpression,
+  ListField,
+} from '../fields'
 import type { IOperator, Operator } from '../operators'
 import { deleteOp, getAllOps, getOp, setOp, takePendingInsertionIndex } from '../store'
 import { canConnect, validateConnection } from '../utils/can-connect'
 import { expandDeleteSet } from '../utils/copy-paste-utils'
 import { appendUniqueEdges, insertUniqueEdge } from '../utils/edge-integrity'
+import { portLayoutError, resolveOperatorField } from '../utils/field-resolution'
 import { edgeId } from '../utils/id-utils'
 import {
   insertEdgeAtGroupIndex,
@@ -30,6 +37,37 @@ import { generateQualifiedPath, getParentPath, parseHandleId } from '../utils/pa
 import { hasPosition, placeNewNode } from '../utils/viewer-position'
 
 // Using ReactFlowNode instead of AnyNodeJSON for compatibility
+
+// The input field an edge's target handle names, `center` or a channel like `center.lng`
+function targetInputField(op: Operator<IOperator> | undefined, fieldPath: string) {
+  return resolveOperatorField(op, 'par', fieldPath)?.field
+}
+
+// Apply update_node data to a live operator. Port layout goes first, so channel values
+// and channel edges in the same batch have fields to land in.
+function applyNodeDataToOperator(operator: Operator<IOperator>, data: Record<string, unknown>) {
+  const modes = data.inputPortModes
+  if (modes && typeof modes === 'object') {
+    operator.setInputPortModes(modes as Record<string, unknown>)
+  }
+  const inputs = data.inputs as Record<string, unknown> | undefined
+  if (!inputs) return
+  for (const [key, value] of Object.entries(inputs)) {
+    const input = (operator.inputs as Record<string, Field>)[key]
+    if (input && typeof input.setValue === 'function') {
+      if (isSerializedExpression(value) || isSerializedChannels(input, value)) {
+        applySerializedFieldValue(input, value)
+      } else {
+        input.setValue(value)
+      }
+      // Auto-show field when value is set programmatically (AI tools)
+      operator.showField(key)
+    } else {
+      debugUI(`Input ${key} not found on operator ${operator.id} or doesn't have setValue`)
+    }
+  }
+}
+
 export type ProjectModification =
   | { type: 'add_node'; data: ReactFlowNode }
   | { type: 'update_node'; data: Partial<ReactFlowNode> & { id: string } }
@@ -194,7 +232,7 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
               outgoers
                 .filter(({ id: target }) => {
                   const sourceField = getOp(source)?.outputs[sourceHandleInfo.fieldName]
-                  const targetField = getOp(target)?.inputs[targetHandleInfo.fieldName]
+                  const targetField = targetInputField(getOp(target), targetHandleInfo.fieldName)
                   if (!sourceField || !targetField) {
                     return false
                   }
@@ -304,8 +342,12 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
 
       // Get fields
       const sourceField = sourceOp.outputs[sourceHandleInfo.fieldName]
-      const targetField = targetOp.inputs[targetHandleInfo.fieldName]
+      const targetField = targetInputField(targetOp, targetHandleInfo.fieldName)
 
+      const layoutError = portLayoutError(targetOp, targetHandleInfo.fieldName)
+      if (sourceField && layoutError) {
+        return { success: false, error: `Invalid edge: ${layoutError}` }
+      }
       if (!sourceField || !targetField) {
         return {
           success: false,
@@ -336,7 +378,9 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
   const updateNode = useCallback(
     (
       nodeId: string,
-      updates: Partial<ReactFlowNode> & { data?: { inputs?: Record<string, unknown> } }
+      updates: Partial<ReactFlowNode> & {
+        data?: { inputs?: Record<string, unknown>; inputPortModes?: Record<string, unknown> }
+      }
     ): ModificationResult => {
       const nodes = getNodes()
       const node = nodes.find(n => n.id === nodeId)
@@ -348,22 +392,8 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
       // Get the operator instance from store
       const operator = getOp(nodeId)
 
-      if (operator && updates.data?.inputs) {
-        // Update operator inputs using setValue
-        const inputs = updates.data.inputs
-        Object.entries(inputs).forEach(([key, value]: [string, unknown]) => {
-          const operatorInputs = (operator as unknown as Record<string, unknown>).inputs as
-            | Record<string, { setValue?: (value: unknown) => void }>
-            | undefined
-          const input = operatorInputs?.[key]
-          if (input && typeof input.setValue === 'function') {
-            input.setValue(value)
-            // Auto-show field when value is set programmatically (AI tools)
-            operator.showField(key)
-          } else {
-            debugUI(`Input ${key} not found on operator ${nodeId} or doesn't have setValue`)
-          }
-        })
+      if (operator && updates.data) {
+        applyNodeDataToOperator(operator, updates.data as Record<string, unknown>)
       }
 
       // Update the node in React Flow state
@@ -570,19 +600,8 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
       // Update operator inputs for node updates
       for (const { id, updates } of nodesToUpdate) {
         const operator = getOp(id)
-        if (operator && updates.data?.inputs) {
-          const inputs = updates.data.inputs as Record<string, unknown>
-          for (const [key, value] of Object.entries(inputs)) {
-            const operatorInputs = (operator as unknown as Record<string, unknown>).inputs as
-              | Record<string, { setValue?: (value: unknown) => void }>
-              | undefined
-            const input = operatorInputs?.[key]
-            if (input && typeof input.setValue === 'function') {
-              input.setValue(value)
-              // Auto-show field when value is set programmatically (AI tools)
-              operator.showField(key)
-            }
-          }
+        if (operator && updates.data) {
+          applyNodeDataToOperator(operator, updates.data as Record<string, unknown>)
         }
       }
 
@@ -674,8 +693,15 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
             }
 
             const sourceField = sourceOp.outputs[sourceHandleInfo.fieldName]
-            const targetField = targetOp.inputs[targetHandleInfo.fieldName]
+            const targetField = targetInputField(targetOp, targetHandleInfo.fieldName)
 
+            const layoutError = portLayoutError(targetOp, targetHandleInfo.fieldName)
+            if (sourceField && layoutError) {
+              const error = `Edge ${edge.id}: ${layoutError}`
+              debugUI(error)
+              edgeErrors.push(error)
+              continue
+            }
             if (!sourceField || !targetField) {
               const error = `Edge ${edge.id}: field not found (${sourceHandleInfo.fieldName} -> ${targetHandleInfo.fieldName})`
               debugUI(error)
@@ -802,9 +828,15 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
       }
 
       const sourceField = sourceOp.outputs[sourceHandleInfo.fieldName]
-      const targetField = targetOp.inputs[targetHandleInfo.fieldName]
+      const resolvedTarget = resolveOperatorField(targetOp, 'par', targetHandleInfo.fieldName)
+      const targetField = resolvedTarget?.field
       if (!sourceField || !targetField) {
         console.error('Invalid connection', connection)
+        return
+      }
+      const layoutError = portLayoutError(targetOp, targetHandleInfo.fieldName)
+      if (layoutError) {
+        console.error(layoutError, connection)
         return
       }
 
@@ -880,7 +912,9 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
         analytics.track('edge_added', { count: 1 })
       }
 
-      // Update target node with new input value
+      // Update target node with new input value. A channel's value is part of its input's
+      // value, which the channel sync keeps current.
+      if (resolvedTarget?.channelName) return
       setNodes(nds => {
         const updated = [...nds]
         let value: unknown
@@ -931,7 +965,8 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
         // Pure reorder within one multi-input handle: same edge, new slot
         const pendingIndex = takePendingInsertionIndex(connection.target, connection.targetHandle)
         const handleInfo = parseHandleId(connection.targetHandle || '')
-        const targetField = handleInfo && getOp(connection.target)?.inputs[handleInfo.fieldName]
+        const targetField =
+          handleInfo && targetInputField(getOp(connection.target), handleInfo.fieldName)
         if (!(targetField instanceof ListField) || pendingIndex === null) return
 
         // The dragged edge is removed before re-insertion, so slots after it shift down one:
@@ -964,7 +999,7 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
       const oldHandleInfo = parseHandleId(oldEdge.targetHandle || '')
       const oldTargetOp = getOp(oldEdge.target)
       if (oldHandleInfo && oldTargetOp) {
-        oldTargetOp.inputs[oldHandleInfo.fieldName]?.removeConnection(oldEdge.id)
+        targetInputField(oldTargetOp, oldHandleInfo.fieldName)?.removeConnection(oldEdge.id)
         oldTargetOp.removeConnectionError(oldEdge.id)
       }
 

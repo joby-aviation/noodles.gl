@@ -149,3 +149,47 @@ describe('checkFields', () => {
     expect(checkFields(edge('out.data', 'par.data'), context({ '/data': 'NopeOp' }))).toEqual([])
   })
 })
+
+describe('checkFields with vector channel ports', () => {
+  const types = { '/num': 'NumberOp', '/split': 'SplitXYOp' }
+  function withModes(modes: Record<string, unknown>): FieldCheckContext {
+    return {
+      ...context(types),
+      ports: () => ({ channels: { vec: ['x', 'y'] }, modes }),
+    }
+  }
+  const wire = (targetHandle: string): ProjectModification => ({
+    type: 'add_edge',
+    data: { id: 'e', source: '/num', target: '/split', sourceHandle: 'out.val', targetHandle },
+  })
+
+  it('lists the channels of vector inputs in the registry', () => {
+    expect(registry.operators.SplitXYOp.inputs.vec.channels).toEqual(['x', 'y'])
+    expect(registry.operators.NumberOp.inputs.val.channels).toBeUndefined()
+  })
+
+  it('accepts a channel handle only while the input is split', () => {
+    expect(checkFields(wire('par.vec.x'), withModes({ vec: 'channels' }))).toEqual([])
+    const [problem] = checkFields(wire('par.vec.x'), withModes({}))
+    expect(problem).toContain('Switch vec to channel ports first')
+  })
+
+  it('rejects the whole-value handle of a split input', () => {
+    const [problem] = checkFields(wire('par.vec'), withModes({ vec: 'channels' }))
+    expect(problem).toContain('vec is split into vec.x, vec.y')
+  })
+
+  it('checks the port modes an update sets', () => {
+    const update = (inputPortModes: unknown): ProjectModification => ({
+      type: 'update_node',
+      data: { id: '/split', data: { inputPortModes } },
+    })
+    expect(checkFields(update({ vec: 'channels' }), withModes({}))).toEqual([])
+    expect(checkFields(update({ vec: 'split' }), withModes({}))[0]).toContain(
+      'Use "channels" to split it into x, y'
+    )
+    expect(checkFields(update({ val: 'channels' }), withModes({}))[0]).toContain(
+      "val can't split into channel ports. Inputs that can: vec."
+    )
+  })
+})

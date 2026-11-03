@@ -2,7 +2,14 @@ import type { OnMount } from '@monaco-editor/react'
 import * as Dialog from '@radix-ui/react-dialog'
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
 import { Cross2Icon, QuestionMarkCircledIcon } from '@radix-ui/react-icons'
-import { Handle, Position, useEdges, useNodeId, useReactFlow } from '@xyflow/react'
+import {
+  Handle,
+  Position,
+  useEdges,
+  useNodeId,
+  useReactFlow,
+  useUpdateNodeInternals,
+} from '@xyflow/react'
 import cx from 'classnames'
 import type { ScaleLinear, ScaleOrdinal } from 'd3'
 import { Button } from 'primereact/button'
@@ -18,6 +25,7 @@ import {
   useState,
 } from 'react'
 import { createPortal } from 'react-dom'
+import { combineLatest } from 'rxjs'
 
 import { BasemapGallery } from './basemap-gallery'
 
@@ -57,8 +65,10 @@ import {
   Point2DField,
   Point3DField,
   StringLiteralField,
+  supportsChannelPorts,
   type Vec2Field,
   type Vec3Field,
+  type VectorField,
 } from '../fields'
 import { useFileSystemStore } from '../filesystem-store'
 import type { Edge as GraphEdge } from '../graph-executor'
@@ -2786,19 +2796,132 @@ export function FieldContextMenu({
   )
 }
 
-export function FieldComponent({
-  id: fieldId,
-  field,
-  disabled,
-  handle,
-  renderInput = true,
-}: {
+type FieldComponentProps = {
   id: OpId
   field: Field<IField>
   disabled: boolean
   handle?: HandleOptions
   renderInput?: boolean
-}) {
+}
+
+export function FieldComponent(props: FieldComponentProps) {
+  const { field, handle, renderInput = true } = props
+  if (renderInput && handle?.namespace === 'par' && supportsChannelPorts(field) && field.op) {
+    return <VectorPortsField {...props} field={field} handle={handle} />
+  }
+  return <FieldRow {...props} />
+}
+
+// A Point2D, Point3D, Vec2 or Vec3 input on a node: one port for the whole value, or one
+// number port per component. The toggle is locked while anything drives the input, since
+// switching layouts would orphan its edges or drop its channel expressions.
+function VectorPortsField({
+  id: fieldId,
+  field,
+  disabled,
+  handle,
+}: FieldComponentProps & { field: VectorField; handle: HandleOptions }) {
+  const op = field.op
+  const nid = useNodeId()
+  const updateNodeInternals = useUpdateNodeInternals()
+  const modes = useObservable(op.inputPortModes, op.inputPortModes.value)
+  const channels = modes[fieldId] === 'channels' ? field.channels : null
+  const expression = useObservable(field.expression$, field.expression)
+
+  const [channelDriven, setChannelDriven] = useState(false)
+  useEffect(() => {
+    if (!channels) {
+      setChannelDriven(false)
+      return
+    }
+    const sub = combineLatest(
+      Object.values(channels.fields).map(channel => channel.expression$)
+    ).subscribe(expressions => setChannelDriven(expressions.some(expr => expr !== null)))
+    return () => sub.unsubscribe()
+  }, [channels])
+
+  // Edges to the ports on show. An edge saved for the other layout is inactive, and
+  // switching to that layout is how it comes back.
+  const split = channels !== null
+  const connected = useEdgeConnectionStore(
+    useCallback(
+      state => {
+        if (!nid) return false
+        const key = `${nid}::par.${fieldId}` as const
+        if (!split) return state.connectionMap.has(key)
+        for (const connection of state.connectionMap.keys()) {
+          if (connection.startsWith(`${key}.`)) return true
+        }
+        return false
+      },
+      [nid, fieldId, split]
+    )
+  )
+
+  const locked = connected || expression !== null || channelDriven
+  const toggle = useCallback(() => {
+    const before = captureOperatorInputs()
+    const mode = channels ? 'whole' : 'channels'
+    op.setInputPortMode(fieldId, mode)
+    firePropertyMutation('Change vector port layout', before)
+    analytics.track('vector_port_mode_changed', { mode })
+    if (nid) requestAnimationFrame(() => updateNodeInternals(nid))
+  }, [channels, op, fieldId, nid, updateNodeInternals])
+
+  const label = channels ? 'Use whole-value port' : 'Use component ports'
+  const toggleButton = (
+    <button
+      type="button"
+      className={s.vectorPortModeButton}
+      disabled={disabled || locked}
+      onClick={toggle}
+      aria-label={label}
+      title={locked ? 'Disconnect this input and remove its expressions to change ports' : label}
+    >
+      <i className={channels ? 'pi pi-stop' : 'pi pi-list'} />
+    </button>
+  )
+
+  if (!channels) {
+    return (
+      <FieldRow
+        id={fieldId}
+        field={field}
+        disabled={disabled}
+        handle={handle}
+        trailingControl={toggleButton}
+      />
+    )
+  }
+  return (
+    <div data-field-row>
+      <div className={s.vectorPortRow}>
+        <div className={cx(s.fieldWrapper, 'nokey')}>
+          <FieldLabel id={fieldId} field={field} as="div" />
+        </div>
+        {toggleButton}
+      </div>
+      {Object.entries(channels.fields).map(([key, channel]) => (
+        <FieldRow
+          key={key}
+          id={`${fieldId}.${key}`}
+          field={channel as unknown as Field<IField>}
+          disabled={disabled}
+          handle={handle}
+        />
+      ))}
+    </div>
+  )
+}
+
+function FieldRow({
+  id: fieldId,
+  field,
+  disabled,
+  handle,
+  renderInput = true,
+  trailingControl,
+}: FieldComponentProps & { trailingControl?: React.ReactNode }) {
   const nid = useNodeId()
   const qualifiedFieldId = handle ? `${handle.namespace}.${fieldId}` : `par.${fieldId}`
   const isHandleDimmed = useHandleDimmed(nid ?? '', qualifiedFieldId)
@@ -2828,8 +2951,10 @@ export function FieldComponent({
 
   const hasKeyframes = useTimelineStore(state => {
     if (!nid || !renderInput) return false
-    // Check for a direct track or any sub-property track (e.g. compound fields)
-    const prefix = getFieldPath(nid, fieldId)
+    // Check for a direct track or any sub-property track (e.g. compound fields). A
+    // channel row's id is a path like `center.lng`.
+    const [name, ...subPath] = fieldId.split('.')
+    const prefix = getFieldPath(nid, name, subPath)
     for (const [path, track] of state.tracks) {
       if ((path === prefix || path.startsWith(`${prefix} / `)) && track.keyframes.length > 0) {
         return true
@@ -2845,6 +2970,18 @@ export function FieldComponent({
   const handleStyle = renderInput
     ? { top: '12.5px', transform: `translateX(${translateX})` }
     : { top: '15px', transform: `translateX(${translateX})` }
+
+  const input = hasIncomingConnection ? (
+    <EmptyFieldComponent id={fieldId} field={field} />
+  ) : isDriven ? (
+    <ExpressionDrivenInput id={fieldId} field={field} disabled={disabled} />
+  ) : hasKeyframes ? (
+    <div className={s.keyframedFieldInput}>
+      <InputComp id={fieldId} field={field} disabled={disabled} />
+    </div>
+  ) : (
+    <InputComp id={fieldId} field={field} disabled={disabled} />
+  )
 
   return (
     // biome-ignore lint/a11y/noStaticElementInteractions: right-click menu is a shortcut; the same actions are reachable via the Properties Panel context menu
@@ -2872,16 +3009,13 @@ export function FieldComponent({
         ))}
       {renderInput && (
         <FieldEditScope field={field}>
-          {hasIncomingConnection ? (
-            <EmptyFieldComponent id={fieldId} field={field} />
-          ) : isDriven ? (
-            <ExpressionDrivenInput id={fieldId} field={field} disabled={disabled} />
-          ) : hasKeyframes ? (
-            <div className={s.keyframedFieldInput}>
-              <InputComp id={fieldId} field={field} disabled={disabled} />
+          {trailingControl ? (
+            <div className={s.vectorPortRow}>
+              {input}
+              {trailingControl}
             </div>
           ) : (
-            <InputComp id={fieldId} field={field} disabled={disabled} />
+            input
           )}
         </FieldEditScope>
       )}

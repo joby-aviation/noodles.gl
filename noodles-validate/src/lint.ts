@@ -5,7 +5,10 @@ import {
   fieldNames,
   getOperator,
   handleProblem,
+  inputChannels,
   isTypo,
+  type PortLayout,
+  portModeProblems,
   type Side,
   unknownInput,
   unknownType,
@@ -28,6 +31,8 @@ interface NodeRecord {
   customInputs: string[]
   // Keys of data.inputs, checked once every node is known
   inputs: string[]
+  // Vector inputs that can split into channel ports, and data.inputPortModes
+  ports: PortLayout
 }
 
 // Mirrors its parent container's custom inputs as an input and an output each
@@ -161,13 +166,18 @@ function checkNode(
   const data = isObject(node.data) ? node.data : {}
   const customInputs = checkCustomInputs(data, id, at, registry, report)
   const inputs = isObject(data.inputs) ? Object.keys(data.inputs) : []
-  nodes.set(id, { id, type, index, customInputs, inputs })
+  const ports: PortLayout = {
+    channels: { ...inputChannels(registry, type), ...customInputChannels(data, registry) },
+    modes: isObject(data.inputPortModes) ? data.inputPortModes : {},
+  }
+  nodes.set(id, { id, type, index, customInputs, inputs, ports })
 
   if (SPECIAL_NODE_TYPES.has(type)) return
   if (!getOperator(registry, type)) {
     report('error', 'unknown-operator', at, `${id}: ${unknownType(type, registry)}`, id)
     return
   }
+  checkPortModes(data.inputPortModes, ports, id, at, report)
 
   if (data.inputs !== undefined && !isObject(data.inputs)) {
     report(
@@ -472,7 +482,8 @@ function checkEndpoint(
     ...(side === 'inputs' ? node.customInputs : []),
     ...containerFields(node, nodes),
   ]
-  const problem = handleProblem(nodeId, node.type, handle, side, known)
+  const ports = side === 'inputs' ? node.ports : undefined
+  const problem = handleProblem(nodeId, node.type, handle, side, known, ports)
   if (problem) {
     report('error', 'edge-handle', at, `Edge ${edgeId}: ${problem}`, edgeId)
     return false
@@ -568,6 +579,28 @@ function checkCustomInputs(
     }
   })
   return names
+}
+
+// Custom inputs of a vector type (vec2, geopoint-2d, ...) can split into channels too
+function customInputChannels(data: Json, registry: Registry): Record<string, string[]> {
+  const custom = Array.isArray(data.customInputs) ? data.customInputs : []
+  const channels = registry.customFieldChannels ?? {}
+  return Object.fromEntries(
+    custom.flatMap(def =>
+      isObject(def) &&
+      typeof def.name === 'string' &&
+      typeof def.type === 'string' &&
+      Object.hasOwn(channels, def.type)
+        ? [[def.name, channels[def.type]]]
+        : []
+    )
+  )
+}
+
+function checkPortModes(modes: unknown, ports: PortLayout, id: string, at: string, report: Report) {
+  for (const problem of portModeProblems(id, modes, ports.channels)) {
+    report('error', 'input-port-mode', at, problem, id)
+  }
 }
 
 function isObject(value: unknown): value is Json {

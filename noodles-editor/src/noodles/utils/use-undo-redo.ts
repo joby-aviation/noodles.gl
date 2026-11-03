@@ -21,6 +21,7 @@ import { type LockChange, redoLockChange, undoLockChange } from './lock-history'
 import {
   applyOperatorInputs,
   captureOperatorInputs,
+  PORT_MODES_KEY,
   type PropertyMutationOptions,
   UI_STATE_KEY,
 } from './property-history'
@@ -799,14 +800,21 @@ function withOperatorInputs(nodes: ReactFlowNode[], snapshot: string | undefined
     return nodes
   }
   const uiState = state[UI_STATE_KEY] as Record<string, unknown> | undefined
+  const portModes = state[PORT_MODES_KEY] as Record<string, unknown> | undefined
   return nodes.map(node => {
     const inputs = state[node.id]
     if (!inputs) return node
     const data = node.data as { inputs?: Record<string, unknown> }
     const ui = uiState?.[node.id]
+    const inputPortModes = portModes?.[node.id]
     return {
       ...node,
-      data: { ...node.data, inputs: { ...data.inputs, ...inputs }, ...(ui ? { ui } : {}) },
+      data: {
+        ...node.data,
+        inputs: { ...data.inputs, ...inputs },
+        ...(ui ? { ui } : {}),
+        ...(inputPortModes ? { inputPortModes } : {}),
+      },
     }
   })
 }

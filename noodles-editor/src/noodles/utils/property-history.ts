@@ -7,6 +7,7 @@ import {
   type Field,
   type IField,
   type NodeUIMetadata,
+  supportsChannelPorts,
 } from '../fields'
 import { dismissStarterHint, getAllOps, getGraphStore } from '../store'
 import { trackFieldEdit, useFieldEditScope } from './field-edit-analytics'
@@ -29,6 +30,8 @@ type PropertyMutationCallback = (
 let _propertyMutationCallback: PropertyMutationCallback | undefined
 let _lastCommittedBeforeState: string | null = null
 export const UI_STATE_KEY = '$ui'
+// Port layouts of vector inputs (Operator.inputPortModes). Only full snapshots have it.
+export const PORT_MODES_KEY = '$ports'
 
 export function registerPropertyMutationCallback(cb: PropertyMutationCallback | undefined) {
   _propertyMutationCallback = cb
@@ -41,9 +44,10 @@ export function captureOperatorInputs(): string | null {
   const ops = getAllOps()
   const state: Record<string, Record<string, unknown>> = {}
   const uiState: Record<string, NodeUIMetadata> = {}
+  const portModes: Record<string, Record<string, string>> = {}
   for (const op of ops) {
     const inputs: Record<string, unknown> = {}
-    for (const [name, field] of Object.entries(op.inputs as Record<string, IField>)) {
+    const capture = (name: string, field: IField) => {
       // Expression-driven fields serialize their (small) expression source, so include
       // them even when reference connections have populated `subscriptions`
       const isDriven =
@@ -53,14 +57,27 @@ export function captureOperatorInputs(): string | null {
         'subscriptions' in field &&
         (field as { subscriptions: Map<unknown, unknown> }).subscriptions.size > 0
       )
-        continue
+        return
       inputs[name] = field.serialize()
     }
+    for (const [name, field] of Object.entries(op.inputs as Record<string, IField>)) {
+      // A split input is saved per channel, so a connected channel isn't restored
+      if (supportsChannelPorts(field) && field.channels && field.expression === null) {
+        for (const [key, channel] of Object.entries(field.channels.fields)) {
+          capture(`${name}.${key}`, channel as unknown as IField)
+        }
+        continue
+      }
+      capture(name, field)
+    }
     state[op.id] = inputs
+    const modes = op.inputPortModes?.value
+    if (modes && Object.keys(modes).length > 0) portModes[op.id] = { ...modes }
     const ui = captureNodeUIMetadata(op.inputs)
     if (ui) uiState[op.id] = ui
   }
   if (Object.keys(uiState).length > 0) state[UI_STATE_KEY] = uiState
+  state[PORT_MODES_KEY] = portModes
   debugHistorySnapshot('Captured operator inputs for %d ops', ops.length)
   try {
     return JSON.stringify(state)
@@ -85,10 +102,13 @@ export function applyOperatorInputs(snapshot: string): void {
   }
   const store = getGraphStore()
   const uiState = data[UI_STATE_KEY] as Record<string, NodeUIMetadata> | undefined
+  const portModes = data[PORT_MODES_KEY] as Record<string, Record<string, unknown>> | undefined
   for (const [id, inputs] of Object.entries(data)) {
-    if (id === UI_STATE_KEY) continue
+    if (id === UI_STATE_KEY || id === PORT_MODES_KEY) continue
     const op = store.getOp(id as OpId)
     if (!op) continue
+    // Layout first, so channel values have channel fields to land in
+    if (portModes) op.setInputPortModes?.(portModes[id] ?? {})
     const opInputs = op.inputs as Record<string, IField>
     for (const [name, value] of Object.entries(inputs)) {
       const field = getInputField(opInputs, name)
@@ -149,8 +169,10 @@ function findFieldPath(fields: object, field: object): string[] | undefined {
   for (const [key, child] of Object.entries(fields as Record<string, object>)) {
     if (child === field) return [key]
     // Compound fields hold their children in `fields`. A list's `fields` is a Map, which has
-    // no own entries, so list items aren't matched.
-    const children = (child as { fields?: unknown }).fields
+    // no own entries, so list items aren't matched. A split vector holds its channels.
+    const children =
+      (child as { fields?: unknown }).fields ??
+      (child as { channels?: { fields?: unknown } | null }).channels?.fields
     if (typeof children !== 'object' || children === null) continue
     const rest = findFieldPath(children, field)
     if (rest) return [key, ...rest]
@@ -171,7 +193,10 @@ function getInputField(inputs: Record<string, IField>, key: string): IField | un
   if (inputs[key] || !key.includes('.')) return inputs[key]
   let field: unknown = { fields: inputs }
   for (const part of key.split('.')) {
-    field = (field as { fields?: Record<string, unknown> } | undefined)?.fields?.[part]
+    const parent = field as
+      | { fields?: Record<string, unknown>; channels?: { fields: Record<string, unknown> } | null }
+      | undefined
+    field = parent?.fields?.[part] ?? parent?.channels?.fields[part]
   }
   return field as IField | undefined
 }
