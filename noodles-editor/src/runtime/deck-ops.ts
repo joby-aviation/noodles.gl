@@ -512,8 +512,10 @@ export const DECK_OPS: DeckOp[] = [
       num('altitude', 1.5, { step: 0.1 }),
       num('nearZMultiplier', 0.1, { min: 0, step: 0.1 }),
       num('farZMultiplier', 1.01, { min: 0, step: 0.1 }),
+      // Degrees per mesh cell for flat features drawn on the globe: smaller is more detailed
+      num('resolution', 10, { min: 1, max: 90, step: 1 }),
     ],
-    { latitude: 40.7128, longitude: -74.006, zoom: 12 }
+    { latitude: 40.7128, longitude: -74.006, zoom: 12, bearing: 0, pitch: 0 }
   ),
   viewOp(
     'orbit-view',

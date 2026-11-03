@@ -40,7 +40,7 @@ describe('TableEditor - Edit Flow', () => {
       fireEvent.doubleClick(cell)
 
       // Find input and change value
-      const input = container.querySelector('input.p-inputtext') as HTMLInputElement
+      const input = container.querySelector('.p-inputtext') as HTMLInputElement
       expect(input).not.toBeNull()
       expect(input.value).toBe('Alice')
 
@@ -78,7 +78,7 @@ describe('TableEditor - Edit Flow', () => {
       fireEvent.doubleClick(countCell)
 
       // Verify input editor appears (now using InputText instead of InputNumber)
-      const input = container.querySelector('input.p-inputtext') as HTMLInputElement
+      const input = container.querySelector('.p-inputtext') as HTMLInputElement
       expect(input).not.toBeNull()
       expect(input.value).toBe('10')
 
@@ -189,7 +189,7 @@ describe('TableEditor - Edit Flow', () => {
       const cell = getByText('Alice')
       fireEvent.doubleClick(cell)
 
-      let input = container.querySelector('input.p-inputtext') as HTMLInputElement
+      let input = container.querySelector('.p-inputtext') as HTMLInputElement
       fireEvent.change(input, { target: { value: 'Charlie' } })
       fireEvent.blur(input)
 
@@ -219,7 +219,7 @@ describe('TableEditor - Edit Flow', () => {
       const charlieCell = getByText('Charlie')
       fireEvent.doubleClick(charlieCell)
 
-      input = container.querySelector('input.p-inputtext') as HTMLInputElement
+      input = container.querySelector('.p-inputtext') as HTMLInputElement
       expect(input.value).toBe('Charlie') // Should start with Charlie, not Alice
 
       fireEvent.change(input, { target: { value: 'David' } })
@@ -250,7 +250,7 @@ describe('TableEditor - Edit Flow', () => {
 
     const startEdit = async (container: HTMLElement, text: string, newValue: string) => {
       await userEvent.dblClick(screen.getByText(text))
-      const input = container.querySelector('input.p-inputtext') as HTMLInputElement
+      const input = container.querySelector('.p-inputtext') as HTMLInputElement
       await userEvent.fill(input, newValue)
       return input
     }
@@ -316,7 +316,7 @@ describe('TableEditor - Edit Flow', () => {
     it('keeps at most one cell in edit mode at a time', async () => {
       const onDataChange = vi.fn()
       const { container } = renderTable(onDataChange)
-      const activeEditors = () => container.querySelectorAll('input.p-inputtext').length
+      const activeEditors = () => container.querySelectorAll('.p-inputtext').length
 
       await userEvent.dblClick(screen.getByText('Alice'))
       expect(activeEditors()).toBe(1)
@@ -333,7 +333,7 @@ describe('TableEditor - Edit Flow', () => {
     it('leaves no cell in edit mode after a row mutation', async () => {
       const onDataChange = vi.fn()
       const { container } = renderTable(onDataChange)
-      const activeEditors = () => container.querySelectorAll('input.p-inputtext').length
+      const activeEditors = () => container.querySelectorAll('.p-inputtext').length
 
       await userEvent.dblClick(screen.getByText('Alice'))
       expect(activeEditors()).toBe(1)
@@ -377,7 +377,7 @@ describe('TableEditor - Edit Flow', () => {
       const aliceCell = getByText('Alice')
       fireEvent.doubleClick(aliceCell)
 
-      const input = container.querySelector('input.p-inputtext') as HTMLInputElement
+      const input = container.querySelector('.p-inputtext') as HTMLInputElement
       expect(input).not.toBeNull()
       expect(input.value).toBe('Alice')
 
@@ -402,6 +402,39 @@ describe('TableEditor - Edit Flow', () => {
       expect(onDataChange).toHaveBeenCalledWith(
         [
           { name: 'Alicia', count: 10 },
+          { name: 'Bob', count: 20 },
+        ],
+        'Edit cell name'
+      )
+    })
+  })
+
+  describe('Multiline strings', () => {
+    it('inserts a line break on Shift+Enter and commits on Enter', async () => {
+      const onDataChange = vi.fn()
+
+      const { getByText, container } = render(
+        <TableEditor
+          data={data}
+          schema={schema}
+          onDataChange={onDataChange}
+          onSchemaChange={vi.fn()}
+        />
+      )
+
+      fireEvent.doubleClick(getByText('Alice'))
+      const input = container.querySelector('textarea.p-inputtext') as HTMLTextAreaElement
+      expect(input).not.toBeNull()
+
+      await userEvent.type(input, '{Shift>}{Enter}{/Shift}Smith')
+      expect(input.value).toBe('Alice\nSmith')
+      expect(input.rows).toBe(2)
+      expect(onDataChange).not.toHaveBeenCalled()
+
+      await userEvent.keyboard('{Enter}')
+      expect(onDataChange).toHaveBeenCalledWith(
+        [
+          { name: 'Alice\nSmith', count: 10 },
           { name: 'Bob', count: 20 },
         ],
         'Edit cell name'
@@ -447,7 +480,7 @@ describe('TableEditor - Edit Flow', () => {
       const cell = getByText('Alice')
       fireEvent.doubleClick(cell)
 
-      const input = container.querySelector('input.p-inputtext') as HTMLInputElement
+      const input = container.querySelector('.p-inputtext') as HTMLInputElement
       fireEvent.blur(input)
 
       // Should NOT call onDataChange
@@ -470,7 +503,7 @@ describe('TableEditor - Edit Flow', () => {
       const cell = getByText('Alice')
       fireEvent.doubleClick(cell)
 
-      const input = container.querySelector('input.p-inputtext') as HTMLInputElement
+      const input = container.querySelector('.p-inputtext') as HTMLInputElement
 
       // Change then revert
       fireEvent.change(input, { target: { value: 'Charlie' } })
@@ -505,7 +538,7 @@ describe('TableEditor - Edit Flow', () => {
       fireEvent.doubleClick(cell)
 
       // Input should show "500" as string
-      const input = container.querySelector('input.p-inputtext') as HTMLInputElement
+      const input = container.querySelector('.p-inputtext') as HTMLInputElement
       expect(input.value).toBe('500')
 
       // Delete "5", type "4" → should allow "400"
@@ -556,7 +589,7 @@ describe('TableEditor - Edit Flow', () => {
 
       // Test invalid input defaults to 0
       fireEvent.doubleClick(getCell())
-      let input = container.querySelector('input.p-inputtext') as HTMLInputElement
+      let input = container.querySelector('.p-inputtext') as HTMLInputElement
       fireEvent.change(input, { target: { value: 'abc' } })
       fireEvent.blur(input)
       expect(onDataChange).toHaveBeenCalledWith([{ score: 0 }], 'Edit cell score')
@@ -565,7 +598,7 @@ describe('TableEditor - Edit Flow', () => {
 
       // Test max clamping
       fireEvent.doubleClick(getCell())
-      input = container.querySelector('input.p-inputtext') as HTMLInputElement
+      input = container.querySelector('.p-inputtext') as HTMLInputElement
       fireEvent.change(input, { target: { value: '150' } })
       fireEvent.blur(input)
       expect(onDataChange).toHaveBeenCalledWith([{ score: 100 }], 'Edit cell score')
@@ -574,7 +607,7 @@ describe('TableEditor - Edit Flow', () => {
 
       // Test min clamping
       fireEvent.doubleClick(getCell())
-      input = container.querySelector('input.p-inputtext') as HTMLInputElement
+      input = container.querySelector('.p-inputtext') as HTMLInputElement
       fireEvent.change(input, { target: { value: '-10' } })
       fireEvent.blur(input)
       expect(onDataChange).toHaveBeenCalledWith([{ score: 0 }], 'Edit cell score')
@@ -600,7 +633,7 @@ describe('TableEditor - Edit Flow', () => {
       const cell = getByText('500')
       fireEvent.doubleClick(cell)
 
-      const input = container.querySelector('input.p-inputtext') as HTMLInputElement
+      const input = container.querySelector('.p-inputtext') as HTMLInputElement
       fireEvent.change(input, { target: { value: '999' } })
 
       // Press Escape - should revert and not commit

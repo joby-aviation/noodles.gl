@@ -134,3 +134,24 @@ describe('camera inputs', () => {
     expect(fitted.longitude).toBeCloseTo(0)
   })
 })
+
+describe('globe-view', () => {
+  it('passes its resolution and a camera with bearing and pitch to deck', () => {
+    const def = DECK_OP_INDEX.get('globe-view')
+    expect(def?.def.params.find(p => p.name === 'resolution')?.default).toBe(10)
+    const view = def?.build(
+      {
+        resolution: 4,
+        viewState: { latitude: 10, longitude: 20, zoom: 3, bearing: 30, pitch: 45 },
+      },
+      'globe',
+      env
+    )
+    expect(view).toMatchObject({
+      type: 'GlobeView',
+      id: 'globe',
+      resolution: 4,
+      viewState: { bearing: 30, pitch: 45 },
+    })
+  })
+})

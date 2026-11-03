@@ -134,7 +134,7 @@
       "id": "/blending.out.parameters->/dropoff-layer.par.parameters"
     }
   ],
-  "version": 21,
+  "version": 23,
   "name": "NYC Taxis",
   "editorSettings": {
     "layoutMode": "noodles-on-top",
@@ -415,16 +415,14 @@
                       "id": "kf_bearing_0",
                       "position": 0,
                       "connectedRight": true,
-                      "handles": [0.333, 0.333, 0.667, 0.667],
-                      "type": "bezier",
+                      "handles": [0.667, 0.667, 0.333, 0.333],
                       "value": -15.25
                     },
                     {
                       "id": "kf_bearing_1",
                       "position": 20,
                       "connectedRight": false,
-                      "handles": [0.333, 0.333, 0.667, 0.667],
-                      "type": "bezier",
+                      "handles": [0.667, 0.667, 0.333, 0.333],
                       "value": 344.75
                     }
                   ]

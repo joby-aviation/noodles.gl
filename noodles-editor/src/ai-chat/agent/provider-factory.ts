@@ -40,6 +40,9 @@ export function resolveProviderModel(
       return model ?? DEFAULT_ANTHROPIC_MODEL
     case 'custom':
       return customEndpoint?.model
+    // The agent says which models it has once connected
+    case 'acp':
+      return model
   }
 }
 
@@ -68,5 +71,7 @@ export async function createProvider(options: CreateProviderOptions): Promise<Ag
         apiKey: customEndpoint.apiKey,
         model: customEndpoint.model,
       })
+    case 'acp':
+      throw new Error('An ACP agent runs its own loop: connect with AcpSession instead')
   }
 }

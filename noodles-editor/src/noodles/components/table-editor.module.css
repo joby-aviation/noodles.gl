@@ -239,6 +239,20 @@
   font: inherit;
 }
 
+.stringCellEditor {
+  /* Grows down over the rows below as lines are added, instead of scrolling in one row */
+  align-self: flex-start;
+  height: auto;
+  min-height: 100%;
+  resize: none;
+  overflow: hidden;
+  line-height: 20px;
+  white-space: pre;
+  background: var(--surface-section);
+  box-shadow: 0 2px 8px rgb(0 0 0 / 30%);
+  z-index: 1;
+}
+
 .cellEditorGroup {
   min-width: 0;
   margin: 0;

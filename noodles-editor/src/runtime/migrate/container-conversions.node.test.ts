@@ -48,6 +48,61 @@ const container = (id: string): { nodes: NoodlesNode[]; edges: NoodlesEdge[] } =
 const QUERY = 'SELECT * FROM (VALUES (1.0, 2.0), (3.0, 4.0)) AS t(lng, lat)'
 
 describe('containers', () => {
+  it('keep the keyframes of a node inside them, named as the timeline names it', () => {
+    const g = container('/group')
+    const kf = (id: string, position: number, value: number) => ({
+      id,
+      position,
+      value,
+      connectedRight: true,
+      handles: [0.5, 1, 0.5, 0],
+      type: 'bezier',
+    })
+    const project: NoodlesProject = {
+      version: CONVERTED_SCHEMA,
+      nodes: [
+        op('/rows', 'DuckDbOp', { query: QUERY }),
+        ...g.nodes,
+        op('/group/where', 'AccessorOp', { expression: '[d.lng, d.lat]' }),
+        op('/group/dots', 'ScatterplotLayerOp'),
+        op('/deck', 'DeckRendererOp'),
+      ],
+      edges: [
+        ...g.edges,
+        wire('/rows', 'out.data', '/group', 'par.in'),
+        wire('/group/container-input', 'out.value', '/group/dots', 'par.data'),
+        wire('/group/where', 'out.accessor', '/group/dots', 'par.getPosition'),
+        wire('/group/dots', 'out.layer', '/group/container-output', 'par.value'),
+        wire('/group', 'out.out', '/deck', 'par.layers'),
+      ],
+      timeline: {
+        sheetsById: {
+          Noodles: {
+            sequence: {
+              length: 10,
+              subUnitsPerUnit: 30,
+              // Migration 022 names an object as the timeline binds it: its path, " / "-joined
+              tracksByObject: {
+                'group / dots': {
+                  trackIdByPropPath: { opacity: 'a' },
+                  trackData: {
+                    a: {
+                      type: 'BasicKeyframedTrack',
+                      keyframes: [kf('a0', 0, 0.2), kf('a1', 10, 0.9)],
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    }
+    const { doc, warnings } = toEditorDoc(project)
+    expect(warnings.filter(w => w.startsWith('timeline'))).toEqual([])
+    expect(doc.timeline?.tracks.map(t => t.target)).toEqual(['/group/dots.opacity'])
+  })
+
   it('become subnets around the layers they held, wired through in0 and out0', async () => {
     const g = container('/group')
     const project: NoodlesProject = {

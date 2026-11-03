@@ -298,4 +298,52 @@ describe('loadDoc', () => {
     // A saved document opens as itself.
     expect((await loadDoc(JSON.parse(JSON.stringify(doc)))).doc).toEqual(doc)
   })
+
+  it('plays Theatre keyframes with the easing they were made with', async () => {
+    // Theatre's default ease-in-out, [0.5, 1, 0.5, 0] on each keyframe, as schema 22 saved it
+    const theatre = (id: string, position: number, value: number) => ({
+      id,
+      position,
+      value,
+      connectedRight: true,
+      handles: [0.5, 1, 0.5, 0],
+      type: 'bezier',
+    })
+    const project = {
+      version: 22,
+      nodes: [
+        { id: '/deck', type: 'DeckRendererOp', data: { inputs: {} }, position: { x: 0, y: 0 } },
+      ],
+      edges: [],
+      timeline: {
+        sheetsById: {
+          Noodles: {
+            sequence: {
+              length: 2,
+              subUnitsPerUnit: 30,
+              tracksByObject: {
+                // A basemap's camera, which the deck takes
+                basemap: {
+                  trackIdByPropPath: { '["viewState","zoom"]': 't' },
+                  trackData: {
+                    t: {
+                      type: 'BasicKeyframedTrack',
+                      keyframes: [theatre('a', 0, 0), theatre('b', 2, 10)],
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    }
+    const { doc } = await loadDoc(project, 'eased')
+    const track = doc.timeline?.tracks.find(t => t.target === '/deck.zoom')
+    // The segment from the first key eases in and out: cubic-bezier(0.5, 0, 0.5, 1)
+    expect(track?.keyframes[0]).toMatchObject({
+      interpolation: 'bezier',
+      handles: { left: [0.5, 0], right: [0.5, 1] },
+    })
+  })
 })

@@ -50,7 +50,7 @@
       "id": "/maplibre-basemap.out.maplibre->/deck.par.basemap"
     }
   ],
-  "version": 21,
+  "version": 23,
   "name": "GeoJSON BART Stations",
   "editorSettings": {
     "layoutMode": "noodles-on-top",
