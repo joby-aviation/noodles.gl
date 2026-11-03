@@ -86,6 +86,7 @@ import {
 import { deleteOp, getOpStore, setOp } from './store'
 import { isAccessor } from './utils/accessor-helpers'
 import { canConnect, validateConnection } from './utils/can-connect'
+import { instantiateDeckView } from './utils/deck-view'
 import { memoryProjectStore } from './utils/memory-project-store'
 
 describe('basic Operators', () => {
@@ -1916,6 +1917,29 @@ describe('FirstPersonViewOp', () => {
     expect(() =>
       operator.execute({ ...operator.data, viewState: { ...operator.data.viewState, pitch: -30 } })
     ).toThrow(/pitch -30/)
+  })
+})
+
+describe('GlobeViewOp', () => {
+  it('passes resolution, bearing and pitch through to the globe viewport', () => {
+    const operator = new GlobeViewOp('/globe-0')
+    operator.inputs.resolution.setValue(5)
+    operator.inputs.viewState.setValue({
+      ...operator.inputs.viewState.value,
+      zoom: 2,
+      bearing: 30,
+      pitch: 45,
+    })
+    const { view } = operator.execute(operator.data)
+
+    expect(view).toMatchObject({ resolution: 5, viewState: { bearing: 30, pitch: 45 } })
+
+    const viewport = instantiateDeckView(view).makeViewport({
+      width: 800,
+      height: 600,
+      viewState: operator.data.viewState,
+    })
+    expect(viewport).toMatchObject({ resolution: 5, bearing: 30, pitch: 45 })
   })
 })
 
