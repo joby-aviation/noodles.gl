@@ -310,7 +310,7 @@ describe('useRenderer', () => {
         skip('this browser has no avc encoder')
       }
       expect(capture?.status === 'error' ? capture.error.message : capture?.status).toBe('done')
-      expect(clicks.downloads.map(d => d.name)).toEqual(['no-picker-map.mp4'])
+      expect(clicks.downloads.map(d => d.name)).toEqual(['no-picker.mp4'])
       const downloaded = await (await fetch(clicks.downloads[0].href)).blob()
       expect(downloaded.type).toBe('video/mp4')
       expect(startsWithFtyp(await downloaded.arrayBuffer())).toBe(true)
@@ -339,7 +339,7 @@ describe('useRenderer', () => {
       }
       expect(capture?.status === 'error' ? capture.error.message : capture?.status).toBe('done')
       expect(picker).toHaveBeenCalledWith(
-        expect.objectContaining({ suggestedName: 'with-picker-map.mp4' })
+        expect.objectContaining({ suggestedName: 'with-picker.mp4' })
       )
       expect(chunks.length).toBeGreaterThan(0)
       expect(clicks.downloads).toEqual([])
@@ -542,7 +542,8 @@ describe('useRenderer analytics on failure', () => {
       await expect(
         result.current.startSequenceCapture({
           canvas,
-          directoryHandle: {} as FileSystemDirectoryHandle,
+          // An empty folder; the export fails before it writes a frame
+          directoryHandle: { async *entries() {} } as unknown as FileSystemDirectoryHandle,
           endFrame: 2,
         })
       ).rejects.toThrow('origin-clean')
@@ -702,9 +703,12 @@ describe('startSequenceCapture', () => {
   })
 
   // Collects what the export writes, keyed by file name
-  const memoryDirectory = () => {
-    const files = new Map<string, Blob>()
+  const memoryDirectory = (existing: string[] = []) => {
+    const files = new Map<string, Blob>(existing.map(name => [name, new Blob()]))
     const handle = {
+      async *entries() {
+        for (const name of files.keys()) yield [name, { kind: 'file', name }]
+      },
       getFileHandle: async (name: string) => ({
         createWritable: async () => ({
           write: async (data: Blob) => void files.set(name, data),
@@ -746,8 +750,8 @@ describe('startSequenceCapture', () => {
         })
       )
 
-      expect([...files.keys()].sort()).toEqual(['exr-test_0000.exr', 'exr-test_0001.exr'])
-      const decoded = decodeRgba(await files.get('exr-test_0000.exr')!.arrayBuffer())
+      expect([...files.keys()].sort()).toEqual(['exr-test-v1_0000.exr', 'exr-test-v1_0001.exr'])
+      const decoded = decodeRgba(await files.get('exr-test-v1_0000.exr')!.arrayBuffer())
       expect(decoded.width).toBe(8)
       expect(decoded.height).toBe(4)
       // Opaque red stays red in linear light
@@ -792,6 +796,41 @@ describe('startSequenceCapture', () => {
       expect(recorded).toEqual([0, 1, 2, 3, 4])
     } finally {
       scene.canvas.remove()
+      vi.useFakeTimers()
+    }
+  })
+
+  it('takes the next version after earlier exports of any format', async () => {
+    vi.useRealTimers()
+    const canvas = document.createElement('canvas')
+    canvas.width = 4
+    canvas.height = 4
+    document.body.appendChild(canvas)
+    const redraw = vi.fn(() => {
+      canvas.getContext('2d')!.fillRect(0, 0, 4, 4)
+      queueMicrotask(() => result.current.captureFrame())
+    })
+    const { result } = renderHook(() =>
+      useRenderer({ projectName: 'LA/vertistop', fps: 10, bitrateMode: 'constant', redraw })
+    )
+    const { files, handle } = memoryDirectory(['LA-vertistop-v1.mp4', 'LA-vertistop-v2_0000.exr'])
+
+    try {
+      await act(() =>
+        result.current.startSequenceCapture({
+          canvas,
+          directoryHandle: handle,
+          startFrame: 0,
+          endFrame: 1,
+        })
+      )
+
+      expect([...files.keys()].filter(name => name.includes('-v3'))).toEqual([
+        'LA-vertistop-v3_0000.png',
+        'LA-vertistop-v3_0001.png',
+      ])
+    } finally {
+      canvas.remove()
       vi.useFakeTimers()
     }
   })
@@ -993,8 +1032,8 @@ describe('captureScreenshot', () => {
     canvas.getContext('2d')!.fillRect(0, 0, 4, 4)
 
     try {
-      await captureScreenshot('shot', () => canvas, { source: 'toolbar' })
-      expect(clicks.downloads.map(d => d.name)).toEqual(['shot.png'])
+      await captureScreenshot('my/shot', () => canvas, { source: 'toolbar' })
+      expect(clicks.downloads.map(d => d.name)).toEqual(['my-shot.png'])
       const downloaded = await (await fetch(clicks.downloads[0].href)).blob()
       expect(downloaded.type).toBe('image/png')
       // A PNG starts with \x89PNG
