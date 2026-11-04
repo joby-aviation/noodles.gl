@@ -36,6 +36,7 @@ import { PREVIEW_FRAME_DELAY, useDeckDrawLoop } from './render/draw-loop'
 import { FrameCounter } from './render/frame-stats'
 import { type BasemapLight, type BasemapSky, syncLightAndSky } from './render/map-light-sky'
 import type { RenderSource } from './render/render-analytics'
+import { sanitizeRenderBaseName } from './render/render-file-name'
 import { resetRenderProgress, setRenderProgress } from './render/render-progress-store'
 import {
   calculateRenderSurfaceSize,
@@ -132,8 +133,12 @@ export default function TimelineEditor() {
   const deckRef = useRef<Deck>(null)
   const renderSurfaceRef = useRef<HTMLDivElement>(null)
   const isRenderingRef = useRef(false)
-  // Session-only handle set by selectRendersDirectory; takes priority over project subdir
-  const rendersDirectoryHandleRef = useRef<FileSystemDirectoryHandle | null>(null)
+  // Session-only handle set by selectRendersDirectory; takes priority over project subdir.
+  // Kept with the project and Out node it was picked for, so another project never uses it.
+  const rendersDirectoryHandleRef = useRef<{
+    handle: FileSystemDirectoryHandle
+    context: string
+  } | null>(null)
   const customLayersRef = useRef<Set<string>>(new Set())
   // Track style version to trigger layer re-addition after style changes
   const [styleVersion, setStyleVersion] = useState(0)
@@ -191,6 +196,8 @@ export default function TimelineEditor() {
     waitForData,
     captureDelay,
     captureMode,
+    fileName,
+    imageFormat,
     rendersDirectory,
     sequenceFormat,
   } = renderSettings
@@ -577,6 +584,33 @@ export default function TimelineEditor() {
     []
   )
 
+  // Which project and Out node a folder picked with selectRendersDirectory belongs to
+  const rendersContext = `${noodles.projectName ?? ''}:${activeOutOp?.id ?? ''}`
+
+  // The folder exports are saved in: the one picked this session for this project and Out
+  // node, else the renders folder in the project. Projects in the browser's private storage
+  // only get one when `anyStorage` is set (image sequences), since the user can't open
+  // files there; photos and videos then go through the save dialog. Null when there is none.
+  const getRendersDirectory = useCallback(
+    async ({ anyStorage = false } = {}): Promise<FileSystemDirectoryHandle | null> => {
+      const picked = rendersDirectoryHandleRef.current
+      if (picked?.context === rendersContext) return picked.handle
+      const usable = anyStorage
+        ? activeStorageType !== 'publicFolder'
+        : activeStorageType === 'fileSystemAccess'
+      if (!usable || !currentDirectory) return null
+      try {
+        return await currentDirectory.getDirectoryHandle(rendersDirectory || 'renders', {
+          create: true,
+        })
+      } catch (e) {
+        debugRender('Failed to create renders directory: %o', e)
+        return null
+      }
+    },
+    [rendersContext, activeStorageType, currentDirectory, rendersDirectory]
+  )
+
   const startRender = useCallback(
     async (source: RenderSource = 'menu') => {
       // Two captures would share one frame-ready callback and the timeline position
@@ -591,6 +625,10 @@ export default function TimelineEditor() {
         return
       }
 
+      // Before anything slow: without a renders folder the save dialog opens, and it needs
+      // the click that started the export
+      const directoryHandle = (await getRendersDirectory()) ?? undefined
+
       resetRenderProgress()
       const result = await startCapture({
         canvas,
@@ -598,6 +636,8 @@ export default function TimelineEditor() {
         codec,
         exportAlpha,
         captureMode,
+        directoryHandle,
+        fileName,
         // This always scales the video to the specified value, regardless of `canvas` size
         ...resolution,
         startFrame: Math.floor((inPoint ?? 0) * framerate),
@@ -612,6 +652,8 @@ export default function TimelineEditor() {
     [
       startCapture,
       getDeckCanvas,
+      getRendersDirectory,
+      fileName,
       codec,
       exportAlpha,
       captureMode,
@@ -691,32 +733,38 @@ export default function TimelineEditor() {
         return
       }
 
-      const suggestedName = noodles.projectName ?? 'screenshot'
-      await captureScreenshot(
-        suggestedName,
-        () => {
-          redraw()
-          // Read again: the save dialog can stay open while the basemap is added or removed
-          const canvas = getDeckCanvas()
-          if (!canvas) throw new Error('The canvas went away while the save dialog was open')
-          return canvas
-        },
-        { source }
-      )
+      const directoryHandle = (await getRendersDirectory()) ?? undefined
+      const suggestedName = sanitizeRenderBaseName(fileName, noodles.projectName ?? 'screenshot')
+      try {
+        await captureScreenshot(
+          suggestedName,
+          () => {
+            redraw()
+            // Read again: the save dialog can stay open while the basemap is added or removed
+            const canvas = getDeckCanvas()
+            if (!canvas) throw new Error('The canvas went away while the save dialog was open')
+            return canvas
+          },
+          { source, directoryHandle, format: imageFormat }
+        )
+      } catch (e) {
+        if ((e as DOMException).name === 'AbortError') return
+        alert(`Export failed: ${e instanceof Error ? e.message : String(e)}`)
+      }
     },
-    [noodles.projectName, redraw, getDeckCanvas]
+    [noodles.projectName, fileName, imageFormat, redraw, getDeckCanvas, getRendersDirectory]
   )
 
   const selectRendersDirectory = useCallback(async () => {
     try {
       const handle = await window.showDirectoryPicker({ mode: 'readwrite' })
-      rendersDirectoryHandleRef.current = handle
+      rendersDirectoryHandleRef.current = { handle, context: rendersContext }
       // Persist the folder name to the OutOp so it survives project reloads
       activeOutOp?.inputs.rendersDirectory.setValue(handle.name)
     } catch (e) {
       if ((e as DOMException).name !== 'AbortError') throw e
     }
-  }, [activeOutOp])
+  }, [activeOutOp, rendersContext])
 
   const exportSequence = useCallback(async () => {
     const canvas = getDeckCanvas()
@@ -726,24 +774,8 @@ export default function TimelineEditor() {
     }
 
     // Resolve the target directory: session-picked handle > project subdir > user picker
-    let rendersDir: FileSystemDirectoryHandle
-    if (rendersDirectoryHandleRef.current) {
-      rendersDir = rendersDirectoryHandleRef.current
-    } else if (activeStorageType !== 'publicFolder' && currentDirectory) {
-      try {
-        rendersDir = await currentDirectory.getDirectoryHandle(rendersDirectory || 'renders', {
-          create: true,
-        })
-      } catch (e) {
-        debugRender('Failed to create renders directory: %o, falling back to picker', e)
-        try {
-          rendersDir = await window.showDirectoryPicker({ mode: 'readwrite' })
-        } catch (err) {
-          if ((err as DOMException).name === 'AbortError') return
-          throw err
-        }
-      }
-    } else {
+    let rendersDir = await getRendersDirectory({ anyStorage: true })
+    if (!rendersDir) {
       try {
         rendersDir = await window.showDirectoryPicker({ mode: 'readwrite' })
       } catch (e) {
@@ -761,6 +793,7 @@ export default function TimelineEditor() {
         // onAfterRender wired up inside startSequenceCapture via getDeck.
         getDeck: basemapEnabled ? undefined : () => deckRef.current,
         directoryHandle: rendersDir,
+        fileName,
         format: sequenceFormat,
         captureDelay,
         captureMode,
@@ -787,11 +820,10 @@ export default function TimelineEditor() {
     captureDelay,
     captureMode,
     waitForData,
-    rendersDirectory,
+    fileName,
     sequenceFormat,
     basemapEnabled,
-    currentDirectory,
-    activeStorageType,
+    getRendersDirectory,
   ])
 
   // Increase the render target resolution to increase map tile detail.

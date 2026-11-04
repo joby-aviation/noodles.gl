@@ -185,12 +185,12 @@ describe('git-service', () => {
     it('keeps custom rules and appends the missing required entries', () => {
       const merged = mergeGitignore('# mine\n*.log\nnode_modules\n')
       expect(merged).toBe(
-        '# mine\n*.log\nnode_modules\n\n# Added by Noodles.gl\n.DS_Store\n/cache/\n'
+        '# mine\n*.log\nnode_modules\n\n# Added by Noodles.gl\n.DS_Store\n/cache/\n/renders/\n'
       )
     })
 
     it('leaves a file with every required entry alone', () => {
-      expect(mergeGitignore('.DS_Store\nnode_modules/\ncache/\n')).toBeNull()
+      expect(mergeGitignore('.DS_Store\nnode_modules/\ncache/\nrenders/\n')).toBeNull()
     })
 
     it('does not overwrite a custom .gitignore when creating the repository', async () => {
@@ -207,6 +207,14 @@ describe('git-service', () => {
       writeFile(mock, 'cache/loader.json', '{"outputs":{}}')
       await commitProjectSnapshot(asHandle(mock), PROJECT, 'Save')
       expect(await committedFiles(mock)).toEqual(['.gitignore', 'noodles.json'])
+    })
+
+    it('keeps exported renders out of history', async () => {
+      writeFile(mock, 'renders/map-v1.png', 'png')
+      writeFile(mock, 'renders/map-v2_0000.exr', 'exr')
+      await commitProjectSnapshot(asHandle(mock), PROJECT, 'Save')
+      expect(await committedFiles(mock)).toEqual(['.gitignore', 'noodles.json'])
+      expect(readFile(mock, '.gitignore')).toContain('/renders/\n')
     })
 
     it('stops tracking a cache folder committed before it was ignored', async () => {

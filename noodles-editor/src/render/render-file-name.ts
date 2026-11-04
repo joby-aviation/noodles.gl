@@ -1,3 +1,5 @@
+import { debugRender } from '../utils/debug'
+
 // File names for exports. Every export of a base name shares one -vN counter, whatever its
 // format: after map-v1.png and map-v2.mp4 the next image sequence is map-v3_0000.png.
 
@@ -92,4 +94,38 @@ export function renderFileName({
   frame?: string
 }): string {
   return `${baseName}-v${version}${frame === undefined ? '' : `_${frame}`}.${extension}`
+}
+
+export type RenderFileReservation = {
+  name: string
+  version: number
+  handle: FileSystemFileHandle
+  // Deletes the reserved file, for an export that failed. Never throws.
+  discard: () => Promise<void>
+}
+
+// Reservations in this tab run one at a time, so exports started together get their own versions
+let reservationQueue: Promise<unknown> = Promise.resolve()
+
+// Claims the next version by creating its first file (the video, the photo, or a sequence's
+// first frame). Another export scanning the folder then sees it and takes the version after.
+export function reserveRenderFile(
+  directoryHandle: FileSystemDirectoryHandle,
+  name: { baseName: string; extension: RenderExtension; frame?: string }
+): Promise<RenderFileReservation> {
+  const reservation = reservationQueue.then(async () => {
+    const version = await nextRenderVersion(directoryHandle, name.baseName)
+    const fileName = renderFileName({ ...name, version })
+    const handle = await directoryHandle.getFileHandle(fileName, { create: true })
+    const discard = async () => {
+      try {
+        await directoryHandle.removeEntry(fileName)
+      } catch (error) {
+        debugRender('Could not delete the reserved file %s: %o', fileName, error)
+      }
+    }
+    return { name: fileName, version, handle, discard }
+  })
+  reservationQueue = reservation.catch(() => {})
+  return reservation
 }

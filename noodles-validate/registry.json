@@ -4662,6 +4662,14 @@
           "type": "StringLiteralField",
           "default": "final"
         },
+        "fileName": {
+          "type": "StringField",
+          "default": ""
+        },
+        "imageFormat": {
+          "type": "StringLiteralField",
+          "default": "png"
+        },
         "rendersDirectory": {
           "type": "StringField",
           "default": "renders"

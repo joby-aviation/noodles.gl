@@ -94,3 +94,41 @@ describe('RenderSettingsPanel capture mode', () => {
     expect(op.inputs.captureMode.value).toBe('final')
   })
 })
+
+describe('RenderSettingsPanel output', () => {
+  it('stores the file name and photo format on the OutOp, and resets them', () => {
+    const op = new OutOp('/out')
+    render(<RenderSettingsPanel op={op} />)
+
+    const fileName = screen.getByLabelText('File Name')
+    expect(fileName).toHaveValue('')
+    fireEvent.change(fileName, { target: { value: 'LA-vertistop' } })
+    expect(op.inputs.fileName.value).toBe('LA-vertistop')
+
+    const photo = screen.getByLabelText('Photo')
+    expect(photo).toHaveValue('png')
+    fireEvent.change(photo, { target: { value: 'jpeg' } })
+    expect(op.inputs.imageFormat.value).toBe('jpeg')
+
+    fireEvent.click(screen.getByText('Reset to Defaults'))
+    expect(op.inputs.fileName.value).toBe('')
+    expect(op.inputs.imageFormat.value).toBe('png')
+  })
+
+  it('shows a file name an expression drives, read only, until reset', () => {
+    const op = new OutOp('/out')
+    op.inputs.fileName.setExpression("'FL-' + 'routes'")
+    render(<RenderSettingsPanel op={op} />)
+
+    const fileName = screen.getByLabelText('File Name')
+    expect(fileName).toHaveValue('FL-routes')
+    expect(fileName).toBeDisabled()
+    expect(screen.getByText('fx')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByText('Reset to Defaults'))
+    expect(op.inputs.fileName.expression).toBeNull()
+    expect(fileName).toBeEnabled()
+    expect(fileName).toHaveValue('')
+    expect(screen.queryByText('fx')).not.toBeInTheDocument()
+  })
+})

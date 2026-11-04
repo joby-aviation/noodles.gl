@@ -20,7 +20,15 @@ Tracks follow the row's position in the table. Adding or deleting rows above an 
 
 On the lefthand node tree, find the "render" sheet object under the current project (typically the project name, the bottom-most one with the most sheet objects).
 
-You can adjust parameters like framerate, codec and resolution before exporting. Clicking the `startRender` button will open a dialog asking where to save your video file. The app will progress through your timeline and render to the file as a video.
+You can adjust parameters like framerate, codec and resolution before exporting. Clicking the `startRender` button will progress through your timeline and render it to a video file.
+
+### Where exports are saved
+
+For a project saved in a folder on your computer, photos, videos and image sequences go in its `renders` folder, named `<file name>-v<version>`: `LA-vertistop-v1.mp4`, then `LA-vertistop-v2.png`, then `LA-vertistop-v3_0000.png` for the first frame of a sequence. Each export takes the next version, whatever its format, so a new export never overwrites an old one.
+
+Set the name in the Out node's **Output** settings with **File Name**. Leave it empty to use the project name, or drive it with an expression to name exports after a setting in the graph. **Photo** picks PNG or JPEG for photos, and **Folder** picks another folder for this session. Projects with version history keep the `renders` folder out of it with a `/renders/` entry in `.gitignore`.
+
+Projects stored in the browser open a save dialog for photos and videos instead.
 
 ### Preview exports
 

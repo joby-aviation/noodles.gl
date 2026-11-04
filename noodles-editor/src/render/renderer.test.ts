@@ -58,6 +58,11 @@ function withoutSavePicker() {
   return () => Object.defineProperty(window, 'showSaveFilePicker', descriptor)
 }
 
+// Watches the save dialog. TypeScript's DOM types don't have it yet; Chromium does.
+function spyOnSavePicker() {
+  return vi.spyOn(window as unknown as { showSaveFilePicker: () => unknown }, 'showSaveFilePicker')
+}
+
 // Records <a download> clicks instead of downloading
 function spyOnDownloads() {
   const downloads: { name: string; href: string }[] = []
@@ -66,6 +71,38 @@ function spyOnDownloads() {
   }
   const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(record)
   return { downloads, restore: () => click.mockRestore() }
+}
+
+// A folder that collects what an export writes, keyed by file name. Its files take either a
+// whole blob (photos and frames) or the video encoder's chunks.
+function memoryDirectory(existing: string[] = []) {
+  const files = new Map<string, Blob>(existing.map(name => [name, new Blob()]))
+  const handle = {
+    async *entries() {
+      for (const name of files.keys()) yield [name, { kind: 'file', name }]
+    },
+    getFileHandle: async (name: string, { create = false } = {}) => {
+      if (!files.has(name)) {
+        if (!create) throw new DOMException(`${name} not found`, 'NotFoundError')
+        files.set(name, new Blob())
+      }
+      return {
+        createWritable: async () => {
+          const chunks: Uint8Array<ArrayBuffer>[] = []
+          const stream = new WritableStream<{ data: Uint8Array<ArrayBuffer> }>({
+            write: chunk => void chunks.push(chunk.data),
+            close: () => void files.set(name, new Blob(chunks)),
+          })
+          return Object.assign(stream, {
+            write: async (data: Blob) => void files.set(name, data),
+            close: async () => {},
+          })
+        },
+      }
+    },
+    removeEntry: async (name: string) => void files.delete(name),
+  } as unknown as FileSystemDirectoryHandle
+  return { files, handle }
 }
 
 // Paints a new red level on each redraw and reports the frame ready, like a settled map
@@ -351,6 +388,72 @@ describe('useRenderer', () => {
     }
   })
 
+  it('saves into the renders folder as the next version, and deletes it when the export fails', async ({
+    skip,
+  }) => {
+    vi.useRealTimers()
+    const canvas = document.createElement('canvas')
+    canvas.width = 64
+    canvas.height = 64
+    document.body.appendChild(canvas)
+    const ctx = canvas.getContext('2d')!
+    // The draw that reports an error, once set
+    let failingDraw = -1
+    let draws = 0
+    const redraw = vi.fn(() => {
+      ctx.fillRect(0, 0, 64, 64)
+      const error = draws++ === failingDraw ? new Error('A layer failed') : undefined
+      queueMicrotask(() => result.current.captureFrame(error ? { error } : undefined))
+    })
+    const { result } = renderHook(() =>
+      useRenderer({
+        projectName: 'project',
+        fps: 10,
+        bitrate: 1_000_000,
+        bitrateMode: 'constant',
+        redraw,
+      })
+    )
+    const { files, handle } = memoryDirectory(['LA-vertistop-v1.png'])
+    const picker = spyOnSavePicker()
+    const capture = async () => {
+      let captured: CaptureResult | undefined
+      await act(async () => {
+        captured = await result.current.startCapture({
+          canvas,
+          width: 64,
+          height: 64,
+          codec: 'avc',
+          startFrame: 0,
+          endFrame: 2,
+          directoryHandle: handle,
+          fileName: 'LA/vertistop',
+        })
+      })
+      return captured
+    }
+
+    try {
+      const saved = await capture()
+      if (saved?.status === 'error' && saved.error.message.startsWith('This browser cannot')) {
+        skip('this browser has no avc encoder')
+      }
+      expect(saved?.status === 'error' ? saved.error.message : saved?.status).toBe('done')
+      expect(files.get('LA-vertistop-v2.mp4')?.size).toBeGreaterThan(0)
+
+      // Past the warmup, so the export fails after it claimed LA-vertistop-v3.mp4
+      failingDraw = draws + 3
+      const failed = await capture()
+      expect(failed?.status).toBe('error')
+      expect([...files.keys()]).toEqual(['LA-vertistop-v1.png', 'LA-vertistop-v2.mp4'])
+      expect(picker).not.toHaveBeenCalled()
+    } finally {
+      canvas.remove()
+      picker.mockRestore()
+      vi.useFakeTimers()
+    }
+  })
+
   // A frame read too early, or a capture track made before the scene settled, hands
   // over the previous position's paint instead
   it('records each frame at its own position, not the one drawn before it', async ({ skip }) => {
@@ -537,18 +640,21 @@ describe('useRenderer analytics on failure', () => {
     // The first frame draws; reading it from the canvas is what fails
     const redraw = vi.fn(() => queueMicrotask(() => result.current.captureFrame()))
     const { result } = renderHook(() => useRenderer({ fps: 30, bitrateMode: 'constant', redraw }))
+    const folder = memoryDirectory()
 
     await act(async () => {
       await expect(
         result.current.startSequenceCapture({
           canvas,
-          // An empty folder; the export fails before it writes a frame
-          directoryHandle: { async *entries() {} } as unknown as FileSystemDirectoryHandle,
+          // The export fails before it writes a frame
+          directoryHandle: folder.handle,
           endFrame: 2,
         })
       ).rejects.toThrow('origin-clean')
     })
 
+    // The first frame it claimed held nothing, so it is gone
+    expect([...folder.files.keys()]).toEqual([])
     expect(result.current.isRendering).toBe(false)
     expect(trackedEvents()).toEqual(['render_started', 'render_failed'])
     expect(track.mock.lastCall![1]).toMatchObject({
@@ -701,23 +807,6 @@ describe('startSequenceCapture', () => {
   beforeEach(() => {
     track.mockClear()
   })
-
-  // Collects what the export writes, keyed by file name
-  const memoryDirectory = (existing: string[] = []) => {
-    const files = new Map<string, Blob>(existing.map(name => [name, new Blob()]))
-    const handle = {
-      async *entries() {
-        for (const name of files.keys()) yield [name, { kind: 'file', name }]
-      },
-      getFileHandle: async (name: string) => ({
-        createWritable: async () => ({
-          write: async (data: Blob) => void files.set(name, data),
-          close: async () => {},
-        }),
-      }),
-    } as unknown as FileSystemDirectoryHandle
-    return { files, handle }
-  }
 
   // Real frames from the compositor, on the real clock, as in the encode tests above
   it('writes one EXR per frame at the canvas size', async () => {
@@ -1021,6 +1110,38 @@ describe('captureScreenshot', () => {
     expect(write).toHaveBeenCalledTimes(2)
     expect(clicks.downloads).toEqual([])
     clicks.restore()
+  })
+
+  it('saves into a folder as the next version, in the chosen format', async () => {
+    const picker = spyOnSavePicker()
+    const { files, handle } = memoryDirectory(['map-v1.mp4'])
+    const canvas = document.createElement('canvas')
+    canvas.width = 4
+    canvas.height = 4
+
+    await captureScreenshot('map', () => canvas, { directoryHandle: handle })
+    await captureScreenshot('map', () => canvas, { directoryHandle: handle, format: 'jpeg' })
+
+    expect([...files.keys()]).toEqual(['map-v1.mp4', 'map-v2.png', 'map-v3.jpeg'])
+    expect(files.get('map-v2.png')?.type).toBe('image/png')
+    expect(files.get('map-v3.jpeg')?.type).toBe('image/jpeg')
+    expect(picker).not.toHaveBeenCalled()
+    expect(track).toHaveBeenLastCalledWith('screenshot_taken', { source: 'menu' })
+    picker.mockRestore()
+  })
+
+  it('deletes the photo it claimed when the canvas cannot be read', async () => {
+    const { files, handle } = memoryDirectory()
+    const canvas = document.createElement('canvas')
+    vi.spyOn(canvas, 'toBlob').mockImplementation(() => {
+      throw new DOMException('The canvas has been tainted', 'SecurityError')
+    })
+
+    await expect(
+      captureScreenshot('map', () => canvas, { directoryHandle: handle })
+    ).rejects.toThrow('tainted')
+    expect([...files.keys()]).toEqual([])
+    expect(track).not.toHaveBeenCalled()
   })
 
   it('downloads a PNG when the browser has no save dialog', async () => {

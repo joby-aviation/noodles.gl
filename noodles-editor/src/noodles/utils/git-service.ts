@@ -6,6 +6,7 @@ import {
   getGitSettings,
 } from './git-settings'
 import { CACHE_DIRECTORY_NAME } from './output-cache'
+import { DEFAULT_RENDER_SETTINGS } from './render-settings-constants'
 
 export interface Commit {
   oid: string
@@ -233,11 +234,13 @@ const DIR = '/'
 const MANAGED_CONFIG_PATH = 'noodles.managed'
 
 // Entries every versioned project needs, appended to the folder's .gitignore when missing.
-// The cache folder holds machine-written outputs of locked operators, rebuilt on load.
+// The cache folder holds machine-written outputs of locked operators, rebuilt on load. The
+// renders folder holds exported photos, videos and image sequences, too large for history.
 export const REQUIRED_GITIGNORE_ENTRIES = [
   '.DS_Store',
   'node_modules/',
   `/${CACHE_DIRECTORY_NAME}/`,
+  `/${DEFAULT_RENDER_SETTINGS.rendersDirectory}/`,
 ]
 
 // 'none': no .git yet. 'managed': created by Noodles. 'external': created by something else.
