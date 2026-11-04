@@ -9,6 +9,7 @@ import {
   GeoJsonLayerOp,
   NumberOp,
   ScenegraphLayerOp,
+  SplitXYOp,
   TableEditorOp,
   UnknownOperator,
 } from '../operators'
@@ -982,6 +983,68 @@ describe('serializeNodes with expression-driven fields', () => {
     const node = { id: 'node1', type: 'NumberOp', data: {}, position: { x: 0, y: 0 } }
     const result = serializeNodes(getOpStore(), [node], [])
     expect(result[0].data.inputs).toEqual({ val: { $expr: '0' } })
+  })
+})
+
+describe('serializeNodes with vector channel ports', () => {
+  afterEach(() => {
+    clearOps()
+  })
+
+  const node = { id: '/split', type: 'SplitXYOp', data: {}, position: { x: 0, y: 0 } }
+
+  it('saves port modes and per-channel expressions, and loads them back', () => {
+    const op = new SplitXYOp('/split')
+    op.setInputPortMode('vec', 'channels')
+    op.inputs.vec.channels?.fields.y.setValue(4)
+    op.inputs.vec.channels?.fields.x.setExpression('1 + 2')
+    setOp('/split', op)
+
+    const [saved] = serializeNodes(getOpStore(), [node], [])
+    expect(saved.data.inputPortModes).toEqual({ vec: 'channels' })
+    expect(saved.data.inputs).toEqual({ vec: { x: { $expr: '1 + 2' }, y: 4 } })
+
+    clearOps()
+    transformGraph({ nodes: [saved], edges: [] })
+    const reloaded = getOpStore().getOp('/split') as SplitXYOp
+    expect(reloaded.getInputPortMode('vec')).toBe('channels')
+    expect(reloaded.inputs.vec.channels?.fields.x.expression).toBe('1 + 2')
+    expect(reloaded.inputs.vec.value).toEqual({ x: 3, y: 4 })
+  })
+
+  it('saves a channel expression whose value equals the default', () => {
+    const op = new SplitXYOp('/split')
+    op.setInputPortMode('vec', 'channels')
+    op.inputs.vec.channels?.fields.x.setExpression('0')
+    setOp('/split', op)
+    expect(op.inputs.vec.value).toEqual({ x: 0, y: 0 })
+
+    const [saved] = serializeNodes(getOpStore(), [node], [])
+    expect(saved.data.inputs).toEqual({ vec: { x: { $expr: '0' }, y: 0 } })
+  })
+
+  it('omits port modes for inputs in whole mode', () => {
+    setOp('/split', new SplitXYOp('/split', { vec: { x: 1, y: 2 } }))
+    const [saved] = serializeNodes(getOpStore(), [node], [])
+    expect(saved.data).not.toHaveProperty('inputPortModes')
+  })
+
+  it('keeps the rest of an input whose channel is connected', () => {
+    const op = new SplitXYOp('/split', { vec: { x: 1, y: 2 } })
+    op.setInputPortMode('vec', 'channels')
+    setOp('/split', op)
+    const connection = {
+      source: '/num',
+      target: '/split',
+      sourceHandle: 'out.val',
+      targetHandle: 'par.vec.x',
+    }
+    const [saved] = serializeNodes(
+      getOpStore(),
+      [node],
+      [{ id: edgeId(connection), ...connection }]
+    )
+    expect(saved.data.inputs).toEqual({ vec: { x: 1, y: 2 } })
   })
 })
 

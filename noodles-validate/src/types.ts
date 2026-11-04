@@ -7,6 +7,9 @@ export interface FieldInfo {
   default?: unknown
   // In place of default when JSON can't hold it, e.g. "[-Infinity,-Infinity,Infinity,Infinity]"
   defaultText?: string
+  // Inputs only: the number ports a vector input splits into, e.g. ["lng", "lat"].
+  // A node lists its split inputs in data.inputPortModes.
+  channels?: string[]
 }
 
 export interface OperatorInfo {
@@ -25,6 +28,8 @@ export interface Registry {
   operators: Record<string, OperatorInfo>
   // The type names a node's data.customInputs may use (fieldTypeToClass keys)
   customFieldTypes?: string[]
+  // The channels of each vector custom input type, e.g. { "vec2": ["x", "y"] }
+  customFieldChannels?: Record<string, string[]>
 }
 
 export type Severity = 'error' | 'warning'
@@ -39,6 +44,7 @@ export type Rule =
   | 'unknown-operator'
   | 'unknown-input'
   | 'custom-input'
+  | 'input-port-mode'
   | 'generic-node-name'
   | 'edge-shape'
   | 'edge-unknown-node'

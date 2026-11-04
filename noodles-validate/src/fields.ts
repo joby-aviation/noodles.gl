@@ -75,13 +75,78 @@ export function unknownInput(id: string, type: string, name: string, known: stri
   return `${id} (${type}) has no input ${name}. ${suggest(name, known, 'Inputs')}`
 }
 
-// Null when the handle names a real field on the right side of the edge
+// A node's vector inputs that can split into number ports, and the ones that are split
+// (data.inputPortModes, { center: 'channels' })
+export interface PortLayout {
+  channels: Record<string, string[]>
+  modes: Record<string, unknown>
+}
+
+// The registry's channel-capable inputs of an operator type
+export function inputChannels(registry: OperatorLookup, type: string): Record<string, string[]> {
+  const inputs = getOperator(registry, type)?.inputs ?? {}
+  return Object.fromEntries(
+    Object.entries(inputs).flatMap(([name, field]) =>
+      field.channels ? [[name, field.channels]] : []
+    )
+  )
+}
+
+// data.inputPortModes: { "<vector input>": "channels" } for each input split into one
+// number port per component. The editor ignores entries it can't use, so an edge to a
+// channel of a misspelled input would connect nothing.
+export function portModeProblems(
+  id: string,
+  modes: unknown,
+  channels: Record<string, string[]>
+): string[] {
+  if (modes === undefined) return []
+  if (typeof modes !== 'object' || modes === null || Array.isArray(modes)) {
+    return [
+      `${id} data.inputPortModes is not an object of input names to "channels" or "whole", e.g. {"center": "channels"}.`,
+    ]
+  }
+  const vectors = Object.keys(channels)
+  const which =
+    vectors.length > 0 ? `Inputs that can: ${vectors.join(', ')}.` : 'It has no inputs that can.'
+  return Object.entries(modes).flatMap(([name, mode]) => {
+    if (!Object.hasOwn(channels, name)) {
+      return [`${id} data.inputPortModes.${name}: ${name} can't split into channel ports. ${which}`]
+    }
+    if (mode !== 'channels' && mode !== 'whole') {
+      return [
+        `${id} data.inputPortModes.${name} is ${JSON.stringify(mode)}. Use "channels" to split it into ${channels[name].join(', ')}, or "whole" for one port.`,
+      ]
+    }
+    return []
+  })
+}
+
+// An edge to `center` while it's split into channels, or to `center.lng` while it isn't.
+// Matches the editor's portLayoutError (src/noodles/utils/field-resolution.ts).
+export function portLayoutProblem(fieldPath: string, ports: PortLayout): string | null {
+  const split = (name: string) => ports.modes[name] === 'channels'
+  if (Object.hasOwn(ports.channels, fieldPath)) {
+    if (!split(fieldPath)) return null
+    const names = ports.channels[fieldPath].map(key => `${fieldPath}.${key}`)
+    return `${fieldPath} is split into ${names.join(', ')}. Connect a channel, or switch the input back to one port.`
+  }
+  const dot = fieldPath.lastIndexOf('.')
+  const root = fieldPath.slice(0, dot)
+  if (dot < 0 || !Object.hasOwn(ports.channels, root)) return null
+  if (!ports.channels[root].includes(fieldPath.slice(dot + 1)) || split(root)) return null
+  return `${fieldPath} is a channel port, but ${root} is one port. Switch ${root} to channel ports first.`
+}
+
+// Null when the handle names a real field on the right side of the edge. With ports,
+// a target may also be a channel of a split vector input, e.g. par.center.lng.
 export function handleProblem(
   nodeId: string,
   type: string,
   handle: string,
   side: Side,
-  known: string[]
+  known: string[],
+  ports?: PortLayout
 ): string | null {
   const prefix = side === 'outputs' ? 'out' : 'par'
   const role = side === 'outputs' ? 'sourceHandle' : 'targetHandle'
@@ -94,8 +159,21 @@ export function handleProblem(
     return `${role} ${handle} is on the wrong side: the ${side === 'outputs' ? 'source' : 'target'} of an edge is an ${side === 'outputs' ? 'output' : 'input'}, "${prefix}.<name>". ${suggest(match[2], known, label, nodeId, prefix)}`
   }
   // The graph looks up everything after the prefix, so 'par.viewState.zoom' is a
-  // field named 'viewState.zoom', not the viewState field
+  // field named 'viewState.zoom', not the viewState field. A split vector input is the
+  // exception: its channels are fields of their own.
+  const layout = side === 'inputs' && ports ? portLayoutProblem(match[2], ports) : null
+  if (layout) return `${nodeId} (${type}): ${layout}`
   if (known.includes(match[2])) return null
+  const dot = match[2].lastIndexOf('.')
+  const root = match[2].slice(0, dot)
+  if (
+    side === 'inputs' &&
+    ports &&
+    dot > 0 &&
+    ports.channels[root]?.includes(match[2].slice(dot + 1))
+  ) {
+    return null
+  }
   return `${nodeId} (${type}) has no ${side === 'outputs' ? 'output' : 'input'} ${match[2]}. ${suggest(match[2], known, label, nodeId, prefix)}`
 }
 

@@ -32,6 +32,7 @@ import {
   useState,
   useSyncExternalStore,
 } from 'react'
+import { skip } from 'rxjs'
 import { useLocation, useParams } from 'wouter'
 import { globalContextManager } from '../ai-chat/global-context-manager'
 import type { NoodlesProject } from '../ai-chat/types'
@@ -131,6 +132,7 @@ import { instantiateDeckView } from './utils/deck-view'
 import { directoryHandleCache } from './utils/directory-handle-cache'
 import { insertUniqueEdge } from './utils/edge-integrity'
 import { trackChatClosed, trackChatOpened } from './utils/editor-analytics'
+import { inputPortEntries, resolveOperatorField } from './utils/field-resolution'
 import {
   fileExists,
   requestPermission,
@@ -503,6 +505,18 @@ export function getNoodles(): Visualization {
   // selection updates don't rebind the timeline
   const operatorsMap = useGraphStore(state => state.operators)
   const operators = useMemo(() => Array.from(operatorsMap.values()), [operatorsMap])
+  // Switching a vector input's port layout turns its saved edges for the old layout off and
+  // those for the new one back on, which transformGraph does. It changes no node or edge
+  // id when done from the node, an update_node or an undo, so count the switches.
+  const [portLayoutVersion, setPortLayoutVersion] = useState(0)
+  useEffect(() => {
+    const subs = operators.map(op =>
+      op.inputPortModes.pipe(skip(1)).subscribe(() => setPortLayoutVersion(v => v + 1))
+    )
+    return () => {
+      for (const sub of subs) sub.unsubscribe()
+    }
+  }, [operators])
   // Set to true in loadProjectFile so the effect below skips the redundant re-run triggered
   // by setNodes/setEdges — the graph was already built synchronously during load
   const isProjectLoadRef = useRef(false)
@@ -528,7 +542,7 @@ export function getNoodles(): Visualization {
     setEdges(currentEdges =>
       normalizeMultiInputEdges(currentEdges.filter(edge => edge.type !== 'ReferenceEdge'))
     )
-  }, [graphStructureKey])
+  }, [graphStructureKey, portLayoutVersion])
 
   // Reset isProjectLoadRef after every render so the flag never gets stuck when
   // graphStructureKey doesn't change (e.g. re-loading the same project, undo of position-only drag).
@@ -771,8 +785,10 @@ export function getNoodles(): Visualization {
         if (nodeId === params.nodeId) continue
 
         // Check target handles (inputs if dragging from output, outputs if dragging from input)
-        const targetFields = isOutput ? op.inputs : op.outputs
-        for (const targetField of Object.values(targetFields)) {
+        const targetFields = isOutput
+          ? inputPortEntries(op).map(([, field]) => field)
+          : Object.values(op.outputs)
+        for (const targetField of targetFields) {
           const compatible = isOutput
             ? canConnectCached(sourceField, targetField)
             : canConnectCached(targetField, sourceField)
@@ -793,7 +809,7 @@ export function getNoodles(): Visualization {
         if (!targetHandleInfo) continue
         const targetOp = getOp(edge.target)
         if (!targetOp) continue
-        const targetField = targetOp.inputs[targetHandleInfo.fieldName]
+        const targetField = resolveOperatorField(targetOp, 'par', targetHandleInfo.fieldName)?.field
         if (!targetField) continue
         const compatible = isOutput
           ? canConnectCached(sourceField, targetField)

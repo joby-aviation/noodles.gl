@@ -14,6 +14,8 @@
 import {
   handleProblem as describeHandleProblem,
   getOperator,
+  type PortLayout,
+  portModeProblems,
   resolveOperatorType,
   type Side,
   unknownInput,
@@ -32,6 +34,9 @@ export interface FieldCheckContext {
   types: Map<string, string>
   // Fields a live operator has beyond its class's, e.g. user-defined custom inputs
   liveFields: (nodeId: string, side: Side) => string[]
+  // A node's vector inputs that split into channel ports, and which are split once
+  // the batch applies. Without it, channel handles like par.center.lng are unknown.
+  ports?: (nodeId: string) => PortLayout
 }
 
 // A bare field name on an edge ("data") is unambiguous about which side it is on
@@ -48,19 +53,25 @@ export function checkFields(mod: ProjectModification, context: FieldCheckContext
         return [unknownType(mod.data.type, context.registry, ALL_TYPES)]
       }
       const declared = customInputNames(mod.data.data)
-      return unknownInputs(mod.data.id, mod.data.type, inputsOf(mod.data.data), [
-        ...fieldNames(context, mod.data.id, mod.data.type, 'inputs'),
-        ...declared,
-      ])
+      return [
+        ...unknownInputs(mod.data.id, mod.data.type, inputsOf(mod.data.data), [
+          ...fieldNames(context, mod.data.id, mod.data.type, 'inputs'),
+          ...declared,
+        ]),
+        ...portModes(context, mod.data.id, mod.data.data),
+      ]
     }
     case 'update_node': {
       const type = context.types.get(mod.data.id)
       if (!type || !getOperator(context.registry, type)) return []
       const declared = customInputNames(mod.data.data)
-      return unknownInputs(mod.data.id, type, inputsOf(mod.data.data), [
-        ...fieldNames(context, mod.data.id, type, 'inputs'),
-        ...declared,
-      ])
+      return [
+        ...unknownInputs(mod.data.id, type, inputsOf(mod.data.data), [
+          ...fieldNames(context, mod.data.id, type, 'inputs'),
+          ...declared,
+        ]),
+        ...portModes(context, mod.data.id, mod.data.data),
+      ]
     }
     case 'add_edge': {
       const { source, target, sourceHandle, targetHandle } = mod.data
@@ -94,7 +105,24 @@ function handleProblem(
   const type = context.types.get(nodeId)
   // An unknown node is checkTarget's to report, an unknown type add_node's
   if (!type || !getOperator(context.registry, type)) return null
-  return describeHandleProblem(nodeId, type, handle, side, fieldNames(context, nodeId, type, side))
+  const ports = side === 'inputs' ? context.ports?.(nodeId) : undefined
+  return describeHandleProblem(
+    nodeId,
+    type,
+    handle,
+    side,
+    fieldNames(context, nodeId, type, side),
+    ports
+  )
+}
+
+function portModes(
+  context: FieldCheckContext,
+  nodeId: string,
+  data: Record<string, unknown> | undefined
+): string[] {
+  if (!context.ports || data?.inputPortModes === undefined) return []
+  return portModeProblems(nodeId, data.inputPortModes, context.ports(nodeId).channels)
 }
 
 function fieldNames(
@@ -112,6 +140,17 @@ function inputsOf(data: Record<string, unknown> | undefined): string[] {
   return typeof inputs === 'object' && inputs !== null && !Array.isArray(inputs)
     ? Object.keys(inputs)
     : []
+}
+
+// The data.inputPortModes a modification sets, which replace the node's modes
+export function inputPortModesOf(
+  data: Record<string, unknown> | undefined
+): Record<string, unknown> | undefined {
+  const modes = data?.inputPortModes
+  if (modes === undefined) return undefined
+  return typeof modes === 'object' && modes !== null && !Array.isArray(modes)
+    ? (modes as Record<string, unknown>)
+    : {}
 }
 
 // A node may declare its own inputs alongside the values for them

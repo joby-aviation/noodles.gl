@@ -144,6 +144,7 @@ import {
   StringField,
   StringLiteralField,
   selfParMustacheRe,
+  supportsChannelPorts,
   TableSchemaField,
   UnknownField,
   Vec2Field,
@@ -215,6 +216,10 @@ function parseSavedOutput(field: Field, value: unknown) {
 
 // An Operator is a collection of Fields, and a transform function responsible
 // for taking in a set of input fields and mapping them to the output.
+// How a Point2D, Point3D, Vec2 or Vec3 input is wired: one port for the whole value,
+// or one number port per component (see VectorField)
+export type InputPortMode = 'whole' | 'channels'
+
 export abstract class Operator<OP extends IOperator> {
   static displayName = 'Operator'
   static description = ''
@@ -264,6 +269,10 @@ export abstract class Operator<OP extends IOperator> {
 
   // Dirty flag for GraphExecutor
   dirty = true
+
+  // Vector inputs wired per component. Inputs left out are 'whole'. Saved as
+  // data.inputPortModes; the channel fields exist only for the inputs listed here.
+  inputPortModes = new BehaviorSubject<Record<string, InputPortMode>>({})
 
   // === Field visibility ===
   // Per-instance visible fields (null = use defaults from field.showByDefault)
@@ -337,6 +346,15 @@ export abstract class Operator<OP extends IOperator> {
           // Routes { $expr } payloads to setExpression, plain values to setValue
           applySerializedFieldValue(this.inputs[key], value)
         }
+      }
+      // A saved per-channel expression opened its input's channels
+      const opened = Object.entries(this.inputs).filter(
+        ([, field]) => supportsChannelPorts(field) && field.channels
+      )
+      if (opened.length > 0) {
+        this.inputPortModes.next(
+          Object.fromEntries(opened.map(([key]) => [key, 'channels' as const]))
+        )
       }
     }
 
@@ -1101,6 +1119,41 @@ export abstract class Operator<OP extends IOperator> {
     // No need to rebuild inputs, just update order
   }
 
+  getInputPortMode(name: string): InputPortMode {
+    return this.inputPortModes.value[name] ?? 'whole'
+  }
+
+  setInputPortMode(name: string, mode: InputPortMode): void {
+    this.setInputPortModes({ ...this.inputPortModes.value, [name]: mode })
+  }
+
+  // Replaces every mode. Unknown inputs, inputs without channels and values other than
+  // 'channels' are dropped, so saved data can be passed in as is.
+  setInputPortModes(modes: Record<string, unknown>): void {
+    const next: Record<string, InputPortMode> = {}
+    for (const [name, mode] of Object.entries(modes ?? {})) {
+      const field = (this.inputs as Record<string, Field>)[name]
+      if (mode === 'channels' && supportsChannelPorts(field)) next[name] = 'channels'
+    }
+    for (const [name, field] of Object.entries(this.inputs as Record<string, Field>)) {
+      if (!supportsChannelPorts(field)) continue
+      if (next[name]) {
+        const channels = field.openChannels()
+        for (const [key, channel] of Object.entries(channels)) {
+          channel.op = this
+          channel.pathToProps = [...field.pathToProps, key]
+        }
+      } else {
+        field.closeChannels()
+      }
+    }
+    const current = this.inputPortModes.value
+    const same =
+      Object.keys(current).length === Object.keys(next).length &&
+      Object.keys(next).every(name => current[name] === next[name])
+    if (!same) this.inputPortModes.next(next)
+  }
+
   // Rebuild inputs when custom fields change
   rebuildInputs(): void {
     debugParams(
@@ -1126,6 +1179,20 @@ export abstract class Operator<OP extends IOperator> {
       if (connections.length > 0) {
         oldConnections.set(name, connections)
       }
+    }
+
+    // Closing the channels ends their expressions, so keep each expression's source to
+    // set on the reopened channel. Plain channel values come back from the whole value.
+    const oldChannelExpressions = new Map<string, Record<string, unknown>>()
+    for (const [name, field] of Object.entries(this.inputs)) {
+      if (!supportsChannelPorts(field)) continue
+      if (field.channels) {
+        const expressions = Object.entries(field.channels.fields)
+          .filter(([, channel]) => channel.expression !== null)
+          .map(([key, channel]) => [key, channel.serialize()])
+        if (expressions.length > 0) oldChannelExpressions.set(name, Object.fromEntries(expressions))
+      }
+      field.closeChannels()
     }
 
     // Recreate inputs (built-in + custom)
@@ -1170,6 +1237,17 @@ export abstract class Operator<OP extends IOperator> {
       assignPathToProps(field, key, [this.id, IN_NS])
     }
 
+    // Drop modes for inputs that went away, and reopen channels on the new fields
+    this.setInputPortModes(this.inputPortModes.value)
+    for (const [name, expressions] of oldChannelExpressions) {
+      const field = (this.inputs as Record<string, Field>)[name]
+      if (!supportsChannelPorts(field) || !field.channels) continue
+      for (const [key, value] of Object.entries(expressions)) {
+        const channel = field.channels.fields[key]
+        if (channel) applySerializedFieldValue(channel as unknown as Field, value)
+      }
+    }
+
     applyNodeUIMetadata(this.inputs, oldUIMetadata)
 
     // Note: Connections will be restored by transform-graph.ts when edges are re-applied
@@ -1187,7 +1265,9 @@ export abstract class Operator<OP extends IOperator> {
     // Cleanup expression-mode subscriptions (sibling/timeline reactivity)
     for (const field of Object.values(this.inputs)) {
       field.expressionCleanup?.()
+      if (supportsChannelPorts(field)) field.closeChannels()
     }
+    this.inputPortModes.complete()
 
     // Cleanup timeline subscriptions
     unsubscribeOpFromTimeline(this.id)

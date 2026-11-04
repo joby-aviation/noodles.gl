@@ -1,8 +1,9 @@
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react'
-import { ReactFlowProvider } from '@xyflow/react'
+import { ReactFlow, ReactFlowProvider } from '@xyflow/react'
 import { Temporal } from 'temporal-polyfill'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { userEvent } from 'vitest/browser'
+import type { Field } from '../fields'
 import {
   BezierCurveField,
   BooleanField,
@@ -18,8 +19,8 @@ import {
   Vec2Field,
   Vec3Field,
 } from '../fields'
-import { ArcLayerOp, BitmapLayerOp, NumberOp, StringOp } from '../operators'
-import { clearOps, setOp } from '../store'
+import { ArcLayerOp, BitmapLayerOp, NumberOp, SplitXYOp, StringOp } from '../operators'
+import { clearOps, setOp, useEdgeConnectionStore } from '../store'
 import { FieldEditScope } from '../utils/field-edit-analytics'
 import { applyOperatorInputs, registerPropertyMutationCallback } from '../utils/property-history'
 import {
@@ -1361,5 +1362,119 @@ describe('undo history for a focused compound child', () => {
     act(() => applyOperatorInputs(after))
     expect(top.value).toBe('hello')
     expect(right.value).toBe('later')
+  })
+})
+
+describe('vector input port layout', () => {
+  let op: SplitXYOp
+  let onMutation: ReturnType<typeof vi.fn>
+
+  // Handles need a real node around them. Unmeasured nodes are hidden, so queries
+  // include hidden elements.
+  function renderNodeField(id: string, fieldName: string, field: Field) {
+    const nodeTypes = {
+      field: () => (
+        <FieldComponent
+          id={fieldName}
+          field={field}
+          disabled={false}
+          handle={{ type: 'target', namespace: 'par' }}
+        />
+      ),
+    }
+    return render(
+      <div style={{ width: 400, height: 300 }}>
+        <ReactFlow
+          nodes={[{ id, type: 'field', position: { x: 0, y: 0 }, data: {} }]}
+          edges={[]}
+          nodeTypes={nodeTypes}
+        />
+      </div>
+    )
+  }
+  const renderVec = () => renderNodeField('/split', 'vec', op.inputs.vec)
+
+  const handleIds = (container: HTMLElement) =>
+    [...container.querySelectorAll('[data-handleid]')].map(el => el.getAttribute('data-handleid'))
+
+  beforeEach(() => {
+    op = new SplitXYOp('/split', { vec: { x: 1, y: 2 } })
+    setOp(op.id, op)
+    onMutation = vi.fn()
+    registerPropertyMutationCallback(onMutation)
+  })
+
+  afterEach(() => {
+    cleanup()
+    clearOps()
+    registerPropertyMutationCallback(undefined)
+    useEdgeConnectionStore.getState().updateFromEdges([])
+  })
+
+  it('splits an input into channel ports and back, with an undo step', () => {
+    const { container } = renderVec()
+    expect(handleIds(container)).toEqual(['par.vec'])
+
+    fireEvent.click(screen.getByLabelText('Use component ports'))
+    expect(op.getInputPortMode('vec')).toBe('channels')
+    expect(handleIds(container)).toEqual(['par.vec.x', 'par.vec.y'])
+    expect(screen.getByText('x')).toBeInTheDocument()
+    expect(onMutation).toHaveBeenCalledTimes(1)
+
+    const [, before] = onMutation.mock.calls[0]
+    act(() => applyOperatorInputs(before))
+    expect(op.getInputPortMode('vec')).toBe('whole')
+    expect(handleIds(container)).toEqual(['par.vec'])
+  })
+
+  it('edits a channel through its own input', () => {
+    op.setInputPortMode('vec', 'channels')
+    renderVec()
+    const [x] = screen.getAllByRole('spinbutton', { hidden: true })
+    fireEvent.focus(x)
+    fireEvent.change(x, { target: { value: '7' } })
+    fireEvent.blur(x)
+    expect(op.inputs.vec.value).toEqual({ x: 7, y: 2 })
+  })
+
+  it('locks the layout while a channel has an expression', () => {
+    op.setInputPortMode('vec', 'channels')
+    renderVec()
+    const toggle = screen.getByLabelText('Use whole-value port')
+    expect(toggle).not.toBeDisabled()
+    act(() => op.inputs.vec.channels?.fields.x.setExpression('3'))
+    expect(toggle).toBeDisabled()
+  })
+
+  it('locks the layout while the whole-value port is connected', () => {
+    act(() =>
+      useEdgeConnectionStore.getState().updateFromEdges([
+        {
+          id: 'e',
+          source: '/a',
+          target: '/split',
+          sourceHandle: 'out.xy',
+          targetHandle: 'par.vec',
+        },
+      ])
+    )
+    renderVec()
+    expect(screen.getByLabelText('Use component ports')).toBeDisabled()
+  })
+
+  // Keyframe controls belong to the Properties Panel, not graph nodes
+  it('keeps keyframe controls off the node in both layouts', () => {
+    renderVec()
+    expect(screen.queryByRole('button', { name: /keyframe/i, hidden: true })).toBeNull()
+    fireEvent.click(screen.getByLabelText('Use component ports'))
+    expect(screen.getByText('x')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /keyframe/i, hidden: true })).toBeNull()
+  })
+
+  it('leaves non-vector inputs without a layout toggle', () => {
+    const num = new NumberOp('/num')
+    const { container } = renderNodeField('/num', 'val', num.inputs.val)
+    expect(handleIds(container)).toEqual(['par.val'])
+    expect(screen.queryByLabelText('Use component ports')).not.toBeInTheDocument()
   })
 })

@@ -405,4 +405,85 @@ describe('validateProject', () => {
       assert.deepEqual(rules(p), [])
     })
   })
+
+  describe('vector input port modes', () => {
+    function split(modes?: unknown, inputs: Record<string, unknown> = {}): Node {
+      const n = node('/split-point', 'SplitXYOp', inputs)
+      if (modes !== undefined) (n.data as Record<string, unknown>).inputPortModes = modes
+      return n
+    }
+
+    it('lists the channels of vector inputs in the registry', () => {
+      assert.deepEqual(registry.operators.SplitXYOp.inputs.vec.channels, ['x', 'y'])
+      assert.equal(registry.operators.NumberOp.inputs.val.channels, undefined)
+      assert.deepEqual(registry.customFieldChannels?.['geopoint-2d'], ['lng', 'lat'])
+    })
+
+    it('accepts an edge to a channel of a split input', () => {
+      const p = project(p => {
+        p.nodes.push(node('/x', 'NumberOp', { val: 1 }), split({ vec: 'channels' }))
+        p.edges.push(edge('/x', 'out.val', '/split-point', 'par.vec.x'))
+      })
+      assert.deepEqual(rules(p), [])
+    })
+
+    it('accepts a channel expression in a split input', () => {
+      const p = project(p => {
+        p.nodes.push(split({ vec: 'channels' }, { vec: { x: { $expr: '1 + 1' }, y: 2 } }))
+      })
+      assert.deepEqual(rules(p), [])
+    })
+
+    it('rejects a channel edge while the input is one port', () => {
+      const p = project(p => {
+        p.nodes.push(node('/x', 'NumberOp', { val: 1 }), split())
+        p.edges.push(edge('/x', 'out.val', '/split-point', 'par.vec.x'))
+      })
+      assert.deepEqual(rules(p), ['edge-handle'])
+      assert.match(messages(p)[0], /Switch vec to channel ports first/)
+    })
+
+    it('rejects a whole-value edge while the input is split', () => {
+      const p = project(p => {
+        p.nodes.push(node('/xy', 'CombineXYOp'), split({ vec: 'channels' }))
+        p.edges.push(edge('/xy', 'out.xy', '/split-point', 'par.vec'))
+      })
+      assert.deepEqual(rules(p), ['edge-handle'])
+      assert.match(messages(p)[0], /vec is split into vec.x, vec.y/)
+    })
+
+    it('rejects a channel the input does not have', () => {
+      const p = project(p => {
+        p.nodes.push(node('/x', 'NumberOp', { val: 1 }), split({ vec: 'channels' }))
+        p.edges.push(edge('/x', 'out.val', '/split-point', 'par.vec.z'))
+      })
+      assert.deepEqual(rules(p), ['edge-handle'])
+    })
+
+    it('rejects port modes for inputs that cannot split, and unknown modes', () => {
+      const p = project(p => {
+        p.nodes.push(split({ vec: 'sideways', other: 'channels' }))
+      })
+      assert.deepEqual(rules(p), ['input-port-mode', 'input-port-mode'])
+      assert.match(messages(p)[0], /Use "channels" to split it into x, y/)
+      assert.match(messages(p)[1], /other can't split into channel ports. Inputs that can: vec/)
+    })
+
+    it('rejects port modes that are not an object', () => {
+      assert.deepEqual(rules(project(p => p.nodes.push(split(['vec'])))), ['input-port-mode'])
+    })
+
+    it('splits custom vector inputs', () => {
+      const p = project(p => {
+        const custom = node('/custom', 'CodeOp')
+        Object.assign(custom.data, {
+          customInputs: [{ id: 'a', name: 'origin', type: 'geopoint-2d', order: 0 }],
+          inputPortModes: { origin: 'channels' },
+        })
+        p.nodes.push(node('/x', 'NumberOp', { val: 1 }), custom)
+        p.edges.push(edge('/x', 'out.val', '/custom', 'par.origin.lng'))
+      })
+      assert.deepEqual(rules(p), [])
+    })
+  })
 })

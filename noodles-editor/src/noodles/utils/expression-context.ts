@@ -8,6 +8,7 @@ import * as utils from '../../utils'
 import type { Edge } from '../graph-executor'
 import type { IOperator, Operator } from '../operators'
 import { getAllOps, getOp } from '../store'
+import { resolveOperatorField } from './field-resolution'
 import type { OpId } from './id-utils'
 
 // Helper to get function/property names from an object, filtering out internals
@@ -191,8 +192,8 @@ function findDownstreamTarget(
 
     // On first hop, capture the target field info
     if (!firstHopField && handleParts.length >= 2 && handleParts[0] === 'par') {
-      const fieldName = handleParts[1]
-      const targetInput = targetOp.inputs[fieldName]
+      const fieldName = handleParts.slice(1).join('.')
+      const targetInput = resolveOperatorField(targetOp, 'par', fieldName)?.field
 
       if (targetInput) {
         const { fieldType, returnType } = getFieldTypeInfo(targetInput)

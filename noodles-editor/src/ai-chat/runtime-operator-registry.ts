@@ -1,7 +1,7 @@
 // Runtime operator registry - extracts metadata from loaded operator classes
 
 import { categories } from '../noodles/components/categories'
-import type { Field } from '../noodles/fields'
+import { type Field, supportsChannelPorts } from '../noodles/fields'
 import { opTypes } from '../noodles/operators'
 import type { OperatorRegistry, OperatorSchema } from './types'
 
@@ -48,12 +48,15 @@ export function buildOperatorRegistry(): OperatorRegistry {
     // Find category (without "Op" suffix for lookup)
     const category = categoryMap.get(displayName) || 'utility'
 
-    // Extract input schemas
+    // Extract input schemas. A vector input lists the channel ports it can split into.
     const inputs = Object.fromEntries(
       Object.entries(instance.inputs).map(([name, field]) => [
         name,
-        // biome-ignore lint/suspicious/noExplicitAny: Runtime reflection on field metadata
-        extractFieldSchema(name, field as Field<any, any>),
+        {
+          // biome-ignore lint/suspicious/noExplicitAny: Runtime reflection on field metadata
+          ...extractFieldSchema(name, field as Field<any, any>),
+          ...(supportsChannelPorts(field) && { channels: [...field.channelKeys] }),
+        },
       ])
     )
 

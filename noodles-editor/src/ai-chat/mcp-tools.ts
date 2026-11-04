@@ -1,6 +1,8 @@
 // MCPTools - Client-side tool implementations for Claude AI
 
+import { inputChannels } from 'noodles-validate/fields'
 import type { z } from 'zod'
+import { fieldTypeToClass, supportsChannelPorts, VectorField } from '../noodles/fields'
 import type { Operator } from '../noodles/operators'
 import { getOpStore } from '../noodles/store'
 import { safeStringify } from '../noodles/utils/serialization'
@@ -32,6 +34,7 @@ import {
 import {
   checkFields,
   customInputNames,
+  inputPortModesOf,
   qualifyHandle,
   resolveOperatorType,
 } from './modification-fields'
@@ -163,6 +166,35 @@ function liveFieldNames(nodeId: string, side: 'inputs' | 'outputs'): string[] {
   return op ? Object.keys(op[side] ?? {}) : []
 }
 
+// The live operator's vector inputs that split into channel ports, custom ones included
+function liveInputChannels(nodeId: string): Record<string, string[]> {
+  const op = getOpStore().getOp(nodeId)
+  if (!op) return {}
+  return Object.fromEntries(
+    Object.entries(op.inputs).flatMap(([name, field]) =>
+      supportsChannelPorts(field) ? [[name, [...field.channelKeys]]] : []
+    )
+  )
+}
+
+// The channel ports of the vector custom inputs a modification declares, e.g. a
+// geopoint-2d input splits into lng and lat
+function declaredInputChannels(
+  data: Record<string, unknown> | undefined
+): Record<string, string[]> {
+  const custom = data?.customInputs
+  if (!Array.isArray(custom)) return {}
+  return Object.fromEntries(
+    custom.flatMap(def => {
+      if (!isRecord(def) || typeof def.name !== 'string' || typeof def.type !== 'string') return []
+      if (!Object.hasOwn(fieldTypeToClass, def.type)) return []
+      const FieldClass = fieldTypeToClass[def.type as keyof typeof fieldTypeToClass]
+      if (!(FieldClass.prototype instanceof VectorField)) return []
+      return [[def.name, [...(FieldClass as unknown as typeof VectorField).channelKeys]]]
+    })
+  )
+}
+
 export class MCPTools {
   private consoleErrors: ConsoleError[] = []
   private project: NoodlesProject | null = null
@@ -174,6 +206,11 @@ export class MCPTools {
   // Custom inputs a queued add_node declared, which an edge may target before
   // the node exists
   private queuedCustomInputs = new Map<string, string[]>()
+  // Channel ports of those custom inputs, and the data.inputPortModes queued updates
+  // set. Modes stay until the run ends: an update to a node already in the project
+  // lands with it, so setProject can't tell when it has.
+  private queuedCustomChannels = new Map<string, Record<string, string[]>>()
+  private queuedPortModes = new Map<string, Record<string, unknown>>()
 
   constructor(private contextLoader?: ContextLoader) {
     this.setupConsoleTracking()
@@ -187,6 +224,7 @@ export class MCPTools {
     for (const node of project.nodes ?? []) {
       this.queuedNodes.delete(node.id)
       this.queuedCustomInputs.delete(node.id)
+      this.queuedCustomChannels.delete(node.id)
     }
     for (const edge of project.edges ?? []) this.queuedEdges.delete(edge.id)
   }
@@ -198,6 +236,28 @@ export class MCPTools {
     this.queuedNodes.clear()
     this.queuedEdges.clear()
     this.queuedCustomInputs.clear()
+    this.queuedCustomChannels.clear()
+    this.queuedPortModes.clear()
+  }
+
+  // Channel ports the batch's custom inputs add and the port modes it sets, on top of
+  // what earlier calls this run queued. A later update's modes replace an earlier one's.
+  private portChanges(mods: ProjectModification[], isNew: (id: string) => boolean) {
+    const channels = new Map(this.queuedCustomChannels)
+    const modes = new Map(this.queuedPortModes)
+    for (const mod of mods) {
+      if (mod.type !== 'add_node' && mod.type !== 'update_node') continue
+      const data = mod.data.data as Record<string, unknown> | undefined
+      if (mod.type === 'add_node' || isNew(mod.data.id)) {
+        channels.set(mod.data.id, {
+          ...channels.get(mod.data.id),
+          ...declaredInputChannels(data),
+        })
+      }
+      const set = inputPortModesOf(data)
+      if (set) modes.set(mod.data.id, set)
+    }
+    return { channels, modes }
   }
 
   getProject(): NoodlesProject | null {
@@ -875,7 +935,27 @@ export class MCPTools {
         ...liveFieldNames(nodeId, side),
         ...(side === 'inputs' ? (declared.get(nodeId) ?? []) : []),
       ]
-      const context = { registry, types, liveFields }
+      const { channels: declaredChannels, modes: batchModes } = this.portChanges(
+        accepted.map(entry => entry.mod),
+        isNew
+      )
+      const ports = (nodeId: string) => {
+        const type = types.get(nodeId)
+        const saved = this.project?.nodes?.find(node => node.id === nodeId)?.data
+        return {
+          channels: {
+            ...(type ? inputChannels(registry, type) : {}),
+            ...liveInputChannels(nodeId),
+            ...declaredChannels.get(nodeId),
+          },
+          modes:
+            batchModes.get(nodeId) ??
+            getOpStore().getOp(nodeId)?.inputPortModes?.value ??
+            inputPortModesOf(saved) ??
+            {},
+        }
+      }
+      const context = { registry, types, liveFields, ports }
       for (const { label, mod } of accepted) {
         for (const problem of checkFields(mod, context)) errors.push(`${label}: ${problem}`)
       }
@@ -896,6 +976,9 @@ export class MCPTools {
       }
       if (mod.type === 'add_edge') this.queuedEdges.add(mod.data.id)
     }
+    const { channels, modes } = this.portChanges(mods, isNew)
+    this.queuedCustomChannels = channels
+    this.queuedPortModes = modes
 
     // Returned rather than applied: the panel shows them to the user, who accepts or rejects them
     return {

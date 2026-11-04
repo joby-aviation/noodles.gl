@@ -74,6 +74,7 @@ import {
   SelectOp,
   SmoothOp,
   SortOp,
+  SplitXYOp,
   SwitchOp,
   TableEditorOp,
   Tile3DLayerOp,
@@ -376,6 +377,84 @@ describe('Locked operators', () => {
 
     expect(op.hasOutput).toBe(false)
     await expect(op.pull()).resolves.toEqual({ result: 5 })
+  })
+})
+
+describe('Operator input port modes', () => {
+  it('defaults every input to one port without channel fields', () => {
+    const op = new SplitXYOp('/split')
+    expect(op.getInputPortMode('vec')).toBe('whole')
+    expect(op.inputPortModes.value).toEqual({})
+    expect(op.inputs.vec.channels).toBeNull()
+  })
+
+  it('opens channels addressed by the op and closes them again', () => {
+    const op = new SplitXYOp('/split', { vec: { x: 1, y: 2 } })
+    op.setInputPortMode('vec', 'channels')
+    expect(op.inputPortModes.value).toEqual({ vec: 'channels' })
+    const x = op.inputs.vec.channels?.fields.x
+    expect(x?.value).toBe(1)
+    expect(x?.op).toBe(op)
+    expect(x?.pathToProps).toEqual(['/split', 'par', 'vec', 'x'])
+
+    op.setInputPortMode('vec', 'whole')
+    expect(op.inputPortModes.value).toEqual({})
+    expect(op.inputs.vec.channels).toBeNull()
+  })
+
+  it('drops unknown inputs, non-vector inputs and unknown modes', () => {
+    const op = new SplitXYOp('/split')
+    op.setInputPortModes({ vec: 'sideways', missing: 'channels' })
+    expect(op.inputPortModes.value).toEqual({})
+    const num = new NumberOp('/num')
+    num.setInputPortModes({ val: 'channels' })
+    expect(num.inputPortModes.value).toEqual({})
+  })
+
+  it('emits only when the modes change', () => {
+    const op = new SplitXYOp('/split')
+    const seen: unknown[] = []
+    const sub = op.inputPortModes.subscribe(modes => seen.push(modes))
+    op.setInputPortMode('vec', 'channels')
+    op.setInputPortModes({ vec: 'channels' })
+    sub.unsubscribe()
+    expect(seen).toEqual([{}, { vec: 'channels' }])
+  })
+
+  it('opens channels for a saved per-channel expression', () => {
+    const op = new SplitXYOp('/split', { vec: { x: { $expr: '2 * 3' }, y: 1 } })
+    expect(op.getInputPortMode('vec')).toBe('channels')
+    expect(op.inputs.vec.channels?.fields.x.expression).toBe('2 * 3')
+    expect(op.inputs.vec.value).toEqual({ x: 6, y: 1 })
+  })
+
+  it('keeps port modes when inputs are rebuilt', () => {
+    const op = new SplitXYOp('/split', { vec: { x: 1, y: 2 } })
+    op.setInputPortMode('vec', 'channels')
+    const before = op.inputs.vec
+    op.rebuildInputs()
+    expect(op.inputs.vec).not.toBe(before)
+    expect(before.channels).toBeNull()
+    expect(op.inputs.vec.channels?.fields.y.value).toBe(2)
+    expect(op.inputs.vec.channels?.fields.y.op).toBe(op)
+  })
+
+  it('keeps channel expressions when inputs are rebuilt', () => {
+    const op = new SplitXYOp('/split', { vec: { x: { $expr: '2 * 3' }, y: 1 } })
+    op.rebuildInputs()
+    expect(op.getInputPortMode('vec')).toBe('channels')
+    expect(op.inputs.vec.channels?.fields.x.expression).toBe('2 * 3')
+    expect(op.inputs.vec.channels?.fields.y.expression).toBeNull()
+    expect(op.inputs.vec.serialize()).toEqual({ x: { $expr: '2 * 3' }, y: 1 })
+  })
+
+  it('closes channels on dispose', () => {
+    const op = new SplitXYOp('/split')
+    op.setInputPortMode('vec', 'channels')
+    const vec = op.inputs.vec
+    op.dispose()
+    expect(vec.channels).toBeNull()
+    expect(op.inputPortModes.closed || op.inputPortModes.isStopped).toBe(true)
   })
 })
 

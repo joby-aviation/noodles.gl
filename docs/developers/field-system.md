@@ -154,6 +154,30 @@ import { canConnect } from './utils/can-connect'
 const isCompatible = canConnect(sourceField, targetField)
 ```
 
+### Vector Channel Ports
+
+Vector inputs (`Point2DField`, `Point3DField`, `Vec2Field`, `Vec3Field`, all subclasses of `VectorField`) can split into one number port per component. The split is per node and per input, saved in `data.inputPortModes`:
+
+```json
+{
+  "id": "/split-point",
+  "type": "SplitXYOp",
+  "data": {
+    "inputPortModes": { "vec": "channels" },
+    "inputs": { "vec": { "x": { "$expr": "op('/time').par.value * 2" }, "y": 4 } }
+  }
+}
+```
+
+- **Ports**: a split input takes edges on its channel handles (`par.vec.x`, `par.vec.y`) and not on `par.vec`. An input in whole mode takes `par.vec` only. An edge to the inactive layout stays in the project with a connection error, and connects again when the layout switches back. `noodles-validate` and `apply_modifications` reject these edges.
+- **Channel fields**: `VectorField.openChannels()` creates a `NumberField` per component the first time an input is split. Fields in whole mode and outputs have none. `Operator.setInputPortMode(name, mode)` opens and closes them. Use it, not the field methods, so `inputPortModes` and the saved data stay in sync.
+- **Sync**: a channel edit sets the parent value, so the operator re-executes once. A parent change updates the channels without marking them dirty. These subscriptions are private to the field and never in `field.subscriptions`.
+- **Expressions**: a channel can hold an expression. When any channel does, the input saves as one value per channel, as above. The node's toggle stays locked while the input is connected or has an expression, so switching layouts never drops one.
+- **Undo**: a layout change is one undo step. History snapshots include each node's port modes.
+- **Registry**: `registry.json` lists the channels of each such input (`"channels": ["x", "y"]`) and of each custom input type (`customFieldChannels`).
+
+To read a channel in code, resolve the handle with `resolveHandleField` from `utils/field-resolution.ts` rather than indexing `op.inputs`.
+
 ## Custom Fields
 
 Create custom field types by extending base classes:

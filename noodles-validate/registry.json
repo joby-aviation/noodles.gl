@@ -19,6 +19,26 @@
     "data",
     "unknown"
   ],
+  "customFieldChannels": {
+    "vec2": [
+      "x",
+      "y"
+    ],
+    "vec3": [
+      "x",
+      "y",
+      "z"
+    ],
+    "geopoint-2d": [
+      "lng",
+      "lat"
+    ],
+    "geopoint-3d": [
+      "lng",
+      "lat",
+      "alt"
+    ]
+  },
   "operators": {
     "A5LayerOp": {
       "name": "A5Layer",
@@ -186,6 +206,11 @@
             0,
             0,
             0
+          ],
+          "channels": [
+            "lng",
+            "lat",
+            "alt"
           ]
         },
         "getTargetPosition": {
@@ -194,6 +219,11 @@
             0,
             0,
             0
+          ],
+          "channels": [
+            "lng",
+            "lat",
+            "alt"
           ]
         },
         "getSourceColor": {
@@ -253,7 +283,12 @@
             "lng": 0,
             "lat": 0,
             "alt": 0
-          }
+          },
+          "channels": [
+            "lng",
+            "lat",
+            "alt"
+          ]
         },
         "target": {
           "type": "Point3DField",
@@ -261,7 +296,12 @@
             "lng": 0,
             "lat": 0,
             "alt": 0
-          }
+          },
+          "channels": [
+            "lng",
+            "lat",
+            "alt"
+          ]
         },
         "altitudeMultiplier": {
           "type": "NumberField",
@@ -555,14 +595,22 @@
           "default": {
             "lng": 0,
             "lat": 0
-          }
+          },
+          "channels": [
+            "lng",
+            "lat"
+          ]
         },
         "northeast": {
           "type": "Point2DField",
           "default": {
             "lng": 0,
             "lat": 0
-          }
+          },
+          "channels": [
+            "lng",
+            "lat"
+          ]
         }
       },
       "outputs": {
@@ -658,6 +706,10 @@
           "default": [
             0,
             0
+          ],
+          "channels": [
+            "lng",
+            "lat"
           ]
         }
       },
@@ -1079,6 +1131,10 @@
           "default": [
             0,
             0
+          ],
+          "channels": [
+            "x",
+            "y"
           ]
         },
         "coverage": {
@@ -1123,6 +1179,11 @@
             0,
             0,
             0
+          ],
+          "channels": [
+            "lng",
+            "lat",
+            "alt"
           ]
         },
         "getFillColor": {
@@ -1362,6 +1423,11 @@
             0,
             0,
             0
+          ],
+          "channels": [
+            "lng",
+            "lat",
+            "alt"
           ]
         },
         "getWeight": {
@@ -1737,14 +1803,22 @@
           "default": {
             "lng": 0,
             "lat": 0
-          }
+          },
+          "channels": [
+            "lng",
+            "lat"
+          ]
         },
         "destination": {
           "type": "Point2DField",
           "default": {
             "lng": 0,
             "lat": 0
-          }
+          },
+          "channels": [
+            "lng",
+            "lat"
+          ]
         },
         "mode": {
           "type": "StringLiteralField",
@@ -1960,6 +2034,10 @@
           "default": [
             0,
             0
+          ],
+          "channels": [
+            "x",
+            "y"
           ]
         },
         "getFillPatternBackgroundColor": {
@@ -2407,7 +2485,11 @@
           "default": {
             "x": 0,
             "y": 0
-          }
+          },
+          "channels": [
+            "x",
+            "y"
+          ]
         },
         "textSizeUnits": {
           "type": "StringLiteralField",
@@ -2769,6 +2851,10 @@
           "default": [
             0,
             0
+          ],
+          "channels": [
+            "lng",
+            "lat"
           ]
         },
         "getTargetPosition": {
@@ -2776,6 +2862,10 @@
           "default": [
             0,
             0
+          ],
+          "channels": [
+            "lng",
+            "lat"
           ]
         },
         "getSourceColor": {
@@ -2863,6 +2953,11 @@
             0,
             0,
             0
+          ],
+          "channels": [
+            "lng",
+            "lat",
+            "alt"
           ]
         },
         "getColor": {
@@ -2914,6 +3009,11 @@
             0,
             0,
             0
+          ],
+          "channels": [
+            "lng",
+            "lat",
+            "alt"
           ]
         },
         "cellSize": {
@@ -3004,6 +3104,10 @@
           "default": [
             0,
             1000
+          ],
+          "channels": [
+            "x",
+            "y"
           ]
         },
         "elevationDomain": {
@@ -3171,6 +3275,10 @@
           "default": [
             0,
             0
+          ],
+          "channels": [
+            "lng",
+            "lat"
           ]
         },
         "getWeight": {
@@ -3234,6 +3342,11 @@
             0,
             0,
             0
+          ],
+          "channels": [
+            "lng",
+            "lat",
+            "alt"
           ]
         },
         "radius": {
@@ -3324,6 +3437,10 @@
           "default": [
             0,
             1000
+          ],
+          "channels": [
+            "x",
+            "y"
           ]
         },
         "elevationDomain": {
@@ -3467,6 +3584,11 @@
             0,
             0,
             0
+          ],
+          "channels": [
+            "lng",
+            "lat",
+            "alt"
           ]
         },
         "iconAtlas": {
@@ -3510,7 +3632,11 @@
           "default": {
             "x": 0,
             "y": 0
-          }
+          },
+          "channels": [
+            "x",
+            "y"
+          ]
         },
         "getColor": {
           "type": "ColorField",
@@ -3875,6 +4001,11 @@
             0,
             0,
             0
+          ],
+          "channels": [
+            "lng",
+            "lat",
+            "alt"
           ]
         },
         "getTargetPosition": {
@@ -3883,6 +4014,11 @@
             0,
             0,
             0
+          ],
+          "channels": [
+            "lng",
+            "lat",
+            "alt"
           ]
         },
         "getColor": {
@@ -4198,6 +4334,11 @@
             -118.2637,
             34.0171,
             0
+          ],
+          "channels": [
+            "lng",
+            "lat",
+            "alt"
           ]
         },
         "innerRadius": {
@@ -4380,6 +4521,10 @@
           "default": [
             0,
             0
+          ],
+          "channels": [
+            "lng",
+            "lat"
           ]
         },
         "points": {
@@ -4821,6 +4966,10 @@
           "default": [
             4,
             4
+          ],
+          "channels": [
+            "x",
+            "y"
           ]
         },
         "getOffset": {
@@ -4907,6 +5056,11 @@
             0,
             0,
             0
+          ],
+          "channels": [
+            "lng",
+            "lat",
+            "alt"
           ]
         },
         "getNormal": {
@@ -4915,6 +5069,11 @@
             0,
             0,
             1
+          ],
+          "channels": [
+            "x",
+            "y",
+            "z"
           ]
         },
         "getColor": {
@@ -5017,7 +5176,11 @@
           "default": {
             "lng": 0,
             "lat": 0
-          }
+          },
+          "channels": [
+            "lng",
+            "lat"
+          ]
         },
         "properties": {
           "type": "DataField",
@@ -5163,7 +5326,11 @@
           "default": {
             "lng": 0,
             "lat": 0
-          }
+          },
+          "channels": [
+            "lng",
+            "lat"
+          ]
         },
         "width": {
           "type": "NumberField",
@@ -5373,6 +5540,10 @@
           "default": [
             -74.006,
             40.7128
+          ],
+          "channels": [
+            "lng",
+            "lat"
           ]
         },
         "altitude": {
@@ -5608,6 +5779,11 @@
             0,
             0,
             0
+          ],
+          "channels": [
+            "lng",
+            "lat",
+            "alt"
           ]
         },
         "getPixelOffset": {
@@ -5615,6 +5791,10 @@
           "default": [
             0,
             0
+          ],
+          "channels": [
+            "x",
+            "y"
           ]
         },
         "getFillColor": {
@@ -5686,6 +5866,11 @@
             0,
             0,
             0
+          ],
+          "channels": [
+            "lng",
+            "lat",
+            "alt"
           ]
         },
         "getOrientation": {
@@ -5694,6 +5879,11 @@
             0,
             0,
             0
+          ],
+          "channels": [
+            "x",
+            "y",
+            "z"
           ]
         },
         "getScale": {
@@ -5702,6 +5892,11 @@
             1,
             1,
             1
+          ],
+          "channels": [
+            "x",
+            "y",
+            "z"
           ]
         },
         "sizeScale": {
@@ -5726,6 +5921,11 @@
             0,
             0,
             0
+          ],
+          "channels": [
+            "x",
+            "y",
+            "z"
           ]
         },
         "parameters": {
@@ -5820,6 +6020,11 @@
             0,
             0,
             0
+          ],
+          "channels": [
+            "lng",
+            "lat",
+            "alt"
           ]
         },
         "getWeight": {
@@ -5950,6 +6155,11 @@
             0,
             0,
             0
+          ],
+          "channels": [
+            "lng",
+            "lat",
+            "alt"
           ]
         },
         "getColor": {
@@ -5962,6 +6172,11 @@
             0,
             0,
             0
+          ],
+          "channels": [
+            "x",
+            "y",
+            "z"
           ]
         },
         "getScale": {
@@ -5970,6 +6185,11 @@
             1,
             1,
             1
+          ],
+          "channels": [
+            "x",
+            "y",
+            "z"
           ]
         },
         "sizeScale": {
@@ -5982,6 +6202,11 @@
             0,
             0,
             0
+          ],
+          "channels": [
+            "x",
+            "y",
+            "z"
           ]
         },
         "parameters": {
@@ -6260,7 +6485,11 @@
           "default": {
             "x": 0,
             "y": 0
-          }
+          },
+          "channels": [
+            "x",
+            "y"
+          ]
         }
       },
       "outputs": {
@@ -6284,7 +6513,12 @@
             "x": 0,
             "y": 0,
             "z": 0
-          }
+          },
+          "channels": [
+            "x",
+            "y",
+            "z"
+          ]
         }
       },
       "outputs": {
@@ -6501,6 +6735,11 @@
             0,
             0,
             0
+          ],
+          "channels": [
+            "lng",
+            "lat",
+            "alt"
           ]
         },
         "getText": {
@@ -6564,7 +6803,11 @@
           "default": {
             "x": 0,
             "y": 0
-          }
+          },
+          "channels": [
+            "x",
+            "y"
+          ]
         },
         "backgroundBorderRadius": {
           "type": "NumberField",
@@ -6603,7 +6846,11 @@
           "default": {
             "x": 0,
             "y": 0
-          }
+          },
+          "channels": [
+            "x",
+            "y"
+          ]
         },
         "getAlignmentBaseline": {
           "type": "StringLiteralField",
@@ -7067,7 +7314,11 @@
           "default": {
             "x": 0,
             "y": 0
-          }
+          },
+          "channels": [
+            "x",
+            "y"
+          ]
         },
         "width": {
           "type": "NumberField",

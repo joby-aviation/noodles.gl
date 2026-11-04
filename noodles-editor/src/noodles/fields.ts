@@ -1,6 +1,6 @@
 import { LayerExtension, type LayerProps, View } from '@deck.gl/core'
 import { interpolateLab, scaleOrdinal, schemeAccent } from 'd3'
-import { BehaviorSubject, combineLatest, type Subscription } from 'rxjs'
+import { BehaviorSubject, combineLatest, merge, Subscription, skip } from 'rxjs'
 import { Temporal } from 'temporal-polyfill'
 import { isHexColor } from 'validator'
 import z from 'zod/v4'
@@ -726,6 +726,171 @@ export class NumberField extends Field<z.ZodNumber, NumberFieldOptions> {
   }
 }
 
+type VectorFieldOptions = BaseFieldOptions & {
+  returnType?: 'object' | 'tuple'
+}
+
+function channelNumber(value: unknown, key: string, index: number): number | undefined {
+  const channel = Array.isArray(value)
+    ? value[index]
+    : value !== null && typeof value === 'object'
+      ? (value as Record<string, unknown>)[key]
+      : undefined
+  return typeof channel === 'number' ? channel : undefined
+}
+
+// The per-component NumberFields of a vector input in channels mode, and the two-way
+// sync that keeps them and the whole value equal. Created by VectorField.openChannels
+// only while an operator has the input in channels mode.
+//
+// The sync subscription lives here rather than in the parent's `subscriptions`, which
+// only holds connections: code that walks a field's connections (stale-edge cleanup,
+// undo capture) must not find it.
+export class VectorChannels {
+  readonly fields: Record<string, NumberField>
+  private readonly sync = new Subscription()
+
+  constructor(parent: VectorField) {
+    const keys = parent.channelKeys
+    const initial = parent.value
+    const fallback = parent.defaultValue
+    this.fields = Object.fromEntries(
+      keys.map((key, index) => {
+        const channel = new NumberField(
+          channelNumber(initial, key, index) ?? channelNumber(fallback, key, index) ?? 0,
+          { accessor: parent.accessor, label: key }
+        )
+        channel.op = parent.op
+        channel.pathToProps = [...parent.pathToProps, key]
+        return [key, channel]
+      })
+    )
+
+    // Whole value -> channels. next() rather than setValue(): the operator already saw
+    // this change through the parent, and marking it dirty again from the mirror would
+    // re-run an operator every time it published its own value.
+    let mirroring = false
+    this.sync.add(
+      parent.pipe(skip(1)).subscribe(value => {
+        if (typeof value === 'function') return
+        mirroring = true
+        try {
+          keys.forEach((key, index) => {
+            const channel = this.fields[key]
+            const next = channelNumber(value, key, index)
+            // An expression owns its channel's value
+            if (next === undefined || channel.expression !== null || channel.value === next) return
+            channel.next(next)
+          })
+        } finally {
+          mirroring = false
+        }
+      })
+    )
+
+    // Channels -> whole value, through setValue so the operator re-runs
+    this.sync.add(
+      merge(...keys.map(key => this.fields[key].pipe(skip(1)))).subscribe(() => {
+        if (mirroring) return
+        parent.setValue(this.compose(parent) as never)
+      })
+    )
+  }
+
+  // The whole value the channels describe. A channel connected to an accessor makes
+  // the whole value an accessor that calls it per item.
+  private compose(parent: VectorField): unknown {
+    const keys = parent.channelKeys
+    const values = keys.map(key => this.fields[key].value as unknown)
+    const current = parent.value
+    const extra =
+      parent.returnType === 'object' && current !== null && typeof current === 'object'
+        ? current
+        : {}
+    const build = (components: unknown[]) =>
+      parent.returnType === 'tuple'
+        ? components
+        : { ...extra, ...Object.fromEntries(keys.map((key, i) => [key, components[i]])) }
+    if (!values.some(value => typeof value === 'function')) return build(values)
+    return (...args: unknown[]) =>
+      build(
+        values.map(value =>
+          typeof value === 'function' ? (value as (...a: unknown[]) => unknown)(...args) : value
+        )
+      )
+  }
+
+  hasExpressions(): boolean {
+    return Object.values(this.fields).some(field => field.expression !== null)
+  }
+
+  dispose(): void {
+    this.sync.unsubscribe()
+    for (const field of Object.values(this.fields)) {
+      field.expressionCleanup?.()
+      for (const subscription of field.subscriptions.values()) subscription.unsubscribe()
+      field.subscriptions.clear()
+    }
+  }
+}
+
+// Point2D, Point3D, Vec2 and Vec3 inputs can be wired as one whole-value port or as one
+// number port per component. Which one is the operator's choice (Operator.inputPortModes);
+// the field only holds the channel fields while that choice is 'channels'.
+export abstract class VectorField<
+  // biome-ignore lint/suspicious/noExplicitAny: the four vector classes use different Zod unions
+  S extends z.ZodType = any,
+  O extends VectorFieldOptions = VectorFieldOptions,
+> extends Field<S, O> {
+  static channelKeys: readonly string[] = []
+
+  abstract returnType: 'object' | 'tuple'
+
+  channels: VectorChannels | null = null
+
+  get channelKeys(): readonly string[] {
+    return (this.constructor as typeof VectorField).channelKeys
+  }
+
+  openChannels(): Record<string, NumberField> {
+    if (!this.channels) this.channels = new VectorChannels(this)
+    return this.channels.fields
+  }
+
+  // Channel connections and expressions end here; the whole value keeps its last value
+  closeChannels(): void {
+    this.channels?.dispose()
+    this.channels = null
+  }
+
+  // A channel driven by an expression is saved per channel, e.g.
+  // { "lng": { "$expr": "op('/time').out.seconds" }, "lat": 40.7 }
+  serialize() {
+    if (this.expression === null && this.channels?.hasExpressions()) {
+      const fields = this.channels.fields
+      return Object.fromEntries(
+        this.channelKeys.map(key => [key, fields[key].serialize()])
+      ) as ReturnType<Field<S, O>['serialize']>
+    }
+    return super.serialize()
+  }
+}
+
+export function supportsChannelPorts(field: unknown): field is VectorField {
+  return field instanceof VectorField
+}
+
+// A saved vector with an expression in at least one channel (see VectorField.serialize)
+export function isSerializedChannels(
+  field: Field,
+  value: unknown
+): value is Record<string, unknown> {
+  if (!supportsChannelPorts(field) || value === null || typeof value !== 'object') return false
+  if (Array.isArray(value) || isSerializedExpression(value)) return false
+  const record = value as Record<string, unknown>
+  return field.channelKeys.some(key => isSerializedExpression(record[key]))
+}
+
 // TODO: decide on storage and serialization format
 // How to convert to and from hex, rgb, hsl, deck [r,g,b,a] etc.
 export class ColorField extends Field<z.ZodString> {
@@ -962,7 +1127,7 @@ type Point3DFieldValue =
   | [number, number, number]
 
 // Should this just be a Vec2? Should it be a GeoJSON Point Or does it need to be a special case
-export class Point3DField extends Field<
+export class Point3DField extends VectorField<
   z.ZodUnion<
     [
       z.ZodTuple<[z.ZodNumber, z.ZodNumber, z.ZodNumber]>,
@@ -1123,7 +1288,7 @@ type BboxFieldValue =
   | [Point2DFieldValue, Point2DFieldValue]
 
 // Should this just be a Vec2? Should it be a GeoJSON Point Or does it need to be a special case
-export class Point2DField extends Field<
+export class Point2DField extends VectorField<
   z.ZodUnion<
     [
       z.ZodObject<
@@ -1300,7 +1465,7 @@ export class BboxField extends Field<
 
 type Vec2FieldOverride = { x: number; y: number } | [number, number]
 
-export class Vec2Field extends Field<
+export class Vec2Field extends VectorField<
   z.ZodObject<
     { x: z.ZodNumber; y: z.ZodNumber },
     'strip',
@@ -1336,7 +1501,7 @@ export class Vec2Field extends Field<
 
 type Vec3FieldOverride = { x: number; y: number; z: number } | [number, number, number]
 
-export class Vec3Field extends Field<
+export class Vec3Field extends VectorField<
   z.ZodObject<
     { x: z.ZodNumber; y: z.ZodNumber; z: z.ZodNumber },
     'strip',
@@ -2100,8 +2265,39 @@ export function applySerializedFieldValue(field: Field, value: unknown): void {
   if (typeof field.clearExpression === 'function' && field.expression != null) {
     field.clearExpression()
   }
+  // Per-channel expressions, e.g. { lng: { $expr }, lat: 40.7 }. The operator puts the
+  // input in channels mode first; a field outside an operator opens its channels here.
+  if (isSerializedChannels(field, value)) {
+    const vector = field as VectorField
+    const channels = vector.openChannels()
+    for (const key of vector.channelKeys) {
+      if (key in value) applySerializedFieldValue(channels[key] as unknown as Field, value[key])
+    }
+    return
+  }
+  const next = supportsChannelPorts(field) ? withVectorComponents(field, value) : value
   const ctor = field.constructor as typeof Field & { deserialize?: (value: unknown) => unknown }
-  field.setValue(typeof ctor.deserialize === 'function' ? ctor.deserialize(value) : value)
+  field.setValue(typeof ctor.deserialize === 'function' ? ctor.deserialize(next) : next)
+}
+
+// Some components of a vector, e.g. { y: 4 } from an undo snapshot of a split input whose
+// x channel is connected. The components it leaves out keep their current values.
+function withVectorComponents(field: VectorField, value: unknown): unknown {
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) return value
+  const record = value as Record<string, unknown>
+  const keys = field.channelKeys
+  if (!Object.keys(record).every(key => keys.includes(key))) return value
+  if (field.schema.safeParse(value).success) return value
+  return Object.fromEntries(
+    keys.map((key, index) => [
+      key,
+      key in record
+        ? record[key]
+        : (channelNumber(field.value, key, index) ??
+          channelNumber(field.defaultValue, key, index) ??
+          0),
+    ])
+  )
 }
 
 export const fieldTypeToClass = {

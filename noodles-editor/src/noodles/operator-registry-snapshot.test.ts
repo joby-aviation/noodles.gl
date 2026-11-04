@@ -6,7 +6,7 @@
 
 import { describe, expect, it } from 'vitest'
 import { buildOperatorRegistry } from '../ai-chat/runtime-operator-registry'
-import { fieldTypeToClass } from './fields'
+import { fieldTypeToClass, VectorField } from './fields'
 import { NOODLES_VERSION } from './utils/migrate-schema'
 
 // JSON writes Infinity and NaN as null, which would publish a wrong default. Such
@@ -50,7 +50,10 @@ function buildSnapshot() {
           inputs: Object.fromEntries(
             Object.entries(op.inputs).map(([name, field]) => [
               name,
-              snapshotField(field.type, field.defaultValue),
+              {
+                ...snapshotField(field.type, field.defaultValue),
+                ...(field.channels && { channels: field.channels }),
+              },
             ])
           ),
           outputs: Object.fromEntries(
@@ -61,7 +64,15 @@ function buildSnapshot() {
   )
   // What a node's data.customInputs[].type may be
   const customFieldTypes = Object.keys(fieldTypeToClass)
-  return { projectVersion: NOODLES_VERSION, customFieldTypes, operators }
+  // The channel ports a custom input of each vector type can split into
+  const customFieldChannels = Object.fromEntries(
+    Object.entries(fieldTypeToClass).flatMap(([type, FieldClass]) =>
+      FieldClass.prototype instanceof VectorField
+        ? [[type, [...(FieldClass as unknown as typeof VectorField).channelKeys]]]
+        : []
+    )
+  )
+  return { projectVersion: NOODLES_VERSION, customFieldTypes, customFieldChannels, operators }
 }
 
 describe('jsText', () => {
