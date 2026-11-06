@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
-import { readFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { after, before, describe, it } from 'node:test'
 import { fileURLToPath } from 'node:url'
@@ -184,6 +185,27 @@ describe('noodles-mcp', () => {
       assert.equal(result.valid, false)
       assert.match(result.summary, /^FAIL: 4 errors/)
       assert.match(result.errors[0].message, /Did you mean: FileOp\?/)
+    })
+
+    it('says a project behind the schema was checked only in part', async () => {
+      const dir = mkdtempSync(join(tmpdir(), 'noodles-mcp '))
+      const file = join(dir, 'noodles.json')
+      const project = JSON.parse(readFileSync(join(FIXTURES, 'valid/noodles.json'), 'utf8'))
+      writeFileSync(file, JSON.stringify({ ...project, version: 6 }))
+      const missing = await data('validate_project', { path: file })
+      assert.equal(missing.profile, 'external')
+      assert.equal(missing.partial, true)
+      assert.deepEqual(
+        missing.errors.map((d: { rule: string }) => d.rule),
+        ['missing-asset']
+      )
+      assert.match(missing.summary, /^FAIL: 1 error .*only its JSON, version and data files/)
+
+      mkdirSync(join(dir, 'data'))
+      writeFileSync(join(dir, 'data/data.csv'), 'a\n1\n')
+      const stale = await data('validate_project', { path: file })
+      assert.equal(stale.valid, true)
+      assert.match(stale.summary, /^PARTLY CHECKED: .*open and save it in the editor/)
     })
 
     it('resolves a relative path against the working directory', async () => {

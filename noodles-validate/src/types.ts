@@ -48,6 +48,7 @@ export type Rule =
   | 'multiple-inputs'
   | 'cycle'
   | 'stale-edge-id'
+  | 'missing-asset'
 
 export interface Diagnostic {
   severity: Severity
@@ -63,4 +64,19 @@ export interface ValidationResult {
   valid: boolean
   errors: Diagnostic[]
   warnings: Diagnostic[]
+  // Set by validateFile: the rules the file was checked with
+  profile?: Profile
+  // True when the file is behind the current schema and only the checks that
+  // don't depend on it ran (external profile)
+  partial?: boolean
+}
+
+// examples: the projects bundled in noodles-editor/src/examples, kept current by
+// migrate-projects and held to the style rules. external: any other project
+// folder, e.g. projects/<name>/noodles.json with its files in data/
+export type Profile = 'examples' | 'external'
+
+export interface ValidateOptions {
+  // Defaults to examples
+  profile?: Profile
 }
