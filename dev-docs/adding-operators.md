@@ -125,6 +125,21 @@ Migrations live in `src/noodles/__migrations__/NNN-kebab-name.ts` with a co-loca
 
 `utils/migration-numbering.test.ts` checks the numbering and `LATEST`, and `migrate-schema.ts` throws at load if two migrations share a number.
 
+### Migrating Project Files
+`npm run migrate-projects` (from `noodles-editor/`) migrates project files to this checkout's schema version and rewrites only the files that change. With no arguments it covers `src/examples`. Pass any number of files or folders to migrate projects elsewhere; folders are searched for `noodles.json` and other project files, skipping `node_modules` and dot-folders. Relative paths resolve from the directory you ran npm in, and quoted paths with spaces work.
+
+```bash
+npm run migrate-projects -- ~/code/my-projects/projects
+npm run migrate-projects -- --check ~/code/my-projects/projects
+npm run migrate-projects -- --from 19 ~/code/my-projects/projects/"Dubai Hero Route"
+```
+
+- `--check` writes nothing, lists each file that would change (`v14 → v23`) and exits 1 if any would, for CI in a projects repo
+- `--from <version>` treats one project as saved at that version, when its saved number is wrong. This happens when a file was saved on a branch whose migration was renumbered before merging: a project saved at v20 from that branch never gets main's own 020 until you pass `--from 19`. It needs exactly one project, since the right number is a fact about that file
+- A file saved at a version newer than this checkout is reported and left alone; update noodles.gl, or use `--from` if the number came from an unmerged branch
+
+`scripts/migrate-project-files.ts` exports `migrateProjectFiles(paths, { from, write })` for tools that need the same walk and migration.
+
 ### Debugging Data Flow
 1. Check operator paths are correct (use absolute paths from root)
 2. Verify edge connections in project JSON
