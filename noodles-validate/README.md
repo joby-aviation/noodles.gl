@@ -46,7 +46,7 @@ npm run validate:projects -- ../my-maps/projects
 npm run validate:projects -- --strict "../my-maps/projects/Harbor Tour"
 ```
 
-`@/` follows the editor's `readAsset`: `@/flights.csv` and `@/data/flights.csv` both name `<project>/data/flights.csv`, and `@/routes/q1.json` names `<project>/data/routes/q1.json`. Only a node input whose whole value starts with `@/` is a reference. Names must match in case, as they do in git and on Linux, even on macOS, which would find `Flights.csv` for `flights.csv`.
+`@/` follows the editor's `readAsset`: `@/flights.csv` and `@/data/flights.csv` both name `<project>/data/flights.csv`, and `@/routes/q1.json` names `<project>/data/routes/q1.json`. Only a file input (a `FileUrlField`, such as `FileOp`'s `url`, or a `MapStyleField`, such as an icon mapping) whose whole value starts with `@/` is a reference; in a text or code input, `@/…` is just text. Names must match in case, as they do in git and on Linux, even on macOS, which would find `Flights.csv` for `flights.csv`.
 
 ### In another repo's CI
 
@@ -61,7 +61,7 @@ For a repo with one project per `projects/<name>/` folder, a pull request workfl
   with: { node-version-file: noodles.gl/.nvmrc }
 - name: Validate changed projects
   run: |
-    git diff -z --name-only --diff-filter=d "origin/$GITHUB_BASE_REF..." -- projects \
+    git diff -z --name-only "origin/$GITHUB_BASE_REF..." -- projects \
       | while IFS= read -r -d '' file; do
           dir=$(echo "$file" | cut -d/ -f1-2)
           [ -f "$dir/noodles.json" ] && printf '%s\0' "$dir"
@@ -70,7 +70,7 @@ For a repo with one project per `projects/<name>/` folder, a pull request workfl
       | xargs -0 -r node noodles.gl/noodles-validate/bin/validate-projects.ts
 ```
 
-It needs no `npm install`. Passing the project folder, not just `noodles.json`, catches a change to its data files too, and the NUL-separated names keep folders with spaces whole. Add `--strict` to also fail on projects that haven't been migrated.
+It needs no `npm install`. Passing the project folder, not just `noodles.json`, catches a change to its data files too, including a deleted one (a project deleted whole has no `noodles.json` left and is skipped), and the NUL-separated names keep folders with spaces whole. Add `--strict` to also fail on projects that haven't been migrated.
 
 ## What it checks
 

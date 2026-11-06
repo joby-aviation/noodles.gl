@@ -13,7 +13,7 @@ export function validateFile(
   registry: Registry,
   options: ValidateOptions = {}
 ): ValidationResult {
-  const profile = options.profile ?? profileFor(file)
+  const profile = options.profile ?? profileFor(file, options.examplesDir)
   const fail = (rule: Diagnostic['rule'], message: string): ValidationResult => ({
     valid: false,
     errors: [{ severity: 'error', rule, at: '$', message }],
@@ -37,7 +37,7 @@ export function validateFile(
 
   // Examples load their files from the example's own folder, not data/, so
   // this is for external projects only
-  const errors = [...result.errors, ...checkAssets(project, dirname(file))]
+  const errors = [...result.errors, ...checkAssets(project, dirname(file), registry)]
   // An external file behind the schema gets a version warning, and only the
   // checks that don't depend on the schema
   const partial = result.warnings.some(d => d.rule === 'version')

@@ -201,7 +201,9 @@ export function createServer({ repoRoot, cwd }: Context): McpServer {
         } catch {
           return fail(`No file at ${file}.`)
         }
-        result = validateFile(file, registry)
+        result = validateFile(file, registry, {
+          examplesDir: join(repoRoot, 'noodles-editor/src/examples'),
+        })
       } else if (typeof project === 'string') {
         let parsed: unknown
         try {

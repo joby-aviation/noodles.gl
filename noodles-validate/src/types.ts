@@ -77,6 +77,9 @@ export interface ValidationResult {
 export type Profile = 'examples' | 'external'
 
 export interface ValidateOptions {
-  // Defaults to examples
+  // Defaults to examples, or for validateFile, to the one for where the file is
   profile?: Profile
+  // Where validateFile looks for the bundled examples: this checkout's
+  // noodles-editor/src/examples unless a caller serves another checkout
+  examplesDir?: string
 }

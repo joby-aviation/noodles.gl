@@ -65,6 +65,12 @@ describe('profileFor', () => {
     assert.equal(profileFor(`${EXAMPLES_DIR}-old/nyc-taxis/noodles.json`), 'external')
     assert.equal(profileFor(join(EXAMPLES_DIR, '../noodles.json')), 'external')
   })
+
+  it('takes the examples folder of another checkout', () => {
+    const other = join(tmpdir(), 'other checkout/noodles-editor/src/examples')
+    assert.equal(profileFor(join(other, 'nyc-taxis/noodles.json'), other), 'examples')
+    assert.equal(profileFor(join(EXAMPLES_DIR, 'nyc-taxis/noodles.json'), other), 'external')
+  })
 })
 
 describe('external profile', () => {
@@ -146,7 +152,7 @@ describe('checkAssets', () => {
       q.nodes = urls.map((url, i) => fileNode(`/data-${String.fromCharCode(97 + i)}`, url))
     })
     const { dir } = projectFolder(p, files)
-    return checkAssets(p, dir).map(d => d.message)
+    return checkAssets(p, dir, registry).map(d => d.message)
   }
 
   it('reads @/x and @/data/x from the data/ folder, as the editor does', () => {
@@ -159,6 +165,36 @@ describe('checkAssets', () => {
 
   it('ignores values that are not @/ references', () => {
     assert.deepEqual(problems(['https://example.com/a.csv', 'data/a.csv', 'x @/a.csv'], {}), [])
+  })
+
+  it('reads @/ as a file only in file inputs, not in text', () => {
+    const p = project(q => {
+      q.nodes = [
+        {
+          id: '/notes',
+          type: 'FileOp',
+          position: { x: 0, y: 0 },
+          data: { inputs: { format: 'text', text: '@/flights.csv' } },
+        },
+        {
+          id: '/old',
+          type: 'NoSuchOp',
+          position: { x: 0, y: 0 },
+          data: { inputs: { url: '@/a' } },
+        },
+        {
+          id: '/icons',
+          type: 'IconLayerOp',
+          position: { x: 0, y: 0 },
+          data: { inputs: { iconAtlas: '@/atlas.png', iconMapping: '@/mapping.json' } },
+        },
+      ]
+    })
+    const { dir } = projectFolder(p, { 'data/atlas.png': '' })
+    assert.deepEqual(
+      checkAssets(p, dir, registry).map(d => `${d.id} ${d.message.split(' is ')[0]}`),
+      ['/icons /icons iconMapping']
+    )
   })
 
   it('reports a missing file, and the folder that is missing', () => {
@@ -204,6 +240,10 @@ describe('validateFile', () => {
     assert.equal(result.partial, true)
     assert.equal(result.valid, true)
     assert.equal(validateFile(file, registry, { profile: 'examples' }).valid, false)
+    assert.equal(
+      validateFile(file, registry, { examplesDir: join(file, '../..') }).profile,
+      'examples'
+    )
   })
 
   it('checks data files on stale and current files alike', () => {

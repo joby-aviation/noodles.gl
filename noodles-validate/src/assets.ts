@@ -3,27 +3,39 @@
 
 import { readdirSync, statSync } from 'node:fs'
 import { join } from 'node:path'
-import type { Diagnostic } from './types.ts'
+import { getOperator } from './fields.ts'
+import type { Diagnostic, Registry } from './types.ts'
 
 // projectScheme in noodles-editor/src/noodles/utils/filesystem.ts
 const PROJECT_SCHEME = '@/'
 // DATA_DIRECTORY_NAME in noodles-editor/src/noodles/storage.ts
 const DATA_DIRECTORY = 'data'
+// The inputs that take a file: a FileUrlField's upload button writes @/<name>,
+// and a MapStyleField takes an @/ icon mapping. In any other input, such as a
+// text or code field, an @/ string is just text
+const FILE_FIELD_TYPES = new Set(['FileUrlField', 'MapStyleField'])
 
 // As readAsset and readAssetBinary in storage.ts read a saved project's files:
 // @/x.csv and @/data/x.csv are both <project>/data/x.csv, and a nested name is
-// split on "/" with empty segments dropped. Only a node input whose whole value
-// is an @/ string is read as a file; the editor resolves no others.
-export function checkAssets(project: unknown, projectDir: string): Diagnostic[] {
+// split on "/" with empty segments dropped. Only a file input whose whole value
+// is an @/ string names a file.
+export function checkAssets(
+  project: unknown,
+  projectDir: string,
+  registry: Registry
+): Diagnostic[] {
   const out: Diagnostic[] = []
   if (!isObject(project) || !Array.isArray(project.nodes)) return out
   const listings = new Map<string, string[] | null>()
 
   project.nodes.forEach((node, index) => {
-    if (!isObject(node) || typeof node.id !== 'string') return
+    if (!isObject(node) || typeof node.id !== 'string' || typeof node.type !== 'string') return
+    const fields = getOperator(registry, node.type)?.inputs ?? {}
     const inputs = isObject(node.data) && isObject(node.data.inputs) ? node.data.inputs : {}
     for (const [name, value] of Object.entries(inputs)) {
       if (typeof value !== 'string' || !value.startsWith(PROJECT_SCHEME)) continue
+      const field = Object.hasOwn(fields, name) ? fields[name] : undefined
+      if (!field || !FILE_FIELD_TYPES.has(field.type)) continue
       const problem = assetProblem(value, projectDir, listings)
       if (!problem) continue
       // Bundled examples read @/ files from the example's own folder; a project
