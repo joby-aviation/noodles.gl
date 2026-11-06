@@ -32,12 +32,12 @@ function fileNode(id: string, url: string) {
   return { id, type: 'FileOp', position: { x: 0, y: 0 }, data: { inputs: { url } } }
 }
 
-// A projects/<name>/ folder, as joby/visualization lays them out: noodles.json
+// A projects/<name>/ folder, as a repo of projects lays them out: noodles.json
 // beside a data/ folder. Names have spaces, as real project folders do
 function projectFolder(
   p: unknown,
   files: Record<string, string> = { 'data/data.csv': 'a\n1\n' },
-  name = 'Dubai Hero Route'
+  name = 'Harbor Tour Route'
 ): { root: string; dir: string; file: string } {
   const root = mkdtempSync(join(tmpdir(), 'noodles validate '))
   const dir = join(root, 'projects', name)
@@ -228,7 +228,7 @@ describe('validate-projects on external projects', () => {
     const folder = cli(root, 'projects')
     assert.equal(folder.code, EXIT_OK, folder.stdout)
     assert.match(folder.stdout, /^OK: 1 file valid/)
-    const file = cli(join(root, 'projects'), 'Dubai Hero Route/noodles.json')
+    const file = cli(join(root, 'projects'), 'Harbor Tour Route/noodles.json')
     assert.equal(file.code, EXIT_OK, file.stdout)
   })
 
@@ -236,7 +236,7 @@ describe('validate-projects on external projects', () => {
     const missing = projectFolder(project(), {})
     const failed = cli(missing.root, 'projects')
     assert.equal(failed.code, EXIT_INVALID)
-    assert.match(failed.stdout, /^projects\/Dubai Hero Route\/noodles\.json$/m)
+    assert.match(failed.stdout, /^projects\/Harbor Tour Route\/noodles\.json$/m)
     assert.match(failed.stdout, /\[missing-asset\]/)
 
     const stale = projectFolder(project(p => (p.version = 6)))

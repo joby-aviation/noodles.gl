@@ -42,8 +42,8 @@ Each file is checked with one of two profiles, picked from where it is:
 `--external` or `--examples` checks every file with one profile instead, e.g. `--examples` for a project laid out like a bundled example, with its files next to `noodles.json`.
 
 ```bash
-npm run validate:projects -- ~/code/visualization/projects
-npm run validate:projects -- --strict "../visualization/projects/Dubai Hero Route"
+npm run validate:projects -- ../my-maps/projects
+npm run validate:projects -- --strict "../my-maps/projects/Harbor Tour"
 ```
 
 `@/` follows the editor's `readAsset`: `@/flights.csv` and `@/data/flights.csv` both name `<project>/data/flights.csv`, and `@/routes/q1.json` names `<project>/data/routes/q1.json`. Only a node input whose whole value starts with `@/` is a reference. Names must match in case, as they do in git and on Linux, even on macOS, which would find `Flights.csv` for `flights.csv`.
