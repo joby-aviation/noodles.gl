@@ -3,6 +3,7 @@ import 'primereact/resources/themes/viva-dark/theme.css'
 import { cleanup, render } from '@testing-library/react'
 import { ReactFlowProvider } from '@xyflow/react'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { beginRender } from '../../../render/render-session'
 import { useTimelineStore } from '../../timeline-store'
 import { TimelinePanel } from '../TimelinePanel'
 import s from '../TimelinePanel.module.css'
@@ -105,6 +106,31 @@ describe('TimelinePanel scrubbing', () => {
     useTimelineStore.getState().setPosition(1)
     mouse(document, 'mousemove', 400)
     expect(useTimelineStore.getState().position).toBe(1)
+  })
+
+  it('leaves the playhead to an export that starts during or before a drag', () => {
+    const { container } = render(
+      <ReactFlowProvider>
+        <TimelinePanel height={300} />
+      </ReactFlowProvider>
+    )
+    const ruler = container.querySelector<HTMLElement>(`.${s.timelineRuler}`)
+    if (!ruler) throw new Error('Expected ruler')
+    const left = ruler.getBoundingClientRect().left
+
+    mouse(ruler, 'mousedown', left + 50)
+    const release = beginRender('video', 'menu')
+    try {
+      useTimelineStore.getState().setPosition(1)
+      mouse(document, 'mousemove', left + 200)
+      expect(useTimelineStore.getState().position).toBe(1)
+      mouse(document, 'mouseup', left + 200)
+
+      mouse(ruler, 'mousedown', left + 200)
+      expect(useTimelineStore.getState()).toMatchObject({ scrubSource: null, position: 1 })
+    } finally {
+      release?.()
+    }
   })
 
   it('clears a marker connection drag on pointercancel and on unmount', () => {

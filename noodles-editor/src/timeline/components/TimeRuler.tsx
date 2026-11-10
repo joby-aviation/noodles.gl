@@ -3,6 +3,7 @@
 import type React from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
+import { isRendering } from '../../render/render-session'
 import { captureTimelineState, fireTimelineMutation, useTimelineStore } from '../timeline-store'
 import { useScrubDrag } from '../use-scrub-drag'
 import s from './TimelinePanel.module.css'
@@ -246,7 +247,7 @@ export function TimeRuler({
 
   const handleRulerMouseDown = useCallback(
     (e: React.MouseEvent<HTMLDivElement>) => {
-      if (e.button !== 0) return
+      if (e.button !== 0 || isRendering()) return
 
       const target = e.target as HTMLElement
       if (target.closest('.timeline-sequence-end-marker')) return
