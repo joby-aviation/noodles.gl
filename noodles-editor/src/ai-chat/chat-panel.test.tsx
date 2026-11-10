@@ -290,6 +290,25 @@ describe('ChatPanel graph-edit proposals', () => {
     expect(screen.queryByText('Set number to 2')).toBeNull()
   })
 
+  it('undoes what a reply still running has done when a new conversation starts', async () => {
+    let finish: () => void = () => {}
+    vi.spyOn(AgentSession.prototype, 'send').mockImplementation(() => {
+      // The run edits as it goes, then is still busy when the user moves on
+      docStore().edit(d => setParam(d, 'n1', 'value', 2))
+      return new Promise(resolve => (finish = () => resolve(reply)))
+    })
+    await renderReadyPanel()
+
+    await send('Set number to 2')
+    expect(value()).toBe(2)
+    fireEvent.click(screen.getByTitle('Start New Conversation'))
+    expect(value()).toBe(1)
+
+    await act(async () => finish())
+    expect(value()).toBe(1)
+    expect(screen.queryByLabelText('Proposed graph update')).toBeNull()
+  })
+
   it('undoes a pending proposal when a new conversation starts', async () => {
     vi.spyOn(AgentSession.prototype, 'send').mockImplementation(async () => runEdits())
     await renderReadyPanel()

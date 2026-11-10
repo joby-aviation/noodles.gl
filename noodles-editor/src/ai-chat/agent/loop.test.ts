@@ -484,6 +484,37 @@ describe('runAgent abort', () => {
     expect(provider.requests).toHaveLength(1)
   })
 
+  it('refuses a write queued in the step the run was stopped in', async () => {
+    const controller = new AbortController()
+    let applied = 0
+    const tools = fakeTools({
+      listNodes: async () => {
+        controller.abort()
+        return { success: true, data: {} }
+      },
+      applyModifications: async () => {
+        applied++
+        return { success: true, data: { modifications: [] } }
+      },
+    })
+    const provider = fakeProvider([
+      {
+        tools: [
+          { name: 'list_nodes' },
+          { name: 'apply_modifications', input: { modifications: [] } },
+        ],
+      },
+    ])
+
+    const result = await run({ provider, tools, signal: controller.signal })
+
+    expect(applied).toBe(0)
+    expect(result.toolCalls[1].result).toMatchObject({
+      success: false,
+      error: 'The user stopped this reply.',
+    })
+  })
+
   it('stops between steps when aborted mid-run', async () => {
     const controller = new AbortController()
     const tools = fakeTools({
