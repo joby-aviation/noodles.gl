@@ -3,7 +3,7 @@
 // state when it was called. The engine is a fake whose runs finish when the test says so.
 import type { EditorDoc } from '@noodles.gl/planner'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
-import { bindEngine, engineState, whenDrawn } from './doc-engine'
+import { bindEngine, engineState, visCommitted, whenDrawn, whenShown } from './doc-engine'
 import { DocStore } from './doc-store'
 
 const fake = vi.hoisted(() => {
@@ -145,4 +145,39 @@ it('says which project failed to draw', async () => {
     fake.engine.setDoc = setDoc
     vi.restoreAllMocks()
   }
+})
+
+// Playback moves the playhead every frame. A read after an edit waits for the step that drew
+// the edit, not for the engine to catch up with every frame since.
+it('waits for the edit, not for the playhead moves after it', async () => {
+  store.load(doc('a'))
+  await flush()
+  store.edit(() => doc('b'))
+  let drawn = false
+  void whenDrawn().then(() => {
+    drawn = true
+  })
+  // The step for `a` ends; the step for `b` starts and the playhead moves meanwhile
+  await fake.finish()
+  store.set({ time: 1 })
+  // `b` has drawn: one more step, for the time, is under way
+  await fake.finish()
+  await flush()
+  expect(fake.calls).toEqual(['setDoc a @0', 'setDoc b @0', 'setTime @1'])
+  expect(drawn).toBe(true)
+})
+
+it('waits for the view to commit what was drawn before a screenshot', async () => {
+  store.load(doc('a'))
+  await flush()
+  let shown = false
+  void whenShown().then(() => {
+    shown = true
+  })
+  await fake.finish()
+  await flush()
+  expect(shown).toBe(false)
+  visCommitted(engineState().vis)
+  await vi.advanceTimersByTimeAsync(250)
+  expect(shown).toBe(true)
 })

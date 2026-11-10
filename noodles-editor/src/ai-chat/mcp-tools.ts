@@ -1,7 +1,7 @@
 // MCPTools - Client-side tool implementations for Claude AI
 
 import { OPERATOR_INDEX } from '@noodles.gl/planner'
-import { currentEngine, errorsOf, whenDrawn } from '../editor/doc-engine'
+import { currentEngine, errorsOf, whenDrawn, whenShown } from '../editor/doc-engine'
 import { docStore } from '../editor/doc-store'
 import { safeStringify } from '../noodles/utils/serialization'
 import { getTimelineStore } from '../timeline/timeline-store'
@@ -157,6 +157,7 @@ export function editorDocContext(): DocToolContext {
     engine: currentEngine,
     // A read waits this long for the last edit to draw, then answers with what there is
     drawn: () => whenDrawn(DRAWN_TIMEOUT_MS),
+    shown: () => whenShown(DRAWN_TIMEOUT_MS),
     playhead: {
       position: () => getTimelineStore().position,
       playing: () => getTimelineStore().playing,
@@ -513,8 +514,8 @@ export class MCPTools {
             'The Noodles tab is hidden, so the browser has paused drawing. Bring the tab to the front (macOS: open -a "Google Chrome") and try again.',
         }
       }
-      // The last edit's layers, not the frame from before it
-      await this.doc.drawn?.()
+      // The last edit's layers on the canvas, not the frame from before it
+      await (this.doc.shown ?? this.doc.drawn)?.()
       const canvas = this.getCanvas()
       if (!canvas) {
         return {

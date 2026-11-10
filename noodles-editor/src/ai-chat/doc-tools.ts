@@ -44,6 +44,8 @@ export interface DocToolContext {
    * read after an edit sees that edit's rows and errors. False when it gave up waiting.
    */
   drawn?: () => Promise<boolean>
+  /** `drawn`, and then the canvas shows it (`whenShown`): what a screenshot waits for. */
+  shown?: () => Promise<boolean>
   playhead?: {
     position(): number
     playing(): boolean

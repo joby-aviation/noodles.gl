@@ -197,6 +197,13 @@ export class Engine {
    */
   private pending: Promise<unknown> = Promise.resolve()
   private queued?: Promise<void>
+  /**
+   * A project switch under way: the forgetting, queued behind the last project's runs. A
+   * document set meanwhile waits in `next`, so a run queued before the switch, which reads the
+   * engine's document when it starts, never runs it over the last project's files.
+   */
+  private switching?: Promise<void>
+  private next?: { doc: EditorDoc; time: number }
   private built = new Map<string, Layer[]>()
   // A planner layer's extensions, built once for the extension values wired to it
   private readonly extended = new Map<
@@ -259,9 +266,10 @@ export class Engine {
   openProject(): Promise<void> {
     this.doc = undefined
     this.lowered = undefined
+    this.next = undefined
     // A change from now on is the new project's: it runs after the forgetting, not before
     this.queued = undefined
-    return this.enqueue(async () => {
+    const switching = this.enqueue(async () => {
       this.registered.clear()
       this.revokeAssetUrls()
       this.structure = undefined
@@ -276,11 +284,22 @@ export class Engine {
       this.loadedRows.clear()
       // Host operators are kept by node id, which repeats too: a CodeOp with the same inputs
       // would hand on the last project's output
-      await this.options.host?.runner.forget?.()
-      await this.runtime.forget?.()
-      // A setDoc since this was called lowered against the last project's host tables
-      this.lower()
+      try {
+        await this.options.host?.runner.forget?.()
+        await this.runtime.forget?.()
+      } finally {
+        if (this.switching === switching) this.switching = undefined
+        // The document set since this was called, if any, is the next project's
+        if (this.next) {
+          this.doc = this.next.doc
+          this.time = this.next.time
+          this.next = undefined
+          this.lower()
+        }
+      }
     })
+    this.switching = switching
+    return switching
   }
 
   /** Queue a step behind every step queued so far. */
@@ -292,6 +311,11 @@ export class Engine {
 
   /** Show a document: a structural edit recompiles, a value edit only rebinds. */
   setDoc(doc: EditorDoc, time = this.time): Promise<void> {
+    if (this.switching) {
+      this.next = { doc, time }
+      // The switch reports its own failure; the document runs either way
+      return this.switching.catch(() => undefined).then(() => this.update())
+    }
     this.doc = doc
     // A file that failed to read may have been added since: an edit tries it again
     for (const [name, asset] of this.assetUrls) if (asset.error) this.assetUrls.delete(name)
