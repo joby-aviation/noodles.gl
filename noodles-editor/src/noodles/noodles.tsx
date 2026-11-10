@@ -361,7 +361,20 @@ export function getNoodles(): Visualization {
   const [showChatPanel, setShowChatPanel] = useState(false)
   const [chatInitialMessage, setChatInitialMessage] = useState<string | undefined>(undefined)
   const [showGitHistoryPanel, setShowGitHistoryPanel] = useState(false)
-  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
+  // Each edit bumps the edit revision, and a save records the revision it wrote, so an edit
+  // made while a save is writing keeps the project unsaved
+  const editRevisionRef = useRef(0)
+  const [revisions, setRevisions] = useState({ edited: 0, saved: 0 })
+  const hasUnsavedChanges = revisions.saved < revisions.edited
+  const markUnsaved = useCallback(() => {
+    editRevisionRef.current += 1
+    const edited = editRevisionRef.current
+    setRevisions(current => ({ ...current, edited }))
+  }, [])
+  // Defaults to the latest edit, for loads and saves that wrote the project as it is now
+  const markSaved = useCallback((revision = editRevisionRef.current) => {
+    setRevisions(current => ({ ...current, saved: Math.max(current.saved, revision) }))
+  }, [])
   const [parameterEditorState, setParameterEditorState] = useState<{
     open: boolean
     operatorId: string | null
@@ -389,21 +402,21 @@ export function getNoodles(): Visualization {
         change => change.type !== 'select' && change.type !== 'dimensions'
       )
       if (hasUserChanges) {
-        setHasUnsavedChanges(true)
+        markUnsaved()
       }
 
       onNodesChangeBase(changes)
     },
-    [onNodesChangeBase]
+    [onNodesChangeBase, markUnsaved]
   )
 
   // Editing a project key in Settings changes what the project file saves
   useEffect(
     () =>
       useKeysStore.subscribe((state, prev) => {
-        if (state.projectKeyEdits !== prev.projectKeyEdits) setHasUnsavedChanges(true)
+        if (state.projectKeyEdits !== prev.projectKeyEdits) markUnsaved()
       }),
-    []
+    [markUnsaved]
   )
 
   useEffect(() => rerunOnKeyChange(() => getOpStore().getAllOps()), [])
@@ -415,12 +428,12 @@ export function getNoodles(): Visualization {
       // Mark as unsaved if there are non-selection changes
       const hasNonSelectionChanges = changes.some(change => change.type !== 'select')
       if (hasNonSelectionChanges) {
-        setHasUnsavedChanges(true)
+        markUnsaved()
       }
 
       onEdgesChangeBase(changes)
     },
-    [onEdgesChangeBase]
+    [onEdgesChangeBase, markUnsaved]
   )
 
   const contextLoadStarted = useRef(false)
@@ -711,32 +724,32 @@ export function getNoodles(): Visualization {
   const onConnect = useCallback(
     (connection: Connection) => {
       onConnectBase(connection)
-      setHasUnsavedChanges(true)
+      markUnsaved()
       // Trigger auto-layout after the connection is established
       if (autoLayout.enabled) {
         // Use setTimeout to ensure the edge is added before layout is computed
         setTimeout(() => applyAutoLayoutToContainer(), 0)
       }
     },
-    [onConnectBase, autoLayout.enabled, applyAutoLayoutToContainer]
+    [onConnectBase, autoLayout.enabled, applyAutoLayoutToContainer, markUnsaved]
   )
 
   // Wrap onNodesDelete to mark unsaved changes
   const onNodesDelete = useCallback(
     (deleted: ReactFlowNode[]) => {
       onNodesDeleteBase(deleted)
-      setHasUnsavedChanges(true)
+      markUnsaved()
     },
-    [onNodesDeleteBase]
+    [onNodesDeleteBase, markUnsaved]
   )
 
   // Wrap onReconnect to mark unsaved changes
   const onReconnect = useCallback(
     (oldEdge: ReactFlowEdge, newConnection: Connection) => {
       onReconnectBase(oldEdge, newConnection)
-      setHasUnsavedChanges(true)
+      markUnsaved()
     },
-    [onReconnectBase]
+    [onReconnectBase, markUnsaved]
   )
 
   // Clear any leftover multi-input slot state when a reconnect drag is dropped or cancelled
@@ -887,10 +900,10 @@ export function getNoodles(): Visualization {
       )
       // Mark as unsaved if a node was inserted into an edge
       if (result) {
-        setHasUnsavedChanges(true)
+        markUnsaved()
       }
     },
-    [onNodeDragStopBase, setNodes]
+    [onNodeDragStopBase, setNodes, markUnsaved]
   )
 
   const onNodeContextMenu = useCallback(
@@ -1181,9 +1194,17 @@ export function getNoodles(): Visualization {
       // Navigate to the project URL
       navigate(targetRoute, { replace: true })
 
-      setHasUnsavedChanges(false)
+      markSaved()
     },
-    [setNodes, setEdges, navigate, routePrefix, timelineStore.fromTimelineJSON, timelineStore.reset]
+    [
+      setNodes,
+      setEdges,
+      navigate,
+      routePrefix,
+      timelineStore.fromTimelineJSON,
+      timelineStore.reset,
+      markSaved,
+    ]
   )
 
   // Assign to ref for undo/redo system
@@ -1435,8 +1456,9 @@ export function getNoodles(): Visualization {
   // Files for the project's cache folder: the outputs of locked operators
   const getOutputCacheFiles = useCallback(() => serializeOutputCache(getOpStore(), nodes), [nodes])
 
-  const onMenuSave = useCallback(async () => {
+  const saveProject = useCallback(async () => {
     if (!projectName) return
+    const savedRevision = editRevisionRef.current
     const noodlesProjectJson = getNoodlesProjectJson()
     const cacheFiles = getOutputCacheFiles()
 
@@ -1463,7 +1485,7 @@ export function getNoodles(): Visualization {
         navigate(`/projects/${directoryName}`, { replace: true })
         memoryProjectStore.deleteProject(oldProjectName)
         getKeysStore().markProjectKeysSaved()
-        setHasUnsavedChanges(false)
+        markSaved(savedRevision)
         analytics.track('project_saved', { storageType: 'memory', promoted: true })
       } catch (error) {
         if (error instanceof Error && error.name === 'AbortError') return
@@ -1481,7 +1503,7 @@ export function getNoodles(): Visualization {
     if (result.success) {
       setCurrentDirectory(result.data.directoryHandle, projectName)
       getKeysStore().markProjectKeysSaved()
-      setHasUnsavedChanges(false)
+      markSaved(savedRevision)
       analytics.track('project_saved', { storageType })
     } else {
       setError(result.error)
@@ -1495,11 +1517,25 @@ export function getNoodles(): Visualization {
     setActiveStorageType,
     setError,
     navigate,
+    markSaved,
   ])
 
-  // Autosave with debouncing. Reading the settings through the hook re-runs this effect when
-  // version control or autosave is turned off, which cancels a pending save.
+  // Saves run one at a time, so an autosave never writes while a manual save is writing.
+  // A queued save reads the project when it starts, not when it was asked for.
+  const saveProjectRef = useRef(saveProject)
+  saveProjectRef.current = saveProject
+  const saveQueueRef = useRef<Promise<void>>(Promise.resolve())
+  const onMenuSave = useCallback(() => {
+    const queued = saveQueueRef.current.then(() => saveProjectRef.current())
+    saveQueueRef.current = queued.catch(() => {})
+    return queued
+  }, [])
+
+  // Autosave with debouncing: each edit restarts the delay. Reading the settings through the
+  // hook re-runs this effect when version control or autosave is turned off, which cancels a
+  // pending save.
   const gitSettings = useGitSettings(projectName)
+  // biome-ignore lint/correctness/useExhaustiveDependencies: revisions.edited restarts the delay
   useEffect(() => {
     if (!shouldAutosave({ settings: gitSettings, storageType, hasUnsavedChanges, isExamplesRoute }))
       return
@@ -1509,7 +1545,7 @@ export function getNoodles(): Visualization {
     }, gitSettings.autoCommitDelay)
 
     return () => clearTimeout(timeoutId)
-  }, [gitSettings, storageType, hasUnsavedChanges, isExamplesRoute, onMenuSave])
+  }, [gitSettings, storageType, hasUnsavedChanges, isExamplesRoute, onMenuSave, revisions.edited])
 
   // Step 1 of Save As: Select directory and check conditions
   const onSaveAs = useCallback(async () => {
@@ -1561,6 +1597,7 @@ export function getNoodles(): Visualization {
       const directoryName = directoryHandle.name
 
       // Get current project data
+      const savedRevision = editRevisionRef.current
       const projectData = getNoodlesProjectJson()
 
       // Write project to noodles.json
@@ -1599,7 +1636,7 @@ export function getNoodles(): Visualization {
 
       // Mark as saved
       getKeysStore().markProjectKeysSaved()
-      setHasUnsavedChanges(false)
+      markSaved(savedRevision)
 
       analytics.track('project_saved_as', {
         fromStorageType: storageType,
@@ -1618,6 +1655,7 @@ export function getNoodles(): Visualization {
       setCurrentDirectory,
       setActiveStorageType,
       navigate,
+      markSaved,
     ]
   )
 
@@ -1648,6 +1686,7 @@ export function getNoodles(): Visualization {
         }
 
         // Get current project data
+        const savedRevision = editRevisionRef.current
         const projectData = getNoodlesProjectJson()
 
         // Write project to noodles.json
@@ -1679,7 +1718,7 @@ export function getNoodles(): Visualization {
 
         // Mark as saved
         getKeysStore().markProjectKeysSaved()
-        setHasUnsavedChanges(false)
+        markSaved(savedRevision)
 
         analytics.track('project_renamed', {
           fromStorageType: storageType,
@@ -1702,6 +1741,7 @@ export function getNoodles(): Visualization {
       setCurrentDirectory,
       setActiveStorageType,
       navigate,
+      markSaved,
     ]
   )
 
