@@ -7,8 +7,14 @@ import { useFileSystemStore } from './filesystem-store'
 import { getKeysStore } from './keys-store'
 import { getNoodles, type NoodlesProjectJSON } from './noodles'
 import { load, save } from './storage'
-import { useGraphStore } from './store'
+import { getOp, useGraphStore } from './store'
 import { NOODLES_VERSION } from './utils/migrate-schema'
+import {
+  applyOperatorInputs,
+  captureOperatorInputs,
+  firePropertyMutation,
+  usePropertyHistory,
+} from './utils/property-history'
 
 vi.mock('./storage', { spy: true })
 
@@ -127,5 +133,78 @@ describe('saving a project', () => {
     await act(() => second)
 
     expect(result.current.hasUnsavedChanges).toBe(false)
+  })
+
+  describe('editing a field', () => {
+    const val = () => getOp('/num')?.inputs.val as { setValue: (value: number) => void }
+
+    // What a field component does when an edit ends: the undo history records it
+    const editField = (value: number) =>
+      act(() => {
+        const before = captureOperatorInputs()
+        val().setValue(value)
+        firePropertyMutation('Edit val', before)
+      })
+
+    it('marks the project unsaved', async () => {
+      const { result } = await renderProject()
+      await waitFor(() => expect(getOp('/num')).toBeDefined())
+      expect(result.current.hasUnsavedChanges).toBe(false)
+
+      editField(5)
+
+      expect(result.current.hasUnsavedChanges).toBe(true)
+    })
+
+    it('leaves the project saved when a value arrives without an edit', async () => {
+      const { result } = await renderProject()
+      await waitFor(() => expect(getOp('/num')).toBeDefined())
+
+      // Upstream connections and keyframe playback set values this way
+      act(() => val().setValue(5))
+
+      expect(result.current.hasUnsavedChanges).toBe(false)
+    })
+
+    it('warns before leaving while a changed field is still focused', async () => {
+      await renderProject()
+      await waitFor(() => expect(getOp('/num')).toBeDefined())
+      const leave = () => {
+        const event = new Event('beforeunload', { cancelable: true })
+        window.dispatchEvent(event)
+        return event.defaultPrevented
+      }
+      const history = renderHook(() => usePropertyHistory()).result.current
+
+      // Text and code fields set the value on each keystroke and commit on blur
+      act(() => history.captureStart())
+      expect(leave()).toBe(false)
+      act(() => val().setValue(5))
+      expect(leave()).toBe(true)
+
+      act(() => history.commitChange('Edit val'))
+      expect(leave()).toBe(true)
+    })
+
+    it('marks the project unsaved when undo restores a value after a save', async () => {
+      const { result } = await renderProject()
+      await waitFor(() => expect(getOp('/num')).toBeDefined())
+      const before = captureOperatorInputs() as string
+      editField(5)
+
+      let saving: Promise<void> | undefined
+      act(() => {
+        saving = result.current.onSaveProject()
+      })
+      await waitFor(() => expect(save).toHaveBeenCalledTimes(1))
+      await finishNextSave()
+      await act(() => saving)
+      expect(result.current.hasUnsavedChanges).toBe(false)
+
+      // Undo and redo put field values back this way
+      act(() => applyOperatorInputs(before))
+
+      expect(result.current.hasUnsavedChanges).toBe(true)
+    })
   })
 })

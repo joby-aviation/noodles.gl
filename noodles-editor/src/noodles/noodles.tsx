@@ -152,7 +152,12 @@ import {
   writeOutputCache,
 } from './utils/output-cache'
 import { getParentPath, parseHandleId } from './utils/path-utils'
-import { applyOperatorInputs, getLastCommittedBeforeState } from './utils/property-history'
+import {
+  applyOperatorInputs,
+  getLastCommittedBeforeState,
+  hasOpenPropertyEdit,
+  registerPropertyEditListener,
+} from './utils/property-history'
 import {
   type AutoLayoutSettings,
   DEFAULT_AUTO_LAYOUT,
@@ -419,6 +424,12 @@ export function getNoodles(): Visualization {
     [markUnsaved]
   )
 
+  // Field edits in the properties panel and on nodes, and their undo and redo
+  useEffect(() => {
+    registerPropertyEditListener(markUnsaved)
+    return () => registerPropertyEditListener(undefined)
+  }, [markUnsaved])
+
   useEffect(() => rerunOnKeyChange(() => getOpStore().getAllOps()), [])
   useEffect(() => syncKeysAcrossTabs(), [])
 
@@ -453,7 +464,7 @@ export function getNoodles(): Visualization {
     // Don't warn for examples - they're read-only demos
     const unsaved = !isExamplesRoute && (hasUnsavedChanges || storageType === 'memory')
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
-      if (unsaved) {
+      if (unsaved || (!isExamplesRoute && hasOpenPropertyEdit())) {
         e.preventDefault()
         e.returnValue = ''
       }

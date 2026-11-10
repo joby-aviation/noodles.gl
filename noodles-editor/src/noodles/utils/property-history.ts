@@ -1,4 +1,4 @@
-import { useCallback, useRef } from 'react'
+import { useCallback, useEffect, useRef } from 'react'
 import { debugHistory, debugHistorySnapshot } from '../../utils/debug'
 import {
   applyNodeUIMetadata,
@@ -27,11 +27,27 @@ type PropertyMutationCallback = (
 ) => void
 
 let _propertyMutationCallback: PropertyMutationCallback | undefined
+let _propertyEditListener: (() => void) | undefined
 let _lastCommittedBeforeState: string | null = null
+// One check per edit between captureStart and commitChange: has it changed a value yet?
+const _openEdits = new Set<() => boolean>()
 export const UI_STATE_KEY = '$ui'
 
 export function registerPropertyMutationCallback(cb: PropertyMutationCallback | undefined) {
   _propertyMutationCallback = cb
+}
+
+// Called when a user edit, undo or redo changes field values, so the project can be marked
+// unsaved. Values that arrive from upstream connections or keyframe playback don't call it.
+export function registerPropertyEditListener(cb: (() => void) | undefined) {
+  _propertyEditListener = cb
+}
+
+// Text and code fields change values on each keystroke but commit on blur, which may not
+// run before the page unloads. The leave-page warning asks here for edits still open.
+export function hasOpenPropertyEdit(): boolean {
+  for (const changed of _openEdits) if (changed()) return true
+  return false
 }
 
 // Serializes all operator field values using each field's serialize() method.
@@ -74,6 +90,7 @@ export function captureOperatorInputs(): string | null {
 // Connected fields will be immediately overwritten by their upstream sources,
 // so restoring them here is harmless and keeps the restore logic simple.
 export function applyOperatorInputs(snapshot: string): void {
+  _propertyEditListener?.()
   if (applyTableHistorySnapshot(snapshot)) return
 
   let data: Record<string, Record<string, unknown>>
@@ -116,6 +133,7 @@ export function firePropertyMutation(
   if (after === null || before === after) return false
   // Covers edits that never fire a DOM input event, such as dragging a number field
   dismissStarterHint()
+  _propertyEditListener?.()
   if (!_propertyMutationCallback) return false
   _lastCommittedBeforeState = before
   debugHistorySnapshot('Firing property mutation: %s', description)
@@ -210,6 +228,18 @@ export function usePropertyHistory() {
   const inputRef = useRef<OperatorInput | undefined>(undefined)
   const fieldBeforeRef = useRef<string | undefined>(undefined)
 
+  // Whether the open edit has changed anything since captureStart
+  const openEdit = useCallback(() => {
+    const before = beforeRef.current
+    if (!before) return false
+    const input = inputRef.current
+    if (input) return captureInputState(input) !== before
+    const field = scopeRef.current?.field
+    if (field) return serializeScopedField(field) !== fieldBeforeRef.current
+    return captureOperatorInputs() !== before
+  }, [])
+  useEffect(() => () => void _openEdits.delete(openEdit), [openEdit])
+
   const captureStart = useCallback(() => {
     const field = scopeRef.current?.field
     inputRef.current = findOperatorInput(field)
@@ -217,24 +247,29 @@ export function usePropertyHistory() {
       ? captureInputState(inputRef.current)
       : captureOperatorInputs()
     fieldBeforeRef.current = serializeScopedField(field)
-  }, [])
+    _openEdits.add(openEdit)
+  }, [openEdit])
 
-  const commitChange = useCallback((description: string) => {
-    const before = beforeRef.current
-    if (!before) return
-    const input = inputRef.current
-    const field = scopeRef.current?.field
-    const fieldChanged = !field || serializeScopedField(field) !== fieldBeforeRef.current
-    beforeRef.current = null
-    inputRef.current = undefined
-    fieldBeforeRef.current = undefined
+  const commitChange = useCallback(
+    (description: string) => {
+      _openEdits.delete(openEdit)
+      const before = beforeRef.current
+      if (!before) return
+      const input = inputRef.current
+      const field = scopeRef.current?.field
+      const fieldChanged = !field || serializeScopedField(field) !== fieldBeforeRef.current
+      beforeRef.current = null
+      inputRef.current = undefined
+      fieldBeforeRef.current = undefined
 
-    let changed = false
-    if (input) changed = firePropertyMutation(description, before, captureInputState(input))
-    // A scoped field outside its operator's inputs can't be isolated; record only its own edits
-    else if (fieldChanged) changed = firePropertyMutation(description, before)
-    if (changed && fieldChanged) trackFieldEdit(scopeRef.current)
-  }, [])
+      let changed = false
+      if (input) changed = firePropertyMutation(description, before, captureInputState(input))
+      // A scoped field outside its operator's inputs can't be isolated; record only its own edits
+      else if (fieldChanged) changed = firePropertyMutation(description, before)
+      if (changed && fieldChanged) trackFieldEdit(scopeRef.current)
+    },
+    [openEdit]
+  )
 
   return { captureStart, commitChange }
 }
