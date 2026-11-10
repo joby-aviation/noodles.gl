@@ -1,7 +1,7 @@
 # Operator Reference
 
 <!-- gen:begin coverage -->
-134 operators in 10 categories. 7 of 134 have written Remarks.
+136 operators in 10 categories. 7 of 136 have written Remarks.
 <!-- gen:end coverage -->
 
 One page per operator. The ports and parameters tables are generated from the operator catalog; Remarks and Examples are written by hand.
@@ -148,6 +148,7 @@ One page per operator. The ports and parameters tables are generated from the op
 - [PMTiles](./operators/pmtiles.md): Load a PMTiles archive as a MapLibre vector or raster source.
 - [Scale Widget](./operators/scale-widget.md): Display a map distance scale widget.
 - [Screenshot Widget](./operators/screenshot-widget.md): Download current frame as PNG widget.
+- [Switch Value](./operators/switch-value.md): One of several values, chosen by index: view states, map styles, colors.
 - [Terrain Extension](./operators/terrain-extension.md): Render a terrain layer on the map.
 - [Vibrance](./operators/vibrance.md): Adjust vibrance of a layer.
 - [View State](./operators/view-state.md): A camera: longitude, latitude, zoom, pitch and bearing, which numbers can drive.
@@ -161,6 +162,7 @@ One page per operator. The ports and parameters tables are generated from the op
 - [Subnet Input](./operators/subnet-input.md): Inside a subnet: what is connected to the subnet's input.
 - [Subnet Output](./operators/subnet-output.md): Inside a subnet: what the subnet outputs.
 - [Switch](./operators/switch.md): Pass one of several layers through, chosen by index.
+- [Switch Rows](./operators/switch-rows.md): Pass one of several tables through, chosen by index, which numbers and keyframes can drive.
 
 ## Host operators
 

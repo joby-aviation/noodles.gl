@@ -1,6 +1,6 @@
 // Deck operators' build: the deck.gl description each one hands the engine
 import { describe, expect, it } from 'vitest'
-import { DECK_OP_INDEX } from './deck-ops'
+import { DECK_OP_INDEX, switchValue } from './deck-ops'
 
 const env = { surface: { width: 800, height: 600 } }
 
@@ -82,5 +82,20 @@ describe('globe-view', () => {
       resolution: 4,
       viewState: { bearing: 30, pitch: 45 },
     })
+  })
+})
+
+describe('switch-value', () => {
+  it('chooses the value at its index, clamped, and blends a fractional one when asked', () => {
+    const near = { longitude: 0, latitude: 0, zoom: 10 }
+    const far = { longitude: 10, latitude: 20, zoom: 2 }
+    expect(switchValue([near, far], 1, false)).toBe(far)
+    expect(switchValue([near, far], 7, false)).toBe(far)
+    expect(switchValue([near, far], 0.5, false)).toBe(near)
+    expect(switchValue([near, far], 0.5, true)).toEqual({ longitude: 5, latitude: 10, zoom: 6 })
+    expect(switchValue([], 0, true)).toBeUndefined()
+    expect(
+      DECK_OP_INDEX.get('switch-value')?.build({ values: ['a', 'b'], index: 1 }, 's', env)
+    ).toBe('b')
   })
 })

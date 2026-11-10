@@ -270,6 +270,52 @@ describe('switch', () => {
   })
 })
 
+describe('switch rows', () => {
+  const twoTables = (index: unknown, host = false): EditorDoc => ({
+    version: 1,
+    name: 'switch-rows',
+    nodes: [
+      { id: 'a', op: 'sql', x: 0, y: 0, params: { query: 'SELECT 1.0 AS x, 1.0 AS y' } },
+      host
+        ? { id: 'b', op: 'HostRowsTestOp', x: 0, y: 0, params: {} }
+        : { id: 'b', op: 'sql', x: 0, y: 0, params: { query: 'SELECT 2.0 AS x, 2.0 AS y' } },
+      { id: 'pick', op: 'switch-rows', x: 0, y: 0, params: { index } as EditorDoc['nodes'][0]['params'] },
+      { id: 'dots', op: 'scatter', x: 0, y: 0, params: { position: '[x, y]' } },
+      { id: 'map', op: 'deck', x: 0, y: 0, params: {} },
+    ],
+    edges: [
+      { id: 'e1', source: 'a', sourcePort: 'out', target: 'pick', targetPort: 'in', index: 0 },
+      { id: 'e2', source: 'b', sourcePort: host ? 'rows' : 'out', target: 'pick', targetPort: 'in', index: 1 },
+      { id: 'e3', source: 'pick', sourcePort: 'out', target: 'dots', targetPort: 'in' },
+      { id: 'e4', source: 'dots', sourcePort: 'out', target: 'map', targetPort: 'layers' },
+    ],
+  })
+
+  it('keeps each table only at its index, the index a parameter rather than structure', () => {
+    const a = lowerDocument(twoTables(0))
+    const b = lowerDocument(twoTables(1))
+    expect(a.errors).toEqual([])
+    // The same graph for either index: choosing another table rebinds, it does not re-plan
+    expect(JSON.stringify(a.graph.nodes)).toBe(JSON.stringify(b.graph.nodes))
+    const union = a.graph.nodes.find((n) => n.id === 'pick')
+    expect(union).toMatchObject({ type: 'union', inputs: ['pick#0', 'pick#1'] })
+    expect(parameterValues(a, { T: 0, F: 0 }).values.pick__index).toBe(0)
+    expect(parameterValues(b, { T: 0, F: 0 }).values.pick__index).toBe(1)
+  })
+
+  it('reads rows a host operator handed over, as a single table input does', () => {
+    registerOperator({
+      type: 'HostRowsTestOp', label: 'Rows', category: 'host', description: '',
+      inputs: [], outputs: [{ name: 'rows', type: 'value' }], params: [],
+    })
+    const lowered = lowerDocument(twoTables(1, true), {
+      hostTable: (id, port) => (id === 'b' && port === 'rows' ? 'SELECT 2.0 AS x, 2.0 AS y' : undefined),
+    })
+    expect(lowered.errors).toEqual([])
+    expect(lowered.graph.nodes.find((n) => n.id === 'pick')).toMatchObject({ inputs: ['pick#0', 'pick#1'] })
+  })
+})
+
 describe('the catalog', () => {
   it('has one operator per type, so none silently replaces another', () => {
     const types = OPERATORS.map((o) => o.type)

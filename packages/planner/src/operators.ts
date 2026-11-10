@@ -1540,6 +1540,25 @@ export const OPERATORS: OpDef[] = [
     },
   },
   {
+    type: 'switch-rows', label: 'Switch Rows', category: 'structure',
+    description: 'Pass one of several tables through, chosen by index, which numbers and keyframes can drive. Columns are matched by name. A change requeries; the tables are not made again.',
+    inputs: [table('in', 'tables', { multi: true })], outputs: [out()],
+    params: [{ name: 'index', label: 'Index', kind: 'float', default: 0, min: 0, max: 16, step: 1, port: true }],
+    lower(ctx) {
+      const tables = ctx.inputs('in');
+      if (tables.length === 0) ctx.error('Switch Rows needs a table');
+      if (tables.length === 1) return { nodes: [], outputs: { out: tables[0] } };
+      // Each table kept only while the index, clamped and floored, is its own; a filter, so
+      // the index binds as a parameter and a change requeries rather than making new tables
+      const index = `floor(min(max(${ctx.bind('index')}, 0), ${tables.length - 1}))`;
+      const kept = tables.map((input, k) => ({ id: `${ctx.id}#${k}`, type: 'filter' as const, input, predicate: `${index} == ${k}` }));
+      return {
+        nodes: [...kept, { id: ctx.id, type: 'union', inputs: kept.map((n) => n.id), distinct: false }],
+        outputs: { out: ctx.id },
+      };
+    },
+  },
+  {
     type: 'comment', label: 'Comment', category: 'structure',
     description: 'A note that explains the nodes beside it. Double-click it to edit its text. Nothing connects to it, and it lowers to nothing.',
     inputs: [], outputs: [],

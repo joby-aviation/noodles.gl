@@ -503,9 +503,11 @@ export class Engine {
         const ir = this.lowered?.outputs[nodeId]?.[port] ?? nodeId
         const layer = this.built.get(ir)?.[0]
         if (layer) return layer
-        // A GeoJSON file's features reach a host operator as the FeatureCollection it was
-        const op = this.doc?.nodes.find(n => n.id === nodeId)?.op
-        return op === 'geojson' && port === 'features' ? this.featuresOf(ir) : this.rowsOf(ir)
+        // Features (a GeoJSON file's, a geometry node's) reach a host operator as a
+        // FeatureCollection, as Noodles' GeoJSON values were; any other relation as rows
+        const rel = this.runtime.program()?.relations.find(r => r.id === ir)
+        const geo = rel?.shape.columns.some(c => c.name === 'geom' && /^GEOMETRY/i.test(c.duckType))
+        return geo ? this.featuresOf(ir) : this.rowsOf(ir)
       },
       slots: this.slots,
       time: this.time,

@@ -581,7 +581,8 @@ const attributeName = (id: string) =>
 function accessorAttribute(id: string, expression: string): string {
   const full = attributeName(id)
   const short = full.replace(/^accessor_|_accessor$/i, '')
-  if (!short || short === full) return full
+  // `/accessor-1` keeps its whole name: `1` is no attribute name
+  if (!short || short === full || !/^[A-Za-z_]/.test(short)) return full
   const reads = new Set((expression.match(/[A-Za-z_]\w*/g) ?? []).map(w => w.toLowerCase()))
   return reads.has(short.toLowerCase()) ? full : short
 }
@@ -944,6 +945,29 @@ function withoutReroutes(project: NoodlesProject): NoodlesProject {
   return { ...project, nodes: project.nodes.filter(n => !reroutes.has(n.id)), edges }
 }
 
+// A project whose Expression operators that compute a whole value (`[d]`, `d.lng`,
+// `d.map(...)`) are Code operators: ExpressionOp was CodeOp with `return` in front, with the
+// same `data`, `d` and globals. `d` of one input is that input, so it is a wire. Literal
+// arrays and `d.features` keep their own conversions.
+function withExpressionsAsCode(project: NoodlesProject): NoodlesProject {
+  const text = (n: NoodlesNode) => String(n.data?.inputs?.expression ?? '').trim()
+  const kept = (n: NoodlesNode) => literalLength(text(n)) !== undefined || text(n) === 'd.features'
+  const exprs = project.nodes.filter(n => n.type === 'ExpressionOp' && !kept(n))
+  if (exprs.length === 0) return project
+  const into = (id: string) => project.edges.filter(e => e.target === id)
+  const wires = new Set(
+    exprs.filter(n => /^d;?$/.test(text(n)) && into(n.id).length === 1).map(n => n.id)
+  )
+  const nodes = project.nodes.map(n => {
+    if (wires.has(n.id)) return { ...n, type: 'RerouteOp' }
+    if (n.type !== 'ExpressionOp' || kept(n)) return n
+    const { expression: _, ...rest } = n.data?.inputs ?? {}
+    const code = `return (${text(n).replace(/;$/, '')})`
+    return { ...n, type: 'CodeOp', data: { ...n.data, inputs: { ...rest, code } } }
+  })
+  return withoutReroutes({ ...project, nodes })
+}
+
 interface Container {
   id: string
   x: number
@@ -1074,7 +1098,9 @@ export function toEditorDoc(original: NoodlesProject): Migrated {
       `Expected a schema ${CONVERTED_SCHEMA} project; migrate it first (got ${original.version})`
     )
   }
-  const { project, containers } = withoutContainers(withoutReroutes(original))
+  const { project, containers } = withoutContainers(
+    withExpressionsAsCode(withoutReroutes(original))
+  )
   const warnings: string[] = []
   const byId = new Map(project.nodes.map(n => [n.id, n]))
   const inputs = (n: NoodlesNode) => ({ ...DEFAULTS[n.type], ...(n.data?.inputs ?? {}) })
@@ -1160,6 +1186,8 @@ export function toEditorDoc(original: NoodlesProject): Migrated {
   /** Operators a query references by `{{…}}`: they must exist in the document too. */
   const referenced = new Set<string>()
   const sources = new Map<string, string>()
+  // Operators made host operators, whose inputs are `par:` parameters
+  const hostNodes = new Set<string>()
   /** The output port a source's rows leave by: `out`, or a GeoJSON source's `all`. */
   const sourcePort = new Map<string, string>()
   /** Column names a source's rows index by position: `d[0]` of a TimeSeries row is `lng`. */
@@ -1173,8 +1201,10 @@ export function toEditorDoc(original: NoodlesProject): Migrated {
     const e = incomingOne(owner, field)
     if (!e) return fallback
     const acc = byId.get(e.source)
-    const expr =
-      acc?.type === 'AccessorOp' ? translateAccessor(String(inputs(acc).expression)) : undefined
+    const js = acc?.type === 'AccessorOp' ? String(inputs(acc).expression).trim() : undefined
+    // `d` alone: each row is the list itself. Rows that aren't objects reach a table as its
+    // `value` column, as JS rows always do (flatRow)
+    const expr = js && /^(return\s+)?d;?$/.test(js) ? 'value' : js && translateAccessor(js)
     if (!acc || !expr || !/^[A-Za-z_]\w*$/.test(expr)) {
       throw new MigrationError(`${owner}: ${field} must read a list column, as d.path does`)
     }
@@ -1222,12 +1252,82 @@ export function toEditorDoc(original: NoodlesProject): Migrated {
     return true
   }
 
+  // What a Switch chooses among, which decides what it becomes: layers (the planner's
+  // switch), features or rows (Switch Rows), or values (Switch Value, on the host). Its inputs
+  // say, else what reads it: a layer's data or a table operator reads rows.
+  const switchKinds = new Map<string, 'layer' | 'features' | 'rows' | 'value'>()
+  const switchKind = (n: NoodlesNode): 'layer' | 'features' | 'rows' | 'value' => {
+    const known = switchKinds.get(n.id)
+    if (known) return known
+    switchKinds.set(n.id, 'value')
+    const kinds = incoming(n.id, 'values').map(e => {
+      const s = byId.get(e.source)
+      if (!s) return undefined
+      if (s.type === 'SwitchOp') return switchKind(s)
+      if (PLANNER_LAYERS.has(s.type)) return 'layer'
+      if (
+        GIS_CONVERSIONS[s.type] ||
+        FEATURE_SOURCES.has(s.type) ||
+        s.type === 'KmlToGeoJsonOp' ||
+        isGeoJsonFile(s)
+      )
+        return 'features'
+      if (PLANNER_SOURCES.has(s.type) || TABLE_OPS.has(s.type)) return 'rows'
+      return undefined
+    })
+    const readsRows = project.edges.some(e => {
+      const t = e.source === n.id ? byId.get(e.target) : undefined
+      if (!t) return false
+      const field = handleField(e.targetHandle)
+      return (
+        (PLANNER_LAYERS.has(t.type) && field === 'data') ||
+        (TABLE_OPS.has(t.type) && ['data', 'values'].includes(field)) ||
+        (t.type === 'SwitchOp' && switchKind(t) === 'rows')
+      )
+    })
+    const kind =
+      (['layer', 'features', 'rows'] as const).find(k => kinds.includes(k)) ??
+      (readsRows ? 'rows' : 'value')
+    switchKinds.set(n.id, kind)
+    return kind
+  }
+
+  // Rows or features a planner node makes, for a host or deck operator to read: the node and
+  // port, and whether the Noodles output was one feature. Undefined when `src` makes none.
+  const plannerRows = (
+    src: NoodlesNode,
+    port: string
+  ): { node: string; port: string; one: boolean } | undefined => {
+    const kind = src.type === 'SwitchOp' ? switchKind(src) : undefined
+    if (GIS_CONVERSIONS[src.type] || src.type === 'KmlToGeoJsonOp' || kind === 'features') {
+      return { ...features(src.id, port), one: port === 'feature' }
+    }
+    if (TABLE_OPS.has(src.type) || kind === 'rows') {
+      const rows = source(src.id, false, port)
+      return { node: rows, port: sourcePort.get(rows) ?? 'out', one: false }
+    }
+    return undefined
+  }
+
+  // A planner node an operator already became (a code node), for a host operator to read
+  const madeRows = (id: string): { node: string; port: string; one: boolean } | undefined => {
+    const made = sources.get(id)
+    if (!made || hostNodes.has(made)) return undefined
+    return { node: made, port: sourcePort.get(made) ?? 'out', one: false }
+  }
+
   const source = (id: string, geometry = false, port?: string): string => {
     const cached = sources.get(id)
     if (cached) return cached
     const n = byId.get(id)
     if (!n) throw new MigrationError(`Missing node ${id}`)
     const i = inputs(n)
+    if (hostNodes.has(id) && !geometry) {
+      // Already a host operator (a host read it first): its rows, handed to DuckDB
+      sourcePort.set(id, port || 'data')
+      sources.set(id, id)
+      return id
+    }
     if (geometry && n.type !== 'FileOp') {
       // GeoJSON an operator makes: its features, a row per feature with its geometry
       const made = features(id, port)
@@ -1357,6 +1457,26 @@ export function toEditorDoc(original: NoodlesProject): Migrated {
       // Rows JavaScript makes, run by the engine and planned over like any table
     } else if (TABLE_OPS.has(n.type)) {
       tableNode(n)
+    } else if (n.type === 'SwitchOp' && switchKind(n) === 'features') {
+      const made = features(id)
+      sourcePort.set(id, made.port)
+      sources.set(id, made.node)
+      return made.node
+    } else if (n.type === 'SwitchOp' && switchKind(n) === 'rows') {
+      // Rows chosen by index: the index a parameter, so a keyframed one requeries
+      nodes.push({
+        id,
+        op: 'switch-rows',
+        name: segment(id),
+        ...position(n),
+        params: { index: num(i.index, 0) },
+      })
+      if (i.blend === true) warnings.push(`${id}: blending between tables is not converted`)
+      incoming(id, 'values').forEach((e, k) => {
+        const rows = source(e.source, false, handleField(e.sourceHandle))
+        edge(rows, sourcePort.get(rows) ?? 'out', id, 'in', k)
+      })
+      wiredNumber(id, 'index', id, 'index')
     } else if (!ACCESSOR_OPS.has(n.type) && !PLANNER_SOURCES.has(n.type)) {
       // Rows a host operator makes (a CodeOp's): the engine hands them to DuckDB.
       hostNode(id)
@@ -1679,6 +1799,22 @@ export function toEditorDoc(original: NoodlesProject): Migrated {
       if (!data) throw new MigrationError(`${id} has no data`)
       const rows = source(data.source, false, handleField(data.sourceHandle))
       edge(rows, sourcePort.get(rows) ?? 'out', id, 'in')
+      made = { node: id, port: 'out' }
+    } else if (n.type === 'SwitchOp') {
+      // One of several feature tables, chosen by index
+      used.add(id)
+      nodes.push({
+        id,
+        op: 'switch-rows',
+        name: segment(id),
+        ...position(n),
+        params: { index: num(inputs(n).index, 0) },
+      })
+      incoming(id, 'values').forEach((e, k) => {
+        const from = features(e.source, handleField(e.sourceHandle))
+        edge(from.node, from.port, id, 'in', k)
+      })
+      wiredNumber(id, 'index', id, 'index')
       made = { node: id, port: 'out' }
     } else if (n.type === 'GeoJsonOp') {
       // A FeatureCollection of features other operators made: their rows, together
@@ -2242,7 +2378,6 @@ export function toEditorDoc(original: NoodlesProject): Migrated {
   }
 
   // --- host operators: their own inputs as parameters, wired by `par:` handles -----------
-  const hostNodes = new Set<string>()
 
   // --- values computed at conversion --------------------------------------------------------
   // A Number the timeline moves is not a constant, whatever its stored value
@@ -2449,7 +2584,10 @@ export function toEditorDoc(original: NoodlesProject): Migrated {
         continue
       }
       // A layer a deck operator takes (props added to it) is the planner layer it becomes
-      if (PLANNER_LAYERS.has(src.type) || src.type === 'SwitchOp') {
+      if (
+        PLANNER_LAYERS.has(src.type) ||
+        (src.type === 'SwitchOp' && switchKind(src) === 'layer')
+      ) {
         migrateLayer(src.id, handleField(e.sourceHandle), {
           node: n.id,
           port: `par:${field}`,
@@ -2457,16 +2595,17 @@ export function toEditorDoc(original: NoodlesProject): Migrated {
         })
         continue
       }
+      const at = deck.lists?.includes(field)
+        ? edges.filter(x => x.target === n.id && x.targetPort === `par:${field}`).length
+        : undefined
+      const rows = plannerRows(src, handleField(e.sourceHandle)) ?? madeRows(src.id)
+      if (rows) {
+        if (rows.one) warnings.push(`${n.id} reads ${src.id}'s feature as a FeatureCollection`)
+        edge(rows.node, rows.port, n.id, `par:${field}`, at)
+        continue
+      }
       hostNode(src.id)
-      edge(
-        src.id,
-        handleField(e.sourceHandle),
-        n.id,
-        `par:${field}`,
-        deck.lists?.includes(field)
-          ? edges.filter(x => x.target === n.id && x.targetPort === `par:${field}`).length
-          : undefined
-      )
+      edge(src.id, handleField(e.sourceHandle), n.id, `par:${field}`, at)
     }
   }
 
@@ -2508,13 +2647,13 @@ export function toEditorDoc(original: NoodlesProject): Migrated {
     }
     hostNodes.add(id)
     used.add(id)
-    nodes.push({
-      id,
-      op: n.type,
-      name: segment(id),
-      ...position(n),
-      params: { ...(n.data?.inputs ?? {}) } as Record<string, ParamValue>,
-    })
+    const params = { ...(n.data?.inputs ?? {}) } as Record<string, ParamValue>
+    nodes.push({ id, op: n.type, name: segment(id), ...position(n), params })
+    if (n.type === 'CodeOp') {
+      const code = Array.isArray(params.code) ? params.code.join('\n') : String(params.code ?? '')
+      const read = codeReads(id, code)
+      if (read !== code) params.code = read
+    }
     for (const e of project.edges.filter(x => x.target === id)) {
       const field = handleField(e.targetHandle)
       const src = byId.get(e.source)
@@ -2548,9 +2687,67 @@ export function toEditorDoc(original: NoodlesProject): Migrated {
         edge(src.id, sourcePort.get(src.id) ?? 'out', id, `par:${field}`)
         continue
       }
+      const port = handleField(e.sourceHandle)
+      // Features a planner node makes reach the host operator as a FeatureCollection; one
+      // that read a single feature (a Point's) is given it back
+      const rows = plannerRows(src, port) ?? madeRows(src.id)
+      if (rows) {
+        edge(rows.node, rows.port, id, `par:${field}`)
+        if (rows.one) oneFeature(id, n, field, e)
+        continue
+      }
       hostNode(src.id)
-      edge(src.id, handleField(e.sourceHandle), id, `par:${field}`)
+      edge(src.id, port, id, `par:${field}`)
     }
+  }
+
+  // What code reads through `op()` is in the document too, as what it converts to: a Number
+  // (whose `val` is the number node's `value`, keyframes and all), a table, or a host operator
+  const codeReads = (id: string, code: string): string =>
+    code.replace(
+      /\bop\(\s*(['"`])([^'"`]+)\1\s*\)(\s*\.par\.val\b)?/g,
+      (m, _q, path: string, val?: string) => {
+        const target = resolveNoodlesPath(path, id)
+        const t = byId.get(target)
+        if (!t || target === id) return m
+        if (t.type === 'NumberOp') {
+          numberNode(t)
+          return val ? m.replace(/val$/, 'value') : m
+        }
+        if (CURVES[t.type]) curveNode(t)
+        else if (FOLDED.has(t.type)) {
+          warnings.push(`${id}: op('${path}') reads ${t.type}, which is folded into what it fed`)
+        } else if (PLANNER_SOURCES.has(t.type) || TABLE_OPS.has(t.type)) source(target)
+        else if (GIS_CONVERSIONS[t.type] || FEATURE_SOURCES.has(t.type)) features(target)
+        else if (!used.has(target)) {
+          try {
+            hostNode(target)
+          } catch (err) {
+            if (!(err instanceof MigrationError)) throw err
+            warnings.push(`${id}: op('${path}') reads ${t.type}, which is not converted`)
+          }
+        }
+        return m
+      }
+    )
+
+  // A host operator's input that read one GeoJSON feature, which is now a table of features
+  const oneFeature = (id: string, n: NoodlesNode, field: string, e: NoodlesEdge): void => {
+    const self = nodes.find(x => x.id === id)
+    if (n.type !== 'CodeOp' || field !== 'data' || !self) {
+      warnings.push(`${id} reads ${e.source}'s feature as a FeatureCollection of one feature`)
+      return
+    }
+    const k = incoming(id, 'data').indexOf(e)
+    const code = Array.isArray(self.params.code)
+      ? self.params.code.join('\n')
+      : String(self.params.code ?? '')
+    self.params.code = [
+      `// ${e.source} is a table of features now; this reads its one feature, as before`,
+      `data[${k}] = data[${k}]?.features?.[0] ?? data[${k}]`,
+      ...(k === 0 ? ['d = data[0]'] : []),
+      code,
+    ].join('\n')
   }
   const numberNode = (n: NoodlesNode) => {
     if (used.has(n.id)) return
@@ -3653,6 +3850,13 @@ export function toEditorDoc(original: NoodlesProject): Migrated {
   }
   const timeline = project.timeline ? convertTimeline(project.timeline, nodes, warnings) : undefined
   inlineCopies(nodes, edges)
+
+  // One node per id: two conversions of one operator would draw one and drop the other
+  const seen = new Set<string>()
+  for (const n of nodes) {
+    if (seen.has(n.id)) throw new MigrationError(`${n.id}: converted twice (${n.op})`)
+    seen.add(n.id)
+  }
 
   // A name is unique within its network: a shortened accessor name can meet a node's own
   const taken = new Map<string, Set<string>>()

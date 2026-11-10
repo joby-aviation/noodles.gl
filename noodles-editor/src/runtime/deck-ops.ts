@@ -312,6 +312,17 @@ export function boundsSelect(position: string, shape: RelShape): string {
   return span(`${code}[1]`, `${code}[2]`)
 }
 
+// The value at an index, clamped to the list, as Noodles' Switch chose it. With blend, a
+// fractional index interpolates its two neighbors (numbers, colors, view state objects).
+export function switchValue(values: unknown[], index: number, blend: boolean): unknown {
+  if (values.length === 0) return undefined
+  const at = Math.max(0, Math.min(index, values.length - 1))
+  const lo = Math.floor(at)
+  const hi = Math.ceil(at)
+  if (!blend || lo === hi) return values[lo]
+  return d3.interpolate(values[lo] as never, values[hi] as never)(at - lo)
+}
+
 // The camera that fits the bounds a row of `boundsSelect` holds into the render surface
 export function fitRow(
   row: Record<string, unknown> | undefined,
@@ -407,6 +418,26 @@ export const DECK_OPS: DeckOp[] = [
         {},
         ...((p.objects as unknown[] | undefined) ?? []).filter(o => o && typeof o === 'object')
       ),
+  },
+  {
+    noodles: 'SwitchOp',
+    def: {
+      type: 'switch-value',
+      label: 'Switch Value',
+      category: 'output',
+      description:
+        'One of several values, chosen by index: view states, map styles, colors. With blend on, a fractional index blends the two values beside it.',
+      inputs: [],
+      outputs: [{ name: 'value', type: 'value' }],
+      params: [
+        wired('values', 'value'),
+        num('index', 0, { min: 0, max: 16, step: 1 }),
+        toggle('blend', false),
+      ],
+    },
+    lists: ['values'],
+    build: p =>
+      switchValue((p.values as unknown[] | undefined) ?? [], Number(p.index) || 0, !!p.blend),
   },
   {
     noodles: 'LayerPropsOp',

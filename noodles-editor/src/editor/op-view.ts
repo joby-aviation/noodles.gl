@@ -10,6 +10,7 @@ import {
   nameOf,
   nodePath,
   OPERATOR_INDEX,
+  outputKey,
 } from '@noodles.gl/planner'
 import type { OpView } from '../noodles/op-resolver'
 import type { Engine } from '../runtime/engine'
@@ -85,6 +86,8 @@ export function opView(
     const e = engine()
     if (!e) return undefined
     if (def?.category === 'host') return e.hostOutput(id, port)
+    // A number node's value at the playhead, whatever its port is called (NumberOp's `val`)
+    if (def?.category === 'number') return e.slotValues().get(outputKey(def, id, port))
     return e.peekRows(id, port)
   }
   const ports = () => def?.outputs.map(p => p.name) ?? []
