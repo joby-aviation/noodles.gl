@@ -58,6 +58,7 @@ import { bindTimeline, resetTimelinePanel } from './doc-timeline'
 import type { CopyControlsRef, UndoRedoHandlerRef } from './edit-menu'
 import { hasUnwrittenEdit } from './expression-input'
 import { loadDoc } from './load-doc'
+import { LoadWarningsDialog } from './load-warnings-dialog'
 import { useProjectFiles } from './project-files'
 import { DOC_DECK, renderSettingsOf } from './render-settings'
 
@@ -119,6 +120,8 @@ async function openJson(json: unknown, name?: string, keysProject?: string): Pro
   const { doc, warnings } = await loadDoc(json, name)
   for (const w of warnings) console.info('[open]', w)
   openDoc(doc, keysProject)
+  // Shown to the user, since saving writes the project as converted
+  getUIStore().setLoadWarnings(warnings)
 }
 
 export function useDocNoodles(): Visualization {
@@ -449,6 +452,7 @@ export function useDocNoodles(): Visualization {
             onClose={() => setPendingCreateFromSQL(null)}
           />
           <KeyPrompts />
+          <LoadWarningsDialog />
         </TimelineProvider>
       </PrimeReactProvider>
     </div>

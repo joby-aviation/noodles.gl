@@ -24,6 +24,9 @@ export interface NodeDragState {
 }
 
 interface UIStoreState {
+  // What converting the open project from an older format couldn't keep, shown once it opens
+  loadWarnings: string[]
+  setLoadWarnings: (warnings: string[]) => void
   hoveredOutputHandle: { nodeId: string; handleId: string } | null
   setHoveredOutputHandle: (handle: { nodeId: string; handleId: string } | null) => void
   connectionDragState: ConnectionDragState | null
@@ -79,6 +82,8 @@ function loadMapMode(): MapMode {
 }
 
 export const useUIStore = create<UIStoreState>(set => ({
+  loadWarnings: [],
+  setLoadWarnings: warnings => set({ loadWarnings: warnings }),
   hoveredOutputHandle: null,
   setHoveredOutputHandle: handle => set({ hoveredOutputHandle: handle }),
   connectionDragState: null,
