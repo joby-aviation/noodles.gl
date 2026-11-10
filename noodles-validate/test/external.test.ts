@@ -121,9 +121,7 @@ describe('external profile', () => {
   })
 
   it('runs every check on a document, without the generic-node-name style rule', () => {
-    const generic = project(p =>
-      p.nodes.push(fileNode('n9', 'file1', 'https://example.com/a.csv'))
-    )
+    const generic = project(p => p.nodes.push(fileNode('n9', 'file1', 'https://example.com/a.csv')))
     assert.deepEqual(validateProject(generic, registry, external).warnings, [])
     assert.deepEqual(
       validateProject(generic, registry).warnings.map(d => d.rule),

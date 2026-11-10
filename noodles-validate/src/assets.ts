@@ -17,7 +17,9 @@ const FILE_KIND = 'url'
 // The parameters of `op` that take a file
 function fileParams(registry: Registry, op: string): Set<string> {
   const params = registry.operators[op]?.params ?? {}
-  return new Set(Object.entries(params).flatMap(([name, p]) => (p.kind === FILE_KIND ? [name] : [])))
+  return new Set(
+    Object.entries(params).flatMap(([name, p]) => (p.kind === FILE_KIND ? [name] : []))
+  )
 }
 
 // A node's id and the values that may name a file: a document's params, or an operator-graph
@@ -33,7 +35,9 @@ function fileValues(
     return { id: node.id, values: Object.entries(params).filter(([name]) => names.has(name)) }
   }
   if (typeof node.type === 'string') {
-    const names = new Set((registry.formerly?.[node.type] ?? []).flatMap(op => [...fileParams(registry, op)]))
+    const names = new Set(
+      (registry.formerly?.[node.type] ?? []).flatMap(op => [...fileParams(registry, op)])
+    )
     const inputs = isObject(node.data) && isObject(node.data.inputs) ? node.data.inputs : {}
     return { id: node.id, values: Object.entries(inputs).filter(([name]) => names.has(name)) }
   }
