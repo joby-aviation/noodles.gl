@@ -27,11 +27,18 @@ type PropertyMutationCallback = (
 ) => void
 
 let _propertyMutationCallback: PropertyMutationCallback | undefined
+let _propertyEditListener: (() => void) | undefined
 let _lastCommittedBeforeState: string | null = null
 export const UI_STATE_KEY = '$ui'
 
 export function registerPropertyMutationCallback(cb: PropertyMutationCallback | undefined) {
   _propertyMutationCallback = cb
+}
+
+// Called when a user edit, undo or redo changes field values, so the project can be marked
+// unsaved. Values that arrive from upstream connections or keyframe playback don't call it.
+export function registerPropertyEditListener(cb: (() => void) | undefined) {
+  _propertyEditListener = cb
 }
 
 // Serializes all operator field values using each field's serialize() method.
@@ -74,6 +81,7 @@ export function captureOperatorInputs(): string | null {
 // Connected fields will be immediately overwritten by their upstream sources,
 // so restoring them here is harmless and keeps the restore logic simple.
 export function applyOperatorInputs(snapshot: string): void {
+  _propertyEditListener?.()
   if (applyTableHistorySnapshot(snapshot)) return
 
   let data: Record<string, Record<string, unknown>>
@@ -116,6 +124,7 @@ export function firePropertyMutation(
   if (after === null || before === after) return false
   // Covers edits that never fire a DOM input event, such as dragging a number field
   dismissStarterHint()
+  _propertyEditListener?.()
   if (!_propertyMutationCallback) return false
   _lastCommittedBeforeState = before
   debugHistorySnapshot('Firing property mutation: %s', description)
