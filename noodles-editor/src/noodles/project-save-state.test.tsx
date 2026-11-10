@@ -13,6 +13,7 @@ import {
   applyOperatorInputs,
   captureOperatorInputs,
   firePropertyMutation,
+  usePropertyHistory,
 } from './utils/property-history'
 
 vi.mock('./storage', { spy: true })
@@ -163,6 +164,26 @@ describe('saving a project', () => {
       act(() => val().setValue(5))
 
       expect(result.current.hasUnsavedChanges).toBe(false)
+    })
+
+    it('warns before leaving while a changed field is still focused', async () => {
+      await renderProject()
+      await waitFor(() => expect(getOp('/num')).toBeDefined())
+      const leave = () => {
+        const event = new Event('beforeunload', { cancelable: true })
+        window.dispatchEvent(event)
+        return event.defaultPrevented
+      }
+      const history = renderHook(() => usePropertyHistory()).result.current
+
+      // Text and code fields set the value on each keystroke and commit on blur
+      act(() => history.captureStart())
+      expect(leave()).toBe(false)
+      act(() => val().setValue(5))
+      expect(leave()).toBe(true)
+
+      act(() => history.commitChange('Edit val'))
+      expect(leave()).toBe(true)
     })
 
     it('marks the project unsaved when undo restores a value after a save', async () => {

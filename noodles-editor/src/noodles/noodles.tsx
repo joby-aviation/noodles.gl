@@ -155,6 +155,7 @@ import { getParentPath, parseHandleId } from './utils/path-utils'
 import {
   applyOperatorInputs,
   getLastCommittedBeforeState,
+  hasOpenPropertyEdit,
   registerPropertyEditListener,
 } from './utils/property-history'
 import {
@@ -463,7 +464,7 @@ export function getNoodles(): Visualization {
     // Don't warn for examples - they're read-only demos
     const unsaved = !isExamplesRoute && (hasUnsavedChanges || storageType === 'memory')
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
-      if (unsaved) {
+      if (unsaved || (!isExamplesRoute && hasOpenPropertyEdit())) {
         e.preventDefault()
         e.returnValue = ''
       }
