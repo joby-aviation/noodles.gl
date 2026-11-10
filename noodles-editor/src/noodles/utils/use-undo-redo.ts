@@ -53,6 +53,10 @@ interface UndoRedoState {
   currentIndex: number
 }
 
+// While undo or redo applies an entry, nothing it changes is recorded. The token
+// tells one restore's deferred clear from a later restore's.
+type RestorePhase = { kind: 'idle' } | { kind: 'restoring'; token: number }
+
 interface UndoRedoPublicState {
   canUndo: boolean
   canRedo: boolean
@@ -65,15 +69,60 @@ interface UseUndoRedoOptions {
 }
 
 export function useUndoRedo(options?: UseUndoRedoOptions) {
-  const [undoRedoState, setUndoRedoState] = useState<UndoRedoState>({
+  const [undoRedoState, setRenderedState] = useState<UndoRedoState>({
     history: [],
     currentIndex: -1,
   })
+  // The ref is the source of truth, so undo and redo read the latest stack even when
+  // they run again before a re-render. The state copy is what the UI renders.
+  const stateRef = useRef(undoRedoState)
+  const setUndoRedoState = useCallback((update: (prev: UndoRedoState) => UndoRedoState) => {
+    stateRef.current = update(stateRef.current)
+    setRenderedState(stateRef.current)
+  }, [])
   const maxHistorySize = 50
 
-  const onNodesChangeIntercepted = useRef(false)
-  const onEdgesChangeIntercepted = useRef(false)
-  const isRestoringRef = useRef(false)
+  // The wrappers installed on the store, so a handler that replaces one gets wrapped too
+  const nodesWrapperRef = useRef<OnNodesChange | null>(null)
+  const edgesWrapperRef = useRef<OnEdgesChange | null>(null)
+
+  const restorePhaseRef = useRef<RestorePhase>({ kind: 'idle' })
+  const restoreTokenRef = useRef(0)
+  const isRestoring = useCallback(() => restorePhaseRef.current.kind === 'restoring', [])
+
+  // Runs one undo or redo. The phase clears on a microtask, as it always has, so the
+  // re-render the restore schedules is not recorded either. It clears even when the
+  // restore throws, so a failed undo can't silently stop all recording.
+  const runRestore = useCallback((restore: () => void) => {
+    const token = ++restoreTokenRef.current
+    restorePhaseRef.current = { kind: 'restoring', token }
+    try {
+      restore()
+    } finally {
+      queueMicrotask(() => {
+        const phase = restorePhaseRef.current
+        if (phase.kind === 'restoring' && phase.token === token) {
+          restorePhaseRef.current = { kind: 'idle' }
+        }
+      })
+    }
+  }, [])
+
+  // Entries whose after-state is read on a timeout. Undo and redo record them first,
+  // so an edit followed at once by undo is the edit undone.
+  const pendingEntriesRef = useRef(new Set<() => void>())
+  const deferEntry = useCallback((record: () => void) => {
+    pendingEntriesRef.current.add(record)
+    setTimeout(() => {
+      if (pendingEntriesRef.current.delete(record)) record()
+    }, 0)
+  }, [])
+  const flushPendingEntries = useCallback(() => {
+    for (const record of [...pendingEntriesRef.current]) {
+      pendingEntriesRef.current.delete(record)
+      record()
+    }
+  }, [])
 
   // Store references to original handlers for use during undo/redo
   const originalOnNodesChangeRef = useRef<OnNodesChange | null>(null)
@@ -97,17 +146,20 @@ export function useUndoRedo(options?: UseUndoRedoOptions) {
 
   // Intercept nodes changes
   useEffect(() => {
-    if (!onNodesChange || onNodesChangeIntercepted.current) {
+    if (
+      !onNodesChange ||
+      onNodesChange === nodesWrapperRef.current ||
+      store.getState().onNodesChange === nodesWrapperRef.current
+    ) {
       return
     }
 
-    onNodesChangeIntercepted.current = true
     const userOnNodesChange = onNodesChange
     originalOnNodesChangeRef.current = userOnNodesChange
 
     const onNodesChangeWithHistory: OnNodesChange = changes => {
       // Skip recording changes during undo/redo operations
-      if (isRestoringRef.current) {
+      if (isRestoring()) {
         userOnNodesChange(changes)
         return
       }
@@ -152,7 +204,7 @@ export function useUndoRedo(options?: UseUndoRedoOptions) {
       })
 
       // Capture state after changes (need to use setTimeout to get updated state from store)
-      setTimeout(() => {
+      deferEntry(() => {
         const { nodes: nodesAfter, edges: edgesAfter } = getSnapshot()
         const timelineStateAfter = captureTimelineState()
 
@@ -213,25 +265,29 @@ export function useUndoRedo(options?: UseUndoRedoOptions) {
             currentIndex: newIndex,
           }
         })
-      }, 0)
+      })
     }
 
+    nodesWrapperRef.current = onNodesChangeWithHistory
     store.setState({ onNodesChange: onNodesChangeWithHistory })
-  }, [onNodesChange, store, getSnapshot])
+  }, [onNodesChange, store, getSnapshot, isRestoring, deferEntry, setUndoRedoState])
 
   // Intercept edges changes
   useEffect(() => {
-    if (!onEdgesChange || onEdgesChangeIntercepted.current) {
+    if (
+      !onEdgesChange ||
+      onEdgesChange === edgesWrapperRef.current ||
+      store.getState().onEdgesChange === edgesWrapperRef.current
+    ) {
       return
     }
 
-    onEdgesChangeIntercepted.current = true
     const userOnEdgesChange = onEdgesChange
     originalOnEdgesChangeRef.current = userOnEdgesChange
 
     const onEdgesChangeWithHistory: OnEdgesChange = changes => {
       // Skip recording changes during undo/redo operations
-      if (isRestoringRef.current) {
+      if (isRestoring()) {
         userOnEdgesChange(changes)
         return
       }
@@ -255,7 +311,7 @@ export function useUndoRedo(options?: UseUndoRedoOptions) {
       )
 
       // Capture state after changes (need to use setTimeout to get updated state from store)
-      setTimeout(() => {
+      deferEntry(() => {
         const { nodes: nodesAfter, edges: edgesAfter } = getSnapshot()
         const timelineStateAfter = captureTimelineState()
 
@@ -311,13 +367,16 @@ export function useUndoRedo(options?: UseUndoRedoOptions) {
             currentIndex: newIndex,
           }
         })
-      }, 0)
+      })
     }
 
+    edgesWrapperRef.current = onEdgesChangeWithHistory
     store.setState({ onEdgesChange: onEdgesChangeWithHistory })
-  }, [onEdgesChange, store, getSnapshot])
+  }, [onEdgesChange, store, getSnapshot, isRestoring, deferEntry, setUndoRedoState])
 
   const undo = useCallback(() => {
+    flushPendingEntries()
+    const { history, currentIndex } = stateRef.current
     debugHistoryUndo('Undo check: currentIndex=%d, history.length=%d', currentIndex, history.length)
 
     if (currentIndex < 0 || currentIndex >= history.length) {
@@ -331,232 +390,216 @@ export function useUndoRedo(options?: UseUndoRedoOptions) {
       return
     }
 
-    isRestoringRef.current = true
-
     debugHistoryUndo('Undoing: %s', entry.description)
-
-    // A lock change doesn't touch the graph. Restoring its graph snapshot would also revert
-    // edits that aren't in the history, such as renames.
-    if (entry.lockChange) {
-      undoLockChange(entry.lockChange)
-      setUndoRedoState(prev => ({ ...prev, currentIndex: prev.currentIndex - 1 }))
-      queueMicrotask(() => {
-        isRestoringRef.current = false
-      })
-      return
-    }
-
-    // Calculate the changes needed to restore the state
-    const { nodes: currentNodes, edges: currentEdges } = getSnapshot()
-
-    debugHistoryUndo('Undo state comparison: %O', {
-      currentNodeCount: currentNodes.length,
-      currentNodeIds: currentNodes.map(n => n.id),
-      targetNodeCount: entry.nodesBefore.length,
-      targetNodeIds: entry.nodesBefore.map(n => n.id),
-      afterNodeCount: entry.nodesAfter.length,
-      afterNodeIds: entry.nodesAfter.map(n => n.id),
-    })
-
-    // Create remove changes for nodes that exist now but shouldn't
-    const nodeIdsToKeep = new Set(entry.nodesBefore.map(n => n.id))
-    const nodeRemoveChanges: NodeChange[] = currentNodes
-      .filter(n => !nodeIdsToKeep.has(n.id))
-      .map(n => ({ type: 'remove' as const, id: n.id }))
-
-    // Create add changes for nodes that should exist but don't
-    const currentNodeIds = new Set(currentNodes.map(n => n.id))
-    const nodeAddChanges: NodeChange[] = entry.nodesBefore
-      .filter(n => !currentNodeIds.has(n.id))
-      .map(n => ({ type: 'add' as const, item: n }))
-
-    // Create update changes for nodes that exist in both but may have changed
-    const nodeUpdateChanges: NodeChange[] = entry.nodesBefore
-      .filter(n => currentNodeIds.has(n.id))
-      .flatMap(n => {
-        const current = currentNodes.find(cn => cn.id === n.id)
-        // Check if position changed
-        if (
-          current &&
-          (current.position.x !== n.position.x || current.position.y !== n.position.y)
-        ) {
-          return [
-            {
-              type: 'position' as const,
-              id: n.id,
-              position: n.position,
-              dragging: false,
-            },
-          ]
-        }
-        return []
-      })
-
-    const allNodeChanges = [...nodeRemoveChanges, ...nodeAddChanges, ...nodeUpdateChanges]
-
-    // Similar for edges
-    const edgeIdsToKeep = new Set(entry.edgesBefore.map(e => e.id))
-    const edgeRemoveChanges: EdgeChange[] = currentEdges
-      .filter(e => !edgeIdsToKeep.has(e.id))
-      .map(e => ({ type: 'remove' as const, id: e.id }))
-
-    const currentEdgeIds = new Set(currentEdges.map(e => e.id))
-    const edgeAddChanges: EdgeChange[] = entry.edgesBefore
-      .filter(e => !currentEdgeIds.has(e.id))
-      .map(e => ({ type: 'add' as const, item: e }))
-
-    const allEdgeChanges = [...edgeRemoveChanges, ...edgeAddChanges]
-
-    debugHistoryUndo('Applying undo changes: %O', {
-      nodeChanges: allNodeChanges.map(c => c.type),
-      edgeChanges: allEdgeChanges.map(c => c.type),
-    })
-
-    // Apply changes through the original handlers (which will sync external state)
-    // We use the original handlers stored in refs to bypass our interception
-    if (allNodeChanges.length > 0 && originalOnNodesChangeRef.current) {
-      originalOnNodesChangeRef.current(allNodeChanges)
-    }
-    if (allEdgeChanges.length > 0 && originalOnEdgesChangeRef.current) {
-      originalOnEdgesChangeRef.current(allEdgeChanges)
-    }
-
-    // Restore timeline state if the entry has a snapshot
-    if (entry.timelineStateBefore) {
-      try {
-        const timelineStore = getTimelineStore()
-        timelineStore.fromTimelineJSON(JSON.parse(entry.timelineStateBefore))
-      } catch (e) {
-        console.error('[Noodles] Failed to restore timeline state:', e)
-        debugHistory('Failed to restore timeline state during undo', e)
+    runRestore(() => {
+      // A lock change doesn't touch the graph. Restoring its graph snapshot would also revert
+      // edits that aren't in the history, such as renames.
+      if (entry.lockChange) {
+        undoLockChange(entry.lockChange)
+        setUndoRedoState(prev => ({ ...prev, currentIndex: prev.currentIndex - 1 }))
+        return
       }
-    }
 
-    // Restore operator property values if the entry has a snapshot
-    if (entry.operatorStateBefore) {
-      applyOperatorInputs(entry.operatorStateBefore)
-    }
+      // Calculate the changes needed to restore the state
+      const { nodes: currentNodes, edges: currentEdges } = getSnapshot()
 
-    setUndoRedoState(prev => ({
-      ...prev,
-      currentIndex: prev.currentIndex - 1,
-    }))
+      debugHistoryUndo('Undo state comparison: %O', {
+        currentNodeCount: currentNodes.length,
+        currentNodeIds: currentNodes.map(n => n.id),
+        targetNodeCount: entry.nodesBefore.length,
+        targetNodeIds: entry.nodesBefore.map(n => n.id),
+        afterNodeCount: entry.nodesAfter.length,
+        afterNodeIds: entry.nodesAfter.map(n => n.id),
+      })
 
-    // Use queueMicrotask to reset flag after all synchronous state updates complete
-    queueMicrotask(() => {
-      isRestoringRef.current = false
+      // Create remove changes for nodes that exist now but shouldn't
+      const nodeIdsToKeep = new Set(entry.nodesBefore.map(n => n.id))
+      const nodeRemoveChanges: NodeChange[] = currentNodes
+        .filter(n => !nodeIdsToKeep.has(n.id))
+        .map(n => ({ type: 'remove' as const, id: n.id }))
+
+      // Create add changes for nodes that should exist but don't
+      const currentNodeIds = new Set(currentNodes.map(n => n.id))
+      const nodeAddChanges: NodeChange[] = entry.nodesBefore
+        .filter(n => !currentNodeIds.has(n.id))
+        .map(n => ({ type: 'add' as const, item: n }))
+
+      // Create update changes for nodes that exist in both but may have changed
+      const nodeUpdateChanges: NodeChange[] = entry.nodesBefore
+        .filter(n => currentNodeIds.has(n.id))
+        .flatMap(n => {
+          const current = currentNodes.find(cn => cn.id === n.id)
+          // Check if position changed
+          if (
+            current &&
+            (current.position.x !== n.position.x || current.position.y !== n.position.y)
+          ) {
+            return [
+              {
+                type: 'position' as const,
+                id: n.id,
+                position: n.position,
+                dragging: false,
+              },
+            ]
+          }
+          return []
+        })
+
+      const allNodeChanges = [...nodeRemoveChanges, ...nodeAddChanges, ...nodeUpdateChanges]
+
+      // Similar for edges
+      const edgeIdsToKeep = new Set(entry.edgesBefore.map(e => e.id))
+      const edgeRemoveChanges: EdgeChange[] = currentEdges
+        .filter(e => !edgeIdsToKeep.has(e.id))
+        .map(e => ({ type: 'remove' as const, id: e.id }))
+
+      const currentEdgeIds = new Set(currentEdges.map(e => e.id))
+      const edgeAddChanges: EdgeChange[] = entry.edgesBefore
+        .filter(e => !currentEdgeIds.has(e.id))
+        .map(e => ({ type: 'add' as const, item: e }))
+
+      const allEdgeChanges = [...edgeRemoveChanges, ...edgeAddChanges]
+
+      debugHistoryUndo('Applying undo changes: %O', {
+        nodeChanges: allNodeChanges.map(c => c.type),
+        edgeChanges: allEdgeChanges.map(c => c.type),
+      })
+
+      // Apply changes through the original handlers (which will sync external state)
+      // We use the original handlers stored in refs to bypass our interception
+      if (allNodeChanges.length > 0 && originalOnNodesChangeRef.current) {
+        originalOnNodesChangeRef.current(allNodeChanges)
+      }
+      if (allEdgeChanges.length > 0 && originalOnEdgesChangeRef.current) {
+        originalOnEdgesChangeRef.current(allEdgeChanges)
+      }
+
+      // Restore timeline state if the entry has a snapshot
+      if (entry.timelineStateBefore) {
+        try {
+          const timelineStore = getTimelineStore()
+          timelineStore.fromTimelineJSON(JSON.parse(entry.timelineStateBefore))
+        } catch (e) {
+          console.error('[Noodles] Failed to restore timeline state:', e)
+          debugHistory('Failed to restore timeline state during undo', e)
+        }
+      }
+
+      // Restore operator property values if the entry has a snapshot
+      if (entry.operatorStateBefore) {
+        applyOperatorInputs(entry.operatorStateBefore)
+      }
+
+      setUndoRedoState(prev => ({
+        ...prev,
+        currentIndex: prev.currentIndex - 1,
+      }))
     })
-  }, [currentIndex, history, getSnapshot])
+  }, [getSnapshot, flushPendingEntries, runRestore, setUndoRedoState])
 
   const redo = useCallback(() => {
+    flushPendingEntries()
+    const { history, currentIndex } = stateRef.current
     if (currentIndex >= history.length - 1) return
 
     const entry = history[currentIndex + 1]
-    isRestoringRef.current = true
-
     debugHistoryRedo('Redoing: %s', entry.description)
-
-    if (entry.lockChange) {
-      redoLockChange(entry.lockChange)
-      setUndoRedoState(prev => ({ ...prev, currentIndex: prev.currentIndex + 1 }))
-      queueMicrotask(() => {
-        isRestoringRef.current = false
-      })
-      return
-    }
-
-    // Calculate the changes needed to restore the "after" state
-    const { nodes: currentNodes, edges: currentEdges } = getSnapshot()
-
-    // Create remove changes for nodes that exist now but shouldn't
-    const nodeIdsToKeep = new Set(entry.nodesAfter.map(n => n.id))
-    const nodeRemoveChanges: NodeChange[] = currentNodes
-      .filter(n => !nodeIdsToKeep.has(n.id))
-      .map(n => ({ type: 'remove' as const, id: n.id }))
-
-    // Create add changes for nodes that should exist but don't
-    const currentNodeIds = new Set(currentNodes.map(n => n.id))
-    const nodeAddChanges: NodeChange[] = entry.nodesAfter
-      .filter(n => !currentNodeIds.has(n.id))
-      .map(n => ({ type: 'add' as const, item: n }))
-
-    // Create update changes for nodes that exist in both but may have changed
-    const nodeUpdateChanges: NodeChange[] = entry.nodesAfter
-      .filter(n => currentNodeIds.has(n.id))
-      .flatMap(n => {
-        const current = currentNodes.find(cn => cn.id === n.id)
-        // Check if position changed
-        if (
-          current &&
-          (current.position.x !== n.position.x || current.position.y !== n.position.y)
-        ) {
-          return [
-            {
-              type: 'position' as const,
-              id: n.id,
-              position: n.position,
-              dragging: false,
-            },
-          ]
-        }
-        return []
-      })
-
-    const allNodeChanges = [...nodeRemoveChanges, ...nodeAddChanges, ...nodeUpdateChanges]
-
-    // Similar for edges
-    const edgeIdsToKeep = new Set(entry.edgesAfter.map(e => e.id))
-    const edgeRemoveChanges: EdgeChange[] = currentEdges
-      .filter(e => !edgeIdsToKeep.has(e.id))
-      .map(e => ({ type: 'remove' as const, id: e.id }))
-
-    const currentEdgeIds = new Set(currentEdges.map(e => e.id))
-    const edgeAddChanges: EdgeChange[] = entry.edgesAfter
-      .filter(e => !currentEdgeIds.has(e.id))
-      .map(e => ({ type: 'add' as const, item: e }))
-
-    const allEdgeChanges = [...edgeRemoveChanges, ...edgeAddChanges]
-
-    debugHistoryRedo('Applying redo changes: %O', {
-      nodeChanges: allNodeChanges.map(c => c.type),
-      edgeChanges: allEdgeChanges.map(c => c.type),
-    })
-
-    // Apply changes through the original handlers (which will sync external state)
-    // We use the original handlers stored in refs to bypass our interception
-    if (allNodeChanges.length > 0 && originalOnNodesChangeRef.current) {
-      originalOnNodesChangeRef.current(allNodeChanges)
-    }
-    if (allEdgeChanges.length > 0 && originalOnEdgesChangeRef.current) {
-      originalOnEdgesChangeRef.current(allEdgeChanges)
-    }
-
-    // Restore timeline state if the entry has a snapshot
-    if (entry.timelineStateAfter) {
-      try {
-        const timelineStore = getTimelineStore()
-        timelineStore.fromTimelineJSON(JSON.parse(entry.timelineStateAfter))
-      } catch (e) {
-        console.error('[Noodles] Failed to restore timeline state:', e)
-        debugHistory('Failed to restore timeline state during redo', e)
+    runRestore(() => {
+      if (entry.lockChange) {
+        redoLockChange(entry.lockChange)
+        setUndoRedoState(prev => ({ ...prev, currentIndex: prev.currentIndex + 1 }))
+        return
       }
-    }
 
-    // Restore operator property values if the entry has a snapshot
-    if (entry.operatorStateAfter) {
-      applyOperatorInputs(entry.operatorStateAfter)
-    }
+      // Calculate the changes needed to restore the "after" state
+      const { nodes: currentNodes, edges: currentEdges } = getSnapshot()
 
-    setUndoRedoState(prev => ({
-      ...prev,
-      currentIndex: prev.currentIndex + 1,
-    }))
+      // Create remove changes for nodes that exist now but shouldn't
+      const nodeIdsToKeep = new Set(entry.nodesAfter.map(n => n.id))
+      const nodeRemoveChanges: NodeChange[] = currentNodes
+        .filter(n => !nodeIdsToKeep.has(n.id))
+        .map(n => ({ type: 'remove' as const, id: n.id }))
 
-    // Use queueMicrotask to reset flag after all synchronous state updates complete
-    queueMicrotask(() => {
-      isRestoringRef.current = false
+      // Create add changes for nodes that should exist but don't
+      const currentNodeIds = new Set(currentNodes.map(n => n.id))
+      const nodeAddChanges: NodeChange[] = entry.nodesAfter
+        .filter(n => !currentNodeIds.has(n.id))
+        .map(n => ({ type: 'add' as const, item: n }))
+
+      // Create update changes for nodes that exist in both but may have changed
+      const nodeUpdateChanges: NodeChange[] = entry.nodesAfter
+        .filter(n => currentNodeIds.has(n.id))
+        .flatMap(n => {
+          const current = currentNodes.find(cn => cn.id === n.id)
+          // Check if position changed
+          if (
+            current &&
+            (current.position.x !== n.position.x || current.position.y !== n.position.y)
+          ) {
+            return [
+              {
+                type: 'position' as const,
+                id: n.id,
+                position: n.position,
+                dragging: false,
+              },
+            ]
+          }
+          return []
+        })
+
+      const allNodeChanges = [...nodeRemoveChanges, ...nodeAddChanges, ...nodeUpdateChanges]
+
+      // Similar for edges
+      const edgeIdsToKeep = new Set(entry.edgesAfter.map(e => e.id))
+      const edgeRemoveChanges: EdgeChange[] = currentEdges
+        .filter(e => !edgeIdsToKeep.has(e.id))
+        .map(e => ({ type: 'remove' as const, id: e.id }))
+
+      const currentEdgeIds = new Set(currentEdges.map(e => e.id))
+      const edgeAddChanges: EdgeChange[] = entry.edgesAfter
+        .filter(e => !currentEdgeIds.has(e.id))
+        .map(e => ({ type: 'add' as const, item: e }))
+
+      const allEdgeChanges = [...edgeRemoveChanges, ...edgeAddChanges]
+
+      debugHistoryRedo('Applying redo changes: %O', {
+        nodeChanges: allNodeChanges.map(c => c.type),
+        edgeChanges: allEdgeChanges.map(c => c.type),
+      })
+
+      // Apply changes through the original handlers (which will sync external state)
+      // We use the original handlers stored in refs to bypass our interception
+      if (allNodeChanges.length > 0 && originalOnNodesChangeRef.current) {
+        originalOnNodesChangeRef.current(allNodeChanges)
+      }
+      if (allEdgeChanges.length > 0 && originalOnEdgesChangeRef.current) {
+        originalOnEdgesChangeRef.current(allEdgeChanges)
+      }
+
+      // Restore timeline state if the entry has a snapshot
+      if (entry.timelineStateAfter) {
+        try {
+          const timelineStore = getTimelineStore()
+          timelineStore.fromTimelineJSON(JSON.parse(entry.timelineStateAfter))
+        } catch (e) {
+          console.error('[Noodles] Failed to restore timeline state:', e)
+          debugHistory('Failed to restore timeline state during redo', e)
+        }
+      }
+
+      // Restore operator property values if the entry has a snapshot
+      if (entry.operatorStateAfter) {
+        applyOperatorInputs(entry.operatorStateAfter)
+      }
+
+      setUndoRedoState(prev => ({
+        ...prev,
+        currentIndex: prev.currentIndex + 1,
+      }))
     })
-  }, [currentIndex, history, getSnapshot])
+  }, [getSnapshot, flushPendingEntries, runRestore, setUndoRedoState])
 
   const canUndo =
     currentIndex >= 0 && currentIndex < history.length && history[currentIndex] != null
@@ -579,7 +622,7 @@ export function useUndoRedo(options?: UseUndoRedoOptions) {
   // Record a pure timeline change (no node/edge changes) into the unified history
   const recordTimelineChange = useCallback(
     (desc: string, timelineStateBefore: string, timelineStateAfter: string) => {
-      if (isRestoringRef.current) return
+      if (isRestoring()) return
       const { nodes, edges } = getSnapshot()
       const entry: HistoryEntry = {
         id: crypto.randomUUID(),
@@ -606,7 +649,7 @@ export function useUndoRedo(options?: UseUndoRedoOptions) {
         return { history: finalHistory, currentIndex: newIndex }
       })
     },
-    [getSnapshot]
+    [getSnapshot, isRestoring, setUndoRedoState]
   )
 
   // Record a pure operator property change (no node/edge/timeline changes) into the unified history
@@ -617,7 +660,7 @@ export function useUndoRedo(options?: UseUndoRedoOptions) {
       operatorStateAfter: string,
       options?: PropertyMutationOptions
     ) => {
-      if (isRestoringRef.current) return
+      if (isRestoring()) return
       const { nodes, edges } = getSnapshot()
       const timelineState = captureTimelineState()
       const timestamp = Date.now()
@@ -680,13 +723,13 @@ export function useUndoRedo(options?: UseUndoRedoOptions) {
         return { history: finalHistory, currentIndex: newIndex }
       })
     },
-    [getSnapshot]
+    [getSnapshot, isRestoring, setUndoRedoState]
   )
 
   // Record an operator lock or unlock into the unified history
   const recordLockChange = useCallback(
     (desc: string, lockChange: LockChange) => {
-      if (isRestoringRef.current) return
+      if (isRestoring()) return
       const { nodes, edges } = getSnapshot()
       const entry: HistoryEntry = {
         id: crypto.randomUUID(),
@@ -712,7 +755,7 @@ export function useUndoRedo(options?: UseUndoRedoOptions) {
         return { history: finalHistory, currentIndex: newIndex }
       })
     },
-    [getSnapshot]
+    [getSnapshot, isRestoring, setUndoRedoState]
   )
 
   // Run a batch of graph edits made outside the change handlers (an accepted
@@ -721,7 +764,7 @@ export function useUndoRedo(options?: UseUndoRedoOptions) {
   // because setNodes / setEdges reach the store after the caller returns.
   const recordGraphMutation = useCallback(
     (description: string, mutate: () => void) => {
-      if (isRestoringRef.current) {
+      if (isRestoring()) {
         mutate()
         return
       }
@@ -730,7 +773,7 @@ export function useUndoRedo(options?: UseUndoRedoOptions) {
       const timelineState = captureTimelineState()
       mutate()
 
-      setTimeout(() => {
+      deferEntry(() => {
         const after = getSnapshot()
         const operatorStateAfter = captureOperatorInputs() ?? undefined
         const changed =
@@ -762,9 +805,9 @@ export function useUndoRedo(options?: UseUndoRedoOptions) {
           const finalHistory = history.slice(-maxHistorySize)
           return { history: finalHistory, currentIndex: finalHistory.length - 1 }
         })
-      }, 0)
+      })
     },
-    [getSnapshot]
+    [getSnapshot, isRestoring, deferEntry, setUndoRedoState]
   )
 
   return {
@@ -773,17 +816,18 @@ export function useUndoRedo(options?: UseUndoRedoOptions) {
     canUndo: () => canUndo,
     canRedo: () => canRedo,
     getState: () => state,
-    isRestoring: () => isRestoringRef.current,
+    isRestoring,
     recordTimelineChange,
     recordPropertyChange,
     recordLockChange,
     recordGraphMutation,
     history,
     clear: () => {
-      setUndoRedoState({
+      pendingEntriesRef.current.clear()
+      setUndoRedoState(() => ({
         history: [],
         currentIndex: -1,
-      })
+      }))
     },
   }
 }
