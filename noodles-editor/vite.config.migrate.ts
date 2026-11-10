@@ -14,6 +14,7 @@ export default defineConfig({
       external: [
         'node:fs/promises',
         'node:path',
+        'node:util',
         // External all UI/React dependencies to avoid bundling them
         'react',
         'react-dom',
@@ -37,6 +38,8 @@ export default defineConfig({
   plugins: [
     nodePolyfills({
       protocolImports: true,
+      // The script runs in Node: the shim's process has no argv, env or exitCode
+      globals: { process: false },
     }),
   ],
 })

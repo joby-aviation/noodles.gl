@@ -6,9 +6,11 @@ import type {
   Diagnostic,
   OperatorInfo,
   PortType,
+  Profile,
   Registry,
   Rule,
   Severity,
+  ValidateOptions,
   ValidationResult,
 } from './types.ts'
 
@@ -28,14 +30,22 @@ interface NodeRecord {
   def?: OperatorInfo
 }
 
-export function validateProject(project: unknown, registry: Registry): ValidationResult {
-  const diagnostics = lintProject(project, registry)
+export function validateProject(
+  project: unknown,
+  registry: Registry,
+  options: ValidateOptions = {}
+): ValidationResult {
+  const diagnostics = lintProject(project, registry, options)
   const errors = diagnostics.filter(d => d.severity === 'error')
   const warnings = diagnostics.filter(d => d.severity === 'warning')
   return { valid: errors.length === 0, errors, warnings }
 }
 
-export function lintProject(project: unknown, registry: Registry): Diagnostic[] {
+export function lintProject(
+  project: unknown,
+  registry: Registry,
+  { profile = 'examples' }: ValidateOptions = {}
+): Diagnostic[] {
   const out: Diagnostic[] = []
   const report: Report = (severity, rule, at, message, id) =>
     out.push({ severity, rule, at, message, ...(id !== undefined && { id }) })
@@ -49,7 +59,7 @@ export function lintProject(project: unknown, registry: Registry): Diagnostic[] 
     )
     return out
   }
-  if (!checkVersion(project, registry, report)) return out
+  if (!checkVersion(project, registry, profile, report)) return out
 
   if (typeof project.name !== 'string') {
     report('error', 'project-shape', 'name', 'name is missing. A document has "name": "<project>".')
@@ -64,7 +74,7 @@ export function lintProject(project: unknown, registry: Registry): Diagnostic[] 
     )
   } else {
     project.nodes.forEach((node, index) => {
-      checkNode(node, index, registry, nodes, report)
+      checkNode(node, index, registry, nodes, profile, report)
     })
     checkNetworks(nodes, report)
     for (const node of nodes.values()) checkParams(node, nodes, report)
@@ -85,7 +95,12 @@ export function lintProject(project: unknown, registry: Registry): Diagnostic[] 
 }
 
 // False when the rest of the file can't be checked as a document
-function checkVersion(project: Json, registry: Registry, report: Report): boolean {
+function checkVersion(
+  project: Json,
+  registry: Registry,
+  profile: Profile,
+  report: Report
+): boolean {
   const { version } = project
   const current = registry.documentVersion
   if (typeof version !== 'number' || !Number.isInteger(version)) {
@@ -99,11 +114,14 @@ function checkVersion(project: Json, registry: Registry, report: Report): boolea
   }
   if (version === current && !isOperatorGraph(project)) return true
   if (version >= 1 && version <= registry.convertsFrom) {
+    // The editor converts an operator-graph file when it opens, so another project in that
+    // format still loads: it is out of date rather than broken. The bundled examples are
+    // documents, and one that isn't is an error.
     report(
-      'warning',
+      profile === 'external' ? 'warning' : 'error',
       'operator-graph',
       'version',
-      `This is an operator-graph file (schema ${version}), the format before documents. The editor converts it when it opens; open it and save to write it as a document. Only documents are checked further: nodes with "op" and "params", edges with "sourcePort" and "targetPort".`
+      `This is an operator-graph file (schema ${version}), the format before documents. The editor converts it when it opens; open it and save to write it as a document, rather than editing it by hand. Until then only its JSON${profile === 'external' ? ', version and data files are' : ' and version are'} checked: the rest checks documents, with nodes that have "op" and "params" and edges with "sourcePort" and "targetPort".`
     )
     return false
   }
@@ -131,6 +149,7 @@ function checkNode(
   index: number,
   registry: Registry,
   nodes: Map<string, NodeRecord>,
+  profile: Profile,
   report: Report
 ) {
   const at = `nodes[${index}]`
@@ -191,8 +210,9 @@ function checkNode(
     report('error', 'unknown-operator', at, `${id}: ${unknownType(op, registry)}`, id)
     return
   }
-  // The editor names a new node after its operator: scatter1, file2. A name says what it holds
-  if (new RegExp(`^${op.replace(/[^\w]/g, '_')}\\d+$`).test(name)) {
+  // The editor names a new node after its operator: scatter1, file2. A name says what it
+  // holds. A style rule for the examples people learn from, so not for other projects
+  if (profile === 'examples' && new RegExp(`^${op.replace(/[^\w]/g, '_')}\\d+$`).test(name)) {
     report(
       'warning',
       'generic-node-name',

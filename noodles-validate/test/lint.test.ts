@@ -70,19 +70,25 @@ describe('validateProject', () => {
   })
 
   describe('version', () => {
-    it('warns, and checks nothing else, on an operator-graph file', () => {
+    it('checks nothing else on an operator-graph file: an error in the examples, else a warning', () => {
       const old = {
         version: 19,
         nodes: [{ id: '/a', type: 'NopeOp', data: {} }],
         edges: [],
       }
-      const result = validateProject(old, registry)
-      assert.equal(result.valid, true)
+      const example = validateProject(old, registry)
+      assert.equal(example.valid, false)
       assert.deepEqual(
-        result.warnings.map(d => d.rule),
+        example.errors.map(d => d.rule),
         ['operator-graph']
       )
-      assert.match(result.warnings[0].message, /converts it when it opens/)
+      assert.match(example.errors[0].message, /converts it when it opens/)
+      const other = validateProject(old, registry, { profile: 'external' })
+      assert.equal(other.valid, true)
+      assert.deepEqual(
+        other.warnings.map(d => d.rule),
+        ['operator-graph']
+      )
     })
 
     it('tells schema 1 of the operator graph from a document by its nodes', () => {

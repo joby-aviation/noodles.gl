@@ -63,6 +63,14 @@ export class DocStore {
 
   get = (): EditorState => this.state
 
+  /**
+   * A save wrote the project as it was at `revision`. A change made while it was writing keeps
+   * the project unsaved, so autosave and the leave-page warning still see it.
+   */
+  markSaved(revision: number): void {
+    if (this.state.revision === revision) this.set({ dirty: false })
+  }
+
   subscribe = (listener: Listener): (() => void) => {
     this.listeners.add(listener)
     return () => this.listeners.delete(listener)
@@ -71,7 +79,11 @@ export class DocStore {
   /** View state: never an undo step. */
   set(patch: Partial<EditorState> | ((s: EditorState) => Partial<EditorState>)): void {
     const next = typeof patch === 'function' ? patch(this.state) : patch
-    this.state = { ...this.state, ...next }
+    // A patch that sets the revision itself (changed, load) counts it once; any other patch
+    // that marks the project unsaved counts as one more change
+    const revision =
+      next.revision ?? (next.dirty === true ? this.state.revision + 1 : this.state.revision)
+    this.state = { ...this.state, ...next, revision }
     for (const l of this.listeners) l()
   }
 
@@ -106,11 +118,6 @@ export class DocStore {
    */
   changed(patch: Partial<EditorState> = {}): void {
     this.set(s => ({ ...patch, dirty: true, revision: s.revision + 1 }))
-  }
-
-  /** The project file now holds `revision`: clean, unless something changed since. */
-  saved(revision: number): void {
-    if (revision === this.state.revision && this.state.dirty) this.set({ dirty: false })
   }
 
   /** Replace the document outright, e.g. opening a project. Clears history. */

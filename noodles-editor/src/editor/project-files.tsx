@@ -66,7 +66,16 @@ const stillOpen = (saved: Snapshot) => docStore().get().loadId === saved.loadId
 function markSaved(saved: Snapshot) {
   if (!stillOpen(saved)) return
   getKeysStore().markProjectKeysSaved(saved.keys)
-  docStore().saved(saved.revision)
+  docStore().markSaved(saved.revision)
+}
+
+// Saves run one at a time, so a manual save and an autosave never write at once and each
+// reads the project when it starts
+let saving: Promise<unknown> = Promise.resolve()
+export function queueSave<T>(run: () => Promise<T>): Promise<T> {
+  const next = saving.then(run)
+  saving = next.catch(() => undefined)
+  return next
 }
 
 const isAbort = (error: unknown) => error instanceof Error && error.name === 'AbortError'
@@ -122,34 +131,38 @@ export function useProjectFiles({
     [navigate]
   )
 
-  const onSaveProject = useCallback(async () => {
-    if (!projectName) return
-    // An example or a new project is only in memory until the user picks a folder for it
-    if (storageType === 'memory') {
-      try {
-        const directory = await selectDirectory()
-        if (!(await requestPermission(directory, 'readwrite'))) return
+  const onSaveProject = useCallback(
+    () =>
+      queueSave(async () => {
+        if (!projectName) return
+        // An example or a new project is only in memory until the user picks a folder for it
+        if (storageType === 'memory') {
+          try {
+            const directory = await selectDirectory()
+            if (!(await requestPermission(directory, 'readwrite'))) return
+            const saved = snapshot()
+            await writeFileToDirectory(directory, 'noodles.json', safeStringify(saved.json))
+            await copyMemoryDataToDirectory(projectName, directory)
+            await savedTo(directory, directory.name, 'move', saved)
+            memoryProjectStore.deleteProject(projectName)
+            analytics.track('project_saved', { storageType: 'memory', promoted: true })
+          } catch (error) {
+            if (!isAbort(error)) reportError('Error saving project', error)
+          }
+          return
+        }
         const saved = snapshot()
-        await writeFileToDirectory(directory, 'noodles.json', safeStringify(saved.json))
-        await copyMemoryDataToDirectory(projectName, directory)
-        await savedTo(directory, directory.name, 'move', saved)
-        memoryProjectStore.deleteProject(projectName)
-        analytics.track('project_saved', { storageType: 'memory', promoted: true })
-      } catch (error) {
-        if (!isAbort(error)) reportError('Error saving project', error)
-      }
-      return
-    }
-    const saved = snapshot()
-    const result = await save(storageType, projectName, saved.json, new Map())
-    if (!result.success) {
-      setError(result.error)
-      return
-    }
-    if (stillOpen(saved)) setCurrentDirectory(result.data.directoryHandle, projectName)
-    markSaved(saved)
-    analytics.track('project_saved', { storageType })
-  }, [projectName, storageType, savedTo, reportError, setError, setCurrentDirectory])
+        const result = await save(storageType, projectName, saved.json, new Map())
+        if (!result.success) {
+          setError(result.error)
+          return
+        }
+        if (stillOpen(saved)) setCurrentDirectory(result.data.directoryHandle, projectName)
+        markSaved(saved)
+        analytics.track('project_saved', { storageType })
+      }),
+    [projectName, storageType, savedTo, reportError, setError, setCurrentDirectory]
+  )
 
   // Save As, step 1: pick the folder, then ask what to bring along
   const onSaveAs = useCallback(async () => {

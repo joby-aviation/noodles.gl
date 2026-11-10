@@ -179,7 +179,7 @@ export function createServer({ repoRoot, cwd }: Context): McpServer {
     'validate_project',
     {
       description:
-        'Check a noodles.json document against the operator registry: operators, parameters, ports, wire types, names, references, loops. Every error says how to fix it. Call it after each edit; when valid is true, the file is done.',
+        'Check a noodles.json document against the operator registry: operators, parameters, ports, wire types, names, references, loops, and for a file outside the bundled examples, that its @/ data files exist. Every error says how to fix it. Call it after each edit; when valid is true, the file is done.',
       inputSchema: {
         path: z
           .string()
@@ -204,7 +204,9 @@ export function createServer({ repoRoot, cwd }: Context): McpServer {
         } catch {
           return fail(`No file at ${file}.`)
         }
-        result = validateFile(file, registry)
+        result = validateFile(file, registry, {
+          examplesDir: join(repoRoot, 'noodles-editor/src/examples'),
+        })
       } else if (typeof project === 'string') {
         let parsed: unknown
         try {
@@ -223,11 +225,18 @@ export function createServer({ repoRoot, cwd }: Context): McpServer {
   return server
 }
 
-function summarize({ valid, errors, warnings }: ValidationResult, registry: Registry): string {
+function summarize(
+  { valid, errors, warnings, partial }: ValidationResult,
+  registry: Registry
+): string {
   const warned = warnings.length > 0 ? ` (${count(warnings.length, 'warning')})` : ''
+  const behind = partial
+    ? ' The file is an operator-graph file, the format before documents, so only its JSON, version and data files were checked: open and save it in the editor to write it as a document, then validate again.'
+    : ''
+  if (valid && partial) return `PARTLY CHECKED:${behind}`
   return valid
     ? `OK: valid against ${Object.keys(registry.operators).length} operators, document version ${registry.documentVersion}${warned}. The file is done.`
-    : `FAIL: ${count(errors.length, 'error')}${warned}. Fix them and validate again.`
+    : `FAIL: ${count(errors.length, 'error')}${warned}. Fix them and validate again.${behind}`
 }
 
 function about(registry: Registry) {

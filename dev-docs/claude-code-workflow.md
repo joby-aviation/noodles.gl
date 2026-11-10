@@ -26,7 +26,9 @@ See the [Project Files section](../AGENTS.md#project-files) for the shape. Key p
 - `params` hold literals, `{ "expr": "..." }` or `{ "ref": "node/param" }`. Leave out
   parameters that keep their default.
 - The examples in `src/examples/` are documents. Older operator-graph files (`noodles.json`
-  schema 1 to 20) still open: they are migrated and converted when they load. The operator
+  schema 1 to 23) still open: they are migrated and converted when they load. To migrate such
+  files on disk, run `npm run migrate-projects -- <file or folder>` from `noodles-editor/` (see
+  [Migrating older project files](adding-operators.md#migrating-older-project-files)). The operator
   graphs the examples were are kept as conversion fixtures in `src/runtime/migrate/__fixtures__/`.
 - Examples open with one node selected so the parameter pane shows controls: the first layer
   wired into the deck's `layers`. To pick another root-level node, set
@@ -34,7 +36,7 @@ See the [Project Files section](../AGENTS.md#project-files) for the shape. Key p
 - The file shape is published as a JSON Schema at
   `https://noodles.gl/schema/noodles-project.schema.json` (generated from
   `src/noodles/utils/project-schema.ts` by `npm run generate:schema`), pinned per document
-  version at `noodles-document.v<N>.schema.json`. `noodles-project.v20.schema.json` is the
+  version at `noodles-document.v<N>.schema.json`. `noodles-project.v23.schema.json` is the
   older operator-graph format. The schema checks shape only; operators, parameters and ports
   are left to `validate:projects`.
 
@@ -47,6 +49,12 @@ references against the operator registry; `npm run validate:examples` checks eve
 The same check is the `validate_project` tool of the noodles MCP server. The headless check is
 `npm test -- src/runtime/migrate/examples.node.test.ts` from `noodles-editor/`, which converts,
 lowers and runs every example.
+
+A file outside `src/examples/` gets the external profile: an operator-graph file is a warning
+and is checked only for its JSON, version and `@/` data files until it's saved as a document,
+every `@/` file must exist in the project's `data/` folder, and `generic-node-name` is off. See
+[noodles-validate](../noodles-validate/README.md#projects-outside-the-examples) for the rules,
+`--external`/`--examples`, `--strict` and exit codes.
 
 ### Connecting Claude Code to a Running Browser Instance
 

@@ -7,6 +7,7 @@ import { docStore } from '../editor/doc-store'
 import { getKeysStore } from '../noodles/keys-store'
 import { AUTH_MESSAGE_TYPE } from '../noodles/openrouter-oauth'
 import { analytics } from '../utils/analytics'
+import { AcpSession } from './agent/acp/session'
 import { useAgentModelStore } from './agent/model-store'
 import { DEFAULT_ANTHROPIC_MODEL } from './agent/providers/anthropic'
 import { DEFAULT_OPENROUTER_MODEL, resetOpenRouterCatalogue } from './agent/providers/openrouter'
@@ -301,6 +302,259 @@ describe('ChatPanel graph-edit proposals', () => {
     expect(screen.queryByLabelText('Proposed graph update')).toBeNull()
     expect(value()).toBe(1)
     expect((screen.getByRole('textbox') as HTMLTextAreaElement).disabled).toBe(false)
+  })
+})
+
+describe('ChatPanel turn lifecycle', () => {
+  const reply: ClaudeResponse = { message: 'Done.', toolCalls: [] }
+
+  beforeEach(() => {
+    getKeysStore().setBrowserKey('anthropic', 'sk-ant-test')
+    vi.spyOn(globalContextManager, 'waitForReady').mockResolvedValue({} as ContextLoader)
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  // A run that streams when the test says and, like a slow provider, keeps going
+  // after it is aborted until the test finishes it
+  function slowRun() {
+    const runs: {
+      onEvent: (event: { type: 'text_delta'; text: string }) => void
+      finish: (response: ClaudeResponse) => void
+    }[] = []
+    const sendSpy = vi.spyOn(AgentSession.prototype, 'send').mockImplementation(
+      params =>
+        new Promise(resolve => {
+          runs.push({
+            onEvent: event => params.onEvent?.(event),
+            finish: resolve,
+          })
+        })
+    )
+    return { runs, sendSpy }
+  }
+
+  async function renderReadyPanel() {
+    render(
+      <ReactFlowProvider>
+        <ChatPanel onClose={() => {}} isVisible />
+      </ReactFlowProvider>
+    )
+    await vi.waitFor(() => expect(screen.getByPlaceholderText('Ask for help...')).toBeTruthy())
+  }
+
+  async function send(text: string) {
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: text } })
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Send' }))
+    })
+  }
+
+  it('refuses a second send while a reply is in flight', async () => {
+    const { sendSpy } = slowRun()
+    await renderReadyPanel()
+
+    await send('First')
+    // The disabled textarea is what stops a user; the handler must refuse too,
+    // since Enter and the button both reach it
+    const textarea = screen.getByRole('textbox')
+    fireEvent.change(textarea, { target: { value: 'Second' } })
+    await act(async () => {
+      fireEvent.keyDown(textarea, { key: 'Enter' })
+    })
+
+    expect(sendSpy).toHaveBeenCalledTimes(1)
+  })
+
+  it('leaves a new conversation idle while the old reply is still stopping', async () => {
+    const { runs, sendSpy } = slowRun()
+    await renderReadyPanel()
+
+    await send('Set /number to 2')
+    act(() => runs[0].onEvent({ type: 'text_delta', text: 'Working on the old one' }))
+    expect(screen.getByText('Working on the old one')).toBeTruthy()
+
+    fireEvent.click(screen.getByTitle('Start New Conversation'))
+    act(() => runs[0].onEvent({ type: 'text_delta', text: ' and still going' }))
+
+    // Nothing of the old run shows in the new conversation, and nothing reads
+    // as a reply in progress
+    expect(screen.queryByText(/Working on the old one/)).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Stop' })).toBeNull()
+    expect((screen.getByRole('textbox') as HTMLTextAreaElement).disabled).toBe(false)
+
+    // The provider is still busy with the old run, so a send waits for it
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: 'New question' } })
+    expect((screen.getByRole('button', { name: 'Send' }) as HTMLButtonElement).disabled).toBe(true)
+
+    await act(async () => runs[0].finish(reply))
+    expect(screen.queryByText('Done.')).toBeNull()
+    expect((screen.getByRole('textbox') as HTMLTextAreaElement).value).toBe('New question')
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Send' }))
+    })
+    expect(sendSpy).toHaveBeenCalledTimes(2)
+    expect(screen.getByRole('button', { name: 'Stop' })).toBeTruthy()
+  })
+
+  it('does not let an old run that settles late end the reply after it', async () => {
+    const { runs } = slowRun()
+    await renderReadyPanel()
+
+    await send('Old question')
+    fireEvent.click(screen.getByTitle('Start New Conversation'))
+    await act(async () => runs[0].finish(reply))
+    await send('New question')
+    act(() => runs[1].onEvent({ type: 'text_delta', text: 'New reply so far' }))
+
+    expect(screen.getByText('New reply so far')).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Stop' })).toBeTruthy()
+
+    await act(async () => runs[1].finish(reply))
+    expect(screen.getByText('Done.')).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Stop' })).toBeNull()
+  })
+
+  it('leaves the panel idle when another project is opened mid-reply', async () => {
+    const { runs } = slowRun()
+    await renderReadyPanel()
+
+    await send('Set /number to 2')
+    act(() => runs[0].onEvent({ type: 'text_delta', text: 'Planning against the old graph' }))
+    act(() => docStore().load({ ...docStore().get().doc, name: 'other' }))
+
+    expect(screen.queryByText('Planning against the old graph')).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Stop' })).toBeNull()
+  })
+})
+
+describe('ChatPanel ACP turns', () => {
+  type ConnectOptions = Parameters<typeof AcpSession.connect>[0]
+  type PermissionAnswer = Promise<string | null>
+
+  beforeEach(() => {
+    getKeysStore().setAcpBridgeUrl('ws://localhost:7777/acp')
+    getKeysStore().setProviderPreference('acp')
+    vi.spyOn(globalContextManager, 'waitForReady').mockResolvedValue({} as ContextLoader)
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
+    getKeysStore().setAcpBridgeUrl(undefined)
+  })
+
+  // Stands in for the bridge: each connect hands back a session whose sends the
+  // test drives through the options the panel passed in
+  function fakeAgent() {
+    const connections: ConnectOptions[] = []
+    const sends: {
+      signal: AbortSignal
+      finish: (response: ClaudeResponse) => void
+      fail: (error: Error) => void
+    }[] = []
+    vi.spyOn(AcpSession, 'connect').mockImplementation(async options => {
+      connections.push(options)
+      return {
+        agentName: 'Fake agent',
+        models: [],
+        currentModel: undefined,
+        supportsImages: false,
+        send: (params: { signal?: AbortSignal }) =>
+          new Promise<ClaudeResponse>((finish, fail) => {
+            sends.push({ signal: params.signal as AbortSignal, finish, fail })
+          }),
+        reset() {},
+        dispose() {},
+      } as unknown as AcpSession
+    })
+    return { connections, sends }
+  }
+
+  async function renderAcpPanel() {
+    render(
+      <ReactFlowProvider>
+        <ChatPanel onClose={() => {}} isVisible />
+      </ReactFlowProvider>
+    )
+    await vi.waitFor(() => expect(screen.getByPlaceholderText('Ask for help...')).toBeTruthy())
+  }
+
+  async function send(text: string) {
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: text } })
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Send' }))
+    })
+  }
+
+  it('shows a permission request during the turn and drops it with the turn', async () => {
+    const { connections, sends } = fakeAgent()
+    await renderAcpPanel()
+    await send('Delete the layer')
+
+    let answer: PermissionAnswer = Promise.resolve('unset')
+    act(() => {
+      answer = connections[0].onPermissionRequest(
+        {
+          title: 'Run rm -rf build',
+          options: [{ optionId: 'allow', name: 'Allow', kind: 'allow_once' }],
+        } as never,
+        sends[0].signal
+      )
+    })
+    expect(screen.getByLabelText('Permission request')).toBeTruthy()
+
+    fireEvent.click(screen.getByTitle('Start New Conversation'))
+    expect(screen.queryByLabelText('Permission request')).toBeNull()
+    await expect(answer).resolves.toBeNull()
+  })
+
+  it('refuses a permission request when no turn of this conversation is running', async () => {
+    const { connections, sends } = fakeAgent()
+    await renderAcpPanel()
+    await send('Delete the layer')
+    const oldSignal = sends[0].signal
+    fireEvent.click(screen.getByTitle('Start New Conversation'))
+
+    // The old turn is still winding down and asks anyway; the new conversation
+    // never asked for it
+    let answer: PermissionAnswer = Promise.resolve('unset')
+    act(() => {
+      answer = connections[0].onPermissionRequest(
+        {
+          title: 'Run rm -rf build',
+          options: [{ optionId: 'allow', name: 'Allow', kind: 'allow_once' }],
+        } as never,
+        new AbortController().signal
+      )
+    })
+
+    expect(oldSignal.aborted).toBe(true)
+    expect(screen.queryByLabelText('Permission request')).toBeNull()
+    await expect(answer).resolves.toBeNull()
+  })
+
+  it('is ready to send again after the bridge drops mid-turn and Retry reconnects', async () => {
+    const { connections, sends } = fakeAgent()
+    await renderAcpPanel()
+    await send('Delete the layer')
+
+    // What AcpConnection does on a close: rejects the prompt, then reports it
+    act(() => {
+      sends[0].fail(new Error('The bridge closed the connection'))
+      connections[0].onDisconnect('The bridge closed the connection')
+    })
+    await vi.waitFor(() => expect(screen.getByRole('button', { name: 'Retry' })).toBeTruthy())
+
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
+    await vi.waitFor(() => expect(screen.getByPlaceholderText('Ask for help...')).toBeTruthy())
+
+    expect(screen.queryByRole('button', { name: 'Stop' })).toBeNull()
+    expect(screen.getByText('Error: The bridge closed the connection')).toBeTruthy()
+    await send('Try again')
+    expect(sends).toHaveLength(2)
   })
 })
 
