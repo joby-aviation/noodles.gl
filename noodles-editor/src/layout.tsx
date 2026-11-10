@@ -4,6 +4,8 @@ import type { PropsWithChildren, ReactNode } from 'react'
 import { Fragment, useEffect, useRef, useState } from 'react'
 import { Group, Panel, Separator, usePanelRef } from 'react-resizable-panels'
 import { DockablePane } from './components/dockable-pane'
+import { useEditor } from './editor/doc-store'
+import { PlanView } from './editor/plan-view'
 import { type MapMode, useUIStore } from './editor/ui-store'
 import {
   type AreaNode,
@@ -197,7 +199,13 @@ function SplitView({
 
 // Panels that hold a tool rather than the picture keep their pixel size when the window
 // resizes, so the map takes up the difference
-const FIXED_EDITORS = new Set<EditorType>(['layers', 'properties', 'timeline', 'spreadsheet'])
+const FIXED_EDITORS = new Set<EditorType>([
+  'layers',
+  'properties',
+  'timeline',
+  'spreadsheet',
+  'plan',
+])
 
 function ChildPanel({
   parent,
@@ -321,6 +329,8 @@ function AreaContent({ area, editors }: { area: AreaNode; editors: Editors }) {
       return editors.properties
     case 'spreadsheet':
       return editors.spreadsheet
+    case 'plan':
+      return <PlanView />
     case 'timeline':
       return editors.timeline ? (
         <Measured>{height => editors.timeline?.(height) ?? null}</Measured>
@@ -360,6 +370,7 @@ function AreaHeader({ area, canClose }: { area: AreaNode; canClose: boolean }) {
   const update = useWorkspaceStore(state => state.update)
   const tree = useWorkspaceStore(activeLayout)
   const current = EDITORS.find(e => e.type === area.editor)
+  const debug = useEditor(st => st.debug ?? false)
 
   const split = (orientation: SplitNode['orientation']) => {
     trackAreaEdited('split', area.editor)
@@ -378,7 +389,7 @@ function AreaHeader({ area, canClose }: { area: AreaNode; canClose: boolean }) {
         </DropdownMenu.Trigger>
         <DropdownMenu.Portal>
           <DropdownMenu.Content className={s.menu} align="start" sideOffset={2}>
-            {EDITORS.map(e => (
+            {EDITORS.filter(e => debug || !e.debug || e.type === area.editor).map(e => (
               <DropdownMenu.Item
                 key={e.type}
                 className={cx(s.menuItem, e.type === area.editor && s.menuItemCurrent)}
@@ -434,7 +445,8 @@ function AreaHeader({ area, canClose }: { area: AreaNode; canClose: boolean }) {
 
 function EmptyArea({ area }: { area: AreaNode }) {
   const tree = useWorkspaceStore(activeLayout)
-  const closed = EDITORS.filter(e => !hasEditor(tree, e.type))
+  const debug = useEditor(st => st.debug ?? false)
+  const closed = EDITORS.filter(e => !hasEditor(tree, e.type) && (debug || !e.debug))
   return (
     <div className={s.emptyArea}>
       {closed.length > 0 ? (

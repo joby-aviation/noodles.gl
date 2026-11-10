@@ -30,6 +30,7 @@ import { docStore, useEditor } from './doc-store'
 import { disconnectInput, driversFor, driveWith } from './drivers'
 import { ExpressionInput, useInputColumns } from './expression-input'
 import { NodeFields } from './field-adapter'
+import { startScrub } from './label-scrub'
 import { useParamLinkTarget } from './link-drag'
 import { ContextMenu, type MenuItem } from './menus'
 import { connections } from './param-links'
@@ -368,7 +369,24 @@ export function ParamRow({
           hint="Drag onto an output or a layer to read it"
         />
       )}
-      <div className={s.paramMain}>
+      <div
+        className={s.paramMain}
+        // Dragging a number's label sideways scrubs it; the drag is one undo step
+        onPointerDown={e => {
+          if (e.button !== 0 || !numeric || wired || mode !== 'literal') return
+          if (!(e.target as Element).closest('.field-label')) return
+          const from = Number(value ?? raw ?? def.default ?? 0)
+          // One tag per drag, so a later drag of the same parameter is its own step
+          const tag = `scrub:${key}:${e.timeStamp}`
+          startScrub(e, def, Number.isFinite(from) ? from : 0, v =>
+            docStore().edit(
+              d => setParam(d, node.id, def.name, v, docStore().get().time),
+              tag,
+              Number.POSITIVE_INFINITY
+            )
+          )
+        }}
+      >
         {wire ? (
           <div className={s.paramDriven}>
             <span className={s.paramLabel}>{label ?? def.label}</span>

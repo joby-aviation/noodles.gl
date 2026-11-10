@@ -21,6 +21,7 @@ import { subscribeToRenderSurfaceSize } from '../render/render-surface-size'
 import { Engine, type EngineVis } from '../runtime/engine'
 import { registerHostOperators } from '../runtime/host/host-ops'
 import { HostRunner } from '../runtime/host/host-runner'
+import type { RuntimeCounters } from '../runtime/program-runtime'
 import type { ProgramView } from '../runtime/worker/protocol'
 import { RuntimeProxy } from '../runtime/worker/runtime-proxy'
 import type { DocStore } from './doc-store'
@@ -65,6 +66,8 @@ export interface EngineState {
   status: EngineStatus
   lowered?: Lowered
   program?: ProgramView
+  /** What changes have cost since the engine started: compiles, layer queries, CPU passes. */
+  counters?: RuntimeCounters
   layers: LayerSummary[]
   /** Parameter values at the playhead, by `nodeId.param`. */
   slots: ReadonlyMap<string, unknown>
@@ -159,10 +162,13 @@ function openEngine(readAsset: (name: string) => Promise<Uint8Array>): Promise<E
 }
 
 /** The lowering, the program and what each layer drew, as the editor shows them. */
-function detailsOf(e: Engine): Pick<EngineState, 'lowered' | 'program' | 'layers' | 'slots'> {
+function detailsOf(
+  e: Engine
+): Pick<EngineState, 'lowered' | 'program' | 'counters' | 'layers' | 'slots'> {
   return {
     lowered: e.lowering(),
     program: e.runtime.program(),
+    counters: { ...e.runtime.counters },
     slots: e.slotValues(),
     layers: e.runtime.layers().map(l => ({
       id: l.id,

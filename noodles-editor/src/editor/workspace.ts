@@ -14,15 +14,23 @@ export type EditorType =
   | 'properties'
   | 'timeline'
   | 'spreadsheet'
+  | 'plan'
   | 'empty'
 
-export const EDITORS: { type: Exclude<EditorType, 'empty'>; label: string; icon: string }[] = [
+export const EDITORS: {
+  type: Exclude<EditorType, 'empty'>
+  label: string
+  icon: string
+  // Offered only in debug mode: planner internals users never see
+  debug?: boolean
+}[] = [
   { type: 'map', label: 'Map', icon: 'pi-map' },
   { type: 'graph', label: 'Node Graph', icon: 'pi-sitemap' },
   { type: 'layers', label: 'Layers', icon: 'pi-clone' },
   { type: 'properties', label: 'Properties', icon: 'pi-sliders-h' },
   { type: 'timeline', label: 'Timeline', icon: 'pi-clock' },
   { type: 'spreadsheet', label: 'Spreadsheet', icon: 'pi-table' },
+  { type: 'plan', label: 'Plan', icon: 'pi-code', debug: true },
 ]
 
 const EDITOR_TYPES = new Set<string>([...EDITORS.map(e => e.type), 'empty'])
@@ -312,6 +320,11 @@ const PLACEMENT: Record<
     near: ['layers'],
     beside: { orientation: 'vertical', side: 'after', share: 55 },
     edge: { orientation: 'horizontal', side: 'before', share: 22 },
+  },
+  plan: {
+    near: ['graph', 'map'],
+    beside: { orientation: 'horizontal', side: 'after', share: 35 },
+    edge: { orientation: 'horizontal', side: 'after', share: 30 },
   },
   map: {
     near: ['graph', 'timeline'],
