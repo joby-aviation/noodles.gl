@@ -443,6 +443,66 @@ describe('AcpSession.send', () => {
     expect(FakeAgent.current.methods()).not.toContain('session/prompt')
   })
 
+  it('starts a new session on the next send when starting one failed after a reset', async () => {
+    let failNext = false
+    const cooperative = agent()
+    const session = await connect((frame, a) => {
+      if (frame.method === 'session/new' && failNext) {
+        failNext = false
+        return a.push({
+          jsonrpc: '2.0',
+          id: frame.id,
+          error: { code: -32603, message: 'Internal error' },
+        })
+      }
+      cooperative(frame, a)
+    })
+    await session.send({ message: 'old conversation' })
+
+    session.reset()
+    failNext = true
+    await expect(session.send({ message: 'new' })).rejects.toThrow('Internal error')
+
+    // The old conversation must not leak into the new one
+    await session.send({ message: 'new again' })
+    const prompts = FakeAgent.current.sent.filter(f => f.method === 'session/prompt')
+    expect(prompts.at(-1)?.params?.sessionId).toBe('s2')
+    expect(promptText(prompts.at(-1) as Frame)).toContain('CORE PROMPT')
+  })
+
+  it('refuses a second send while the first is starting a new session', async () => {
+    const session = await connect(agent())
+    session.reset()
+    const first = session.send({ message: 'one' })
+    const second = session.send({ message: 'two' })
+    await expect(second).rejects.toThrow('A reply is already in progress')
+    await first
+    expect(FakeAgent.current.methods().filter(m => m === 'session/new')).toHaveLength(2)
+    expect(FakeAgent.current.methods().filter(m => m === 'session/prompt')).toHaveLength(1)
+  })
+
+  it('starts over after a reset made during a turn', async () => {
+    let resetMidTurn = () => {}
+    const session = await connect(
+      agent((frame, a) => {
+        resetMidTurn()
+        a.reply(frame, { stopReason: 'end_turn' })
+      })
+    )
+    resetMidTurn = () => session.reset()
+    await session.send({ message: 'one' })
+    resetMidTurn = () => {}
+    await session.send({ message: 'two' })
+    const prompts = FakeAgent.current.sent.filter(f => f.method === 'session/prompt')
+    expect(prompts.map(p => p.params?.sessionId)).toEqual(['s1', 's2'])
+  })
+
+  it('fails a send after the bridge went away instead of waiting forever', async () => {
+    const session = await connect(agent(), { onDisconnect: vi.fn() })
+    FakeAgent.current.close(CLOSE_AGENT_EXITED, 'The agent exited with code 1')
+    await expect(session.send({ message: 'hi' })).rejects.toThrow('The agent exited with code 1')
+  })
+
   it('refuses editor tools once the turn is stopped', async () => {
     const controller = new AbortController()
     const session = await connect(

@@ -266,7 +266,7 @@ describe('write_file', () => {
   })
 
   it('keeps the previous contents when it replaces a scratch file', async () => {
-    // Not undo — UndoRedoManager snapshots project JSON, not files — but a clobbered
+    // Not undo, which covers the graph and not files, but a clobbered
     // scratch file has to be recoverable, and the copy stays inside the sandbox
     await writeFile({ path: '.agent/out.csv', content: 'first\n' })
     const second = await writeFile({ path: '.agent/out.csv', content: 'second\n' })

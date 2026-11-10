@@ -32,6 +32,7 @@ import {
   validConnection,
 } from '../editor/doc-ops'
 import type { DocStore } from '../editor/doc-store'
+import { isRendering } from '../render/render-session'
 import type { Engine } from '../runtime/engine'
 import type { ToolResult } from './types'
 
@@ -649,6 +650,8 @@ export function getTimeline(ctx: DocToolContext): ToolResult {
       fps: doc.timeline?.fps ?? 30,
       position: ctx.playhead?.position() ?? ctx.store.get().time,
       playing: ctx.playhead?.playing() ?? false,
+      // An export drives the playhead until it finishes
+      exporting: isRendering(),
       tracks: (doc.timeline?.tracks ?? []).map(t => ({
         target: t.target,
         keyframes: t.keyframes.map(k => ({
@@ -728,6 +731,13 @@ export function setPlaybackPosition(
   ctx: DocToolContext,
   params: { position: number; play?: boolean }
 ): ToolResult {
+  if (isRendering()) {
+    return {
+      success: false,
+      error:
+        'An export is running and sets the playhead for each frame. Wait for it to finish (get_export_status follows an export_video run).',
+    }
+  }
   const { doc } = ctx.store.get()
   const length = doc.timeline?.length ?? 10
   const clamped = Math.max(0, Math.min(params.position, length))

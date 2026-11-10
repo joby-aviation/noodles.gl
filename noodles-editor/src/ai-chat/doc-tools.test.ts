@@ -2,6 +2,7 @@ import type { EditorDoc } from '@noodles.gl/planner'
 import { lowerDocument } from '@noodles.gl/planner'
 import { describe, expect, it } from 'vitest'
 import { DocStore } from '../editor/doc-store'
+import { beginRender } from '../render/render-session'
 import {
   applyModifications,
   type DocToolContext,
@@ -11,6 +12,7 @@ import {
   getTimeline,
   listNodes,
   setKeyframe,
+  setPlaybackPosition,
 } from './doc-tools'
 
 const doc = (): EditorDoc => ({
@@ -199,5 +201,24 @@ describe('operator schema', () => {
       ]),
     })
     expect(getOperatorSchema({ type: 'FileOp' }).error).toMatch(/Did you mean: file/)
+  })
+})
+
+describe('playback during an export', () => {
+  it('refuses to move the playhead and reports the export in get_timeline', () => {
+    const ctx = context()
+    ctx.store.set({ time: 1 })
+    const release = beginRender('video', 'menu')
+    try {
+      const result = setPlaybackPosition(ctx, { position: 0, play: true })
+      expect(result.success).toBe(false)
+      expect(result.error).toMatch(/export is running/)
+      expect(ctx.store.get().time).toBe(1)
+      expect((getTimeline(ctx).data as { exporting: boolean }).exporting).toBe(true)
+    } finally {
+      release?.()
+    }
+    expect(setPlaybackPosition(ctx, { position: 0 }).success).toBe(true)
+    expect((getTimeline(ctx).data as { exporting: boolean }).exporting).toBe(false)
   })
 })

@@ -48,6 +48,12 @@ The same check is the `validate_project` tool of the noodles MCP server. The hea
 `npm test -- src/runtime/migrate/examples.node.test.ts` from `noodles-editor/`, which converts,
 lowers and runs every example.
 
+A file outside `src/examples/` gets the external profile: an operator-graph file is a warning
+and is checked only for its JSON, version and `@/` data files until it's saved as a document,
+every `@/` file must exist in the project's `data/` folder, and `generic-node-name` is off. See
+[noodles-validate](../noodles-validate/README.md#projects-outside-the-examples) for the rules,
+`--external`/`--examples`, `--strict` and exit codes.
+
 ### Connecting Claude Code to a Running Browser Instance
 
 #### WebMCP
