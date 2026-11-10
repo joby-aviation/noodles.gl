@@ -235,6 +235,9 @@ function EdgeConnectionSynchronizer() {
   return null
 }
 
+const projectRoute = (routePrefix: string, name?: string | null) =>
+  name ? `${routePrefix}/${name}` : '/'
+
 export function getNoodles(): Visualization {
   const [location, navigate] = useLocation()
   const params = useParams()
@@ -247,6 +250,7 @@ export function getNoodles(): Visualization {
   const isExamplesRoute = routePrefix === '/examples'
   const isNewProjectRoute = projectName === 'new'
   const isProjectsRoute = routePrefix === '/projects' && !isNewProjectRoute
+  const currentProjectRoute = projectRoute(routePrefix, projectName)
 
   const [projectOpenProblem, setProjectOpenProblem] = useState<{
     reason: ProjectOpenProblem
@@ -920,8 +924,11 @@ export function getNoodles(): Visualization {
   // False while an undo/redo restore reloads the project, so the graph keeps its view
   const [fitViewOnLoad, setFitViewOnLoad] = useState(false)
 
-  // Track when we're programmatically loading a project to prevent useEffect from trying to reload
-  const isProgrammaticLoadRef = useRef(false)
+  // The route a loadProjectFile call is navigating to, so the URL effect skips that one
+  // load and no other. A load of the route already showing navigates nowhere and sets none.
+  const pendingLoadRouteRef = useRef<string | null>(null)
+  const currentProjectRouteRef = useRef(currentProjectRoute)
+  currentProjectRouteRef.current = currentProjectRoute
 
   // Ref to access undo/redo and copy/paste functionality from inside ReactFlow context
   const undoRedoRef = useRef<UndoRedoHandlerRef>(null)
@@ -1083,7 +1090,10 @@ export function getNoodles(): Visualization {
         project
 
       // Prevent the storage-loading useEffect from reloading when the URL changes below
-      isProgrammaticLoadRef.current = true
+      const effectiveRoutePrefix = targetRoutePrefix ?? routePrefix
+      const targetRoute = projectRoute(effectiveRoutePrefix, name)
+      pendingLoadRouteRef.current =
+        targetRoute === currentProjectRouteRef.current ? null : targetRoute
       // Signal the graphStructureKey effect to skip — transformGraph runs synchronously below
       isProjectLoadRef.current = true
 
@@ -1099,7 +1109,7 @@ export function getNoodles(): Visualization {
       const keysStore = getKeysStore()
       keysStore.setProjectKeys(
         apiKeys,
-        name === undefined ? undefined : keysProjectId(targetRoutePrefix ?? routePrefix, name)
+        name === undefined ? undefined : keysProjectId(effectiveRoutePrefix, name)
       )
 
       // Dispose all old operators cleanly (executionState.complete() + unsubscribeListeners)
@@ -1169,8 +1179,7 @@ export function getNoodles(): Visualization {
       // Render settings are now stored as OutOp inputs (migration 012 handles conversion)
 
       // Navigate to the project URL
-      const effectiveRoutePrefix = targetRoutePrefix ?? routePrefix
-      navigate(name ? `${effectiveRoutePrefix}/${name}` : '/', { replace: true })
+      navigate(targetRoute, { replace: true })
 
       setHasUnsavedChanges(false)
     },
@@ -1206,12 +1215,12 @@ export function getNoodles(): Visualization {
   // biome-ignore lint/correctness/useExhaustiveDependencies: loadProjectFile would cause infinite loop
   useEffect(() => {
     ;(async () => {
-      // If this is a programmatic load (from onNewProject, onImport, etc.),
-      // skip loading from storage to avoid showing the "Project Not Found" dialog
-      if (isProgrammaticLoadRef.current) {
-        isProgrammaticLoadRef.current = false
-        return
-      }
+      // If loadProjectFile (from onNewProject, onImport, etc.) navigated here, the project
+      // is already loaded; skip loading from storage to avoid the "Project Not Found" dialog.
+      // A route change it didn't make, like browser Back, loads as usual.
+      const pendingLoadRoute = pendingLoadRouteRef.current
+      pendingLoadRouteRef.current = null
+      if (pendingLoadRoute === currentProjectRoute) return
 
       // If no projectName, load the default new project
       if (!projectName) {
