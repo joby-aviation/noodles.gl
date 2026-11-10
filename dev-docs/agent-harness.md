@@ -540,8 +540,8 @@ path cannot clobber the dataset the project is built on.
 
 Two deviations from the plan, both deliberate:
 
-- **Writes are not in the undo stack.** `UndoRedoManager` snapshots
-  `projectState: NodesProjectJSON` and keeps 50 entries; putting file contents there
+- **Writes are not in the undo stack.** The undo stack (`useUndoRedo`) snapshots the
+  graph and keeps 50 entries; putting file contents there
   would make undo a memory problem. Instead, replacing a scratch file copies the
   previous contents to `@/.agent/.previous/<path>`, which is hidden from `list_files`
   and `grep_files` and is itself not writable. Combined with the write sandbox — which
