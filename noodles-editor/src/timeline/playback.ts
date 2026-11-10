@@ -1,5 +1,5 @@
 // Playback driver for the native timeline system
-// Provides smooth playback and manual mode for video rendering
+// Provides smooth playback; video rendering sets positions directly with goToFrame
 
 import { debugPlayback } from '../utils/debug'
 import { visibilityAdaptiveLoop } from '../utils/worker-timer'
@@ -14,12 +14,11 @@ export type PlaybackCallback = (deltaMs: number) => void
 export class PlaybackDriver {
   private cancelTick: (() => void) | null = null
   private lastTimestamp = 0
-  private manualMode = false
   private subscribers: Set<PlaybackCallback> = new Set()
 
   // Start the playback loop (~60fps, RAF when visible, worker timer when hidden)
   start(): void {
-    if (this.cancelTick !== null || this.manualMode) return
+    if (this.cancelTick !== null) return
 
     this.lastTimestamp = performance.now()
     this.cancelTick = visibilityAdaptiveLoop(this.tick, 1000 / 60)
@@ -44,36 +43,8 @@ export class PlaybackDriver {
     }
   }
 
-  // Enable or disable manual mode for video rendering
-  // In manual mode, the worker timer loop is disabled and ticks must be triggered manually
-  setManualMode(enabled: boolean): void {
-    this.manualMode = enabled
-    if (enabled) {
-      this.stop()
-    }
-  }
-
-  // Check if manual mode is enabled
-  isManualMode(): boolean {
-    return this.manualMode
-  }
-
-  // Manually trigger a tick with a specific timestamp (only works in manual mode)
-  manualTick(timestamp: number): void {
-    if (!this.manualMode) {
-      debugPlayback('manualTick called but manual mode is not enabled')
-      return
-    }
-
-    const delta = timestamp - this.lastTimestamp
-    this.lastTimestamp = timestamp
-    this.notifySubscribers(delta)
-  }
-
   // RAF/worker timer callback - advances position based on elapsed time
   private tick = (timestamp: number): void => {
-    if (this.manualMode) return
-
     const delta = timestamp - this.lastTimestamp
     this.lastTimestamp = timestamp
 
@@ -119,6 +90,14 @@ export function connectPlaybackToTimeline(): () => void {
     const startBoundary = loopInOut ? (sequence.inPoint ?? 0) : 0
     const endBoundary = loopInOut ? (sequence.outPoint ?? sequence.length) : sequence.length
 
+    // An empty range (zero length, or in/out loaded from a file that touch or cross)
+    // has nothing to play, and wrapping with % 0 would give NaN
+    if (endBoundary - startBoundary <= 0) {
+      store.setPosition(Math.min(startBoundary, endBoundary))
+      store.pause()
+      return
+    }
+
     // Handle end of playback range
     if (newPosition >= endBoundary) {
       if (loop) {
@@ -150,7 +129,7 @@ export function connectPlaybackToTimeline(): () => void {
   const unsubscribeStore = useTimelineStore.subscribe(
     state => state.playing,
     playing => {
-      if (playing && !playbackDriver.isManualMode()) {
+      if (playing) {
         playbackDriver.start()
       } else {
         playbackDriver.stop()
@@ -160,7 +139,7 @@ export function connectPlaybackToTimeline(): () => void {
 
   // Start immediately if already playing
   const store = getTimelineStore()
-  if (store.playing && !playbackDriver.isManualMode()) {
+  if (store.playing) {
     playbackDriver.start()
   }
 
