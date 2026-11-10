@@ -2,7 +2,7 @@
 // and hands the editor layout its network, properties panel and visualization. It replaces
 // the operator-graph editor (`noodles/noodles.tsx`), which is deleted once nothing reads it.
 
-import { type EditorDoc, OPERATOR_INDEX } from '@noodles.gl/planner'
+import { OPERATOR_INDEX } from '@noodles.gl/planner'
 import { PrimeReactProvider } from 'primereact/api'
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useParams } from 'wouter'
@@ -16,12 +16,7 @@ import { SidebarTabs } from '../noodles/components/sidebar-tabs'
 import { CanvasDropImport } from '../noodles/components/tools/canvas-drop-import'
 import { useActiveStorageType, useFileSystemStore } from '../noodles/filesystem-store'
 import newProjectJSON from '../noodles/new.json'
-import {
-  copyExampleAssetsToMemory,
-  load,
-  openFailureReason,
-  readAssetBinary,
-} from '../noodles/storage'
+import { readAssetBinary } from '../noodles/storage'
 import { createProjectFromSQL, takeCreateFromSQLRequest } from '../noodles/utils/create-from-sql'
 import { shouldAutosave, supportsVersioning, useGitSettings } from '../noodles/utils/git-settings'
 import { memoryProjectStore } from '../noodles/utils/memory-project-store'
@@ -30,7 +25,6 @@ import {
   type RenderSettings,
   saveProjectLocally,
 } from '../noodles/utils/serialization'
-import { expandTimelineIfAnimated } from '../noodles/utils/timeline-panel'
 import { TimelineProvider } from '../timeline/timeline-context'
 import { getTimelineStore, useTimelineStore } from '../timeline/timeline-store'
 import { analytics } from '../utils/analytics'
@@ -43,22 +37,16 @@ import { getUIStore } from './ui-store'
 import { setEditorShown, useEditorShown } from './workspace-store'
 import '../noodles/layers.css'
 import { agentBench, externalControl } from '../noodles/globals'
-import {
-  getKeysStore,
-  type KeysConfig,
-  keysProjectId,
-  syncKeysAcrossTabs,
-  useKeysStore,
-} from '../noodles/keys-store'
+import { syncKeysAcrossTabs, useKeysStore } from '../noodles/keys-store'
 import { trackChatClosed, trackChatOpened } from '../noodles/utils/editor-analytics'
 import { claimStarterSelection, findStarterNodeId } from '../noodles/utils/starter-node'
 import { DocProperties } from './doc-properties'
 import { docStore, useEditor } from './doc-store'
-import { bindTimeline, resetTimelinePanel } from './doc-timeline'
+import { bindTimeline } from './doc-timeline'
 import type { CopyControlsRef, UndoRedoHandlerRef } from './edit-menu'
 import { historyShortcut } from './edit-menu'
-import { loadDoc } from './load-doc'
 import { useProjectFiles } from './project-files'
+import { closeProject, openFile, openRoute, routePath } from './project-open'
 import { DOC_DECK, renderSettingsOf } from './render-settings'
 
 const ChatPanel = lazy(() => import('../ai-chat/chat-panel').then(m => ({ default: m.ChatPanel })))
@@ -66,31 +54,12 @@ const GitHistoryPanel = lazy(() =>
   import('../noodles/components/git-history-panel').then(m => ({ default: m.GitHistoryPanel }))
 )
 
-const exampleProjectUrls = import.meta.glob('../examples/**/noodles.json', {
-  eager: true,
-  query: '?url',
-  import: 'default',
-}) as Record<string, string>
-
 /** Project assets the way file nodes read them: from whichever storage is active now. */
 async function readProjectAsset(name: string): Promise<Uint8Array> {
   const { currentProjectName, activeStorageType } = useFileSystemStore.getState()
   const result = await readAssetBinary(activeStorageType, currentProjectName ?? '', name)
   if (!result.success) throw new Error(result.error.message)
   return new Uint8Array(result.data)
-}
-
-/**
- * Open a document. The timeline panel follows it through `bindTimeline`. `keysProject` names
- * the project for the per-project key choices in Settings.
- */
-function openDoc(doc: EditorDoc, keysProject?: string) {
-  // The project's own keys win over the browser's, so they go in before anything reads a key
-  getKeysStore().setProjectKeys(doc.meta?.apiKeys as KeysConfig | undefined, keysProject)
-  resetTimelinePanel()
-  getUIStore().setStarterHintNodeId(null)
-  docStore().load(doc)
-  expandTimelineIfAnimated(doc)
 }
 
 // A layer: a planner layer, or a host operator that draws one
@@ -115,19 +84,13 @@ function selectStarterNode(exampleId: string) {
   analytics.track('starter_node_selected', { operatorType: starter.op })
 }
 
-async function openJson(json: unknown, name?: string, keysProject?: string): Promise<void> {
-  const { doc, warnings } = await loadDoc(json, name)
-  for (const w of warnings) console.info('[open]', w)
-  openDoc(doc, keysProject)
-}
-
 export function useDocNoodles(): Visualization {
   const [location, navigate] = useLocation()
   const params = useParams()
   const projectName = params.projectId ?? null
   const routePrefix = location.startsWith('/projects/') ? '/projects' : '/examples'
   const storageType = useActiveStorageType()
-  const { setCurrentDirectory, setActiveStorageType, setError } = useFileSystemStore()
+  const { setError } = useFileSystemStore()
   const doc = useEditor(s => s.doc)
   const dirty = useEditor(s => s.dirty)
   // Keys and choices set in another tab apply here too
@@ -136,7 +99,7 @@ export function useDocNoodles(): Visualization {
   useEffect(
     () =>
       useKeysStore.subscribe((state, prev) => {
-        if (state.projectKeyEdits !== prev.projectKeyEdits) docStore().set({ dirty: true })
+        if (state.projectKeyEdits !== prev.projectKeyEdits) docStore().changed()
       }),
     []
   )
@@ -186,83 +149,11 @@ export function useDocNoodles(): Visualization {
     )
   }, [])
 
-  // The route names the project.
-  // biome-ignore lint/correctness/useExhaustiveDependencies: a route change opens a project; nothing else should
+  // The route names the project
   useEffect(() => {
-    void (async () => {
-      try {
-        if (!projectName) {
-          await openJson(newProjectJSON, 'Untitled')
-          return
-        }
-        if (projectName === 'new' || routePrefix === '/examples') {
-          const inMemory = memoryProjectStore.getProjectJson(projectName)
-          if (inMemory) {
-            setCurrentDirectory(null, projectName)
-            setActiveStorageType('memory')
-            await openJson(inMemory, projectName, keysProjectId(routePrefix, projectName))
-            return
-          }
-        }
-        if (projectName === 'new') {
-          setCurrentDirectory(null, 'new')
-          setActiveStorageType('memory')
-          await openJson(newProjectJSON, 'new', keysProjectId(routePrefix, 'new'))
-          return
-        }
-        if (routePrefix === '/examples') {
-          const url = exampleProjectUrls[`../examples/${projectName}/noodles.json`]
-          if (!url) {
-            files.setNotFound('example')
-            return
-          }
-          const response = await fetch(url)
-          if (!response.ok) throw new Error(`Failed to fetch example: ${response.statusText}`)
-          const json = await response.json()
-          await copyExampleAssetsToMemory(projectName, projectName)
-          setCurrentDirectory(null, projectName)
-          setActiveStorageType('memory')
-          await openJson(json, projectName, keysProjectId(routePrefix, projectName))
-          selectStarterNode(projectName)
-          return
-        }
-        const result = await load(storageType, projectName)
-        if (!result.success) {
-          const { type, directoryHandle } = result.error
-          analytics.track('project_open_failed', {
-            storageType,
-            reason: openFailureReason(type),
-            source: 'url',
-          })
-          if (type === 'not-found') {
-            files.setNotFound('project', { reason: 'not-found' })
-            return
-          }
-          if ((type === 'permission-prompt' || type === 'permission-denied') && directoryHandle) {
-            // A remembered folder whose permission the browser reset, e.g. after a restart
-            files.setNotFound('project', { reason: type, directoryHandle })
-            return
-          }
-          throw new Error(result.error.message)
-        }
-        setCurrentDirectory(result.data.directoryHandle, projectName)
-        setActiveStorageType(storageType)
-        await openJson(
-          result.data.projectData,
-          projectName,
-          keysProjectId(routePrefix, projectName)
-        )
-        analytics.track('project_opened', { storageType, source: 'url' })
-      } catch (error) {
-        setError({
-          type: 'unknown',
-          message: 'Error opening project',
-          details: error instanceof Error ? error.message : String(error),
-          originalError: error,
-        })
-      }
-    })()
+    void openRoute(routePrefix, projectName, { onExampleOpened: selectStarterNode })
   }, [projectName, routePrefix])
+  useEffect(() => closeProject, [])
 
   const onDownload = useCallback(async () => {
     await saveProjectLocally(
@@ -299,7 +190,8 @@ export function useDocNoodles(): Visualization {
       const file = input.files?.[0]
       if (!file) return
       try {
-        await openJson(JSON.parse(await file.text()), file.name.replace(/\.json$/, ''))
+        const json = JSON.parse(await file.text())
+        await openFile(json, file.name.replace(/\.json$/, ''), routePath(routePrefix, projectName))
       } catch (error) {
         setError({
           type: 'unknown',
@@ -310,13 +202,12 @@ export function useDocNoodles(): Visualization {
       }
     }
     input.click()
-  }, [setError])
+  }, [setError, routePrefix, projectName])
 
   const files = useProjectFiles({
     projectName,
     storageType,
     navigate,
-    open: (json, name) => openJson(json, name, keysProjectId('/projects', name)),
     onNewProject,
     onImport,
   })
