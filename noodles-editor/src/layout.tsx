@@ -48,6 +48,13 @@ interface Anchors {
 // pinned over its area's rect, because the map's WebGL canvas must never move in the DOM, and
 // both stay mounted when no area shows them: the map pops out as a floating window, the graph
 // waits off screen, so its dialogs and file drops keep working.
+// Where the map draws. Behind the graph needs only a Graph area, so it works after the Map
+// area was closed; docked needs a Map area, and without one the map floats.
+export function mapPaneMode(mode: MapMode, mapShown: boolean, graphShown: boolean): MapMode {
+  if (mode === 'underlay' && graphShown) return 'underlay'
+  return mode === 'floating' || !mapShown ? 'floating' : 'docked'
+}
+
 export function Layout({
   top,
   layers,
@@ -67,12 +74,7 @@ export function Layout({
 
   const mapShown = hasEditor(tree, 'map')
   const graphShown = hasEditor(tree, 'graph')
-  const paneMode: MapMode =
-    mapMode === 'floating' || !mapShown
-      ? 'floating'
-      : mapMode === 'underlay' && graphShown
-        ? 'underlay'
-        : 'docked'
+  const paneMode = mapPaneMode(mapMode, mapShown, graphShown)
 
   const changeMapMode = (mode: MapMode) => {
     if (mode !== mapMode) trackMapModeChanged(mode)
