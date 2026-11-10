@@ -52,7 +52,7 @@ npm run validate:projects -- path/to/noodles.json
 
 From another directory, use `node noodles-validate/bin/validate-projects.ts <path>` with the path to this checkout. Don't run it as a bare `npx validate-projects`: the name isn't published on npm, so in a checkout without `node_modules` (a fresh clone, or a git worktree) npx would download and run whatever package someone publishes under it.
 
-It checks the schema version, operator types, input names, edge handles, duplicate edges and loops, and names the fix for each error. When it prints `OK` (or `validate_project` returns `"valid": true`), the file is valid. With no path it checks every project under `src/examples/`, the same as `npm run validate:examples`. See [noodles-validate](../noodles-validate/README.md) for the rules and exit codes.
+It checks the schema version, operator types, input names, edge handles, duplicate edges and loops, and names the fix for each error. When it prints `OK` (or `validate_project` returns `"valid": true`), the file is valid. With no path it checks every project under `src/examples/`, the same as `npm run validate:examples`. A file outside `src/examples/` gets the external profile: an older schema version is a warning, only its JSON, version and `@/` data files are checked until it's migrated, and `generic-node-name` is off. See [noodles-validate](../noodles-validate/README.md#projects-outside-the-examples) for the rules, `--external`/`--examples`, `--strict` and exit codes.
 
 It doesn't check the `timeline` key or run the project. Load it in the browser at `http://localhost:5173/examples/<project-name>` to visually verify.
 

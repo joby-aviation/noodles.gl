@@ -1,9 +1,11 @@
 import { readFileSync } from 'node:fs'
 import type { Registry } from './types.ts'
 
+export { checkAssets } from './assets.ts'
 export { handleProblem, resolveOperatorType, suggest, unknownInput, unknownType } from './fields.ts'
 export { validateFile } from './file.ts'
 export { lintProject, validateProject } from './lint.ts'
+export { EXAMPLES_DIR, profileFor } from './profile.ts'
 export type * from './types.ts'
 
 // The snapshot generated from the editor's operator classes by

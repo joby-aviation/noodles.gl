@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
-import { readFileSync } from 'node:fs'
+import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { after, before, describe, it } from 'node:test'
 import { fileURLToPath } from 'node:url'
@@ -184,6 +185,56 @@ describe('noodles-mcp', () => {
       assert.equal(result.valid, false)
       assert.match(result.summary, /^FAIL: 4 errors/)
       assert.match(result.errors[0].message, /Did you mean: FileOp\?/)
+    })
+
+    it('says a project behind the schema was checked only in part', async () => {
+      const dir = mkdtempSync(join(tmpdir(), 'noodles-mcp '))
+      const file = join(dir, 'noodles.json')
+      const project = JSON.parse(readFileSync(join(FIXTURES, 'valid/noodles.json'), 'utf8'))
+      writeFileSync(file, JSON.stringify({ ...project, version: 6 }))
+      const missing = await data('validate_project', { path: file })
+      assert.equal(missing.profile, 'external')
+      assert.equal(missing.partial, true)
+      assert.deepEqual(
+        missing.errors.map((d: { rule: string }) => d.rule),
+        ['missing-asset']
+      )
+      assert.match(missing.summary, /^FAIL: 1 error .*only its JSON, version and data files/)
+
+      mkdirSync(join(dir, 'data'))
+      writeFileSync(join(dir, 'data/data.csv'), 'a\n1\n')
+      const stale = await data('validate_project', { path: file })
+      assert.equal(stale.valid, true)
+      assert.match(stale.summary, /^PARTLY CHECKED: .*open and save it in the editor/)
+    })
+
+    it("checks another checkout's examples as examples", async () => {
+      const repo = mkdtempSync(join(tmpdir(), 'other checkout '))
+      mkdirSync(join(repo, 'noodles-validate'))
+      copyFileSync(
+        join(REPO_ROOT, 'noodles-validate/registry.json'),
+        join(repo, 'noodles-validate/registry.json')
+      )
+      const example = join(repo, 'noodles-editor/src/examples/quakes')
+      mkdirSync(example, { recursive: true })
+      const project = JSON.parse(readFileSync(join(FIXTURES, 'valid/noodles.json'), 'utf8'))
+      writeFileSync(join(example, 'noodles.json'), JSON.stringify({ ...project, version: 6 }))
+      const [clientSide, serverSide] = InMemoryTransport.createLinkedPair()
+      await createServer({ repoRoot: repo, cwd: repo }).connect(serverSide)
+      const other = new Client({ name: 'test', version: '0' })
+      await other.connect(clientSide)
+      const result = await other.callTool({
+        name: 'validate_project',
+        arguments: { path: 'noodles-editor/src/examples/quakes/noodles.json' },
+      })
+      await other.close()
+      const [content] = result.content as Array<{ text: string }>
+      const parsed = JSON.parse(content.text)
+      assert.equal(parsed.profile, 'examples')
+      assert.deepEqual(
+        parsed.errors.map((d: { rule: string }) => d.rule),
+        ['version']
+      )
     })
 
     it('resolves a relative path against the working directory', async () => {

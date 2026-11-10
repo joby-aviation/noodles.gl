@@ -167,6 +167,8 @@ npm run validate:projects -- path/to/noodles.json
 
 The file is done when it prints `OK`.
 
+A project outside the bundled examples, such as `projects/<name>/noodles.json` in your own repo, is checked a little differently: an older schema version is a warning that says to open and save the project in the editor, and every `@/` file must exist in the project's `data/` folder. Pass a folder to check every project in it; see [noodles-validate](https://github.com/joby-aviation/noodles.gl/tree/main/noodles-validate#projects-outside-the-examples) for running it in CI.
+
 For editor autocompletion, the file shape is also published as a JSON Schema at [noodles.gl/schema/noodles-project.schema.json](https://noodles.gl/schema/noodles-project.schema.json). Map `noodles.json` files to it in your code editor (in VS Code, the `json.schemas` setting), or to `noodles-project.v<N>.schema.json` to pin a version. The schema checks shape only, so still run the validator.
 
 ### Register the `noodles` server

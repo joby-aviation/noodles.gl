@@ -10,7 +10,15 @@ import {
   unknownInput,
   unknownType,
 } from './fields.ts'
-import type { Diagnostic, Registry, Rule, Severity, ValidationResult } from './types.ts'
+import type {
+  Diagnostic,
+  Profile,
+  Registry,
+  Rule,
+  Severity,
+  ValidateOptions,
+  ValidationResult,
+} from './types.ts'
 
 // React Flow group nodes carry no operator
 const SPECIAL_NODE_TYPES = new Set(['group'])
@@ -34,14 +42,22 @@ interface NodeRecord {
 const GRAPH_INPUT_TYPE = 'GraphInputOp'
 const CONTAINER_TYPE = 'ContainerOp'
 
-export function validateProject(project: unknown, registry: Registry): ValidationResult {
-  const diagnostics = lintProject(project, registry)
+export function validateProject(
+  project: unknown,
+  registry: Registry,
+  options: ValidateOptions = {}
+): ValidationResult {
+  const diagnostics = lintProject(project, registry, options)
   const errors = diagnostics.filter(d => d.severity === 'error')
   const warnings = diagnostics.filter(d => d.severity === 'warning')
   return { valid: errors.length === 0, errors, warnings }
 }
 
-export function lintProject(project: unknown, registry: Registry): Diagnostic[] {
+export function lintProject(
+  project: unknown,
+  registry: Registry,
+  { profile = 'examples' }: ValidateOptions = {}
+): Diagnostic[] {
   const out: Diagnostic[] = []
   const report = (severity: Severity, rule: Rule, at: string, message: string, id?: string) =>
     out.push({ severity, rule, at, message, ...(id !== undefined && { id }) })
@@ -56,7 +72,11 @@ export function lintProject(project: unknown, registry: Registry): Diagnostic[] 
     return out
   }
 
-  checkVersion(project.version, registry, report)
+  const current = checkVersion(project.version, registry, profile, report)
+  // Everything below follows the current schema, which migrations rewrite
+  // nodes and edges to reach, so on an older file it reports what the
+  // migration would fix. Examples are kept current, so they are checked anyway
+  const partial = !current && profile === 'external'
 
   const nodes = new Map<string, NodeRecord>()
   if (!Array.isArray(project.nodes)) {
@@ -66,9 +86,9 @@ export function lintProject(project: unknown, registry: Registry): Diagnostic[] 
       'nodes',
       'nodes is missing or not an array. An empty project has "nodes": [].'
     )
-  } else {
+  } else if (!partial) {
     project.nodes.forEach((node, index) => {
-      checkNode(node, index, registry, nodes, report)
+      checkNode(node, index, registry, nodes, profile, report)
     })
     checkInputNames(registry, nodes, report)
   }
@@ -80,7 +100,7 @@ export function lintProject(project: unknown, registry: Registry): Diagnostic[] 
       'edges',
       'edges is missing or not an array. A project with no connections has "edges": [].'
     )
-  } else if (Array.isArray(project.nodes)) {
+  } else if (Array.isArray(project.nodes) && !partial) {
     checkEdges(project.edges, registry, nodes, report)
   }
 
@@ -89,7 +109,13 @@ export function lintProject(project: unknown, registry: Registry): Diagnostic[] 
 
 type Report = (severity: Severity, rule: Rule, at: string, message: string, id?: string) => void
 
-function checkVersion(version: unknown, registry: Registry, report: Report) {
+// True when the file is at the current schema version
+function checkVersion(
+  version: unknown,
+  registry: Registry,
+  profile: Profile,
+  report: Report
+): boolean {
   const current = registry.projectVersion
   if (typeof version !== 'number' || !Number.isInteger(version)) {
     report(
@@ -97,6 +123,15 @@ function checkVersion(version: unknown, registry: Registry, report: Report) {
       'project-shape',
       'version',
       `version is missing or not an integer. A current project file has "version": ${current}.`
+    )
+  } else if (version < current && profile === 'external') {
+    // The editor migrates a project when it opens one, so an older file still
+    // loads; it is out of date rather than broken
+    report(
+      'warning',
+      'version',
+      'version',
+      `version is ${version}; the current schema version is ${current}. Open the project in the editor and save it to migrate the file; don't change the number by hand, since migrations also rewrite nodes and edges. Until then only its JSON, version and data files are checked.`
     )
   } else if (version < current) {
     report(
@@ -112,7 +147,10 @@ function checkVersion(version: unknown, registry: Registry, report: Report) {
       'version',
       `version is ${version}, newer than this checkout's schema version ${current}. Update the checkout, or regenerate registry.json with "npm run generate:registry" from noodles-editor/.`
     )
+  } else {
+    return true
   }
+  return false
 }
 
 function checkNode(
@@ -120,6 +158,7 @@ function checkNode(
   index: number,
   registry: Registry,
   nodes: Map<string, NodeRecord>,
+  profile: Profile,
   report: Report
 ) {
   const at = `nodes[${index}]`
@@ -181,8 +220,9 @@ function checkNode(
 
   // Checked by the old scripts/validate-examples.js, and in the graph design
   // guidelines. Only an operator's name and a number, as the editor names new
-  // nodes (/file-1, /duckdb-0); /flights-2024 or /route-66 say what they hold
-  if (isGenericName(id, registry)) {
+  // nodes (/file-1, /duckdb-0); /flights-2024 or /route-66 say what they hold.
+  // A style rule for the examples people learn from, so not for other projects
+  if (profile === 'examples' && isGenericName(id, registry)) {
     report(
       'warning',
       'generic-node-name',
