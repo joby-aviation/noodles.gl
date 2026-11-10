@@ -81,6 +81,28 @@ If the operator replaces one from the operator-graph format, update its entry in
 stored only what was set and planner defaults differ. Anything it cannot express throws a
 `MigrationError` naming the node and why; it never falls back to a JS accessor.
 
+## Migrating older project files
+
+Operator-graph files (schema 1 to the latest migration in `src/noodles/__migrations__/`) still
+go through their migrations before they convert. `npm run migrate-projects` (from
+`noodles-editor/`) migrates such files on disk to this checkout's schema version and rewrites
+only the files that change; documents are left alone. With no arguments it covers
+`src/examples`; pass files or folders to migrate projects elsewhere.
+
+```bash
+npm run migrate-projects -- ~/code/my-projects/projects
+npm run migrate-projects -- --check ~/code/my-projects/projects
+npm run migrate-projects -- --from 19 ~/code/my-projects/projects/"Harbor Tour"
+```
+
+- `--check` writes nothing, lists each file that would change and exits 1 if any would, for CI
+- `--from <version>` treats one project as saved at that version, when its saved number is
+  wrong (saved on a branch whose migration was renumbered before merging)
+- A file saved at a version newer than this checkout is reported and left alone
+
+`scripts/migrate-project-files.ts` exports `migrateProjectFiles(paths, { from, write })` for
+tools that need the same walk and migration.
+
 ## Tests
 
 - Planner behavior: `packages/planner/src/*.test.ts` (`npm test -w @noodles.gl/planner`).

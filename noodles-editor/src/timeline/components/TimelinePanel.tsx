@@ -12,6 +12,7 @@ import {
 } from '../timeline-store'
 import type { HandleType } from '../types'
 import { DEFAULT_BEZIER_HANDLES } from '../types'
+import { useScrubDrag } from '../use-scrub-drag'
 import { CurveEditorView } from './CurveEditorView'
 import { MarkerConnectionLines } from './MarkerConnectionLines'
 import { PlayControls } from './PlayControls'
@@ -51,7 +52,6 @@ export function TimelinePanel({ height = 300, onCollapse }: TimelinePanelProps) 
   // Local UI state
   const [pixelsPerSecond, setPixelsPerSecond] = useState(DEFAULT_PIXELS_PER_SECOND)
   const [scrollLeft, setScrollLeft] = useState(0)
-  const [isScrubbing, setIsScrubbing] = useState(false)
   const [viewMode, setViewMode] = useState<ViewMode>('keyframes')
 
   // Box selection — use refs to avoid stale closure in the persistent document listener
@@ -70,6 +70,8 @@ export function TimelinePanel({ height = 300, onCollapse }: TimelinePanelProps) 
 
   // Timeline store state
   const sequence = useTimelineStore(state => state.sequence)
+  const isScrubbing = useTimelineStore(state => state.scrubSource === 'keyframe-area')
+  const startScrub = useScrubDrag('keyframe-area')
   const position = useTimelineStore(state => state.position)
   const setPosition = useTimelineStore(state => state.setPosition)
   const setLength = useTimelineStore(state => state.setLength)
@@ -194,41 +196,24 @@ export function TimelinePanel({ height = 300, onCollapse }: TimelinePanelProps) 
       const time = getTimeFromMouseEvent(e)
       if (time !== null) {
         setPosition(time)
-        setIsScrubbing(true)
+        startScrub(moveEvent => {
+          const t = getTimeFromMouseEvent(moveEvent)
+          if (t !== null) setPosition(t)
+        })
       }
     },
-    [getTimeFromMouseEvent, setPosition, isRendering]
+    [getTimeFromMouseEvent, setPosition, isRendering, startScrub]
   )
 
-  // Handle mousemove while scrubbing (attached to document)
-  useEffect(() => {
-    if (!isScrubbing) return
-
-    const handleMouseMove = (e: MouseEvent) => {
-      if (isRendering) return
-      const time = getTimeFromMouseEvent(e)
-      if (time !== null) {
-        setPosition(time)
-      }
-    }
-
-    const handleMouseUp = () => {
-      setIsScrubbing(false)
-    }
-
-    document.addEventListener('mousemove', handleMouseMove)
-    document.addEventListener('mouseup', handleMouseUp)
-
-    return () => {
-      document.removeEventListener('mousemove', handleMouseMove)
-      document.removeEventListener('mouseup', handleMouseUp)
-    }
-  }, [isScrubbing, getTimeFromMouseEvent, setPosition, isRendering])
+  // Ends a marker connection drag that is still running (pointerup, cancel, or unmount)
+  const endMarkerConnectionRef = useRef<(() => void) | null>(null)
+  useEffect(() => () => endMarkerConnectionRef.current?.(), [])
 
   // Handle marker connection start — attach document listeners synchronously so fast
   // drags (pointerdown → pointerup without much movement) aren't missed by a deferred effect.
   const handleStartMarkerConnection = useCallback(
     (markerId: string, clientX: number, clientY: number) => {
+      endMarkerConnectionRef.current?.()
       setConnectingFromMarker(markerId)
 
       // Set the initial line position immediately from the pointerdown coords.
@@ -252,14 +237,18 @@ export function TimelinePanel({ height = 300, onCollapse }: TimelinePanelProps) 
       }
 
       const handlePointerUp = () => {
+        endMarkerConnectionRef.current = null
         setConnectingFromMarker(null)
         setConnectionMousePos(null)
         document.removeEventListener('pointermove', handlePointerMove)
         document.removeEventListener('pointerup', handlePointerUp)
+        document.removeEventListener('pointercancel', handlePointerUp)
       }
 
+      endMarkerConnectionRef.current = handlePointerUp
       document.addEventListener('pointermove', handlePointerMove)
       document.addEventListener('pointerup', handlePointerUp)
+      document.addEventListener('pointercancel', handlePointerUp)
     },
     [setConnectingFromMarker]
   )

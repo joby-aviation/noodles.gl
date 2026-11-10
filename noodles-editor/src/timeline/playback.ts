@@ -1,5 +1,6 @@
 // Playback driver for the native timeline system
-// Provides smooth playback and manual mode for video rendering
+// Provides smooth playback, and a manual mode that holds the loop off while an export
+// sets positions directly with goToFrame
 
 import { debugPlayback } from '../utils/debug'
 import { visibilityAdaptiveLoop } from '../utils/worker-timer'
@@ -44,36 +45,20 @@ export class PlaybackDriver {
     }
   }
 
-  // Enable or disable manual mode for video rendering
-  // In manual mode, the worker timer loop is disabled and ticks must be triggered manually
+  // Hold the loop off (for video rendering) or let it follow the timeline again.
+  // Leaving manual mode restarts the loop if the timeline is playing.
   setManualMode(enabled: boolean): void {
     this.manualMode = enabled
-    if (enabled) {
-      this.stop()
-    }
+    if (enabled) this.stop()
+    else if (getTimelineStore().playing) this.start()
   }
 
-  // Check if manual mode is enabled
   isManualMode(): boolean {
     return this.manualMode
   }
 
-  // Manually trigger a tick with a specific timestamp (only works in manual mode)
-  manualTick(timestamp: number): void {
-    if (!this.manualMode) {
-      debugPlayback('manualTick called but manual mode is not enabled')
-      return
-    }
-
-    const delta = timestamp - this.lastTimestamp
-    this.lastTimestamp = timestamp
-    this.notifySubscribers(delta)
-  }
-
   // RAF/worker timer callback - advances position based on elapsed time
   private tick = (timestamp: number): void => {
-    if (this.manualMode) return
-
     const delta = timestamp - this.lastTimestamp
     this.lastTimestamp = timestamp
 
@@ -118,6 +103,14 @@ export function connectPlaybackToTimeline(): () => void {
     // Determine playback boundaries
     const startBoundary = loopInOut ? (sequence.inPoint ?? 0) : 0
     const endBoundary = loopInOut ? (sequence.outPoint ?? sequence.length) : sequence.length
+
+    // An empty range (zero length, or in/out loaded from a file that touch or cross)
+    // has nothing to play, and wrapping with % 0 would give NaN
+    if (endBoundary - startBoundary <= 0) {
+      store.setPosition(Math.min(startBoundary, endBoundary))
+      store.pause()
+      return
+    }
 
     // Handle end of playback range
     if (newPosition >= endBoundary) {

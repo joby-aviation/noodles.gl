@@ -144,6 +144,131 @@ describe('TimelineStore', () => {
     })
   })
 
+  describe('in/out range guard', () => {
+    it('keeps the out point one frame after the in point', () => {
+      const store = useTimelineStore.getState()
+      store.setInPoint(2)
+      store.setOutPoint(2)
+      expect(useTimelineStore.getState().sequence.outPoint).toBeCloseTo(2 + 1 / 30)
+    })
+
+    it('keeps the in point one frame before the out point', () => {
+      const store = useTimelineStore.getState()
+      store.setOutPoint(5)
+      store.setInPoint(9)
+      expect(useTimelineStore.getState().sequence.inPoint).toBeCloseTo(5 - 1 / 30)
+    })
+
+    it('keeps the in point one frame before the end when no out point is set', () => {
+      useTimelineStore.getState().setInPoint(10)
+      expect(useTimelineStore.getState().sequence.inPoint).toBeCloseTo(10 - 1 / 30)
+    })
+
+    it('rejects an out point when the in point leaves no frame before the end', () => {
+      const { sequence } = useTimelineStore.getState()
+      useTimelineStore.setState({ sequence: { ...sequence, inPoint: 10 } })
+      useTimelineStore.getState().setOutPoint(10)
+      expect(useTimelineStore.getState().sequence.outPoint).toBeUndefined()
+    })
+
+    it('ignores NaN in and out points', () => {
+      const store = useTimelineStore.getState()
+      store.setInPoint(Number.NaN)
+      store.setOutPoint(Number.NaN)
+      const { sequence } = useTimelineStore.getState()
+      expect(sequence.inPoint).toBeUndefined()
+      expect(sequence.outPoint).toBeUndefined()
+    })
+  })
+
+  describe('setPosition', () => {
+    it('ignores NaN', () => {
+      useTimelineStore.getState().setPosition(4)
+      useTimelineStore.getState().setPosition(Number.NaN)
+      expect(useTimelineStore.getState().position).toBe(4)
+    })
+  })
+
+  describe('scrubbing', () => {
+    it('pauses playback for the scrub and resumes it after', () => {
+      const store = useTimelineStore.getState()
+      store.play()
+      store.beginScrub('ruler')
+      expect(useTimelineStore.getState()).toMatchObject({ scrubSource: 'ruler', playing: false })
+
+      store.endScrub('ruler')
+      expect(useTimelineStore.getState()).toMatchObject({ scrubSource: null, playing: true })
+    })
+
+    it('stays paused after a scrub that started paused', () => {
+      const store = useTimelineStore.getState()
+      store.beginScrub('playhead')
+      store.endScrub('playhead')
+      expect(useTimelineStore.getState().playing).toBe(false)
+    })
+
+    it('play and pause during a scrub decide whether it resumes', () => {
+      const store = useTimelineStore.getState()
+      store.beginScrub('keyframe-area')
+      store.togglePlay()
+      expect(useTimelineStore.getState().playing).toBe(false)
+      store.endScrub('keyframe-area')
+      expect(useTimelineStore.getState().playing).toBe(true)
+
+      store.beginScrub('keyframe-area')
+      store.pause()
+      store.endScrub('keyframe-area')
+      expect(useTimelineStore.getState().playing).toBe(false)
+    })
+
+    it('ignores endScrub from a control that is not scrubbing', () => {
+      const store = useTimelineStore.getState()
+      store.play()
+      store.beginScrub('ruler')
+      store.beginScrub('playhead')
+      store.endScrub('ruler')
+      expect(useTimelineStore.getState()).toMatchObject({ scrubSource: 'playhead', playing: false })
+      store.endScrub('playhead')
+      expect(useTimelineStore.getState().playing).toBe(true)
+    })
+
+    it('loading a timeline clears the scrub', () => {
+      const store = useTimelineStore.getState()
+      store.play()
+      store.beginScrub('ruler')
+      store.fromTimelineJSON(store.toTimelineJSON())
+      expect(useTimelineStore.getState()).toMatchObject({ scrubSource: null, playing: false })
+      store.endScrub('ruler')
+      expect(useTimelineStore.getState().playing).toBe(false)
+    })
+  })
+
+  describe('marker connection', () => {
+    it('deleteMarker clears a connection drag from that marker', () => {
+      const store = useTimelineStore.getState()
+      const id = store.addMarker(1)
+      store.setConnectingFromMarker(id)
+      store.deleteMarker(id)
+      expect(useTimelineStore.getState().connectingFromMarkerId).toBeNull()
+    })
+
+    it('deleteMarker keeps a connection drag from another marker', () => {
+      const store = useTimelineStore.getState()
+      const a = store.addMarker(1)
+      const b = store.addMarker(2)
+      store.setConnectingFromMarker(a)
+      store.deleteMarker(b)
+      expect(useTimelineStore.getState().connectingFromMarkerId).toBe(a)
+    })
+
+    it('deleteAllMarkers clears a connection drag', () => {
+      const store = useTimelineStore.getState()
+      store.setConnectingFromMarker(store.addMarker(1))
+      store.deleteAllMarkers()
+      expect(useTimelineStore.getState().connectingFromMarkerId).toBeNull()
+    })
+  })
+
   describe('playback', () => {
     it('has default playback state', () => {
       const state = useTimelineStore.getState()

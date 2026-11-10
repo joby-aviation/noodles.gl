@@ -53,9 +53,8 @@ export function beginRender(kind: 'video' | 'sequence', source: RenderSource): (
   return () => {
     if (released) return
     released = true
-    playbackDriver.setManualMode(false)
     // The playback loop follows the store again
-    if (getTimelineStore().playing) playbackDriver.start()
+    playbackDriver.setManualMode(false)
     if (useRenderSessionStore.getState().session === session) {
       useRenderSessionStore.setState({ session: IDLE })
     }

@@ -43,6 +43,10 @@ export interface TimelineStore {
   selectedTrackIds: Set<string>
   selectedMarkerId: string | null
   connectingFromMarkerId: string | null
+  // Which control is dragging the playhead, if any. Playback pauses for the scrub.
+  scrubSource: ScrubSource | null
+  // Whether to resume playback when the scrub ends
+  resumeAfterScrub: boolean
 
   // === Sequence Actions ===
   setLength: (length: number) => void
@@ -65,6 +69,11 @@ export interface TimelineStore {
   stepBackward: (frames?: number) => void
   goToStart: () => void
   goToEnd: () => void
+
+  // === Scrub Actions ===
+  // Pause playback while a control drags the playhead; endScrub resumes it
+  beginScrub: (source: ScrubSource) => void
+  endScrub: (source: ScrubSource) => void
 
   // === Track Actions ===
   getOrCreateTrack: (fieldPath: string, defaultValue: KeyframeValue) => Track
@@ -140,6 +149,8 @@ export interface TimelineStore {
   fromTimelineJSON: (json: TimelineData, opts?: { keepPosition?: boolean }) => void
   reset: () => void
 }
+
+export type ScrubSource = 'ruler' | 'playhead' | 'keyframe-area'
 
 // ============================================================================
 // Helper Functions
@@ -228,6 +239,8 @@ export const useTimelineStore = create<TimelineStore>()(
     selectedTrackIds: new Set(),
     selectedMarkerId: null,
     connectingFromMarkerId: null,
+    scrubSource: null,
+    resumeAfterScrub: false,
     copiedKeyframes: [],
 
     // === Sequence Actions ===
@@ -255,10 +268,13 @@ export const useTimelineStore = create<TimelineStore>()(
     },
 
     // === In/Out Point Actions ===
+    // In and out stay at least one frame apart so the loop range is never zero
     setInPoint: time => {
+      if (Number.isNaN(time)) return
       set(state => {
         const { sequence } = state
-        const max = sequence.outPoint ?? sequence.length
+        const max = (sequence.outPoint ?? sequence.length) - 1 / sequence.fps
+        if (max < 0) return state
         const clamped = Math.max(0, Math.min(time, max))
         return {
           sequence: { ...sequence, inPoint: clamped },
@@ -267,9 +283,11 @@ export const useTimelineStore = create<TimelineStore>()(
     },
 
     setOutPoint: time => {
+      if (Number.isNaN(time)) return
       set(state => {
         const { sequence } = state
-        const min = sequence.inPoint ?? 0
+        const min = (sequence.inPoint ?? 0) + 1 / sequence.fps
+        if (min > sequence.length) return state
         const clamped = Math.max(min, Math.min(time, sequence.length))
         return {
           sequence: { ...sequence, outPoint: clamped },
@@ -285,13 +303,21 @@ export const useTimelineStore = create<TimelineStore>()(
 
     // === Playback Actions ===
     setPosition: position => {
+      if (Number.isNaN(position)) return
       const { sequence } = get()
       set({ position: Math.max(0, Math.min(position, sequence.length)) })
     },
 
-    play: () => set({ playing: true }),
-    pause: () => set({ playing: false }),
-    togglePlay: () => set(state => ({ playing: !state.playing })),
+    // While scrubbing, play/pause decide what happens when the scrub ends
+    play: () => set(state => (state.scrubSource ? { resumeAfterScrub: true } : { playing: true })),
+    pause: () =>
+      set(state => (state.scrubSource ? { resumeAfterScrub: false } : { playing: false })),
+    togglePlay: () =>
+      set(state =>
+        state.scrubSource
+          ? { resumeAfterScrub: !state.resumeAfterScrub }
+          : { playing: !state.playing }
+      ),
     toggleLoop: () => set(state => ({ loop: !state.loop })),
     toggleLoopInOut: () => set(state => ({ loopInOut: !state.loopInOut })),
 
@@ -313,6 +339,21 @@ export const useTimelineStore = create<TimelineStore>()(
 
     goToStart: () => set({ position: 0 }),
     goToEnd: () => set(state => ({ position: state.sequence.length })),
+
+    // === Scrub Actions ===
+    beginScrub: source => {
+      set(state => {
+        if (state.scrubSource) return { scrubSource: source }
+        return { scrubSource: source, resumeAfterScrub: state.playing, playing: false }
+      })
+    },
+
+    endScrub: source => {
+      set(state => {
+        if (state.scrubSource !== source) return state
+        return { scrubSource: null, resumeAfterScrub: false, playing: state.resumeAfterScrub }
+      })
+    },
 
     // === Track Actions ===
     getOrCreateTrack: (fieldPath, defaultValue) => {
@@ -505,11 +546,13 @@ export const useTimelineStore = create<TimelineStore>()(
     deleteMarker: markerId => {
       const markers = get().markers.filter(m => m.id !== markerId)
       const selectedMarkerId = get().selectedMarkerId === markerId ? null : get().selectedMarkerId
-      set({ markers, selectedMarkerId })
+      const connectingFromMarkerId =
+        get().connectingFromMarkerId === markerId ? null : get().connectingFromMarkerId
+      set({ markers, selectedMarkerId, connectingFromMarkerId })
     },
 
     deleteAllMarkers: () => {
-      set({ markers: [], selectedMarkerId: null })
+      set({ markers: [], selectedMarkerId: null, connectingFromMarkerId: null })
     },
 
     moveMarker: (markerId, newPosition) => {
@@ -942,6 +985,8 @@ export const useTimelineStore = create<TimelineStore>()(
         selectedTrackIds: new Set<string>(),
         selectedMarkerId: null,
         connectingFromMarkerId: null,
+        scrubSource: null,
+        resumeAfterScrub: false,
       }
 
       if (!json || typeof json !== 'object' || !json.sheetsById?.Noodles) {
@@ -1030,6 +1075,8 @@ export const useTimelineStore = create<TimelineStore>()(
         selectedTrackIds: new Set(),
         selectedMarkerId: null,
         connectingFromMarkerId: null,
+        scrubSource: null,
+        resumeAfterScrub: false,
       })
     },
 
@@ -1041,11 +1088,14 @@ export const useTimelineStore = create<TimelineStore>()(
         position: 0,
         playing: false,
         loop: true,
+        loopInOut: false,
         playbackSpeed: 1,
         selectedKeyframeIds: new Set(),
         selectedTrackIds: new Set(),
         selectedMarkerId: null,
         connectingFromMarkerId: null,
+        scrubSource: null,
+        resumeAfterScrub: false,
         copiedKeyframes: [],
       })
     },
