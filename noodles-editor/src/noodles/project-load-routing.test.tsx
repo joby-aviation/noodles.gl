@@ -3,10 +3,11 @@ import type { ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { Route, Router, Switch } from 'wouter'
 import { memoryLocation } from 'wouter/memory-location'
-import { getNoodles, type NoodlesProjectJSON } from './noodles'
+import { getNoodles } from './noodles'
 import { useGraphStore } from './store'
 import { memoryProjectStore } from './utils/memory-project-store'
 import { NOODLES_VERSION } from './utils/migrate-schema'
+import type { NoodlesProjectJSON } from './utils/serialization'
 
 const projectWithNode = (id: string): NoodlesProjectJSON =>
   ({
