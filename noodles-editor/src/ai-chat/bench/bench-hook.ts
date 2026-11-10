@@ -5,7 +5,7 @@
 // user's session minus the UI. Dev builds only — app.tsx never imports it in prod.
 
 import type { EditorDoc } from '@noodles.gl/planner'
-import { currentEngine, engineState, nodeErrors } from '../../editor/doc-engine'
+import { currentEngine, engineState, nodeErrors, whenDrawn } from '../../editor/doc-engine'
 import { docStore } from '../../editor/doc-store'
 import { getKeysStore } from '../../noodles/keys-store'
 import { createProvider } from '../agent/provider-factory'
@@ -133,8 +133,11 @@ export function installBenchHook() {
   window.__noodlesAgentBench = {
     run: runBenchTask,
     // The runner polls this before calling run(): the editor has to have loaded the document
-    // and the engine to have drawn it once
-    ready: () => docStore().get().loadId > 0 && engineState().ready,
+    // and the engine to have drawn it
+    ready: () => {
+      const status = engineState().status
+      return status.kind === 'drawn' && status.loadId === docStore().get().loadId
+    },
   }
 }
 
@@ -302,17 +305,11 @@ async function applyAndSettle(modifications: unknown[]): Promise<ApplyResult> {
   return { success: result.success, error: result.error }
 }
 
-// Waits for the engine to finish what the last edit set in motion: the edit reaches the engine
-// on a later microtask, so yield first. Timers, not frames: a hidden tab runs no frames.
-// False when the deadline passed first.
+// Waits for the engine to draw what the last edit set in motion. Timers, not frames: a hidden
+// tab runs no frames. False when the deadline passed first.
 async function settleGraph(): Promise<boolean> {
-  await sleep(0)
-  const engine = currentEngine()
-  if (!engine) return false
-  const settled = await Promise.race([
-    engine.settle().then(() => true),
-    sleep(SETTLE_TIMEOUT_MS).then(() => false),
-  ])
+  if (!currentEngine()) return false
+  const settled = await whenDrawn(SETTLE_TIMEOUT_MS)
   await sleep(0)
   return settled
 }

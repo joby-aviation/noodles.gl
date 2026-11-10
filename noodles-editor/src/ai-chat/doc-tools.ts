@@ -39,6 +39,11 @@ import type { ToolResult } from './types'
 export interface DocToolContext {
   store: DocStore
   engine: () => Engine | undefined
+  /**
+   * Resolves once the engine has drawn the store's document as it is now (`whenDrawn`), so a
+   * read after an edit sees that edit's rows and errors. False when it gave up waiting.
+   */
+  drawn?: () => Promise<boolean>
   playhead?: {
     position(): number
     playing(): boolean

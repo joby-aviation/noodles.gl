@@ -1,7 +1,7 @@
 // MCPTools - Client-side tool implementations for Claude AI
 
 import { OPERATOR_INDEX } from '@noodles.gl/planner'
-import { currentEngine, errorsOf } from '../editor/doc-engine'
+import { currentEngine, errorsOf, whenDrawn } from '../editor/doc-engine'
 import { docStore } from '../editor/doc-store'
 import { safeStringify } from '../noodles/utils/serialization'
 import { getTimelineStore } from '../timeline/timeline-store'
@@ -148,11 +148,15 @@ function excerptAround(content: string, matchIndex: number): string {
   return `${prefix}${content.slice(start, end)}${suffix}`
 }
 
+const DRAWN_TIMEOUT_MS = 5000
+
 /** The editor's document, engine and playhead: what the tools act on in the app. */
 export function editorDocContext(): DocToolContext {
   return {
     store: docStore(),
     engine: currentEngine,
+    // A read waits this long for the last edit to draw, then answers with what there is
+    drawn: () => whenDrawn(DRAWN_TIMEOUT_MS),
     playhead: {
       position: () => getTimelineStore().position,
       playing: () => getTimelineStore().playing,
@@ -509,6 +513,8 @@ export class MCPTools {
             'The Noodles tab is hidden, so the browser has paused drawing. Bring the tab to the front (macOS: open -a "Google Chrome") and try again.',
         }
       }
+      // The last edit's layers, not the frame from before it
+      await this.doc.drawn?.()
       const canvas = this.getCanvas()
       if (!canvas) {
         return {
@@ -681,14 +687,17 @@ export class MCPTools {
   // --- graph tools, on the document (doc-tools.ts) ---------------------------------
 
   async listNodes(): Promise<ToolResult> {
+    await this.doc.drawn?.()
     return docTools.listNodes(this.doc)
   }
 
   async getNodeInfo(params: { nodeId: string }): Promise<ToolResult> {
+    await this.doc.drawn?.()
     return docTools.getNodeInfo(this.doc, params)
   }
 
   async getNodeOutput(params: { nodeId: string; maxRows?: number }): Promise<ToolResult> {
+    await this.doc.drawn?.()
     return docTools.getNodeOutput(this.doc, params)
   }
 
@@ -711,6 +720,7 @@ export class MCPTools {
   // Problems the engine found: nodes that lowered to nothing, failed queries, host errors,
   // and nodes nothing reads.
   async analyzeProject(_params?: unknown): Promise<ToolResult> {
+    await this.doc.drawn?.()
     const { doc } = this.doc.store.get()
     const issues: { nodeId: string; severity: 'error' | 'warning'; message: string }[] = []
     const e = this.doc.engine()

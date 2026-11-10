@@ -89,6 +89,15 @@ export class HostRunner {
     return this.chain.then(() => undefined)
   }
 
+  /** Drop every operator and its outputs, after the run under way: another project opened. */
+  forget(): Promise<void> {
+    const next = this.chain.then(() => {
+      for (const id of [...this.entries.keys()]) this.drop(id)
+    })
+    this.chain = next.catch(() => undefined)
+    return next
+  }
+
   run(doc: EditorDoc, inputs: HostInputs): Promise<HostReport> {
     const next = this.chain.then(() => this.runNow(doc, inputs))
     this.chain = next.catch(() => undefined)
