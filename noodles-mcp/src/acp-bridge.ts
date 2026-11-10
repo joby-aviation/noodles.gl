@@ -145,7 +145,7 @@ class Connection {
         log(`agent: ${line}`)
         return
       }
-      this.socket.send(line)
+      this.toTab(line)
     })
 
     socket.on('message', (data, isBinary) => {
@@ -172,7 +172,7 @@ class Connection {
         resolve(errorMessage(id, `The editor did not answer ${method} in time`))
       }, TOOL_TIMEOUT_MS)
       this.pending.set(id, { resolve, timer })
-      this.socket.send(JSON.stringify({ jsonrpc: '2.0', id, method, params }))
+      this.toTab(JSON.stringify({ jsonrpc: '2.0', id, method, params }))
     })
   }
 
@@ -210,6 +210,12 @@ class Connection {
       ...message,
       params: { ...message.params, cwd: this.options.cwd, mcpServers: [this.toolsServer()] },
     }
+  }
+
+  // An agent can still be writing after the tab has gone, until it is killed
+  private toTab(data: string) {
+    if (this.closed || this.socket.readyState !== this.socket.OPEN) return
+    this.socket.send(data)
   }
 
   private toAgent(message: JsonRpcMessage) {

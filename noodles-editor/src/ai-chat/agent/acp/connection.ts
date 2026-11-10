@@ -42,6 +42,13 @@ export interface ConnectionHandlers {
   onClose: (reason: string) => void
 }
 
+// closing is a close this side asked for, which the other side is not told
+// about. Once closed, requests fail at once instead of waiting forever.
+type ConnectionState =
+  | { status: 'open' }
+  | { status: 'closing' }
+  | { status: 'closed'; reason: string }
+
 export class AcpConnection {
   private socket: WebSocket
   private handlers: ConnectionHandlers
@@ -50,7 +57,7 @@ export class AcpConnection {
     number,
     { resolve: (value: unknown) => void; reject: (error: Error) => void }
   >()
-  private closing = false
+  private state: ConnectionState = { status: 'open' }
 
   private constructor(socket: WebSocket, handlers: ConnectionHandlers) {
     this.socket = socket
@@ -58,9 +65,11 @@ export class AcpConnection {
     socket.addEventListener('message', event => this.receive(event.data))
     socket.addEventListener('close', event => {
       const reason = describeClose(event.code, event.reason)
+      const asked = this.state.status === 'closing'
+      this.state = { status: 'closed', reason }
       for (const { reject } of this.pending.values()) reject(new Error(reason))
       this.pending.clear()
-      if (!this.closing) handlers.onClose(reason)
+      if (!asked) handlers.onClose(reason)
     })
   }
 
@@ -97,6 +106,11 @@ export class AcpConnection {
   }
 
   request<T>(method: string, params: unknown): Promise<T> {
+    if (this.state.status !== 'open' || this.socket.readyState !== WebSocket.OPEN) {
+      const reason =
+        this.state.status === 'closed' ? this.state.reason : 'The ACP connection is closed.'
+      return Promise.reject(new Error(reason))
+    }
     const id = this.nextId++
     return new Promise<T>((resolve, reject) => {
       this.pending.set(id, { resolve: resolve as (value: unknown) => void, reject })
@@ -109,7 +123,7 @@ export class AcpConnection {
   }
 
   close() {
-    this.closing = true
+    if (this.state.status === 'open') this.state = { status: 'closing' }
     this.socket.close()
   }
 
