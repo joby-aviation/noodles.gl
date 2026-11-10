@@ -164,6 +164,18 @@ describe('DocStore', () => {
     expect(store.get().dirty).toBe(false)
   })
 
+  it('keeps an edit made while a save was writing unsaved', () => {
+    const store = new DocStore(doc())
+    store.edit(d => setParam(d, 'dots', 'opacity', 0.2))
+    const written = store.get().revision
+    // An edit lands while the save is still writing
+    store.edit(d => setParam(d, 'dots', 'opacity', 0.4))
+    store.markSaved(written)
+    expect(store.get().dirty).toBe(true)
+    store.markSaved(store.get().revision)
+    expect(store.get().dirty).toBe(false)
+  })
+
   it('keeps a gesture with longer pauses, such as typing in a table, one step in its window', () => {
     const now = vi.spyOn(performance, 'now')
     try {

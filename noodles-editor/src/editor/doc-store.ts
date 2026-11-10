@@ -22,6 +22,8 @@ export interface EditorState {
   loadId: number
   /** Edits since the last load or save. */
   dirty: boolean
+  /** Counts changes that make the project unsaved, so a save marks saved only what it wrote. */
+  revision: number
   /** A parameter copied to paste as a reference, `nodeId.param`. */
   copiedParam?: string
   /**
@@ -53,10 +55,18 @@ export class DocStore {
   private lastTag?: string
 
   constructor(doc: EditorDoc = EMPTY_DOC) {
-    this.state = { doc, selection: [], time: 0, loadId: 0, dirty: false }
+    this.state = { doc, selection: [], time: 0, loadId: 0, dirty: false, revision: 0 }
   }
 
   get = (): EditorState => this.state
+
+  /**
+   * A save wrote the project as it was at `revision`. A change made while it was writing keeps
+   * the project unsaved, so autosave and the leave-page warning still see it.
+   */
+  markSaved(revision: number): void {
+    if (this.state.revision === revision) this.set({ dirty: false })
+  }
 
   subscribe = (listener: Listener): (() => void) => {
     this.listeners.add(listener)
@@ -66,7 +76,8 @@ export class DocStore {
   /** View state: never an undo step. */
   set(patch: Partial<EditorState> | ((s: EditorState) => Partial<EditorState>)): void {
     const next = typeof patch === 'function' ? patch(this.state) : patch
-    this.state = { ...this.state, ...next }
+    const revision = next.dirty === true ? this.state.revision + 1 : this.state.revision
+    this.state = { ...this.state, ...next, revision }
     for (const l of this.listeners) l()
   }
 

@@ -63,10 +63,25 @@ export function projectJson(): NoodlesProjectJSON {
   } as unknown as NoodlesProjectJSON
 }
 
-// The document is written: what Settings shows as the project's saved keys follows it
-function markSaved() {
+// The document as it was at `revision` is written: what Settings shows as the project's saved
+// keys follows it. An edit made since keeps the project unsaved.
+function markSaved(revision: number) {
   getKeysStore().markProjectKeysSaved()
-  docStore().set({ dirty: false })
+  docStore().markSaved(revision)
+}
+
+// The project to write, and the revision it is: read once, when a save starts writing
+function snapshot(): { json: NoodlesProjectJSON; revision: number } {
+  return { json: projectJson(), revision: docStore().get().revision }
+}
+
+// Saves run one at a time, so a manual save and an autosave never write at once and each
+// reads the project when it starts
+let saving: Promise<unknown> = Promise.resolve()
+export function queueSave<T>(run: () => Promise<T>): Promise<T> {
+  const next = saving.then(run)
+  saving = next.catch(() => undefined)
+  return next
 }
 
 const isAbort = (error: unknown) => error instanceof Error && error.name === 'AbortError'
@@ -108,7 +123,12 @@ export function useProjectFiles({
   // The document now lives in a folder: remember it and show its name in the route. The
   // per-project key choices move with a project, or are copied to a copy of it (Save As).
   const savedTo = useCallback(
-    async (directory: FileSystemDirectoryHandle, name: string, keys: 'move' | 'copy') => {
+    async (
+      directory: FileSystemDirectoryHandle,
+      name: string,
+      keys: 'move' | 'copy',
+      revision: number
+    ) => {
       await directoryHandleCache.cacheHandle(name, directory, directory.name)
       const keysProject = keysProjectId('/projects', name)
       if (keys === 'move') getKeysStore().moveKeyOverridesTo(keysProject)
@@ -116,37 +136,43 @@ export function useProjectFiles({
       setCurrentDirectory(directory, name)
       setActiveStorageType('fileSystemAccess')
       navigate(`/projects/${name}`, { replace: true })
-      markSaved()
+      markSaved(revision)
     },
     [setCurrentDirectory, setActiveStorageType, navigate]
   )
 
-  const onSaveProject = useCallback(async () => {
-    if (!projectName) return
-    // An example or a new project is only in memory until the user picks a folder for it
-    if (storageType === 'memory') {
-      try {
-        const directory = await selectDirectory()
-        if (!(await requestPermission(directory, 'readwrite'))) return
-        await writeFileToDirectory(directory, 'noodles.json', safeStringify(projectJson()))
-        await copyMemoryDataToDirectory(projectName, directory)
-        await savedTo(directory, directory.name, 'move')
-        memoryProjectStore.deleteProject(projectName)
-        analytics.track('project_saved', { storageType: 'memory', promoted: true })
-      } catch (error) {
-        if (!isAbort(error)) reportError('Error saving project', error)
-      }
-      return
-    }
-    const result = await save(storageType, projectName, projectJson(), new Map())
-    if (!result.success) {
-      setError(result.error)
-      return
-    }
-    setCurrentDirectory(result.data.directoryHandle, projectName)
-    markSaved()
-    analytics.track('project_saved', { storageType })
-  }, [projectName, storageType, savedTo, reportError, setError, setCurrentDirectory])
+  const onSaveProject = useCallback(
+    () =>
+      queueSave(async () => {
+        if (!projectName) return
+        // An example or a new project is only in memory until the user picks a folder for it
+        if (storageType === 'memory') {
+          try {
+            const directory = await selectDirectory()
+            if (!(await requestPermission(directory, 'readwrite'))) return
+            const { json, revision } = snapshot()
+            await writeFileToDirectory(directory, 'noodles.json', safeStringify(json))
+            await copyMemoryDataToDirectory(projectName, directory)
+            await savedTo(directory, directory.name, 'move', revision)
+            memoryProjectStore.deleteProject(projectName)
+            analytics.track('project_saved', { storageType: 'memory', promoted: true })
+          } catch (error) {
+            if (!isAbort(error)) reportError('Error saving project', error)
+          }
+          return
+        }
+        const { json, revision } = snapshot()
+        const result = await save(storageType, projectName, json, new Map())
+        if (!result.success) {
+          setError(result.error)
+          return
+        }
+        setCurrentDirectory(result.data.directoryHandle, projectName)
+        markSaved(revision)
+        analytics.track('project_saved', { storageType })
+      }),
+    [projectName, storageType, savedTo, reportError, setError, setCurrentDirectory]
+  )
 
   // Save As, step 1: pick the folder, then ask what to bring along
   const onSaveAs = useCallback(async () => {
@@ -168,14 +194,15 @@ export function useProjectFiles({
     async ({ copyDataFiles }: { copyDataFiles: boolean }) => {
       if (!saveAs) return
       const { target } = saveAs
-      await writeFileToDirectory(target, 'noodles.json', safeStringify(projectJson()))
+      const { json, revision } = snapshot()
+      await writeFileToDirectory(target, 'noodles.json', safeStringify(json))
       if (copyDataFiles && projectName) {
         if (storageType === 'memory') await copyMemoryDataToDirectory(projectName, target)
         else if (storageType === 'publicFolder') await copyPublicFolderData(projectName, target)
         else if (currentDirectory) await copyDataDirectory(currentDirectory, target)
       }
       if (storageType === 'memory' && projectName) memoryProjectStore.deleteProject(projectName)
-      await savedTo(target, target.name, 'copy')
+      await savedTo(target, target.name, 'copy', revision)
       analytics.track('project_saved_as', {
         fromStorageType: storageType,
         toStorageType: 'fileSystemAccess',
@@ -205,10 +232,11 @@ export function useProjectFiles({
       if (!(await requestPermission(directory, 'readwrite'))) {
         throw new Error('Permission denied to write to directory')
       }
-      await writeFileToDirectory(directory, 'noodles.json', safeStringify(projectJson()))
+      const { json, revision } = snapshot()
+      await writeFileToDirectory(directory, 'noodles.json', safeStringify(json))
       if (currentDirectory) await copyDataDirectory(currentDirectory, directory)
       if (projectName) await directoryHandleCache.renameProject(projectName, newName, directory)
-      await savedTo(directory, newName, 'move')
+      await savedTo(directory, newName, 'move', revision)
       analytics.track('project_renamed', {
         fromStorageType: storageType,
         toStorageType: 'fileSystemAccess',

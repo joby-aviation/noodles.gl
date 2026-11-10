@@ -347,6 +347,9 @@ export function useDocNoodles(): Visualization {
   // when version control or autosave is turned off, which cancels a pending save.
   const gitSettings = useGitSettings(projectName ?? null)
   const onSaveProject = files.onSaveProject
+  // Each edit restarts the delay, so autosave saves once editing pauses
+  const revision = useEditor(s => s.revision)
+  // biome-ignore lint/correctness/useExhaustiveDependencies: revision restarts the delay
   useEffect(() => {
     const isExamplesRoute = routePrefix === '/examples'
     if (
@@ -360,7 +363,7 @@ export function useDocNoodles(): Visualization {
       return
     const timeoutId = setTimeout(() => void onSaveProject(), gitSettings.autoCommitDelay)
     return () => clearTimeout(timeoutId)
-  }, [gitSettings, storageType, dirty, routePrefix, onSaveProject])
+  }, [gitSettings, storageType, dirty, routePrefix, onSaveProject, revision])
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       // mod+shift+h toggles the version history
