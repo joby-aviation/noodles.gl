@@ -4,6 +4,7 @@ import type { z } from 'zod'
 import type { Operator } from '../noodles/operators'
 import { getOpStore } from '../noodles/store'
 import { safeStringify } from '../noodles/utils/serialization'
+import { isRendering } from '../render/render-session'
 import {
   captureTimelineState,
   fireTimelineMutation,
@@ -1331,6 +1332,8 @@ export class MCPTools {
           },
           position: store.position,
           playing: store.playing,
+          // An export drives the playhead until it finishes
+          exporting: isRendering(),
           trackCount: store.tracks.size,
           tracks,
         },
@@ -1440,6 +1443,13 @@ export class MCPTools {
 
   // Set the current playback position (scrub to a time)
   setPlaybackPosition(params: { position: number; play?: boolean }): ToolResult {
+    if (isRendering()) {
+      return {
+        success: false,
+        error:
+          'An export is running and sets the playhead for each frame. Wait for it to finish (get_export_status follows an export_video run).',
+      }
+    }
     try {
       const store = getTimelineStore()
       const clamped = Math.max(0, Math.min(params.position, store.sequence.length))

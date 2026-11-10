@@ -1,7 +1,7 @@
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
 import { useCallback } from 'react'
 import type { RenderSource } from '../../render/render-analytics'
-import { useRenderProgressStore } from '../../render/render-progress-store'
+import { useRenderSessionStore } from '../../render/render-session'
 import s from './export-button.module.css'
 
 interface ExportButtonProps {
@@ -24,7 +24,7 @@ export function ExportButton({
   takeScreenshot,
   startRender,
 }: ExportButtonProps) {
-  const percent = useRenderProgressStore(state => state.percent)
+  const percent = useRenderSessionStore(state => state.percent)
 
   // The menu can be open when another export starts (the export_video tool), so the
   // items and handlers check isRendering too, not just the trigger

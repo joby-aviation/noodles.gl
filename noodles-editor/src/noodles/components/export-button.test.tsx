@@ -3,8 +3,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   resetRenderProgress,
   setRenderProgress,
-  useRenderProgressStore,
-} from '../../render/render-progress-store'
+  useRenderSessionStore,
+} from '../../render/render-session'
 import { ExportButton } from './export-button'
 
 beforeEach(() => {
@@ -183,22 +183,22 @@ describe('ExportButton', () => {
 describe('render progress store', () => {
   it('only updates when the whole percent changes', () => {
     const listener = vi.fn()
-    const unsubscribe = useRenderProgressStore.subscribe(listener)
+    const unsubscribe = useRenderSessionStore.subscribe(listener)
 
     setRenderProgress(1, 1000)
     setRenderProgress(5, 1000)
-    expect(useRenderProgressStore.getState().percent).toBe(0)
+    expect(useRenderSessionStore.getState().percent).toBe(0)
     expect(listener).toHaveBeenCalledTimes(1)
 
     setRenderProgress(10, 1000)
-    expect(useRenderProgressStore.getState().percent).toBe(1)
+    expect(useRenderSessionStore.getState().percent).toBe(1)
     expect(listener).toHaveBeenCalledTimes(2)
 
     setRenderProgress(1000, 1000)
-    expect(useRenderProgressStore.getState().percent).toBe(100)
+    expect(useRenderSessionStore.getState().percent).toBe(100)
 
     resetRenderProgress()
-    expect(useRenderProgressStore.getState().percent).toBeNull()
+    expect(useRenderSessionStore.getState().percent).toBeNull()
     unsubscribe()
   })
 })

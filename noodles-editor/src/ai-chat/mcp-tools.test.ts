@@ -1,4 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { beginRender } from '../render/render-session'
+import { getTimelineStore } from '../timeline/timeline-store'
 import type { ContextLoader } from './context-loader'
 import { MCPTools } from './mcp-tools'
 import { getOperatorRegistry } from './runtime-operator-registry'
@@ -587,5 +589,25 @@ describe('applyModifications field validation', () => {
     })
     expect(result.error).toContain('/points (ScatterplotLayerOp) has no input color')
     expect(result.error).toContain('getFillColor')
+  })
+})
+
+describe('playback during an export', () => {
+  it('refuses to move the playhead and reports the export in get_timeline', () => {
+    const tools = new MCPTools({} as ContextLoader)
+    getTimelineStore().setPosition(1)
+    const release = beginRender('video', 'menu')
+    try {
+      const result = tools.setPlaybackPosition({ position: 0, play: true })
+      expect(result.success).toBe(false)
+      expect(result.error).toMatch(/export is running/)
+      expect(getTimelineStore().position).toBe(1)
+      expect(getTimelineStore().playing).toBe(false)
+      expect((tools.getTimeline().data as { exporting: boolean }).exporting).toBe(true)
+    } finally {
+      release?.()
+    }
+    expect(tools.setPlaybackPosition({ position: 0 }).success).toBe(true)
+    expect((tools.getTimeline().data as { exporting: boolean }).exporting).toBe(false)
   })
 })

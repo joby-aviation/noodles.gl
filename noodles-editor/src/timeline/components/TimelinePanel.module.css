@@ -483,10 +483,15 @@
     color 0.12s ease;
 }
 
-.timelinePlayControls button:hover {
+.timelinePlayControls button:hover:not(:disabled) {
   background: var(--tl-surface-raised);
   border-color: #4a5d75;
   color: #ced7e4;
+}
+
+.timelinePlayControls button:disabled {
+  cursor: default;
+  opacity: 0.45;
 }
 
 .timelinePlayControls button.active {
