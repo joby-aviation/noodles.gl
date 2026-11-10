@@ -34,4 +34,4 @@ The pre-commit hook will:
 These live in `noodles-editor/scripts/`:
 
 - `generate-migration.ts` - Generate migration scripts for project schema updates
-- `migrate-project-files.ts` - Apply migrations to project files
+- `migrate-project-files.ts` - Apply migrations to project files in `src/examples` or any paths given (`npm run migrate-projects -- [--check] [--from <version>] [paths...]`, see [Migrating Project Files](../dev-docs/adding-operators.md#migrating-project-files))

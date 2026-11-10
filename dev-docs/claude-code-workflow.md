@@ -20,7 +20,7 @@ Project files (`noodles.json`) are plain JSON and can be read and written by Cla
 - Node IDs are Unix-style paths: `/my-node`, `/container/child`
 - Edge handles: `out.fieldName` (source) → `par.fieldName` (target)
 - Only non-default input values need to be serialized
-- The current version is the number of the latest migration in `src/noodles/__migrations__/`; `validate-projects` prints it. Write new files at the current version; older files are migrated when they load, so don't bump the version of an existing file by hand
+- The current version is the number of the latest migration in `src/noodles/__migrations__/`; `validate-projects` prints it. Write new files at the current version; older files are migrated when they load, so don't bump the version of an existing file by hand. To migrate files on disk, including projects outside this repo, run `npm run migrate-projects -- <file or folder>` from `noodles-editor/` (see [Migrating Project Files](adding-operators.md#migrating-project-files))
 - The file shape is published as a JSON Schema at `https://noodles.gl/schema/noodles-project.schema.json` (generated from `src/noodles/utils/project-schema.ts`), with a fixed copy per version at `noodles-project.v<N>.schema.json`. It checks shape only; operator types, inputs and handles are left to `validate-projects`
 - Examples open with one node selected so the properties panel shows controls: the first layer feeding the DeckRenderer's `layers` input. To pick another root-level node, set `"editorSettings": { "startNode": "/node-id" }`. This is optional and needs no migration
 
