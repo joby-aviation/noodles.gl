@@ -1,7 +1,7 @@
 // Integration tests for useUndoRedo — focuses on timeline track cleanup during node deletion
 // and verifying that graphRef captures the full graph state (not just displayed scope)
 import { act, renderHook } from '@testing-library/react'
-import type { Edge as ReactFlowEdge, Node as ReactFlowNode } from '@xyflow/react'
+import type { NodeChange, Edge as ReactFlowEdge, Node as ReactFlowNode } from '@xyflow/react'
 import { ReactFlowProvider, useStoreApi } from '@xyflow/react'
 import { createElement, useRef } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -673,5 +673,125 @@ describe('useUndoRedo — addition analytics', () => {
     expect(storeApi.getState().nodes.map(n => n.id)).toEqual(['/n'])
     expect(storeApi.getState().edges.map(e => e.id)).toEqual(['e'])
     expect(track).toHaveBeenCalledTimes(2)
+  })
+})
+
+describe('useUndoRedo — restore lifecycle and ordering', () => {
+  beforeEach(() => vi.useFakeTimers())
+  afterEach(() => {
+    vi.useRealTimers()
+    clearOps()
+  })
+
+  // Renders the hook with handlers that keep the store's nodes in step with the changes
+  async function setupSyncedHook() {
+    const { result } = renderHook(() => useTestHook(), { wrapper })
+    const { storeApi } = result.current
+    const handler = vi.fn((changes: NodeChange[]) => {
+      for (const c of changes) {
+        const { nodes } = storeApi.getState()
+        if (c.type === 'add') storeApi.setState({ nodes: [...nodes, c.item] })
+        if (c.type === 'remove') storeApi.setState({ nodes: nodes.filter(n => n.id !== c.id) })
+      }
+    })
+    await act(async () => {
+      storeApi.setState({ onNodesChange: handler })
+    })
+    const addNode = (id: string) =>
+      storeApi
+        .getState()
+        .onNodesChange?.([
+          { type: 'add', item: { id, type: 'NumberOp', position: { x: 0, y: 0 }, data: {} } },
+        ])
+    const nodeIds = () => storeApi.getState().nodes.map(n => n.id)
+    return { result, storeApi, handler, addNode, nodeIds }
+  }
+
+  it('undoes two entries when undo runs twice before a re-render', () => {
+    const { result } = renderHook(() => useTestHook(), { wrapper })
+    const op = new NumberOp('/n', { val: 1 })
+    setOp(op.id, op)
+    const snapshot = (val: number) => JSON.stringify({ '/n': { val } })
+
+    act(() => {
+      result.current.undoRedo.recordPropertyChange('First', snapshot(1), snapshot(2))
+      result.current.undoRedo.recordPropertyChange('Second', snapshot(2), snapshot(3))
+    })
+    op.inputs.val.setValue(3)
+
+    act(() => {
+      result.current.undoRedo.undo()
+      result.current.undoRedo.undo()
+    })
+
+    expect(op.inputs.val.value).toBe(1)
+    expect(result.current.undoRedo.canUndo()).toBe(false)
+  })
+
+  it('undoes an edit made in the same tick, before its entry was recorded', async () => {
+    const { result, addNode, nodeIds } = await setupSyncedHook()
+    act(() => addNode('/a'))
+    await act(() => vi.advanceTimersByTimeAsync(0))
+
+    act(() => {
+      addNode('/b')
+      result.current.undoRedo.undo()
+    })
+    await act(() => vi.advanceTimersByTimeAsync(0))
+
+    expect(nodeIds()).toEqual(['/a'])
+    act(() => result.current.undoRedo.redo())
+    expect(nodeIds()).toEqual(['/a', '/b'])
+  })
+
+  it('keeps recording after a restore throws', async () => {
+    const { result, handler, addNode } = await setupSyncedHook()
+    act(() => addNode('/a'))
+    await act(() => vi.advanceTimersByTimeAsync(0))
+
+    handler.mockImplementationOnce(() => {
+      throw new Error('handler failed')
+    })
+    expect(() => act(() => result.current.undoRedo.undo())).toThrow('handler failed')
+    await act(() => vi.advanceTimersByTimeAsync(0))
+
+    expect(result.current.undoRedo.isRestoring()).toBe(false)
+    act(() => addNode('/b'))
+    await act(() => vi.advanceTimersByTimeAsync(0))
+    expect(result.current.undoRedo.history).toHaveLength(2)
+  })
+
+  it('keeps recording after the onNodesChange handler is replaced', async () => {
+    const { result, storeApi, addNode } = await setupSyncedHook()
+    const next = vi.fn()
+    await act(async () => {
+      storeApi.setState({ onNodesChange: next })
+    })
+
+    act(() => addNode('/a'))
+    await act(() => vi.advanceTimersByTimeAsync(0))
+
+    expect(next).toHaveBeenCalledOnce()
+    expect(result.current.undoRedo.history).toHaveLength(1)
+  })
+
+  it('does not record the measurement React Flow emits after an undo', async () => {
+    const { result, storeApi, addNode } = await setupSyncedHook()
+    act(() => addNode('/a'))
+    await act(() => vi.advanceTimersByTimeAsync(0))
+    act(() => addNode('/b'))
+    await act(() => vi.advanceTimersByTimeAsync(0))
+
+    act(() => result.current.undoRedo.undo())
+    await act(() => vi.advanceTimersByTimeAsync(0))
+    act(() =>
+      storeApi
+        .getState()
+        .onNodesChange?.([{ type: 'dimensions', id: '/a', dimensions: { width: 10, height: 10 } }])
+    )
+    await act(() => vi.advanceTimersByTimeAsync(0))
+
+    expect(result.current.undoRedo.history).toHaveLength(2)
+    expect(result.current.undoRedo.canRedo()).toBe(true)
   })
 })

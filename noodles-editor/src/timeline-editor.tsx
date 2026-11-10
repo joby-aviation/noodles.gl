@@ -36,7 +36,7 @@ import { PREVIEW_FRAME_DELAY, useDeckDrawLoop } from './render/draw-loop'
 import { FrameCounter } from './render/frame-stats'
 import { type BasemapLight, type BasemapSky, syncLightAndSky } from './render/map-light-sky'
 import type { RenderSource } from './render/render-analytics'
-import { resetRenderProgress, setRenderProgress } from './render/render-progress-store'
+import { isRendering as isExportRunning, setRenderProgress } from './render/render-session'
 import {
   calculateRenderSurfaceSize,
   observeRenderSurface,
@@ -131,7 +131,6 @@ export default function TimelineEditor() {
   const mapRef = useRef<MapLibre | null>(null)
   const deckRef = useRef<Deck>(null)
   const renderSurfaceRef = useRef<HTMLDivElement>(null)
-  const isRenderingRef = useRef(false)
   // Session-only handle set by selectRendersDirectory; takes priority over project subdir
   const rendersDirectoryHandleRef = useRef<FileSystemDirectoryHandle | null>(null)
   const customLayersRef = useRef<Set<string>>(new Set())
@@ -152,7 +151,7 @@ export default function TimelineEditor() {
     deckRef.current?.redraw()
     // Only trigger React re-renders outside of the render loop — during export this
     // runs every frame and causes CSSStyleRule/DOM churn from React re-renders.
-    if (!isRenderingRef.current) setRand(Math.random())
+    if (!isExportRunning()) setRand(Math.random())
   }, [])
 
   const noodles = getNoodles()
@@ -206,7 +205,6 @@ export default function TimelineEditor() {
     bitrateMode,
     redraw,
   })
-  isRenderingRef.current = isRendering
 
   const isPlaying = useTimelineStore(state => state.playing)
   const cameraControl = useCameraControlState(selectedNodeIds ?? [], {
@@ -527,7 +525,7 @@ export default function TimelineEditor() {
     }
     // During rendering with waitForData, also confirm deck layers have finished loading.
     // mapIdle fires on map tile/style readiness only — it doesn't know about deck layer data.
-    if (isRenderingRef.current && waitForData) {
+    if (isExportRunning() && waitForData) {
       const deck = deckRef.current
       if (
         deck &&
@@ -537,7 +535,7 @@ export default function TimelineEditor() {
         return
       }
     }
-    if (isRenderingRef.current && preview) {
+    if (isExportRunning() && preview) {
       if (frameCapturedRef.current) return
       frameCapturedRef.current = true
       debugRender(
@@ -579,8 +577,7 @@ export default function TimelineEditor() {
 
   const startRender = useCallback(
     async (source: RenderSource = 'menu') => {
-      // Two captures would share one frame-ready callback and the timeline position
-      if (isRenderingRef.current) {
+      if (isExportRunning()) {
         debugRender('Start Render: an export is already running')
         return
       }
@@ -591,7 +588,6 @@ export default function TimelineEditor() {
         return
       }
 
-      resetRenderProgress()
       const result = await startCapture({
         canvas,
         getCanvas: getDeckCanvas,
@@ -628,7 +624,7 @@ export default function TimelineEditor() {
   // agent driving the editor cannot make. Always an opaque MP4, whatever exportAlpha says.
   const exportVideoForAgent = useCallback<VideoExporter>(
     (request, onFrameComplete) => {
-      if (isRenderingRef.current) {
+      if (isExportRunning()) {
         return { status: 'refused', error: 'An export is already running in the editor' }
       }
 
@@ -652,7 +648,6 @@ export default function TimelineEditor() {
       if (!resolved.ok) return { status: 'refused', error: resolved.error }
 
       const { settings } = resolved
-      resetRenderProgress()
       return {
         status: 'started',
         settings,
@@ -719,6 +714,12 @@ export default function TimelineEditor() {
   }, [activeOutOp])
 
   const exportSequence = useCallback(async () => {
+    // Checked before the folder picker, so it doesn't open during an export.
+    // startSequenceCapture still claims the session, in case one starts while it is open.
+    if (isExportRunning()) {
+      debugRender('Export Sequence: an export is already running')
+      return
+    }
     const canvas = getDeckCanvas()
     if (!canvas) {
       debugRender('Export Sequence: the canvas is not ready yet')
@@ -752,7 +753,6 @@ export default function TimelineEditor() {
       }
     }
 
-    resetRenderProgress()
     try {
       await startSequenceCapture({
         canvas,
