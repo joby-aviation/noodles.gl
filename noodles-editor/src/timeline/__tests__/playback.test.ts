@@ -1,7 +1,8 @@
 // Tests for the playback driver - RAF-based playback with manual mode support
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { PlaybackDriver } from '../playback'
+import { connectPlaybackToTimeline, PlaybackDriver } from '../playback'
+import { useTimelineStore } from '../timeline-store'
 
 describe('PlaybackDriver', () => {
   let driver: PlaybackDriver
@@ -72,72 +73,33 @@ describe('PlaybackDriver', () => {
   })
 
   describe('manual mode', () => {
+    afterEach(() => {
+      useTimelineStore.getState().reset()
+    })
+
     it('is disabled by default', () => {
       expect(driver.isManualMode()).toBe(false)
     })
 
-    it('can be enabled', () => {
+    it('stops the loop when enabled and keeps it off', () => {
+      driver.start()
       driver.setManualMode(true)
-      expect(driver.isManualMode()).toBe(true)
+      expect(driver.isRunning()).toBe(false)
+      driver.start()
+      expect(driver.isRunning()).toBe(false)
     })
 
-    it('can be disabled', () => {
+    it('restarts the loop when disabled while the timeline is playing', () => {
+      driver.setManualMode(true)
+      useTimelineStore.getState().play()
+      driver.setManualMode(false)
+      expect(driver.isRunning()).toBe(true)
+    })
+
+    it('leaves the loop off when disabled while the timeline is paused', () => {
       driver.setManualMode(true)
       driver.setManualMode(false)
-      expect(driver.isManualMode()).toBe(false)
-    })
-
-    it('stops playback when enabled', () => {
-      driver.start()
-      expect(driver.isRunning()).toBe(true)
-      driver.setManualMode(true)
       expect(driver.isRunning()).toBe(false)
-    })
-
-    it('prevents start when in manual mode', () => {
-      driver.setManualMode(true)
-      driver.start()
-      expect(driver.isRunning()).toBe(false)
-    })
-
-    it('manualTick notifies subscribers', () => {
-      const callback = vi.fn()
-      driver.subscribe(callback)
-      driver.setManualMode(true)
-
-      driver.manualTick(0)
-      driver.manualTick(16.67) // ~60fps frame
-
-      expect(callback).toHaveBeenCalledTimes(2)
-    })
-
-    it('manualTick passes delta to subscribers', () => {
-      const callback = vi.fn()
-      driver.subscribe(callback)
-      driver.setManualMode(true)
-
-      driver.manualTick(0)
-      driver.manualTick(100)
-
-      // Second call should have delta of 100
-      expect(callback).toHaveBeenLastCalledWith(100)
-    })
-
-    it('manualTick does not notify subscribers when not in manual mode', () => {
-      const callback = vi.fn()
-      driver.subscribe(callback)
-      driver.manualTick(0)
-      // Should not notify subscribers when not in manual mode
-      expect(callback).not.toHaveBeenCalled()
-    })
-
-    it('manualTick does nothing when not in manual mode', () => {
-      const callback = vi.fn()
-      driver.subscribe(callback)
-      vi.spyOn(console, 'warn').mockImplementation(() => {})
-
-      driver.manualTick(0)
-      expect(callback).not.toHaveBeenCalled()
     })
   })
 
@@ -150,10 +112,10 @@ describe('PlaybackDriver', () => {
 
       driver.subscribe(errorCallback)
       driver.subscribe(successCallback)
-      driver.setManualMode(true)
+      vi.spyOn(console, 'error').mockImplementation(() => {})
 
-      driver.manualTick(0)
-      driver.manualTick(16)
+      driver.start()
+      vi.advanceTimersToNextFrame()
 
       // Error callback threw but success callback should still be called
       expect(errorCallback).toHaveBeenCalled()
@@ -200,5 +162,85 @@ describe('playback helpers', () => {
     const { playbackDriver } = await import('../playback')
     expect(playbackDriver).toBeDefined()
     expect(typeof playbackDriver.start).toBe('function')
+  })
+})
+
+describe('connectPlaybackToTimeline', () => {
+  let disconnect: () => void
+
+  beforeEach(() => {
+    vi.useFakeTimers()
+    useTimelineStore.getState().reset()
+    disconnect = connectPlaybackToTimeline()
+  })
+
+  afterEach(() => {
+    disconnect()
+    useTimelineStore.getState().reset()
+    vi.useRealTimers()
+  })
+
+  function advance(ms: number) {
+    for (let elapsed = 0; elapsed < ms; elapsed += 16) vi.advanceTimersToNextFrame()
+  }
+
+  it('advances the position while playing', () => {
+    useTimelineStore.getState().play()
+    advance(500)
+    const { position } = useTimelineStore.getState()
+    expect(position).toBeGreaterThan(0.3)
+    expect(position).toBeLessThan(0.7)
+  })
+
+  it('wraps around the in/out range when looping', () => {
+    const store = useTimelineStore.getState()
+    store.setLength(10)
+    store.setInPoint(1)
+    store.setOutPoint(2)
+    store.toggleLoopInOut()
+    store.setPosition(1.9)
+    store.play()
+    advance(300)
+    const { position, playing } = useTimelineStore.getState()
+    expect(playing).toBe(true)
+    expect(position).toBeGreaterThanOrEqual(1)
+    expect(position).toBeLessThan(1.5)
+  })
+
+  it('pauses instead of producing NaN when a loaded in/out range is empty', () => {
+    const store = useTimelineStore.getState()
+    // fromTimelineJSON trusts the file, so it can load in == out
+    useTimelineStore.setState({ sequence: { ...store.sequence, inPoint: 3, outPoint: 3 } })
+    store.toggleLoopInOut()
+    store.setPosition(3)
+    store.play()
+    advance(100)
+    const { position, playing } = useTimelineStore.getState()
+    expect(position).toBe(3)
+    expect(Number.isNaN(position)).toBe(false)
+    expect(playing).toBe(false)
+  })
+
+  it('pauses instead of producing NaN when the sequence length is zero', () => {
+    const store = useTimelineStore.getState()
+    useTimelineStore.setState({ sequence: { ...store.sequence, length: 0 } })
+    store.play()
+    advance(100)
+    const { position, playing } = useTimelineStore.getState()
+    expect(position).toBe(0)
+    expect(playing).toBe(false)
+  })
+
+  it('does not advance the position while scrubbing', () => {
+    const store = useTimelineStore.getState()
+    store.setPosition(2)
+    store.play()
+    store.beginScrub('ruler')
+    advance(500)
+    expect(useTimelineStore.getState().position).toBe(2)
+
+    store.endScrub('ruler')
+    advance(500)
+    expect(useTimelineStore.getState().position).toBeGreaterThan(2)
   })
 })

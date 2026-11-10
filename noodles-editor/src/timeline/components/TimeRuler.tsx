@@ -3,7 +3,9 @@
 import type React from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
+import { isRendering } from '../../render/render-session'
 import { captureTimelineState, fireTimelineMutation, useTimelineStore } from '../timeline-store'
+import { useScrubDrag } from '../use-scrub-drag'
 import s from './TimelinePanel.module.css'
 import { TimeMarker } from './TimeMarker'
 
@@ -90,7 +92,7 @@ export function TimeRuler({
   const beforeStateRef = useRef<string>('')
   const markerBeforeRef = useRef<string>('')
   const dragStateRef = useRef<{ startX: number; startLength: number; before: string } | null>(null)
-  const isScrubbingRef = useRef(false)
+  const startScrub = useScrubDrag('ruler')
 
   // Get markers from store
   const markers = useTimelineStore(state => state.markers)
@@ -245,7 +247,7 @@ export function TimeRuler({
 
   const handleRulerMouseDown = useCallback(
     (e: React.MouseEvent<HTMLDivElement>) => {
-      if (e.button !== 0) return
+      if (e.button !== 0 || isRendering()) return
 
       const target = e.target as HTMLElement
       if (target.closest('.timeline-sequence-end-marker')) return
@@ -258,24 +260,10 @@ export function TimeRuler({
         onSetPosition(snapToFrame(rawTime, fps))
       }
 
+      startScrub(updatePosition)
       updatePosition(e)
-      isScrubbingRef.current = true
-
-      const handleMouseMove = (moveEvent: MouseEvent) => {
-        if (!isScrubbingRef.current) return
-        updatePosition(moveEvent)
-      }
-
-      const handleMouseUp = () => {
-        isScrubbingRef.current = false
-        document.removeEventListener('mousemove', handleMouseMove)
-        document.removeEventListener('mouseup', handleMouseUp)
-      }
-
-      document.addEventListener('mousemove', handleMouseMove)
-      document.addEventListener('mouseup', handleMouseUp)
     },
-    [onSetPosition, pixelsPerSecond, sequenceLength, fps]
+    [onSetPosition, pixelsPerSecond, sequenceLength, fps, startScrub]
   )
 
   // Context menu handler
