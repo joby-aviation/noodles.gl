@@ -936,6 +936,18 @@ export function getNoodles(): Visualization {
   // Track when we're programmatically loading a project to prevent useEffect from trying to reload
   const isProgrammaticLoadRef = useRef(false)
 
+  // A save that moves the project to a new route already has its graph, so the URL effect
+  // must not reload it from the file just written, which would drop edits made during the write
+  const locationRef = useRef(location)
+  locationRef.current = location
+  const navigateAfterSave = useCallback(
+    (route: string) => {
+      if (route !== locationRef.current) isProgrammaticLoadRef.current = true
+      navigate(route, { replace: true })
+    },
+    [navigate]
+  )
+
   // Ref to access undo/redo and copy/paste functionality from inside ReactFlow context
   const undoRedoRef = useRef<UndoRedoHandlerRef>(null)
   const copyControlsRef = useRef<CopyControlsRef>(null)
@@ -1473,7 +1485,7 @@ export function getNoodles(): Visualization {
         getKeysStore().moveKeyOverridesTo(keysProjectId('/projects', directoryName))
         setCurrentDirectory(directoryHandle, directoryName)
         setActiveStorageType('fileSystemAccess')
-        navigate(`/projects/${directoryName}`, { replace: true })
+        navigateAfterSave(`/projects/${directoryName}`)
         memoryProjectStore.deleteProject(oldProjectName)
         getKeysStore().markProjectKeysSaved()
         markSaved(savedRevision)
@@ -1507,17 +1519,24 @@ export function getNoodles(): Visualization {
     setCurrentDirectory,
     setActiveStorageType,
     setError,
-    navigate,
     markSaved,
+    navigateAfterSave,
   ])
 
   // Saves run one at a time, so an autosave never writes while a manual save is writing.
-  // A queued save reads the project when it starts, not when it was asked for.
+  // A queued save reads the project when it starts, not when it was asked for, and is
+  // dropped if another project opened in the meantime.
   const saveProjectRef = useRef(saveProject)
   saveProjectRef.current = saveProject
+  const openProjectKey = `${storageType}:${projectName}`
+  const openProjectKeyRef = useRef(openProjectKey)
+  openProjectKeyRef.current = openProjectKey
   const saveQueueRef = useRef<Promise<void>>(Promise.resolve())
   const onMenuSave = useCallback(() => {
-    const queued = saveQueueRef.current.then(() => saveProjectRef.current())
+    const requestedFor = openProjectKeyRef.current
+    const queued = saveQueueRef.current.then(() =>
+      openProjectKeyRef.current === requestedFor ? saveProjectRef.current() : undefined
+    )
     saveQueueRef.current = queued.catch(() => {})
     return queued
   }, [])
@@ -1623,7 +1642,7 @@ export function getNoodles(): Visualization {
       setActiveStorageType('fileSystemAccess')
 
       // Update the URL to reflect the new project name
-      navigate(`/projects/${directoryName}`, { replace: true })
+      navigateAfterSave(`/projects/${directoryName}`)
 
       // Mark as saved
       getKeysStore().markProjectKeysSaved()
@@ -1645,8 +1664,8 @@ export function getNoodles(): Visualization {
       currentDirectory,
       setCurrentDirectory,
       setActiveStorageType,
-      navigate,
       markSaved,
+      navigateAfterSave,
     ]
   )
 
@@ -1705,7 +1724,7 @@ export function getNoodles(): Visualization {
         setActiveStorageType('fileSystemAccess')
 
         // Update the URL to reflect the new project name
-        navigate(`/projects/${newName}`, { replace: true })
+        navigateAfterSave(`/projects/${newName}`)
 
         // Mark as saved
         getKeysStore().markProjectKeysSaved()
@@ -1731,8 +1750,8 @@ export function getNoodles(): Visualization {
       currentDirectory,
       setCurrentDirectory,
       setActiveStorageType,
-      navigate,
       markSaved,
+      navigateAfterSave,
     ]
   )
 
