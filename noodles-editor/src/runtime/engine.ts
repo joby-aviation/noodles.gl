@@ -69,6 +69,8 @@ export interface EngineHost {
     ): Promise<{ errors: { nodeId: string; message: string }[] }>
     output(nodeId: string, port: string): unknown
     idle(): Promise<void>
+    /** Drop every operator's outputs: another project opened. */
+    forget?(): Promise<void>
   }
   /** A layer operator's plain-object output as a deck layer. */
   layer(description: { type: string; [key: string]: unknown }): Layer
@@ -187,7 +189,21 @@ export class Engine {
   private time = 0
   private pointer?: { x: number; y: number }
   private slots: ReadonlyMap<string, unknown> = new Map()
+  /**
+   * Runs, one at a time: every step the engine takes (a run, a project switch) waits for the
+   * one before. `pending` is the last step queued, `queued` the run that hasn't started yet.
+   * A change made while a run is under way joins `queued`, which reads the document, time and
+   * pointer when it starts: however many changes arrive, one run follows the current one.
+   */
   private pending: Promise<unknown> = Promise.resolve()
+  private queued?: Promise<void>
+  /**
+   * A project switch under way: the forgetting, queued behind the last project's runs. A
+   * document set meanwhile waits in `next`, so a run queued before the switch, which reads the
+   * engine's document when it starts, never runs it over the last project's files.
+   */
+  private switching?: Promise<void>
+  private next?: { doc: EditorDoc; time: number }
   private built = new Map<string, Layer[]>()
   // A planner layer's extensions, built once for the extension values wired to it
   private readonly extended = new Map<
@@ -245,26 +261,61 @@ export class Engine {
    * A different project is opening. Its files can share names with this one's (`@/data.csv`),
    * relations are memoized by the SQL that names them, and node ids repeat across projects, so
    * drop all of it: the next setDoc registers this project's files and compiles from nothing.
+   * The last project's runs finish first; nothing runs it again once this is called.
    */
-  async openProject(): Promise<void> {
-    await this.pending.catch(() => undefined)
-    this.registered.clear()
-    this.revokeAssetUrls()
-    this.structure = undefined
-    this.built.clear()
-    this.extended.clear()
-    this.hostTables.clear()
-    // Host reads are keyed by relation hash, which another project with the same files and
-    // graph repeats
-    this.aggregates.clear()
-    this.features.clear()
-    this.rows.clear()
-    this.loadedRows.clear()
-    await this.runtime.forget?.()
+  openProject(): Promise<void> {
+    this.doc = undefined
+    this.lowered = undefined
+    this.next = undefined
+    // A change from now on is the new project's: it runs after the forgetting, not before
+    this.queued = undefined
+    const switching = this.enqueue(async () => {
+      this.registered.clear()
+      this.revokeAssetUrls()
+      this.structure = undefined
+      this.built.clear()
+      this.extended.clear()
+      this.hostTables.clear()
+      // Host reads are keyed by relation hash, which another project with the same files and
+      // graph repeats
+      this.aggregates.clear()
+      this.features.clear()
+      this.rows.clear()
+      this.loadedRows.clear()
+      // Host operators are kept by node id, which repeats too: a CodeOp with the same inputs
+      // would hand on the last project's output
+      try {
+        await this.options.host?.runner.forget?.()
+        await this.runtime.forget?.()
+      } finally {
+        if (this.switching === switching) this.switching = undefined
+        // The document set since this was called, if any, is the next project's
+        if (this.next) {
+          this.doc = this.next.doc
+          this.time = this.next.time
+          this.next = undefined
+          this.lower()
+        }
+      }
+    })
+    this.switching = switching
+    return switching
+  }
+
+  /** Queue a step behind every step queued so far. */
+  private enqueue<T>(step: () => Promise<T>): Promise<T> {
+    const next = this.pending.then(step)
+    this.pending = next.catch(() => undefined)
+    return next
   }
 
   /** Show a document: a structural edit recompiles, a value edit only rebinds. */
   setDoc(doc: EditorDoc, time = this.time): Promise<void> {
+    if (this.switching) {
+      this.next = { doc, time }
+      // The switch reports its own failure; the document runs either way
+      return this.switching.catch(() => undefined).then(() => this.update())
+    }
     this.doc = doc
     // A file that failed to read may have been added since: an edit tries it again
     for (const [name, asset] of this.assetUrls) if (asset.error) this.assetUrls.delete(name)
@@ -430,9 +481,10 @@ export class Engine {
    * bytes, on this refresh.
    */
   assetChanged(name: string): Promise<void> {
-    const asset = this.assetUrls.get(`@/${name}`)
-    if (!asset) return Promise.resolve()
-    this.forgetAsset(`@/${name}`)
+    if (!this.assetUrls.has(`@/${name}`)) return Promise.resolve()
+    // Between runs, so a run reading the old bytes doesn't put them back
+    void this.enqueue(async () => this.forgetAsset(`@/${name}`))
+    this.queued = undefined
     // Only a prop changed: nothing in the runtime announces it
     return this.update().then(() => this.emit())
   }
@@ -493,49 +545,55 @@ export class Engine {
     return this.update()
   }
 
+  /** Run the document as it is when the run starts, after the run under way. */
   private update(): Promise<void> {
     if (!this.lowered) return Promise.resolve()
-    const all = (async () => {
-      // Host operators the planner reads (a geocoder whose location a query binds, a CodeOp
-      // whose rows a layer draws) first; the ones that read planner output wait for the second
-      // pass.
-      await this.runHost(false)
-      if (await this.bridgeHostTables()) this.lower()
-      const lowered = this.lowered
-      if (!lowered) return
-      const key = structureKey(lowered.graph)
-      const structural = key !== this.structure
-      if (structural) await this.registerAssets()
-      const fps = this.doc?.timeline?.fps ?? 30
-      const clock = {
-        T: this.time,
-        F: Math.round(this.time * fps),
-        MX: this.pointer?.x ?? 0,
-        MY: this.pointer?.y ?? 0,
-      }
-      const { values, slots } = parameterValues(lowered, clock, this.hostValues())
-      this.slots = slots
-      if (structural) {
-        this.structure = key
-        await this.runtime.setGraph(lowered.graph, values)
-      } else {
-        await this.runtime.setValues(values)
-      }
+    this.queued ??= this.enqueue(() => {
+      this.queued = undefined
+      return this.run()
+    })
+    return this.queued
+  }
+
+  private async run(): Promise<void> {
+    if (!this.lowered) return
+    // Host operators the planner reads (a geocoder whose location a query binds, a CodeOp
+    // whose rows a layer draws) first; the ones that read planner output wait for the second
+    // pass.
+    await this.runHost(false)
+    if (await this.bridgeHostTables()) this.lower()
+    const lowered = this.lowered
+    if (!lowered) return
+    const key = structureKey(lowered.graph)
+    const structural = key !== this.structure
+    if (structural) await this.registerAssets()
+    const fps = this.doc?.timeline?.fps ?? 30
+    const clock = {
+      T: this.time,
+      F: Math.round(this.time * fps),
+      MX: this.pointer?.x ?? 0,
+      MY: this.pointer?.y ?? 0,
+    }
+    const { values, slots } = parameterValues(lowered, clock, this.hostValues())
+    this.slots = slots
+    if (structural) {
+      this.structure = key
+      await this.runtime.setGraph(lowered.graph, values)
+    } else {
+      await this.runtime.setValues(values)
+    }
+    await this.runtime.idle()
+    await this.loadLayerAssets()
+    await this.runHost(true)
+    // Host and deck operators that read planner output (a camera fit to the rows) ran
+    // just now: values that read them are evaluated again, once
+    const again = parameterValues(lowered, clock, this.hostValues())
+    this.slots = again.slots
+    if (Object.keys(again.values).some(k => !sameValue(again.values[k], values[k]))) {
+      await this.runtime.setValues(again.values)
       await this.runtime.idle()
-      await this.loadLayerAssets()
-      await this.runHost(true)
-      // Host and deck operators that read planner output (a camera fit to the rows) ran
-      // just now: values that read them are evaluated again, once
-      const again = parameterValues(lowered, clock, this.hostValues())
-      this.slots = again.slots
-      if (Object.keys(again.values).some(k => !sameValue(again.values[k], values[k]))) {
-        await this.runtime.setValues(again.values)
-        await this.runtime.idle()
-        this.emit()
-      }
-    })()
-    this.pending = all.catch(() => undefined)
-    return all
+      this.emit()
+    }
   }
 
   /**

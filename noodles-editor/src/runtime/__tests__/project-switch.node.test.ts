@@ -79,3 +79,86 @@ it('reads host rows from the project that is open', async () => {
   await engine.settle()
   expect(await rowsOf()).toEqual([{ Longitude: -118.2, Latitude: 34.1, Magnitude: 4.5 }])
 })
+
+const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
+
+// Edits and playhead moves arrive faster than a run finishes. Each run waits for the one
+// before, so the first structural run's files are registered before the next run looks.
+it('runs overlapping changes one at a time, reading each file once', async () => {
+  let reads = 0
+  const engine = new Engine(duck, {
+    registerFile: async (name, bytes) => duck.registerFile(name, bytes),
+    readAsset: async () => {
+      reads++
+      await sleep(10)
+      return new TextEncoder().encode(FILES.quakes)
+    },
+  })
+  void engine.setDoc(doc('quakes', '[Longitude, Latitude]'))
+  void engine.setTime(1)
+  void engine.setTime(2)
+  await engine.settle()
+  expect(reads).toBe(1)
+  expect(engine.runtime.layers().find(l => l.id === 'dots')?.data?.rows).toBe(2)
+})
+
+// A resize or a key change refreshes the engine whenever it likes, a project switch included.
+// Nothing of the last project runs once another opens, and the new one runs after the forgetting.
+it('runs only the new project once another opens, whatever else asks for a run', async () => {
+  let project = 'quakes'
+  const read: string[] = []
+  const engine = new Engine(duck, {
+    registerFile: async (name, bytes) => duck.registerFile(name, bytes),
+    readAsset: async () => {
+      read.push(project)
+      await sleep(10)
+      return new TextEncoder().encode(FILES[project])
+    },
+  })
+  await engine.setDoc(doc('quakes', '[Longitude, Latitude]'))
+  await engine.settle()
+  // A run of the last project is still under way when the next one opens
+  void engine.setTime(1)
+  project = 'taxis'
+  const opening = engine.openProject()
+  void engine.refresh()
+  void engine.setTime(2)
+  await engine.setDoc(doc('taxis', '[pickup_longitude, pickup_latitude]'))
+  await opening
+  await engine.settle()
+  expect(read).toEqual(['quakes', 'taxis'])
+  expect(engine.runtime.error()).toBeUndefined()
+  expect(engine.runtime.program()?.errors).toEqual([])
+  const layer = engine.runtime.layers().find(l => l.id === 'dots')
+  expect(layer?.error).toBeUndefined()
+  expect(layer?.data?.rows).toBe(2)
+})
+
+// A run queued before the switch, by a resize or the pointer, starts after the binding has
+// handed over the next project's document. It must not run that document over the last
+// project's files: no frame drawn during the switch may read one project's file with the
+// other's graph.
+it('draws no frame of the next project over the last one’s files', async () => {
+  let project = 'quakes'
+  const engine = new Engine(duck, {
+    registerFile: async (name, bytes) => duck.registerFile(name, bytes),
+    readAsset: async () => {
+      await sleep(10)
+      return new TextEncoder().encode(FILES[project])
+    },
+  })
+  await engine.setDoc(doc('quakes', '[Longitude, Latitude]'))
+  await engine.settle()
+  const errors: unknown[] = []
+  engine.onChange(() => errors.push(...(engine.runtime.program()?.errors ?? [])))
+  // One run under way, and one queued behind it
+  void engine.setTime(1)
+  void engine.setTime(2)
+  project = 'taxis'
+  const opening = engine.openProject()
+  await engine.setDoc(doc('taxis', '[pickup_longitude, pickup_latitude]'))
+  await opening
+  await engine.settle()
+  expect(errors).toEqual([])
+  expect(engine.runtime.layers().find(l => l.id === 'dots')?.data?.rows).toBe(2)
+})

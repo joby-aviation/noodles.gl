@@ -45,11 +45,24 @@ export interface LayerSummary {
   bindings: { channel: string; attribute: string }[]
 }
 
+/**
+ * Where the engine is with the store's document. `loadId` names the project (the store's
+ * `loadId`) the status is about.
+ */
+export type EngineStatus =
+  /** No project has opened, or the engine is still starting. */
+  | { kind: 'waiting' }
+  /** A change to the document or the playhead is on its way to the screen. */
+  | { kind: 'drawing'; loadId: number }
+  /** The engine drew the document and time the store holds now. */
+  | { kind: 'drawn'; loadId: number }
+  /** The last change didn't draw; `errors` says why. */
+  | { kind: 'failed'; loadId: number; error: string }
+
 export interface EngineState {
   vis?: EngineVis
   errors: NodeError[]
-  /** The engine has started and drawn the current document at least once. */
-  ready: boolean
+  status: EngineStatus
   lowered?: Lowered
   program?: ProgramView
   layers: LayerSummary[]
@@ -57,7 +70,7 @@ export interface EngineState {
   slots: ReadonlyMap<string, unknown>
 }
 
-let state: EngineState = { errors: [], ready: false, layers: [], slots: new Map() }
+let state: EngineState = { errors: [], status: { kind: 'waiting' }, layers: [], slots: new Map() }
 const listeners = new Set<() => void>()
 
 function publish(patch: Partial<EngineState>) {
@@ -195,38 +208,168 @@ export function nodeErrors(e: Engine): { id: string; error: string }[] {
 }
 
 /**
+ * The bound editor's steps, counted: `target` is the step that hands (or handed) the engine
+ * the store as it is now, `done` the steps finished. 0 when nothing is left to hand.
+ */
+interface Steps {
+  target(): number
+  done(): number
+}
+let steps: Steps | undefined
+// Callers of `whenDrawn`, each waiting for one step to finish
+let drawnWaiters: { step: number; resolve: () => void }[] = []
+
+function resolveDrawn() {
+  const done = steps?.done() ?? Number.POSITIVE_INFINITY
+  const ready = drawnWaiters.filter(w => w.step <= done)
+  drawnWaiters = drawnWaiters.filter(w => w.step > done)
+  for (const w of ready) w.resolve()
+}
+
+const withTimeout = async <T>(work: Promise<T>, ms: number, otherwise: T): Promise<T> => {
+  let timer: ReturnType<typeof setTimeout> | undefined
+  const timeout = new Promise<T>(resolve => {
+    timer = setTimeout(() => resolve(otherwise), ms)
+  })
+  const result = await Promise.race([work, timeout])
+  clearTimeout(timer)
+  return result
+}
+
+export async function whenDrawn(timeoutMs = 15_000): Promise<boolean> {
+  // No editor bound to an engine: nothing will draw
+  if (!steps) return true
+  // An edit reaches the binding on the store's listener, which has run by now. Later changes,
+  // the playhead moving on, say, are not waited for.
+  const step = steps.target()
+  const drawn = new Promise<void>(resolve => {
+    drawnWaiters.push({ step, resolve })
+    resolveDrawn()
+  })
+  return withTimeout(
+    drawn.then(async () => {
+      await opened?.settle()
+      return true
+    }),
+    timeoutMs,
+    false
+  )
+}
+
+/**
+ * `whenDrawn`, and then the view has committed what the engine drew and the canvas has
+ * painted it: what a screenshot waits for. A view that doesn't commit within a second (the
+ * editor hidden) doesn't hold it up.
+ */
+export async function whenShown(timeoutMs = 15_000): Promise<boolean> {
+  // No editor bound to an engine: no view draws either
+  if (!steps) return true
+  const drawn = await whenDrawn(timeoutMs)
+  const { vis } = state
+  if (vis && vis !== lastCommitted) {
+    await withTimeout(
+      new Promise<void>(resolve => committedWaiters.set(vis, resolve)),
+      1000,
+      undefined
+    )
+    committedWaiters.delete(vis)
+  }
+  // Deck draws the committed layers on the next animation frame
+  for (let i = 0; i < 2; i++) {
+    await withTimeout(new Promise<void>(r => requestAnimationFrame(() => r())), 100, undefined)
+  }
+  return drawn
+}
+
+/**
  * Run the store's document on the engine until the returned function is called. Edits and
  * playhead moves are passed on as they happen; the engine decides what each one costs.
+ *
+ * One step at a time: a step hands the engine the store's document and time as they are when
+ * it starts, and changes that arrive meanwhile wait for the next step, which reads the store
+ * again. So a project switch can't interleave with the last project's edits, and `status`
+ * says which state of the store the screen shows.
  */
 export function bindEngine(
   store: DocStore,
   readAsset: (name: string) => Promise<Uint8Array>
 ): () => void {
+  // What the engine has been handed
   let doc: EditorDoc | undefined
   let time: number | undefined
   let loadId: number | undefined
   let stopped = false
-  const sync = async () => {
+  let stepping = false
+  // The store changed while a step was under way
+  let again = false
+  // Steps started and finished
+  let started = 0
+  let finished = 0
+
+  // Nothing left to hand the engine: the store holds what it was last handed
+  const handed = () => {
     const s = store.get()
-    // The store's first document is a placeholder until a project opens: compiling it would
-    // be a wasted compile on every load
-    if (s.loadId === 0) return
-    if (s.doc === doc && s.time === time) return
-    const e = await openEngine(readAsset)
-    if (stopped) return
+    return s.loadId === 0 || (s.loadId === loadId && s.doc === doc && s.time === time)
+  }
+  const stepsHere: Steps = {
+    // The step that was handed the store as it is, or the one that will be: a change during a
+    // step always gets one more (`again`)
+    target: () => (stopped || store.get().loadId === 0 ? 0 : handed() ? started : started + 1),
+    done: () => (stopped ? Number.POSITIVE_INFINITY : finished),
+  }
+  steps = stepsHere
+
+  const step = async () => {
+    started++
+    const s = store.get()
     const docChanged = s.doc !== doc
     // Another project: the engine forgets the last one's files and relations first
     const projectChanged = loadId !== undefined && s.loadId !== loadId
     loadId = s.loadId
     doc = s.doc
     time = s.time
+    publish({ status: { kind: 'drawing', loadId: s.loadId } })
     try {
-      if (projectChanged) await e.openProject()
-      await (docChanged ? e.setDoc(s.doc, s.time) : e.setTime(s.time))
-      publish({ vis: e.vis(), errors: errorsOf(e), ready: true })
+      const e = await openEngine(readAsset)
+      if (stopped) return
+      if (projectChanged) {
+        // Asset URLs are cached by `@/` name, which the next project's files repeat
+        for (const r of resolvers.values()) r.dispose()
+        resolvers.clear()
+      }
+      const opening = projectChanged ? e.openProject() : undefined
+      await (docChanged || projectChanged ? e.setDoc(s.doc, s.time) : e.setTime(s.time))
+      await opening
+      publish({ vis: e.vis(), errors: errorsOf(e), status: { kind: 'drawn', loadId: s.loadId } })
     } catch (error) {
       console.error('[engine]', error)
-      publish({ errors: [{ nodeId: '', message: (error as Error).message }] })
+      const message = (error as Error).message
+      publish({
+        errors: [{ nodeId: '', message }],
+        status: { kind: 'failed', loadId: s.loadId, error: message },
+      })
+    }
+  }
+
+  const sync = async () => {
+    // The store's first document is a placeholder until a project opens: compiling it would
+    // be a wasted compile on every load
+    if (stopped || handed()) return resolveDrawn()
+    if (stepping) {
+      again = true
+      return
+    }
+    stepping = true
+    try {
+      do {
+        again = false
+        await step()
+        finished++
+        resolveDrawn()
+      } while (again && !stopped && !handed())
+    } finally {
+      stepping = false
+      resolveDrawn()
     }
   }
   // DuckDB-Wasm takes a second or more to start: start it while the project is still loading
@@ -255,16 +398,21 @@ export function bindEngine(
     surface.unsubscribe()
     keys()
     setOpResolver(undefined)
+    resolveDrawn()
+    // A binding made since (the editor remounted) answers for itself
+    if (steps === stepsHere) steps = undefined
   }
 }
 
 // Export waits for a frame's layers to reach the screen: `settleEngine` resolves once the view
 // has committed the visualization it published.
 const committedWaiters = new Map<EngineVis, () => void>()
+let lastCommitted: EngineVis | undefined
 
 /** The view calls this after committing a visualization. */
 export function visCommitted(vis: EngineVis | undefined): void {
   if (!vis) return
+  lastCommitted = vis
   committedWaiters.get(vis)?.()
   committedWaiters.delete(vis)
 }
