@@ -751,6 +751,55 @@ const num = (v: unknown, fallback: number) => {
 const lit = (x: number) => (Number.isInteger(x) ? `${x}.0` : String(x))
 
 /**
+ * `d.a || d.b || 1`: the first of these properties a row has, as `present(a, b, 1.0)`, which
+ * leaves out a column the rows lack (one file names it `h3`, another `hex`). Undefined unless
+ * every term reads a property (`+d.a` and `Number(d.a)` too) or is a literal, so a boolean `||`
+ * stays one. A row whose value is 0 or '' keeps it, where JS fell through.
+ */
+function fallbackChain(text: string): string | undefined {
+  const parts = text.split('||').map(t => t.trim())
+  if (parts.length < 2) return undefined
+  const terms = parts.map(t => {
+    const read = /^(?:\+\s*|Number\(\s*)?d\.(?:properties\.)?([A-Za-z_]\w*)\s*\)?$/.exec(t)
+    if (read) return read[1]
+    if (/^-?\d+(\.\d+)?$/.test(t)) return lit(Number(t))
+    const str = /^(['"])([^'"]*)\1$/.exec(t)
+    return str ? sqlString(str[2]) : undefined
+  })
+  return terms.every(t => t !== undefined) ? `present(${terms.join(', ')})` : undefined
+}
+
+/**
+ * `d.map(r => [r.lng, r.lat])`, `d.trail.map(p => [p.at.x, p.at.y])`: a list each row holds,
+ * mapped item by item, as DuckDB's `list_transform`. A row that is itself a list is its `value`
+ * column, as rows that aren't objects always reach a table (flatRow). Undefined unless the
+ * body is an item's fields (or numbers), alone or in a list.
+ */
+export function mapLambda(js: string): string | undefined {
+  let text = js.trim().replace(/;$/, '')
+  if (/^return\s/.test(text)) text = text.slice(7)
+  text = text.replace(/\?\./g, '.')
+  const m = /^d((?:\.[A-Za-z_]\w*)*)\.map\(\s*\(?\s*([A-Za-z_]\w*)\s*\)?\s*=>\s*([\s\S]+)\)$/.exec(
+    text
+  )
+  if (!m) return undefined
+  const [, path, item, body] = m
+  const list = path ? path.slice(1).replace(/^properties\./, '') : 'value'
+  const term = (t: string) => {
+    const field = new RegExp(`^${item}((?:\\.[A-Za-z_]\\w*)+)$`).exec(t.trim())
+    if (field) return `CAST(${item}${field[1]} AS DOUBLE)`
+    return /^-?\d+(\.\d+)?$/.test(t.trim()) ? `CAST(${t.trim()} AS DOUBLE)` : undefined
+  }
+  const inner = body.trim()
+  const parts =
+    inner.startsWith('[') && inner.endsWith(']') ? inner.slice(1, -1).split(',') : undefined
+  const sql = parts ? parts.map(term) : [term(inner)]
+  if (sql.some(t => t === undefined)) return undefined
+  const mapped = parts ? `[${sql.join(', ')}]` : sql[0]
+  return `list_transform(${list.split('.').map(sqlIdent).join('.')}, lambda ${item}: ${mapped})`
+}
+
+/**
  * A Noodles accessor expression in the planner's expression language, or undefined when it
  * uses something the planner can't express (row index, the whole dataset, `op()`, strings,
  * method calls). Per-row JS is `d.column`; the planner reads the column by name.
@@ -758,6 +807,18 @@ const lit = (x: number) => (Number.isInteger(x) ? `${x}.0` : String(x))
 export function translateAccessor(js: string, indexNames?: string[]): string | undefined {
   let text = js.trim().replace(/;$/, '')
   if (/^return\s/.test(text)) text = text.slice(7)
+  // A row is never missing, so `d?.a` is `d.a`; `a ?? 0` inside a list is a coalesce
+  text = text.replace(/\bd\?\./g, 'd.')
+  if (/^\[.*\]$/.test(text)) {
+    text = text.replace(
+      /(d(?:\.[A-Za-z_]\w*)+)\s*\?\?\s*(-?\d+(?:\.\d+)?|d(?:\.[A-Za-z_]\w*)+)/g,
+      (_m, a: string, b: string) => `coalesce(${a}, ${/^-?\d/.test(b) ? lit(Number(b)) : b})`
+    )
+  }
+  // `d` alone: each row is the value itself, its `value` column (flatRow)
+  if (text === 'd') return 'value'
+  const chain = fallbackChain(text)
+  if (chain) return /'/.test(chain) ? undefined : chain
   // A row that is an array (TimeSeries spreads a position into one): `d[0]` is a named column.
   if (indexNames) text = text.replace(/\bd\[(\d+)\]/g, (m, i) => indexNames[Number(i)] ?? m)
   // colorToHex only respells an RGB array; a color field turns it straight back into one.
@@ -798,6 +859,9 @@ export function translateAccessor(js: string, indexNames?: string[]): string | u
 export function translateStringAccessor(js: string): string | undefined {
   let text = js.trim().replace(/;$/, '')
   if (/^return\s/.test(text)) text = text.slice(7)
+  text = text.replace(/\bd\?\./g, 'd.')
+  const chain = fallbackChain(text)
+  if (chain) return chain
   if (/\bop\(|\bdata\b|\bi\b|=>|`|\.\w+\(/.test(text)) return undefined
   text = text
     .replace(/"([^"']*)"/g, "'$1'")
@@ -926,6 +990,18 @@ interface RowNode {
 // The conversion
 // ---------------------------------------------------------------------------
 
+// A Point's coordinates, [lng, lat] or { lng, lat }, as { lng, lat }
+function pointValue(v: unknown): { lng: number; lat: number } {
+  if (Array.isArray(v)) return { lng: num(v[0], 0), lat: num(v[1], 0) }
+  const p = (v ?? {}) as { lng?: unknown; lat?: unknown }
+  return { lng: num(p.lng, 0), lat: num(p.lat, 0) }
+}
+
+function withoutStubs(project: NoodlesProject): NoodlesProject {
+  const ok = project.nodes.filter(n => typeof n.id === 'string' && typeof n.type === 'string')
+  return ok.length === project.nodes.length ? project : { ...project, nodes: ok }
+}
+
 // A project with its Reroute operators wired through: a reroute is only a bend in a wire
 function withoutReroutes(project: NoodlesProject): NoodlesProject {
   const reroutes = new Set(project.nodes.filter(n => n.type === 'RerouteOp').map(n => n.id))
@@ -945,28 +1021,65 @@ function withoutReroutes(project: NoodlesProject): NoodlesProject {
   return { ...project, nodes: project.nodes.filter(n => !reroutes.has(n.id)), edges }
 }
 
-// A project whose Expression operators that compute a whole value (`[d]`, `d.lng`,
-// `d.map(...)`) are Code operators: ExpressionOp was CodeOp with `return` in front, with the
-// same `data`, `d` and globals. `d` of one input is that input, so it is a wire. Literal
-// arrays and `d.features` keep their own conversions.
-function withExpressionsAsCode(project: NoodlesProject): NoodlesProject {
+// A project whose operators on JS values are Code operators: Expressions that compute a whole
+// value (`[d]`, `d.lng`, `d.map(...)`), and Concats of depth 0 or 2. ExpressionOp was CodeOp
+// with `return` in front, with the same `data`, `d` and globals; `d` of one input is that
+// input, so it is a wire. Literal arrays and `d.features` keep their own conversions.
+function withValuesAsCode(project: NoodlesProject): NoodlesProject {
   const text = (n: NoodlesNode) => String(n.data?.inputs?.expression ?? '').trim()
   const kept = (n: NoodlesNode) => literalLength(text(n)) !== undefined || text(n) === 'd.features'
   const exprs = project.nodes.filter(n => n.type === 'ExpressionOp' && !kept(n))
-  if (exprs.length === 0) return project
+  const concats = project.nodes.some(
+    n => n.type === 'ConcatOp' && num(n.data?.inputs?.depth, 1) !== 1
+  )
+  // A File that parses text (written into it, or wired from code) rather than reading a URL
+  const textEdges = project.edges.filter(
+    e => handleField(e.targetHandle) === 'text' && byType(project, e.target) === 'FileOp'
+  )
+  const texts = new Set([
+    ...textEdges.map(e => e.target),
+    ...project.nodes
+      .filter(n => n.type === 'FileOp' && !n.data?.inputs?.url && n.data?.inputs?.text)
+      .map(n => n.id),
+  ])
+  if (exprs.length === 0 && !concats && texts.size === 0) return project
   const into = (id: string) => project.edges.filter(e => e.target === id)
   const wires = new Set(
     exprs.filter(n => /^d;?$/.test(text(n)) && into(n.id).length === 1).map(n => n.id)
   )
   const nodes = project.nodes.map(n => {
+    // A Concat that flattens no level, or two, works on JS values: `data.flat(depth)`
+    if (texts.has(n.id)) {
+      const i = n.data?.inputs ?? {}
+      const format = String(i.format ?? 'json')
+      const wired = textEdges.some(e => e.target === n.id)
+      const text = wired ? 'd' : JSON.stringify(String(i.text ?? ''))
+      const parse =
+        format === 'csv' || format === 'tsv'
+          ? `d3.${format}Parse(${text}${i.autoType === false ? '' : ', d3.autoType'})`
+          : format === 'json'
+            ? `JSON.parse(${text})`
+            : text
+      return { ...n, type: 'CodeOp', data: { ...n.data, inputs: { code: `return ${parse}` } } }
+    }
+    if (n.type === 'ConcatOp' && num(n.data?.inputs?.depth, 1) !== 1) {
+      const code = `return data.flat(${Math.floor(num(n.data?.inputs?.depth, 1))})`
+      return { ...n, type: 'CodeOp', data: { ...n.data, inputs: { code } } }
+    }
     if (wires.has(n.id)) return { ...n, type: 'RerouteOp' }
     if (n.type !== 'ExpressionOp' || kept(n)) return n
     const { expression: _, ...rest } = n.data?.inputs ?? {}
     const code = `return (${text(n).replace(/;$/, '')})`
     return { ...n, type: 'CodeOp', data: { ...n.data, inputs: { ...rest, code } } }
   })
-  return withoutReroutes({ ...project, nodes })
+  // Text wired into a File is the code's input
+  const edges = project.edges.map(e =>
+    textEdges.includes(e) ? { ...e, targetHandle: e.targetHandle?.replace(/text$/, 'data') } : e
+  )
+  return withoutReroutes({ ...project, nodes, edges })
 }
+
+const byType = (project: NoodlesProject, id: string) => project.nodes.find(n => n.id === id)?.type
 
 interface Container {
   id: string
@@ -1099,9 +1212,12 @@ export function toEditorDoc(original: NoodlesProject): Migrated {
     )
   }
   const { project, containers } = withoutContainers(
-    withExpressionsAsCode(withoutReroutes(original))
+    withValuesAsCode(withoutReroutes(withoutStubs(original)))
   )
   const warnings: string[] = []
+  // A node saved with no id or type (an editor leftover) is nothing an edge can reach
+  const stubs = original.nodes.length - withoutStubs(original).nodes.length
+  if (stubs) warnings.push(`dropped ${stubs} node${stubs > 1 ? 's' : ''} saved with no id or type`)
   const byId = new Map(project.nodes.map(n => [n.id, n]))
   const inputs = (n: NoodlesNode) => ({ ...DEFAULTS[n.type], ...(n.data?.inputs ?? {}) })
   const incoming = (target: string, field: string) =>
@@ -1210,6 +1326,60 @@ export function toEditorDoc(original: NoodlesProject): Migrated {
     }
     used.add(acc.id)
     return expr
+  }
+
+  /**
+   * The column a layer's list or cell accessor reads, on the rows it reads it from: a bare
+   * column as it is, else (the first of several, `d.h3 || d.hex`) an attribute computing it
+   */
+  const computedColumn = (
+    src: string,
+    layer: NoodlesNode,
+    field: string,
+    fallback: string
+  ): [string, string] => {
+    const e = incomingOne(layer.id, field)
+    const acc = e ? byId.get(e.source) : undefined
+    const js = acc?.type === 'AccessorOp' ? String(inputs(acc).expression) : ''
+    const mapped = acc && mapLambda(js)
+    if (acc && mapped) {
+      used.add(acc.id)
+      const name = attributeName(acc.id)
+      const id = `${src}-${name}`
+      if (!sources.has(id)) {
+        const at = position(layer)
+        nodes.push({
+          id,
+          op: 'sql',
+          name: segment(id),
+          x: at.x - 780,
+          y: at.y,
+          params: { query: `SELECT *, ${mapped} AS ${sqlIdent(name)} FROM {{input0}}` },
+        })
+        edge(src, sourcePort.get(src) ?? 'out', id, 'in0')
+        sources.set(id, id)
+      }
+      return [id, name]
+    }
+    const chain = acc && translateStringAccessor(js)
+    if (!acc || !chain?.startsWith('present(')) return [src, listColumn(layer.id, field, fallback)]
+    used.add(acc.id)
+    const name = accessorAttribute(acc.id, chain)
+    const id = `${src}-${name}`
+    if (!sources.has(id)) {
+      const at = position(layer)
+      nodes.push({
+        id,
+        op: 'attribute',
+        name: segment(id),
+        x: at.x - 780,
+        y: at.y,
+        params: { name, expression: chain },
+      })
+      edge(src, sourcePort.get(src) ?? 'out', id, 'in')
+      sources.set(id, id)
+    }
+    return [id, name]
   }
 
   /**
@@ -1593,7 +1763,24 @@ export function toEditorDoc(original: NoodlesProject): Migrated {
         return
       }
       case 'SliceOp': {
-        literalOnly('start', 'end')
+        if (incomingOne(id, 'start') || incomingOne(id, 'end')) {
+          // Bounds a number drives (a path drawn further as the timeline plays): rows by their
+          // position, each bound a reference, so a new bound requeries
+          const bound = (field: string, fallback: string) => {
+            const e = incomingOne(id, field)
+            if (!e) return i[field] == null ? fallback : lit(Math.floor(num(i[field], 0)))
+            const from = byId.get(e.source)
+            const scalar = from && scalarSource(from, handleField(e.sourceHandle))
+            if (!scalar)
+              throw new MigrationError(`${id}: a ${field} from ${from?.type} is not converted`)
+            return `floor(ch('${scalar.ref}'))`
+          }
+          sql(
+            `SELECT * EXCLUDE (__i) FROM (SELECT *, row_number() OVER () - 1 AS __i FROM {{input0}}) WHERE __i >= ${bound('start', '0')} AND __i < ${bound('end', "CAST('inf' AS DOUBLE)")}`
+          )
+          from('data', 'in0')
+          return
+        }
         const start = Math.floor(num(i.start, 0))
         const end = i.end === null || i.end === undefined ? undefined : Math.floor(num(i.end, 10))
         if (start < 0 || (end !== undefined && end < 0)) {
@@ -1608,11 +1795,11 @@ export function toEditorDoc(original: NoodlesProject): Migrated {
         // One row, by a position that is clamped to the rows or wraps around them
         const wired = incomingOne(id, 'index')
         const src = wired ? byId.get(wired.source) : undefined
-        if (wired && src?.type !== 'NumberOp') {
+        const scalar = src && scalarSource(src, handleField(wired?.sourceHandle))
+        if (wired && !scalar) {
           throw new MigrationError(`${id}: an index from ${src?.type} is not converted`)
         }
-        if (src) numberNode(src)
-        const index = src ? `ch('${segment(src.id)}/value')` : String(Math.floor(num(i.index, 0)))
+        const index = scalar ? `ch('${scalar.ref}')` : String(Math.floor(num(i.index, 0)))
         const at = `CAST(floor(${index}) AS BIGINT)`
         const pick =
           i.wrap === true ? `((${at} % __n) + __n) % __n` : `least(greatest(${at}, 0), __n - 1)`
@@ -1706,8 +1893,25 @@ export function toEditorDoc(original: NoodlesProject): Migrated {
         return
       }
       case 'ArcOp': {
-        // Its path's points as rows: lng, lat and alt, which d[0]…d[2] read
-        literalOnly('source', 'target', 'altitudeMultiplier', 'apexAlt', 'segmentCount', 'tilt')
+        // Its path's points as rows: lng, lat and alt, which d[0]…d[2] read. An end a Point
+        // places, or a number a Number holds, is its value.
+        for (const f of [
+          'source',
+          'target',
+          'altitudeMultiplier',
+          'apexAlt',
+          'segmentCount',
+          'tilt',
+        ]) {
+          const e = incomingOne(id, f)
+          const from = e && byId.get(e.source)
+          if (!from) continue
+          const point = from.type === 'PointOp' && project.edges.every(x => x.target !== from.id)
+          if (point) i[f] = pointValue(inputs(from).coordinates)
+          else if (from.type === 'NumberOp' && !animated(from.id)) i[f] = num(inputs(from).val, 0)
+          else throw new MigrationError(`${id}: a wired ${f} is not converted`)
+          used.add(from.id)
+        }
         const arc = {
           source: { alt: 0, ...(i.source as object) },
           target: { alt: 0, ...(i.target as object) },
@@ -1777,14 +1981,16 @@ export function toEditorDoc(original: NoodlesProject): Migrated {
       source(id, true)
       made = { node: id, port: 'features' }
     } else if (n.type === 'CodeOp') {
-      if (!sources.has(id) && !codeNode(n)) {
-        throw new MigrationError(
-          `${id}: GeoJSON from a CodeOp that reads op(), the timeline or this is not converted`
-        )
+      if (hostNodes.has(id) || (!sources.has(id) && !codeNode(n))) {
+        // Code that reads op(), the timeline or `this` runs on the host; the FeatureCollection
+        // it returns reaches DuckDB spatial as a table of features
+        hostNode(id)
+        made = { node: id, port: 'data' }
+      } else {
+        used.add(id)
+        sources.set(id, id)
+        made = { node: id, port: 'out' }
       }
-      used.add(id)
-      sources.set(id, id)
-      made = { node: id, port: 'out' }
     } else if (n.type === 'ChoroplethJoinOp') {
       // Rows joined onto boundaries: a feature per boundary, in the engine
       used.add(id)
@@ -2985,6 +3191,12 @@ export function toEditorDoc(original: NoodlesProject): Migrated {
       return
     }
     const dataEdge = incomingOne(layer.id, 'data')
+    if (!dataEdge && inputs(layer).data == null) {
+      // A layer with nothing wired into its data drew nothing
+      warnings.push(`${layer.id}: dropped; it has no data, so it drew nothing`)
+      used.add(layer.id)
+      return
+    }
     if (!dataEdge) throw new MigrationError(`${layer.id} has no data`)
     let src = source(
       dataEdge.source,
@@ -2993,12 +3205,28 @@ export function toEditorDoc(original: NoodlesProject): Migrated {
     )
     // A path or polygon per row: its coordinate list as a geometry
     const list = LIST_LAYERS[layer.type]
-    if (list)
-      src = listGeometry(src, listColumn(layer.id, list.field, list.fallback), list.kind, layer)
+    if (list) {
+      const [from, column] = computedColumn(src, layer, list.field, list.fallback)
+      src = listGeometry(from, column, list.kind, layer)
+    }
     // A cell per row: its id as the cell's polygon
     const cell = CELL_LAYERS[layer.type]
-    if (cell)
-      src = cellGeometry(src, listColumn(layer.id, cell.field, cell.fallback), cell.kind, layer)
+    if (cell) {
+      const [from, column] = computedColumn(src, layer, cell.field, cell.fallback)
+      src = cellGeometry(from, column, cell.kind, layer)
+    }
+    // A trip's path and timestamps: list columns, mapped from a list of rows when they are
+    const trips: string[] = []
+    if (layer.type === 'TripsLayerOp') {
+      for (const [field, fallback] of [
+        ['getPath', 'path'],
+        ['getTimestamps', 'timestamps'],
+      ]) {
+        const [from, column] = computedColumn(src, layer, field, fallback)
+        src = from
+        trips.push(column)
+      }
+    }
     // A DataFilterExtension hides rows outside a range: a filter in SQL, not on the GPU
     for (const e of incoming(layer.id, 'extensions')) {
       const ext = byId.get(e.source)
@@ -3152,12 +3380,24 @@ export function toEditorDoc(original: NoodlesProject): Migrated {
         params.sizeBy = size.kind === 'row' ? size.expr : ''
         params.size = size.kind === 'row' ? scale : constantOf(size, layer.id, 'getSize') * scale
         params.sizeUnits = String(i.sizeUnits)
-        params.angle = constantOf(v('getAngle'), layer.id, 'getAngle')
-        ;[params.offsetX, params.offsetY] = offsetOf(v('getPixelOffset'), layer.id)
-        params.anchor = String(literalOf(v('getTextAnchor'), layer.id, 'getTextAnchor'))
-        params.baseline = String(
-          literalOf(v('getAlignmentBaseline'), layer.id, 'getAlignmentBaseline')
-        )
+        // Angle, offset, anchor and baseline per row, or one for every label
+        const angle = v('getAngle')
+        if (angle.kind === 'row') params.angleBy = angle.expr
+        else params.angle = constantOf(angle, layer.id, 'getAngle')
+        const offset = v('getPixelOffset')
+        if (offset.kind === 'row') {
+          // A list column ([x, y] per row) as its two items
+          params.offsetBy = /^[A-Za-z_]\w*$/.test(offset.expr)
+            ? `[item(${offset.expr}, 0.0), item(${offset.expr}, 1.0)]`
+            : offset.expr
+        } else [params.offsetX, params.offsetY] = offsetOf(offset, layer.id)
+        const anchor = v('getTextAnchor')
+        if (anchor.kind === 'row') params.anchorBy = stringColumn(anchor, layer.id, 'getTextAnchor')
+        else params.anchor = String(literalOf(anchor, layer.id, 'getTextAnchor'))
+        const baseline = v('getAlignmentBaseline')
+        if (baseline.kind === 'row') {
+          params.baselineBy = stringColumn(baseline, layer.id, 'getAlignmentBaseline')
+        } else params.baseline = String(literalOf(baseline, layer.id, 'getAlignmentBaseline'))
         params.fontFamily = String(i.fontFamily)
         params.fontWeight = num(i.fontWeight, 400)
         params.billboard = i.billboard !== false
@@ -3460,8 +3700,7 @@ export function toEditorDoc(original: NoodlesProject): Migrated {
       case 'TripsLayerOp': {
         // A row per trip: its path and timestamp lists drawn whole, never unnested. A missing
         // altitude is the ground.
-        params.position = listColumn(layer.id, 'getPath', 'path')
-        params.timestamp = listColumn(layer.id, 'getTimestamps', 'timestamps')
+        ;[params.position, params.timestamp] = trips
         const color = colorInput(colorChannel(v('getColor')), layer.id, 'getColor')
         params.color = color.channel ?? ''
         if (color.color) params.lineColor = color.color
@@ -3699,6 +3938,79 @@ export function toEditorDoc(original: NoodlesProject): Migrated {
     return id
   }
 
+  /**
+   * A number a parameter is driven by: the node and port it leaves by, and how `ch()` names
+   * it. A Number, a curve, a MapRange or Math of numbers (an animated Number scaled to a range,
+   * an expression of its inputs `a` and `b`), or code on the host (reading `op()`), whose
+   * output the scalar program reads. Undefined for anything else (a per-row accessor).
+   */
+  type Scalar = { node: string; port: string; ref: string }
+  const scalarSource = (src: NoodlesNode, port = ''): Scalar | undefined => {
+    const own = (id: string): Scalar => ({ node: id, port: 'out', ref: `${segment(id)}/out` })
+    if (src.type === 'NumberOp' && !incomingOne(src.id, 'val')) {
+      numberNode(src)
+      return own(src.id)
+    }
+    if (CURVES[src.type]) {
+      curveNode(src)
+      return own(src.id)
+    }
+    if (src.type === 'CodeOp') {
+      // What it reads failing to convert is the error to report
+      hostNode(src.id)
+      if (!hostNodes.has(src.id)) return undefined
+      const out = port || 'data'
+      return { node: src.id, port: out, ref: `${segment(src.id)}/out.${out}` }
+    }
+    if (!['MapRangeOp', 'MathOp', 'NumberOp'].includes(src.type)) return undefined
+    if (used.has(src.id)) {
+      return nodes.some(x => x.id === src.id && x.op === 'expression') ? own(src.id) : undefined
+    }
+    const i = inputs(src)
+    // Each operand a literal, or a number wired into `a` or `b`
+    const wires: [Scalar, 'a' | 'b'][] = []
+    const operand = (field: string, slot: 'a' | 'b'): string | undefined => {
+      const e = incomingOne(src.id, field)
+      if (!e) return lit(num(i[field], 0))
+      const from = byId.get(e.source)
+      const scalar = from && scalarSource(from, handleField(e.sourceHandle))
+      if (!scalar) return undefined
+      wires.push([scalar, slot])
+      return slot
+    }
+    let expression: string | undefined
+    if (src.type === 'NumberOp') {
+      // A Number passing on the number wired into it
+      expression = operand('val', 'a')
+    } else if (src.type === 'MapRangeOp') {
+      if (['inMin', 'inMax', 'outMin', 'outMax'].some(f => incomingOne(src.id, f))) return undefined
+      const val = operand('val', 'a')
+      const [inMin, inMax, outMin, outMax] = ['inMin', 'inMax', 'outMin', 'outMax'].map(f =>
+        num(i[f], f.endsWith('Max') ? 1 : 0)
+      )
+      // Not clamped, as MapRange was not
+      if (val !== undefined) {
+        expression = `${lit(outMin)} + (${val} - ${lit(inMin)}) * ${lit((outMax - outMin) / (inMax - inMin || 1))}`
+      }
+    } else {
+      const math = MATH[String(i.operator ?? 'add')]
+      const a = operand('a', 'a')
+      const b = operand('b', 'b')
+      if (math && a !== undefined && b !== undefined) expression = math(a, b)
+    }
+    if (expression === undefined) return undefined
+    used.add(src.id)
+    nodes.push({
+      id: src.id,
+      op: 'expression',
+      name: segment(src.id),
+      ...position(src),
+      params: { expression },
+    })
+    for (const [from, slot] of wires) edge(from.node, from.port, src.id, `par:${slot}`)
+    return own(src.id)
+  }
+
   /** A SwitchOp choosing among layers: a planner switch, the index structural. */
   /** A number input wired from a NumberOp: the number node, wired to the planner parameter. */
   const wiredNumber = (owner: string, field: string, target: string, param: string) => {
@@ -3716,11 +4028,9 @@ export function toEditorDoc(original: NoodlesProject): Migrated {
       if (node) node.params[param] = num(value, 0)
       return
     }
-    if (src?.type !== 'NumberOp') {
-      throw new MigrationError(`${owner}: ${field} from ${src?.type} is not converted`)
-    }
-    numberNode(src)
-    edge(src.id, 'out', target, `par:${param}`)
+    const scalar = src && scalarSource(src, handleField(e.sourceHandle))
+    if (!scalar) throw new MigrationError(`${owner}: ${field} from ${src?.type} is not converted`)
+    edge(scalar.node, scalar.port, target, `par:${param}`)
   }
 
   const switchNode = (n: NoodlesNode, target: Target) => {
@@ -3768,7 +4078,13 @@ export function toEditorDoc(original: NoodlesProject): Migrated {
 
   // A configured basemap style feeds the deck's map style, as it fed the basemap's
   const styled = basemap ? incomingOne(basemap.id, 'mapStyle') : undefined
-  if (styled) {
+  const styleFile = styled && byId.get(styled.source)
+  if (styleFile?.type === 'FileOp' && typeof inputs(styleFile).url === 'string') {
+    // A style read from a file is that file's URL, which MapLibre reads itself
+    const deckNode = nodes.find(x => x.id === deckOp.id)
+    if (deckNode) deckNode.params.mapStyle = String(inputs(styleFile).url)
+    used.add(styleFile.id)
+  } else if (styled) {
     hostNode(styled.source)
     edge(styled.source, handleField(styled.sourceHandle), deckOp.id, 'par:mapStyle')
   }

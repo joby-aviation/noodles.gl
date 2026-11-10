@@ -348,3 +348,21 @@ describe('sugar is already expanded', () => {
     expect(local!.name).toMatch(/^__/);
   });
 });
+
+describe('present()', () => {
+  const exprOf = (a: ReturnType<typeof analyze>, id: string) =>
+    JSON.stringify((a.order.find((n) => n.id === id) as { expr?: unknown }).expr);
+
+  it('keeps the columns the rows have, in order, and falls back to a literal', () => {
+    const a = analyze(g([source, attr('w', 'src', 'w', 'present(weight, pop, speed, 1.0)'), render('w')]), schema);
+    expect(exprOf(a, 'w')).toBe(JSON.stringify(parseExpr('coalesce(pop, coalesce(speed, 1.0))')));
+    const one = analyze(g([source, attr('w', 'src', 'w', 'present(weight, pop)'), render('w')]), schema);
+    expect(exprOf(one, 'w')).toBe(JSON.stringify(parseExpr('pop')));
+  });
+
+  it('names the columns when the rows have none of them', () => {
+    expect(() => analyze(g([source, attr('w', 'src', 'w', 'present(h3, hex)'), render('w')]), schema))
+      .toThrow(/none of h3, hex/);
+  });
+});
+

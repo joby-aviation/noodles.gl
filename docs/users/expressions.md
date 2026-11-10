@@ -12,13 +12,14 @@ sqrt(pop) * 2.0               arithmetic and functions
 ramp(fit(mag, 0, 8, 0, 1))    a color from the layer's color ramp
 mag > 5 ? 2.0 : 1.0           a condition
 coalesce(depth, 0)            a fallback for missing values
+present(h3, hex, 'none')      the first of these columns the rows have
 hex_color(color)              a "#rrggbb" text column as a color
 ```
 
 - The input lists the table's columns as you type, and the functions once you type a letter. Names are column names exactly as the table has them; case matters. A channel holding just a column name, such as `position` or `Cd`, reads that column.
 - `[a, b]` makes a vector. A column with 2 to 4 numbers per row (`coordinates: [lng, lat]` in JSON) is a vector too: read one item with `coordinates[1]` or `coordinates.y`.
 - Operators: `+ - * / %`, comparisons, `&&`, `||`, `!` and `test ? a : b`.
-- Functions include `sqrt`, `abs`, `floor`, `ceil`, `round`, `exp`, `ln`, `log10`, `pow`, `sin`, `cos`, `atan2`, `min`, `max`, `clamp`, `fit(x, inMin, inMax, outMin, outMax)`, `lerp(a, b, t)`, `smoothstep`, `ramp(t)`, `coalesce`, `to_number` (text as a number), `category(value, n)` (a bucket from 0 to n - 1 per distinct value) and `random()`.
+- Functions include `sqrt`, `abs`, `floor`, `ceil`, `round`, `exp`, `ln`, `log10`, `pow`, `sin`, `cos`, `atan2`, `min`, `max`, `clamp`, `fit(x, inMin, inMax, outMin, outMax)`, `lerp(a, b, t)`, `smoothstep`, `ramp(t)`, `coalesce`, `present` (the columns among its arguments that the rows have, then `coalesce` of them: one file names a column `h3`, another `hex`), `to_number` (text as a number), `category(value, n)` (a bucket from 0 to n - 1 per distinct value) and `random()`.
 - Geographic functions take `[lng, lat]` points: `distance(a, b)` in kilometers, `bearing(a, b)`, `destination(p, km, degrees)`, `midpoint(a, b)`, and `st_distance`, `st_dwithin` and `st_contains` against a WKT or GeoJSON literal.
 - `ch('node/param')` reads a parameter's value, as in a parameter expression below: `mag * ch('size/value')`.
 - Colors are `[r, g, b]` from 0 to 1 in expressions. Constant color parameters, such as a layer's Fill color, are 0 to 255.

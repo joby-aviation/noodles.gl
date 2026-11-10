@@ -53,7 +53,10 @@ describe('translateAccessor', () => {
     expect(translateAccessor('d.name.toUpperCase()')).toBeUndefined()
     expect(translateAccessor('data.length')).toBeUndefined()
     expect(translateAccessor("op('/x').out.val")).toBeUndefined()
-    expect(translateAccessor('d')).toBeUndefined()
+  })
+
+  it('reads a row that is a value as its value column', () => {
+    expect(translateAccessor('d')).toBe('value')
   })
 })
 
@@ -311,7 +314,7 @@ describe('toEditorDoc', () => {
     const { doc } = toEditorDoc(example('geojson-example'))
     expect(lowerDocument(doc).errors).toEqual([])
     expect(doc.nodes.find(n => n.id === '/line-color-accessor')?.params.expression).toBe(
-      "hex_color(coalesce(color, '#000'))"
+      "hex_color(present(color, '#000'))"
     )
     expect(doc.nodes.find(n => n.id === '/geojson-layer-labels')?.params.text).toBe('name')
   })

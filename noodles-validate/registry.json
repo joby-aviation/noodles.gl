@@ -5959,6 +5959,22 @@
           "kind": "expr",
           "default": ""
         },
+        "angleBy": {
+          "kind": "expr",
+          "default": ""
+        },
+        "offsetBy": {
+          "kind": "expr",
+          "default": ""
+        },
+        "anchorBy": {
+          "kind": "column",
+          "default": ""
+        },
+        "baselineBy": {
+          "kind": "column",
+          "default": ""
+        },
         "ramp": {
           "kind": "menu",
           "default": "viridis",

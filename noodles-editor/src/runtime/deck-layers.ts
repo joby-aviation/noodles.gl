@@ -71,6 +71,9 @@ interface TextRow {
   color?: number[]
   size?: number
   angle?: number
+  offset?: number[]
+  anchor?: string
+  baseline?: string
 }
 
 type Binary = {
@@ -297,6 +300,13 @@ function toBinary(input: ProgramLayerInput): Binary {
       const color = colors(attr(input, 'color'), n)
       const size = scalar('size')
       const angle = scalar('angle')
+      const offset = attr(input, 'offset')
+      const words = (channel: string) => {
+        const name = input.bindings.find(b => b.channel === channel)?.attribute
+        return name ? d.strings.get(name) : undefined
+      }
+      const anchor = words('anchor')
+      const baseline = words('baseline')
       const texts = Array.from(
         { length: count },
         (_, i): TextRow => ({
@@ -311,6 +321,11 @@ function toBinary(input: ProgramLayerInput): Binary {
           ...(color ? { color: Array.from(color.subarray(i * 4, i * 4 + 4)) } : {}),
           ...(size ? { size: size[i] } : {}),
           ...(angle ? { angle: angle[i] } : {}),
+          ...(offset
+            ? { offset: [offset.data[i * offset.width], offset.data[i * offset.width + 1]] }
+            : {}),
+          ...(anchor?.[i] ? { anchor: anchor[i] } : {}),
+          ...(baseline?.[i] ? { baseline: baseline[i] } : {}),
         })
       )
       return { length: count, attributes: {}, texts }
@@ -634,9 +649,9 @@ function buildLayer(
         getSize: (d: TextRow) => (d.size ?? 1) * size,
         getColor: (d: TextRow) => d.color ?? color,
         getAngle: (d: TextRow) => d.angle ?? num(p.angle, 0),
-        getPixelOffset: [num(p.offsetX, 0), num(p.offsetY, 0)],
-        getTextAnchor: String(p.anchor ?? 'middle'),
-        getAlignmentBaseline: String(p.baseline ?? 'center'),
+        getPixelOffset: (d: TextRow) => d.offset ?? [num(p.offsetX, 0), num(p.offsetY, 0)],
+        getTextAnchor: (d: TextRow) => d.anchor ?? String(p.anchor ?? 'middle'),
+        getAlignmentBaseline: (d: TextRow) => d.baseline ?? String(p.baseline ?? 'center'),
         sizeUnits: widthUnits(p.sizeUnits),
         billboard: p.billboard !== false,
         updateTriggers: {
@@ -644,6 +659,8 @@ function buildLayer(
           getSize: String(p.size),
           getAngle: String(p.angle),
           getPixelOffset: `${p.offsetX},${p.offsetY}`,
+          getTextAnchor: String(p.anchor),
+          getAlignmentBaseline: String(p.baseline),
         },
         fontFamily: String(p.fontFamily ?? 'ui-monospace, SF Mono, Menlo, monospace'),
         fontWeight: num(p.fontWeight, 400),

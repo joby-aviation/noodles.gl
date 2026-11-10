@@ -10,7 +10,7 @@
  */
 
 import {
-  type Expr, parseExpr, columnsOf, enginesFor, isAggregate, simplifyExpr, vectorItems, widthOf,
+  type Expr, parseExpr, columnsOf, enginesFor, isAggregate, resolvePresent, simplifyExpr, vectorItems, widthOf,
   FUNCTIONS,
 } from './expr.js';
 import {
@@ -336,7 +336,8 @@ export function analyze(
   };
   const resolve = (src: string | Expr, nodeId: string): Expr => {
     try {
-      const tree = typeof src === 'string' ? parseExpr(src, { functions }) : src;
+      const parsed = typeof src === 'string' ? parseExpr(src, { functions }) : src;
+      const tree = resolvePresent(parsed, (c) => schema.has(c));
       const items = vectorItems(inlineFunctions(tree, functions), (n) => schema.get(n) ?? 1, (n) => packed.get(n));
       return coerceStrings(simplifyExpr(items), strings);
     } catch (err) {
@@ -846,7 +847,8 @@ function isStringValued(e: Expr, strings: ReadonlySet<string>): boolean {
     case 'str': return true;
     case 'col': return strings.has(e.name);
     case 'cond': return isStringValued(e.then, strings) || isStringValued(e.else, strings);
-    case 'call': return STRING_RESULTS.has(e.fn);
+    // The first present of several values is text when any of them is
+    case 'call': return STRING_RESULTS.has(e.fn) || (e.fn === 'coalesce' && e.args.some((a) => isStringValued(a, strings)));
     default: return false;
   }
 }

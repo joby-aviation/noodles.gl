@@ -1191,6 +1191,10 @@ export const OPERATORS: OpDef[] = [
       { name: 'text', label: 'Text', kind: 'column', default: 'name', of: 'in', columnType: 'str', folder: 'Channels' },
       channel('color', 'Color', '', 'Per-row color in 0–1. Empty uses Text color.'),
       channel('sizeBy', 'Size', '', 'Per-row size, times Size. Empty: every label is Size.'),
+      channel('angleBy', 'Angle', '', 'Per-row angle in degrees. Empty: every label is at Angle.'),
+      channel('offsetBy', 'Offset', '', 'Per-row [x, y] offset in pixels. Empty: every label is at Offset X and Y.'),
+      { name: 'anchorBy', label: 'Anchor', kind: 'column', default: '', of: 'in', columnType: 'str', folder: 'Channels', help: 'Per-row start, middle or end. Empty: every label uses Anchor.' },
+      { name: 'baselineBy', label: 'Baseline', kind: 'column', default: '', of: 'in', columnType: 'str', folder: 'Channels', help: 'Per-row top, center or bottom. Empty: every label uses Baseline.' },
       rampParam,
       { name: 'size', label: 'Size (px)', kind: 'float', default: 12, min: 4, max: 64, step: 1, bind: 'prop', folder: 'Style', port: true },
       { name: 'sizeUnits', label: 'Size units', kind: 'menu', default: 'pixels', options: [{ value: 'pixels', label: 'Pixels' }, { value: 'meters', label: 'Meters' }, { value: 'common', label: 'Common' }], folder: 'Style' },
@@ -1215,7 +1219,10 @@ export const OPERATORS: OpDef[] = [
       const text = ctx.str('text');
       if (!text) ctx.error('Text Layer needs a text column');
       const r = lowerLayer(ctx, 'text',
-        [{ channel: 'position', param: 'position' }, { channel: 'color', param: 'color' }, { channel: 'size', param: 'sizeBy' }],
+        [
+          { channel: 'position', param: 'position' }, { channel: 'color', param: 'color' }, { channel: 'size', param: 'sizeBy' },
+          { channel: 'angle', param: 'angleBy' }, { channel: 'offset', param: 'offsetBy' },
+        ],
         {
           size: ctx.bind('size'), sizeUnits: ctx.str('sizeUnits'), color: ctx.bindColor('textColor'),
           offsetX: ctx.bind('offsetX'), offsetY: ctx.bind('offsetY'), angle: ctx.bind('angle'),
@@ -1224,7 +1231,9 @@ export const OPERATORS: OpDef[] = [
           background: ctx.bool('background'), backgroundColor: ctx.bindColor('backgroundColor'), opacity: ctx.bind('opacity'),
         });
       const layer = r.nodes[r.nodes.length - 1] as LayerNode;
-      layer.channels = { ...layer.channels, text };
+      const anchor = ctx.str('anchorBy');
+      const baseline = ctx.str('baselineBy');
+      layer.channels = { ...layer.channels, text, ...(anchor ? { anchor } : {}), ...(baseline ? { baseline } : {}) };
       return r;
     },
   },

@@ -111,6 +111,16 @@ export const FUNCTIONS: Record<string, FnSpec> = {
     width: 'broadcast',
   },
 
+  // The first of its arguments the rows have, per row the first that is not missing: a column
+  // the input lacks is left out when analysis resolves it (resolvePresent), as JS `d.a || d.b`
+  // fell through a property some files have and others don't.
+  present: {
+    arity: [1, 16],
+    sql: (a) => `coalesce(${a.join(', ')})`,
+    wgsl: null,
+    width: 'broadcast',
+  },
+
   // How a UDF's `auto` argument reaches DuckDB, decided by analysis from the column's type.
   as_double: { arity: [1, 1], sql: (a) => `CAST(${a[0]} AS DOUBLE)`, wgsl: null, width: 1 },
   as_text: { arity: [1, 1], sql: (a) => `CAST(${a[0]} AS VARCHAR)`, wgsl: null, width: 1 },
@@ -721,6 +731,34 @@ export function compactable(e: Expr): boolean {
         return null;
     }
   }
+}
+
+/**
+ * `present(...)` calls as nested `coalesce` of the arguments that exist: columns `has` does not
+ * know are dropped, literals kept. None left is an error naming them.
+ */
+export function resolvePresent(e: Expr, has: (column: string) => boolean): Expr {
+  const go = (n: Expr): Expr => {
+    switch (n.kind) {
+      case 'unary': return { ...n, operand: go(n.operand) };
+      case 'binary': return { ...n, left: go(n.left), right: go(n.right) };
+      case 'vec': return { ...n, components: n.components.map(go) };
+      case 'swizzle': return { ...n, target: go(n.target) };
+      case 'cond': return { ...n, test: go(n.test), then: go(n.then), else: go(n.else) };
+      case 'call': {
+        const args = n.args.map(go);
+        if (n.fn !== 'present') return { ...n, args };
+        const kept = args.filter((a) => a.kind !== 'col' || has(a.name));
+        if (kept.length === 0) {
+          const names = args.map((a) => (a.kind === 'col' ? a.name : '?')).join(', ');
+          throw new Error(`present(): the rows have none of ${names}`);
+        }
+        return kept.reduceRight((rest, a) => ({ kind: 'call', fn: 'coalesce', args: [a, rest] }));
+      }
+      default: return n;
+    }
+  };
+  return go(e);
 }
 
 export function isAggregate(e: Expr): boolean {

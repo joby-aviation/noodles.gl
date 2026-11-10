@@ -150,6 +150,10 @@ export const LAYER_SPECS: Record<LayerKind, LayerKindSpec> = {
       { name: 'text', type: 'str', required: true },
       { name: 'color', type: 'color', fallback: 'color' },
       { name: 'size', type: 'num' },
+      { name: 'angle', type: 'num' },
+      { name: 'offset', type: 'vec' },
+      { name: 'anchor', type: 'str' },
+      { name: 'baseline', type: 'str' },
     ],
   },
   polygon: {

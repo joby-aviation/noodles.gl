@@ -25,7 +25,7 @@ import {
   targetCaps,
 } from '@noodles.gl/planner'
 import { DeckLayerBuilder } from './deck-layers'
-import { flatRow, isFeatureCollection } from './plain-rows'
+import { flatRow, isFeatureCollection, jsRows } from './plain-rows'
 import {
   type NodeSql,
   type Preview,
@@ -599,7 +599,7 @@ export class Engine {
     if (!rel) return PENDING
     let rows = this.rows.get(rel.hash)
     if (!rows) {
-      rows = this.runtime.relationRows(rel.ref)
+      rows = this.runtime.relationRows(rel.ref).then(jsRows)
       this.rows.set(rel.hash, rows)
     }
     return rows
