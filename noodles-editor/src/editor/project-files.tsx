@@ -4,10 +4,7 @@
 
 import { type ReactNode, useCallback, useEffect, useState } from 'react'
 import { ExampleNotFoundDialog } from '../noodles/components/example-not-found-dialog'
-import {
-  ProjectNotFoundDialog,
-  type ProjectOpenProblem,
-} from '../noodles/components/project-not-found-dialog'
+import { ProjectNotFoundDialog } from '../noodles/components/project-not-found-dialog'
 import { RenameDialog } from '../noodles/components/rename-dialog'
 import { SaveAsDialog } from '../noodles/components/save-as-dialog'
 import { StorageErrorHandler } from '../noodles/components/storage-error-handler'
@@ -33,21 +30,12 @@ import { memoryProjectStore } from '../noodles/utils/memory-project-store'
 import { type NoodlesProjectJSON, safeStringify } from '../noodles/utils/serialization'
 import { analytics } from '../utils/analytics'
 import { docStore } from './doc-store'
-
-export type NotFound = 'project' | 'example' | null
-
-// Why a project didn't open: missing, or a remembered folder whose permission the browser reset
-export interface OpenProblem {
-  reason: ProjectOpenProblem
-  directoryHandle?: FileSystemDirectoryHandle
-}
+import { dismissNotFound, openFile, routePath, savedAs, useProjectOpen } from './project-open'
 
 interface ProjectFilesOptions {
   projectName: string | null
   storageType: StorageType
   navigate: (to: string, options?: { replace?: boolean }) => void
-  /** Open a project file the not-found dialog found. */
-  open: (json: unknown, name: string) => Promise<void>
   onNewProject: () => Promise<void>
   onImport: () => Promise<void>
 }
@@ -63,10 +51,22 @@ export function projectJson(): NoodlesProjectJSON {
   } as unknown as NoodlesProjectJSON
 }
 
-// The document is written: what Settings shows as the project's saved keys follows it
-function markSaved() {
-  getKeysStore().markProjectKeysSaved()
-  docStore().set({ dirty: false })
+// What a save writes, and which document and revision of it that is: the user can keep
+// editing, or open another project, while it writes
+function snapshot() {
+  const { loadId, revision } = docStore().get()
+  return { json: projectJson(), loadId, revision, keys: getKeysStore().projectKeys }
+}
+type Snapshot = ReturnType<typeof snapshot>
+
+const stillOpen = (saved: Snapshot) => docStore().get().loadId === saved.loadId
+
+// The document is written: it is clean unless edited since, and what Settings shows as the
+// project's saved keys follows the file
+function markSaved(saved: Snapshot) {
+  if (!stillOpen(saved)) return
+  getKeysStore().markProjectKeysSaved(saved.keys)
+  docStore().saved(saved.revision)
 }
 
 const isAbort = (error: unknown) => error instanceof Error && error.name === 'AbortError'
@@ -75,18 +75,13 @@ export function useProjectFiles({
   projectName,
   storageType,
   navigate,
-  open,
   onNewProject,
   onImport,
 }: ProjectFilesOptions) {
-  const { currentDirectory, setCurrentDirectory, setActiveStorageType, setError } =
-    useFileSystemStore()
-  const [notFound, setNotFoundKind] = useState<NotFound>(null)
-  const [problem, setProblem] = useState<OpenProblem | null>(null)
-  const setNotFound = useCallback((kind: NotFound, why: OpenProblem | null = null) => {
-    setNotFoundKind(kind)
-    setProblem(why)
-  }, [])
+  const { currentDirectory, setCurrentDirectory, setError } = useFileSystemStore()
+  const opened = useProjectOpen()
+  const notFound = opened.status === 'not-found' ? opened.kind : null
+  const problem = opened.status === 'not-found' ? opened.problem : undefined
   const [renaming, setRenaming] = useState(false)
   const [saveAs, setSaveAs] = useState<{
     target: FileSystemDirectoryHandle
@@ -105,20 +100,26 @@ export function useProjectFiles({
     [setError]
   )
 
-  // The document now lives in a folder: remember it and show its name in the route. The
-  // per-project key choices move with a project, or are copied to a copy of it (Save As).
+  // The document now lives in a folder: remember it and show its name in the route, keeping
+  // the document as it is in the editor. The per-project key choices move with a project, or
+  // are copied to a copy of it (Save As).
   const savedTo = useCallback(
-    async (directory: FileSystemDirectoryHandle, name: string, keys: 'move' | 'copy') => {
+    async (
+      directory: FileSystemDirectoryHandle,
+      name: string,
+      keys: 'move' | 'copy',
+      saved: Snapshot
+    ) => {
       await directoryHandleCache.cacheHandle(name, directory, directory.name)
+      if (!stillOpen(saved)) return
       const keysProject = keysProjectId('/projects', name)
       if (keys === 'move') getKeysStore().moveKeyOverridesTo(keysProject)
       else getKeysStore().copyKeyOverridesTo(keysProject)
-      setCurrentDirectory(directory, name)
-      setActiveStorageType('fileSystemAccess')
-      navigate(`/projects/${name}`, { replace: true })
-      markSaved()
+      savedAs(directory, name)
+      navigate(routePath('/projects', name), { replace: true })
+      markSaved(saved)
     },
-    [setCurrentDirectory, setActiveStorageType, navigate]
+    [navigate]
   )
 
   const onSaveProject = useCallback(async () => {
@@ -128,9 +129,10 @@ export function useProjectFiles({
       try {
         const directory = await selectDirectory()
         if (!(await requestPermission(directory, 'readwrite'))) return
-        await writeFileToDirectory(directory, 'noodles.json', safeStringify(projectJson()))
+        const saved = snapshot()
+        await writeFileToDirectory(directory, 'noodles.json', safeStringify(saved.json))
         await copyMemoryDataToDirectory(projectName, directory)
-        await savedTo(directory, directory.name, 'move')
+        await savedTo(directory, directory.name, 'move', saved)
         memoryProjectStore.deleteProject(projectName)
         analytics.track('project_saved', { storageType: 'memory', promoted: true })
       } catch (error) {
@@ -138,13 +140,14 @@ export function useProjectFiles({
       }
       return
     }
-    const result = await save(storageType, projectName, projectJson(), new Map())
+    const saved = snapshot()
+    const result = await save(storageType, projectName, saved.json, new Map())
     if (!result.success) {
       setError(result.error)
       return
     }
-    setCurrentDirectory(result.data.directoryHandle, projectName)
-    markSaved()
+    if (stillOpen(saved)) setCurrentDirectory(result.data.directoryHandle, projectName)
+    markSaved(saved)
     analytics.track('project_saved', { storageType })
   }, [projectName, storageType, savedTo, reportError, setError, setCurrentDirectory])
 
@@ -168,14 +171,15 @@ export function useProjectFiles({
     async ({ copyDataFiles }: { copyDataFiles: boolean }) => {
       if (!saveAs) return
       const { target } = saveAs
-      await writeFileToDirectory(target, 'noodles.json', safeStringify(projectJson()))
+      const saved = snapshot()
+      await writeFileToDirectory(target, 'noodles.json', safeStringify(saved.json))
       if (copyDataFiles && projectName) {
         if (storageType === 'memory') await copyMemoryDataToDirectory(projectName, target)
         else if (storageType === 'publicFolder') await copyPublicFolderData(projectName, target)
         else if (currentDirectory) await copyDataDirectory(currentDirectory, target)
       }
       if (storageType === 'memory' && projectName) memoryProjectStore.deleteProject(projectName)
-      await savedTo(target, target.name, 'copy')
+      await savedTo(target, target.name, 'copy', saved)
       analytics.track('project_saved_as', {
         fromStorageType: storageType,
         toStorageType: 'fileSystemAccess',
@@ -205,10 +209,11 @@ export function useProjectFiles({
       if (!(await requestPermission(directory, 'readwrite'))) {
         throw new Error('Permission denied to write to directory')
       }
-      await writeFileToDirectory(directory, 'noodles.json', safeStringify(projectJson()))
+      const saved = snapshot()
+      await writeFileToDirectory(directory, 'noodles.json', safeStringify(saved.json))
       if (currentDirectory) await copyDataDirectory(currentDirectory, directory)
       if (projectName) await directoryHandleCache.renameProject(projectName, newName, directory)
-      await savedTo(directory, newName, 'move')
+      await savedTo(directory, newName, 'move', saved)
       analytics.track('project_renamed', {
         fromStorageType: storageType,
         toStorageType: 'fileSystemAccess',
@@ -242,26 +247,27 @@ export function useProjectFiles({
         reason={problem?.reason}
         directoryHandle={problem?.directoryHandle}
         onProjectLoaded={(project, name) => {
-          setNotFound(null)
-          navigate(`/projects/${name}`)
-          void open(project, name)
+          // Opening it first means the route change that follows doesn't read it again
+          const route = routePath('/projects', name)
+          void openFile(project, name, route, keysProjectId('/projects', name))
+          navigate(route)
         }}
         onNewProject={onNewProject}
         onImport={onImport}
-        onClose={() => setNotFound(null)}
+        onClose={dismissNotFound}
       />
       <ExampleNotFoundDialog
         projectName={projectName ?? ''}
         open={notFound === 'example'}
         onBrowseExamples={() => {
-          setNotFound(null)
+          dismissNotFound()
           navigate('/examples')
         }}
         onCheckMyProjects={() => {
-          setNotFound(null)
-          if (projectName) navigate(`/projects/${projectName}`)
+          dismissNotFound()
+          if (projectName) navigate(routePath('/projects', projectName))
         }}
-        onClose={() => setNotFound(null)}
+        onClose={dismissNotFound}
       />
       <SaveAsDialog
         open={saveAs !== null}
@@ -285,7 +291,6 @@ export function useProjectFiles({
     onSaveProject,
     onSaveAs,
     onRename: canRename ? () => setRenaming(true) : undefined,
-    setNotFound,
     dialogs,
   }
 }
