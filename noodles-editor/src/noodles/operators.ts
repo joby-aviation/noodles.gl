@@ -262,7 +262,10 @@ export abstract class Operator<OP extends IOperator> {
   // Map of edgeId -> error message
   connectionErrors = new BehaviorSubject<Map<string, string>>(new Map())
 
-  // Dirty flag for GraphExecutor
+  // Dirty flag for GraphExecutor scheduling. _setPullExecutionStatus keeps it
+  // in step with the pull status (DIRTY -> true, CLEAN or ERROR -> false);
+  // GraphExecutor also writes it directly to batch marks and to stop a failed
+  // ForLoop scope from re-running every frame.
   dirty = true
 
   // === Field visibility ===
@@ -505,11 +508,11 @@ export abstract class Operator<OP extends IOperator> {
   async pull(): Promise<ExtractProps<(typeof this)['outputs']>> {
     // A locked operator keeps its last result: no upstream pulls, no execute(). It still
     // executes once if it has never produced output (e.g. its outputs couldn't be cached).
+    // Nothing runs here, so executionState keeps describing the last real run.
     if (this.locked.value && this._hasOutput && this._computingPromise === null) {
       debugPull('%s: locked -> last output', this.id)
       this._cachedOutput = this.outputData
       this._setPullExecutionStatus(PullExecutionStatus.CLEAN)
-      this.dirty = false
       return this._cachedOutput
     }
 
@@ -615,10 +618,8 @@ export abstract class Operator<OP extends IOperator> {
       if (markedAfterSnapshot || this._hasDirtyUpstreamDependency()) {
         debugPull('%s: dirtied mid-execution, staying dirty for re-execution', this.id)
         this._setPullExecutionStatus(PullExecutionStatus.DIRTY)
-        this.dirty = true
       } else {
         this._setPullExecutionStatus(PullExecutionStatus.CLEAN)
-        this.dirty = false // Also clear the dirty flag for GraphExecutor
       }
       this._lastExecutionTime = executionTime
       this._hasOutput = true
@@ -627,7 +628,9 @@ export abstract class Operator<OP extends IOperator> {
         outputs: finalResult,
       })
 
-      // Update execution state for UI
+      // Update execution state for UI. 'success' even when the status stayed
+      // DIRTY above: executionState describes this run, which did succeed,
+      // and the re-run next frame replaces it (as after any markDirty).
       this.executionState.next({
         status: 'success',
         lastExecuted: Date.now(),
@@ -681,7 +684,8 @@ export abstract class Operator<OP extends IOperator> {
       // Unlike the success path we deliberately let ERROR win over a
       // mid-flight DIRTY: markDirty clears ERROR back to DIRTY on the next
       // wave anyway (any future input change retries), while preserving DIRTY
-      // here would silently retry a failing operator every frame.
+      // here would silently retry a failing operator every frame. ERROR also
+      // clears the dirty flag for the same reason.
       this._setPullExecutionStatus(PullExecutionStatus.ERROR)
       this._cachedOutput = null
 
@@ -734,7 +738,10 @@ export abstract class Operator<OP extends IOperator> {
     return false
   }
 
-  // Single write point for _pullExecutionStatus. Bumps the global dirty epoch
+  // Single write point for _pullExecutionStatus, and the place the pull path
+  // keeps the public dirty flag in step with it: DIRTY sets it, CLEAN and
+  // ERROR clear it (ERROR waits for a markDirty rather than being retried),
+  // COMPUTING leaves it alone. Bumps the global dirty epoch
   // whenever a status transitions AWAY from DIRTY — that is precisely the
   // event that can invalidate the markDirty prune ("this op and its whole
   // downstream closure are still dirty"): a wave's claim about its closure
@@ -749,6 +756,9 @@ export abstract class Operator<OP extends IOperator> {
       Operator._dirtyEpoch++
     }
     this._pullExecutionStatus = status
+    if (status !== PullExecutionStatus.COMPUTING) {
+      this.dirty = status === PullExecutionStatus.DIRTY
+    }
   }
 
   // Mark this operator as dirty and propagate downstream.
@@ -834,7 +844,6 @@ export abstract class Operator<OP extends IOperator> {
       op._setPullExecutionStatus(PullExecutionStatus.DIRTY)
       op._dirtyMarkEpoch = epoch
       op._cachedOutput = null
-      op.dirty = true // Also set the dirty flag for GraphExecutor
 
       // Propagate dirty flag to downstream dependents
       for (const dependent of op._downstreamDependents) {
@@ -883,7 +892,6 @@ export abstract class Operator<OP extends IOperator> {
   setCachedOutput(output: ExtractProps<(typeof this)['outputs']>): void {
     this._cachedOutput = output
     this._setPullExecutionStatus(PullExecutionStatus.CLEAN)
-    this.dirty = false
   }
 
   // Clear cached output and mark dirty. NOTE: deliberately does not stamp
@@ -892,7 +900,6 @@ export abstract class Operator<OP extends IOperator> {
   clearCache(): void {
     this._cachedOutput = null
     this._setPullExecutionStatus(PullExecutionStatus.DIRTY)
-    this.dirty = true
   }
 
   // Needs to be called after sub-classes have created their inputs and outputs
