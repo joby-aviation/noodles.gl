@@ -1,4 +1,4 @@
-// Tests for the playback driver - RAF-based playback
+// Tests for the playback driver - RAF-based playback with manual mode support
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { connectPlaybackToTimeline, PlaybackDriver } from '../playback'
@@ -69,6 +69,37 @@ describe('PlaybackDriver', () => {
       driver.subscribe(callback1)
       driver.subscribe(callback2)
       // Both should be registered
+    })
+  })
+
+  describe('manual mode', () => {
+    afterEach(() => {
+      useTimelineStore.getState().reset()
+    })
+
+    it('is disabled by default', () => {
+      expect(driver.isManualMode()).toBe(false)
+    })
+
+    it('stops the loop when enabled and keeps it off', () => {
+      driver.start()
+      driver.setManualMode(true)
+      expect(driver.isRunning()).toBe(false)
+      driver.start()
+      expect(driver.isRunning()).toBe(false)
+    })
+
+    it('restarts the loop when disabled while the timeline is playing', () => {
+      driver.setManualMode(true)
+      useTimelineStore.getState().play()
+      driver.setManualMode(false)
+      expect(driver.isRunning()).toBe(true)
+    })
+
+    it('leaves the loop off when disabled while the timeline is paused', () => {
+      driver.setManualMode(true)
+      driver.setManualMode(false)
+      expect(driver.isRunning()).toBe(false)
     })
   })
 

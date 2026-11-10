@@ -1,5 +1,6 @@
 // Playback driver for the native timeline system
-// Provides smooth playback; video rendering sets positions directly with goToFrame
+// Provides smooth playback, and a manual mode that holds the loop off while an export
+// sets positions directly with goToFrame
 
 import { debugPlayback } from '../utils/debug'
 import { visibilityAdaptiveLoop } from '../utils/worker-timer'
@@ -14,11 +15,12 @@ export type PlaybackCallback = (deltaMs: number) => void
 export class PlaybackDriver {
   private cancelTick: (() => void) | null = null
   private lastTimestamp = 0
+  private manualMode = false
   private subscribers: Set<PlaybackCallback> = new Set()
 
   // Start the playback loop (~60fps, RAF when visible, worker timer when hidden)
   start(): void {
-    if (this.cancelTick !== null) return
+    if (this.cancelTick !== null || this.manualMode) return
 
     this.lastTimestamp = performance.now()
     this.cancelTick = visibilityAdaptiveLoop(this.tick, 1000 / 60)
@@ -41,6 +43,18 @@ export class PlaybackDriver {
     return () => {
       this.subscribers.delete(callback)
     }
+  }
+
+  // Hold the loop off (for video rendering) or let it follow the timeline again.
+  // Leaving manual mode restarts the loop if the timeline is playing.
+  setManualMode(enabled: boolean): void {
+    this.manualMode = enabled
+    if (enabled) this.stop()
+    else if (getTimelineStore().playing) this.start()
+  }
+
+  isManualMode(): boolean {
+    return this.manualMode
   }
 
   // RAF/worker timer callback - advances position based on elapsed time
@@ -129,7 +143,7 @@ export function connectPlaybackToTimeline(): () => void {
   const unsubscribeStore = useTimelineStore.subscribe(
     state => state.playing,
     playing => {
-      if (playing) {
+      if (playing && !playbackDriver.isManualMode()) {
         playbackDriver.start()
       } else {
         playbackDriver.stop()
@@ -139,7 +153,7 @@ export function connectPlaybackToTimeline(): () => void {
 
   // Start immediately if already playing
   const store = getTimelineStore()
-  if (store.playing) {
+  if (store.playing && !playbackDriver.isManualMode()) {
     playbackDriver.start()
   }
 
