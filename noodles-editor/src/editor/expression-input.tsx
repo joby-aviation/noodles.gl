@@ -36,6 +36,13 @@ export function useInputColumns(node: DocNode, port: string | undefined): Column
 
 const MAX_SHOWN = 50
 
+// Inputs holding text not yet written to the document (an expression that doesn't parse yet).
+// Leaving the input writes it; leaving the page first would lose it.
+const unwritten = new Set<string>()
+
+/** Whether an expression input holds an edit the document doesn't have yet. */
+export const hasUnwrittenEdit = (): boolean => unwritten.size > 0
+
 const listWidth = (box: DOMRect) => Math.max(box.width, 240)
 
 export function ExpressionInput({
@@ -68,6 +75,9 @@ export function ExpressionInput({
   const items = found?.items.slice(0, MAX_SHOWN) ?? []
   const shown = items.length > 0
   const listId = `${id.replace(/\W/g, '_')}-completions`
+
+  // An input that goes away mid-edit (another node selected) is no longer holding one
+  useEffect(() => () => void unwritten.delete(listId), [listId])
 
   // The list sits under the input, outside the pane so its scrolling cannot clip it. The
   // input moves as the pane lays out and grows a line at a time, so its box is read after
@@ -102,8 +112,13 @@ export function ExpressionInput({
     }
   }
   const type = (next: string) => {
-    if (runnable(next)) write(next)
-    else setText(next)
+    if (runnable(next)) {
+      unwritten.delete(listId)
+      write(next)
+    } else {
+      unwritten.add(listId)
+      setText(next)
+    }
   }
 
   const take = (item: Completion) => {
@@ -143,6 +158,7 @@ export function ExpressionInput({
           }}
           onBlur={() => {
             setOpen(false)
+            unwritten.delete(listId)
             write(text)
           }}
           onChange={e => {
