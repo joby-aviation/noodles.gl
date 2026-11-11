@@ -1,7 +1,8 @@
-import type { Subscription } from 'rxjs'
+import { type Subscription, skip } from 'rxjs'
 import { type Field, getFieldReferences, isSerializedExpression } from './fields'
 import { type Edge as ExecutorEdge, updateGraph } from './graph-executor'
 import type { IOperator, Operator } from './operators'
+import { inputFieldEntries, resolveHandleField } from './utils/field-resolution'
 import type { GraphNode } from './utils/for-loop-group-utils'
 import { edgeId } from './utils/id-utils'
 import { parseHandleId } from './utils/path-utils'
@@ -44,6 +45,26 @@ function serializedValueToReferenceText(value: unknown): string | null {
   return null
 }
 
+// Saved inputs keyed by handle path. A vector with per-channel expressions, saved as
+// { lng: { $expr }, lat: 40.7 }, contributes `center.lng` and `center.lat`.
+function serializedInputEntries(inputs: Record<string, unknown>): [string, unknown][] {
+  const entries: [string, unknown][] = []
+  for (const [fieldName, value] of Object.entries(inputs)) {
+    entries.push([fieldName, value])
+    if (
+      value !== null &&
+      typeof value === 'object' &&
+      !Array.isArray(value) &&
+      !isSerializedExpression(value)
+    ) {
+      for (const [key, channel] of Object.entries(value)) {
+        if (isSerializedExpression(channel)) entries.push([`${fieldName}.${key}`, channel])
+      }
+    }
+  }
+  return entries
+}
+
 function fieldReferenceText(field: Field): string | null {
   return field.expression ?? serializedValueToReferenceText(field.value)
 }
@@ -78,7 +99,7 @@ export function deriveReferenceEdges(
   const derived: ReferenceEdge[] = []
 
   for (const node of nodes) {
-    for (const [fieldName, value] of Object.entries(node.data?.inputs ?? {})) {
+    for (const [fieldName, value] of serializedInputEntries(node.data?.inputs ?? {})) {
       const text = serializedValueToReferenceText(value)
       if (!text || !(text.includes('op(') || text.includes('{{'))) continue
 
@@ -180,7 +201,7 @@ class ReferenceDependencyModel {
       const op = this.operators.get(node.id)
       if (!op) continue
 
-      for (const [fieldName, field] of Object.entries(op.inputs)) {
+      for (const [fieldName, field] of inputFieldEntries(op)) {
         const text = fieldReferenceText(field)
         if (!text || !(text.includes('op(') || text.includes('{{'))) continue
 
@@ -221,7 +242,16 @@ class ReferenceDependencyModel {
 
   private watchInputFields(): void {
     for (const op of this.operators.values()) {
-      for (const field of Object.values(op.inputs)) {
+      // Switching an input's port layout adds or removes channel fields to watch
+      this.fieldWatchers.push(
+        op.inputPortModes.pipe(skip(1)).subscribe(() => {
+          if (this.refreshing) return
+          this.clearFieldWatchers()
+          this.watchInputFields()
+          this.refresh()
+        })
+      )
+      for (const [, field] of inputFieldEntries(op)) {
         this.fieldTexts.set(field, fieldReferenceText(field))
         const refreshIfSourceChanged = () => {
           if (this.refreshing) return
@@ -285,8 +315,7 @@ class ReferenceDependencyModel {
 
       const sourceField =
         sourceOp[sourceHandle.namespace === 'par' ? 'inputs' : 'outputs'][sourceHandle.fieldName]
-      const targetField =
-        targetOp[targetHandle.namespace === 'par' ? 'inputs' : 'outputs'][targetHandle.fieldName]
+      const targetField = resolveHandleField(targetOp, edge.targetHandle)?.field
       if (!sourceField || !targetField) continue
       if (!sourceField.connectable || !targetField.connectable) continue
 

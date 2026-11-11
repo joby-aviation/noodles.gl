@@ -1,10 +1,11 @@
 import type { Node as ReactFlowNode } from '@xyflow/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { NumberField } from './fields'
+import { type NumberField, supportsChannelPorts } from './fields'
 import { getExecutor } from './graph-executor'
 import type { Edge } from './noodles'
 import {
   type CodeOp,
+  type CombineXYOp,
   type ConcatOp,
   type DeckRendererOp,
   type GeoJsonLayerOp,
@@ -12,6 +13,7 @@ import {
   MathOp,
   NumberOp,
   type Operator,
+  type SplitXYOp,
 } from './operators'
 import { referenceDependencyModel } from './reference-dependencies'
 import { clearOps, getOpStore, hasOp } from './store'
@@ -1800,5 +1802,188 @@ describe('transform-graph container cascade deletion', () => {
     expect(hasOp('/container/container-output')).toBe(false)
     expect(hasOp('/source')).toBe(true)
     expect(hasOp('/sink')).toBe(true)
+  })
+})
+
+describe('vector channel ports', () => {
+  afterEach(() => {
+    clearOps()
+  })
+
+  const position = { x: 0, y: 0 }
+
+  it('opens channel fields only for inputs saved in channels mode', () => {
+    transformGraph({
+      nodes: [
+        {
+          id: '/split',
+          type: 'SplitXYOp',
+          position,
+          data: { inputs: {}, inputPortModes: { vec: 'channels' } },
+        },
+        { id: '/other', type: 'SplitXYOp', position, data: { inputs: {} } },
+      ],
+      edges: [],
+    })
+    const split = getOpStore().getOp('/split') as SplitXYOp
+    const other = getOpStore().getOp('/other') as SplitXYOp
+    expect(split.getInputPortMode('vec')).toBe('channels')
+    expect(split.inputs.vec.channels).not.toBeNull()
+    expect(other.getInputPortMode('vec')).toBe('whole')
+    expect(other.inputs.vec.channels).toBeNull()
+    // Outputs never get channels
+    expect(supportsChannelPorts(split.outputs.x)).toBe(false)
+  })
+
+  it('connects an edge to a channel port', () => {
+    const edge = {
+      id: '/num.out.val->/split.par.vec.x',
+      source: '/num',
+      target: '/split',
+      sourceHandle: 'out.val',
+      targetHandle: 'par.vec.x',
+    }
+    transformGraph({
+      nodes: [
+        { id: '/num', type: 'NumberOp', position, data: { inputs: { val: 5 } } },
+        {
+          id: '/split',
+          type: 'SplitXYOp',
+          position,
+          data: { inputs: { vec: { x: 0, y: 2 } }, inputPortModes: { vec: 'channels' } },
+        },
+      ],
+      edges: [edge],
+    })
+    const num = getOpStore().getOp('/num') as NumberOp
+    const split = getOpStore().getOp('/split') as SplitXYOp
+    num.outputs.val.next(5)
+    expect(split.inputs.vec.channels?.fields.x.subscriptions.has(edge.id)).toBe(true)
+    expect(split.inputs.vec.subscriptions.size).toBe(0)
+    expect(split.inputs.vec.value).toEqual({ x: 5, y: 2 })
+    expect(split.connectionErrors.value.has(edge.id)).toBe(false)
+  })
+
+  it('reports an edge to a channel port of an input in whole mode', () => {
+    const edge = {
+      id: '/num.out.val->/split.par.vec.x',
+      source: '/num',
+      target: '/split',
+      sourceHandle: 'out.val',
+      targetHandle: 'par.vec.x',
+    }
+    transformGraph({
+      nodes: [
+        { id: '/num', type: 'NumberOp', position, data: { inputs: {} } },
+        { id: '/split', type: 'SplitXYOp', position, data: { inputs: {} } },
+      ],
+      edges: [edge],
+    })
+    const split = getOpStore().getOp('/split') as SplitXYOp
+    expect(split.inputs.vec.channels).toBeNull()
+    expect(split.connectionErrors.value.get(edge.id)).toMatch(/Switch vec to channel ports/)
+  })
+
+  it('reports a whole-value edge to an input in channels mode', () => {
+    const edge = {
+      id: '/combine.out.xy->/split.par.vec',
+      source: '/combine',
+      target: '/split',
+      sourceHandle: 'out.xy',
+      targetHandle: 'par.vec',
+    }
+    transformGraph({
+      nodes: [
+        { id: '/combine', type: 'CombineXYOp', position, data: { inputs: {} } },
+        {
+          id: '/split',
+          type: 'SplitXYOp',
+          position,
+          data: { inputs: {}, inputPortModes: { vec: 'channels' } },
+        },
+      ],
+      edges: [edge],
+    })
+    const split = getOpStore().getOp('/split') as SplitXYOp
+    expect(split.inputs.vec.subscriptions.size).toBe(0)
+    expect(split.connectionErrors.value.get(edge.id)).toMatch(/vec is split into vec.x, vec.y/)
+  })
+
+  it('disconnects a whole-value edge when its input is split, and reconnects it when joined', () => {
+    const edge = {
+      id: '/combine.out.xy->/split.par.vec',
+      source: '/combine',
+      target: '/split',
+      sourceHandle: 'out.xy',
+      targetHandle: 'par.vec',
+    }
+    const nodes = (inputPortModes: Record<string, string>) => [
+      { id: '/combine', type: 'CombineXYOp', position, data: { inputs: {} } },
+      { id: '/split', type: 'SplitXYOp', position, data: { inputs: {}, inputPortModes } },
+    ]
+    transformGraph({ nodes: nodes({}), edges: [edge] })
+    const combine = getOpStore().getOp('/combine') as CombineXYOp
+    const split = getOpStore().getOp('/split') as SplitXYOp
+    combine.outputs.xy.next({ x: 1, y: 2 })
+    expect(split.inputs.vec.value).toEqual({ x: 1, y: 2 })
+
+    // update_node switches the layout on the live operator, then the graph is rebuilt
+    split.setInputPortMode('vec', 'channels')
+    transformGraph({ nodes: nodes({ vec: 'channels' }), edges: [edge] })
+    expect(split.inputs.vec.subscriptions.has(edge.id)).toBe(false)
+    split.inputs.vec.channels?.fields.y.setValue(7)
+    combine.outputs.xy.next({ x: 3, y: 4 })
+    expect(split.inputs.vec.value).toEqual({ x: 1, y: 7 })
+
+    split.setInputPortMode('vec', 'whole')
+    transformGraph({ nodes: nodes({}), edges: [edge] })
+    expect(split.inputs.vec.subscriptions.has(edge.id)).toBe(true)
+    expect(split.inputs.vec.value).toEqual({ x: 3, y: 4 })
+    expect(split.connectionErrors.value.has(edge.id)).toBe(false)
+  })
+
+  it('derives a reference edge for a channel expression', () => {
+    const nodes = [
+      { id: '/num', type: 'NumberOp', position, data: { inputs: { val: 4 } } },
+      {
+        id: '/split',
+        type: 'SplitXYOp',
+        position,
+        data: {
+          inputs: { vec: { x: { $expr: "op('/num').par.val * 2" }, y: 1 } },
+          inputPortModes: { vec: 'channels' },
+        },
+      },
+    ]
+    expect(deriveReferenceEdges(nodes, []).map(edge => edge.targetHandle)).toEqual(['par.vec.x'])
+
+    transformGraph({ nodes, edges: [] })
+    const num = getOpStore().getOp('/num') as NumberOp
+    const split = getOpStore().getOp('/split') as SplitXYOp
+    expect(referenceDependencyModel.getSnapshot().map(edge => edge.id)).toEqual([
+      '/num.par.val->/split.par.vec.x',
+    ])
+    expect(split.inputs.vec.value).toEqual({ x: 8, y: 1 })
+    num.inputs.val.setValue(10)
+    expect(split.inputs.vec.value).toEqual({ x: 20, y: 1 })
+  })
+
+  it('watches channel fields opened after the graph was built', () => {
+    transformGraph({
+      nodes: [
+        { id: '/num', type: 'NumberOp', position, data: { inputs: { val: 3 } } },
+        { id: '/split', type: 'SplitXYOp', position, data: { inputs: {} } },
+      ],
+      edges: [],
+    })
+    const num = getOpStore().getOp('/num') as NumberOp
+    const split = getOpStore().getOp('/split') as SplitXYOp
+    split.setInputPortMode('vec', 'channels')
+    split.inputs.vec.channels?.fields.y.setExpression("op('/num').par.val + 1")
+    expect(referenceDependencyModel.getSnapshot().map(edge => edge.id)).toEqual([
+      '/num.par.val->/split.par.vec.y',
+    ])
+    num.inputs.val.setValue(9)
+    expect(split.inputs.vec.value).toEqual({ x: 0, y: 10 })
   })
 })

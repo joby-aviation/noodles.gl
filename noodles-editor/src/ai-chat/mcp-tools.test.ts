@@ -577,6 +577,65 @@ describe('applyModifications field validation', () => {
     expect(result.error).toBeUndefined()
   })
 
+  it('accepts channel handles once an update splits the input', async () => {
+    const t = tools()
+    await t.applyModifications({
+      modifications: [
+        { type: 'add_node', data: { id: '/num', type: 'NumberOp' } },
+        { type: 'add_node', data: { id: '/split', type: 'SplitXYOp' } },
+      ],
+    })
+    const wire = {
+      type: 'add_edge',
+      data: {
+        source: '/num',
+        target: '/split',
+        sourceHandle: 'out.val',
+        targetHandle: 'par.vec.x',
+      },
+    }
+    const unsplit = await t.applyModifications({ modifications: [wire] })
+    expect(unsplit.error).toContain('Switch vec to channel ports first')
+
+    const split = {
+      type: 'update_node',
+      data: {
+        id: '/split',
+        data: { inputPortModes: { vec: 'channels' }, inputs: { vec: { x: 1, y: { $expr: '2' } } } },
+      },
+    }
+    expect((await t.applyModifications({ modifications: [split, wire] })).error).toBeUndefined()
+  })
+
+  it('splits a vector custom input a new node declares', async () => {
+    const result = await tools().applyModifications({
+      modifications: [
+        { type: 'add_node', data: { id: '/num', type: 'NumberOp' } },
+        {
+          type: 'add_node',
+          data: {
+            id: '/code',
+            type: 'CodeOp',
+            data: {
+              customInputs: [{ name: 'origin', type: 'geopoint-2d' }],
+              inputPortModes: { origin: 'channels' },
+            },
+          },
+        },
+        {
+          type: 'add_edge',
+          data: {
+            source: '/num',
+            target: '/code',
+            sourceHandle: 'out.val',
+            targetHandle: 'par.origin.lng',
+          },
+        },
+      ],
+    })
+    expect(result.error).toBeUndefined()
+  })
+
   it('checks an update against the type queued by an earlier call', async () => {
     const t = tools()
     await t.applyModifications({

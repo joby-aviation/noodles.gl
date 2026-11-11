@@ -9,6 +9,7 @@ import { getOp, useUIStore } from '../store'
 import { canConnect } from '../utils/can-connect'
 import { getNodeCenter, pointToLineDistance } from '../utils/edge-geometry'
 import { insertUniqueEdge } from '../utils/edge-integrity'
+import { inputPortEntries, resolveOperatorField } from '../utils/field-resolution'
 import { edgeId } from '../utils/id-utils'
 import { normalizeMultiInputEdges } from '../utils/multi-input-utils'
 import { parseHandleId } from '../utils/path-utils'
@@ -34,7 +35,7 @@ function findMatchingFields(
 ): { sourceHandle: string; targetHandle: string } | null {
   // Try to find a compatible output from source that can connect to an input on target
   for (const [outputKey, outputField] of Object.entries(sourceOp.outputs)) {
-    for (const [inputKey, inputField] of Object.entries(targetOp.inputs)) {
+    for (const [inputKey, inputField] of inputPortEntries(targetOp)) {
       if (canConnect(outputField, inputField)) {
         return {
           sourceHandle: `out.${outputKey}`,
@@ -72,7 +73,11 @@ function canInsertNode(
   }
 
   const originalSourceField = sourceOp.outputs[sourceHandleInfo.fieldName]
-  const originalTargetField = targetOp.inputs[targetHandleInfo.fieldName]
+  const originalTargetField = resolveOperatorField(
+    targetOp,
+    'par',
+    targetHandleInfo.fieldName
+  )?.field
 
   if (!originalSourceField || !originalTargetField) {
     return { canInsert: false, sourceToDropped: null, droppedToTarget: null }
@@ -84,7 +89,7 @@ function canInsertNode(
   let droppedToTarget: { sourceHandle: string; targetHandle: string } | null = null
 
   // Find an input on the dropped node that's compatible with the original source
-  for (const [inputKey, inputField] of Object.entries(droppedOp.inputs)) {
+  for (const [inputKey, inputField] of inputPortEntries(droppedOp)) {
     if (canConnect(originalSourceField, inputField)) {
       sourceToDropped = {
         sourceHandle: edge.sourceHandle!,

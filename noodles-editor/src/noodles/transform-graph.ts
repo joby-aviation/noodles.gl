@@ -16,6 +16,12 @@ import {
 import { deriveReferenceEdges, referenceDependencyModel } from './reference-dependencies'
 import { getOpStore } from './store'
 import { validateConnection } from './utils/can-connect'
+import {
+  inputFieldsWithChannels,
+  portLayoutError,
+  resolveOperatorField,
+  rootInputName,
+} from './utils/field-resolution'
 import type { OutputCache } from './utils/output-cache'
 import { getParentPath, isDirectChild, parseHandleId } from './utils/path-utils'
 import { computeVisibilityHeuristic } from './utils/visibility-heuristic'
@@ -42,6 +48,8 @@ export type NodeDataJSON<_T extends Operator<IOperator> = Operator<IOperator>> =
   locked?: boolean
   ui?: NodeUIMetadata
   visibleInputs?: string[]
+  // Vector inputs wired per component, e.g. { center: 'channels' }
+  inputPortModes?: Record<string, unknown>
   customInputs?: Array<{
     id: string
     name: string
@@ -343,6 +351,10 @@ export function transformGraph<
             op.customInputDefinitions = data.customInputs
             op.rebuildInputs()
           }
+
+          if (data?.inputPortModes && typeof data.inputPortModes === 'object') {
+            op.setInputPortModes(data.inputPortModes)
+          }
         }
 
         applyNodeUIMetadata(op.inputs, data?.ui)
@@ -367,6 +379,7 @@ export function transformGraph<
               .filter(edge => edge.target === id)
               .map(edge => parseHandleId(String(edge.targetHandle))?.fieldName)
               .filter((name): name is string => name !== undefined)
+              .map(name => rootInputName(op, name))
           )
 
           const { visibleFields: heuristicVisible, differsFromDefaults } =
@@ -388,7 +401,7 @@ export function transformGraph<
   // Also clear connection errors for removed edges.
   const currentEdgeIds = new Set(edges.map(e => e.id))
   for (const op of instances) {
-    for (const [_key, field] of Object.entries(op.inputs)) {
+    for (const field of inputFieldsWithChannels(op)) {
       for (const [id] of field.subscriptions) {
         if (!currentEdgeIds.has(id)) {
           field.removeConnection(id, 'reference')
@@ -431,8 +444,22 @@ export function transformGraph<
       // In normal data flow, source is always an output and target is always an input
       const sourceField =
         sourceOp[sourceNamespace === 'par' ? 'inputs' : 'outputs'][sourceFieldName]
-      const targetField =
-        targetOp[targetNamespace === 'par' ? 'inputs' : 'outputs'][targetFieldName]
+      const target = resolveOperatorField(targetOp, targetNamespace, targetFieldName)
+      const targetField = target?.field
+      // A handle the input's port layout doesn't have, e.g. `par.center` while `center`
+      // is split into channels. The edge stays in the project so switching back revives it,
+      // but its connection ends, as one to a removed edge does above: the layout can change
+      // on a live operator (update_node) after the edge was connected.
+      const layoutError =
+        targetNamespace === 'par' ? portLayoutError(targetOp, targetFieldName) : undefined
+      if (sourceField && layoutError) {
+        if (targetField?.subscriptions.has(edge.id)) {
+          targetField.removeConnection(edge.id, 'reference')
+        }
+        targetOp.addConnectionError(edge.id, layoutError)
+        debugExecutor('Inactive port: %s', edge.id)
+        continue
+      }
       if (!sourceField || !targetField) {
         debugExecutor('Invalid connection')
         continue
@@ -446,7 +473,7 @@ export function transformGraph<
       targetField.addConnection(edge.id, sourceField, 'value')
 
       // Auto-show fields when they receive data connections (for programmatic/AI connections)
-      targetOp.showField(targetFieldName)
+      targetOp.showField(target.rootFieldName)
 
       // Only validate when the source field has produced a value; skip if the operator hasn't
       // executed yet (value === undefined) to avoid false "type mismatch" errors on initial load

@@ -47,6 +47,7 @@ import type { ConnectionPlan } from '../utils/auto-connect'
 import { appendUniqueEdges } from '../utils/edge-integrity'
 import { getFieldDocs } from '../utils/field-docs'
 import { FieldEditScope } from '../utils/field-edit-analytics'
+import { rootInputName } from '../utils/field-resolution'
 import { edgeId } from '../utils/id-utils'
 import {
   moveEdgeWithinGroup,
@@ -155,6 +156,7 @@ function getVisibilityChanges(
       .filter(e => e.target === op.id)
       .map(e => parseHandleId(e.targetHandle)?.fieldName)
       .filter((name): name is string => name !== undefined)
+      .map(name => rootInputName(op, name))
   )
 
   const toHide: string[] = []
@@ -192,6 +194,7 @@ function resetToDefaults(op: Operator<IOperator>, edges: Edge[]) {
       .filter(e => e.target === op.id)
       .map(e => parseHandleId(e.targetHandle)?.fieldName)
       .filter((name): name is string => name !== undefined)
+      .map(name => rootInputName(op, name))
   )
 
   // Reset any fields that were visible but are now hidden by default

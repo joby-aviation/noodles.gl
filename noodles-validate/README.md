@@ -84,9 +84,10 @@ It needs no `npm install`. Passing the project folder, not just `noodles.json`, 
 | `unknown-operator` | error | A node's `type` isn't a registered operator (`group` nodes are allowed) |
 | `unknown-input` | error | `data.inputs` names an input the operator doesn't have and `data.customInputs` doesn't declare (a GraphInputOp also has its container's custom inputs) |
 | `custom-input` | error | A `data.customInputs` entry has no name, or a type the editor can't load (`number`, `string`, `color` and the rest of `customFieldTypes` in `registry.json`) |
+| `input-port-mode` | error | `data.inputPortModes` isn't an object, names an input with no channels in `registry.json`, or uses a mode other than `"channels"` or `"whole"` |
 | `edge-shape` | error | An edge is missing `id`, `source`, `sourceHandle`, `target` or `targetHandle` |
 | `edge-unknown-node` | error | An edge's `source` or `target` isn't a node |
-| `edge-handle` | error | A handle isn't `out.<field>` on the source and `par.<field>` on the target, or names a field the operator doesn't have. Container boundary edges (`/c.par.in` to its GraphInputOp, its GraphOutputOp to `/c.out.out`) are allowed |
+| `edge-handle` | error | A handle isn't `out.<field>` on the source and `par.<field>` on the target, or names a field the operator doesn't have. A channel handle like `par.center.lng` needs `center` split in `data.inputPortModes`, and a split input takes only its channel handles. Container boundary edges (`/c.par.in` to its GraphInputOp, its GraphOutputOp to `/c.out.out`) are allowed |
 | `duplicate-edge` | error | Two edges make the same connection |
 | `duplicate-edge-id` | error | Two different connections share an id |
 | `multiple-inputs` | error | More than one edge goes into an input that isn't a list |

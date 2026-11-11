@@ -1,5 +1,6 @@
+import { BehaviorSubject } from 'rxjs'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { NumberField } from '../fields'
+import { NumberField, Vec2Field } from '../fields'
 import {
   applyOperatorInputs,
   captureOperatorInputs,
@@ -67,7 +68,7 @@ describe('captureOperatorInputs', () => {
     mockedGetAllOps.mockReturnValue([])
 
     const result = captureOperatorInputs()
-    expect(JSON.parse(result)).toEqual({})
+    expect(JSON.parse(result)).toEqual({ $ports: {} })
   })
 
   it('serializes null and complex values correctly', () => {
@@ -425,7 +426,7 @@ describe('captureOperatorInputs performance', () => {
 
     expect(elapsed).toBeLessThan(50)
     const parsed = JSON.parse(result)
-    expect(Object.keys(parsed)).toHaveLength(50)
+    expect(Object.keys(parsed)).toHaveLength(51) // 50 ops plus $ports
     expect(parsed['/op-0'].value).toBe(0)
     expect(parsed['/op-0'].data).toBeUndefined()
   })
@@ -533,5 +534,69 @@ describe('captureOperatorInputs + applyOperatorInputs round-trip', () => {
     applyOperatorInputs(explicit)
     expect(field.stepOverride).toBe(0.001)
     expect(field.value).toBe(0.25)
+  })
+})
+
+describe('captureOperatorInputs + applyOperatorInputs with vector channel ports', () => {
+  // The store is mocked here, so stand in for an Operator's port mode API
+  function setup() {
+    const vec = new Vec2Field({ x: 1, y: 2 })
+    const op = {
+      id: '/split',
+      inputs: { vec },
+      inputPortModes: new BehaviorSubject<Record<string, string>>({}),
+      getInputPortMode: (name: string) => op.inputPortModes.value[name] ?? 'whole',
+      setInputPortMode: (name: string, mode: string) =>
+        op.setInputPortModes({ ...op.inputPortModes.value, [name]: mode }),
+      setInputPortModes: (modes: Record<string, unknown>) => {
+        if (modes.vec === 'channels') vec.openChannels()
+        else vec.closeChannels()
+        op.inputPortModes.next(modes.vec === 'channels' ? { vec: 'channels' } : {})
+      },
+    }
+    mockedGetAllOps.mockReturnValue([op as never])
+    mockedGetGraphStore.mockReturnValue({ getOp: vi.fn(() => op) } as never)
+    return op
+  }
+
+  it('captures port modes and saves a split input per channel', () => {
+    const op = setup()
+    op.setInputPortMode('vec', 'channels')
+    const parsed = JSON.parse(captureOperatorInputs() as string)
+    expect(parsed.$ports).toEqual({ '/split': { vec: 'channels' } })
+    expect(parsed['/split']).toMatchObject({ 'vec.x': 1, 'vec.y': 2 })
+    expect(parsed['/split']).not.toHaveProperty('vec')
+  })
+
+  it('undoes and redoes a port layout change', () => {
+    const op = setup()
+    const before = captureOperatorInputs() as string
+    op.setInputPortMode('vec', 'channels')
+    op.inputs.vec.channels?.fields.x.setValue(5)
+    const after = captureOperatorInputs() as string
+
+    applyOperatorInputs(before)
+    expect(op.getInputPortMode('vec')).toBe('whole')
+    expect(op.inputs.vec.channels).toBeNull()
+    expect(op.inputs.vec.value).toEqual({ x: 1, y: 2 })
+
+    applyOperatorInputs(after)
+    expect(op.getInputPortMode('vec')).toBe('channels')
+    expect(op.inputs.vec.channels?.fields.x.value).toBe(5)
+    expect(op.inputs.vec.value).toEqual({ x: 5, y: 2 })
+  })
+
+  it('leaves a connected channel alone when restoring the others', () => {
+    const op = setup()
+    op.setInputPortMode('vec', 'channels')
+    const channels = op.inputs.vec.channels?.fields
+    channels?.x.subscriptions.set('edge', { unsubscribe: () => {} } as never)
+    const before = captureOperatorInputs() as string
+    expect(JSON.parse(before)['/split']).not.toHaveProperty('vec.x')
+
+    channels?.x.setValue(7)
+    channels?.y.setValue(8)
+    applyOperatorInputs(before)
+    expect(op.inputs.vec.value).toEqual({ x: 7, y: 2 })
   })
 })

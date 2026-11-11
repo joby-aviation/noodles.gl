@@ -6,6 +6,7 @@ import { hexToColor } from '../utils/color'
 import {
   ArrayField,
   applyNodeUIMetadata,
+  applySerializedFieldValue,
   BboxField,
   ColorField,
   CompoundPropsField,
@@ -29,13 +30,14 @@ import {
   parseChoices,
   StringField,
   StringLiteralField,
+  supportsChannelPorts,
   UnknownField,
   Vec2Field,
   Vec3Field,
   ViewField,
   VisualizationField,
 } from './fields'
-import { NumberOp } from './operators'
+import { NumberOp, SplitXYOp } from './operators'
 import { clearOps, setOp } from './store'
 import { canConnect } from './utils/can-connect'
 
@@ -1964,5 +1966,169 @@ describe('MapLibreLayerField', () => {
   it('accepts maplibreLayers with params on a VisualizationField', () => {
     const vis = { deckProps: {}, maplibreLayers: [layer] }
     expect(new VisualizationField().schema.safeParse(vis).success).toBe(true)
+  })
+})
+
+describe('vector channel ports', () => {
+  const vectorFields = [
+    {
+      name: 'Point2DField',
+      create: () => new Point2DField({ lng: 1, lat: 2 }),
+      keys: ['lng', 'lat'],
+      values: [1, 2],
+    },
+    {
+      name: 'Point3DField',
+      create: () => new Point3DField({ lng: 1, lat: 2, alt: 3 }),
+      keys: ['lng', 'lat', 'alt'],
+      values: [1, 2, 3],
+    },
+    {
+      name: 'Vec2Field',
+      create: () => new Vec2Field({ x: 1, y: 2 }),
+      keys: ['x', 'y'],
+      values: [1, 2],
+    },
+    {
+      name: 'Vec3Field',
+      create: () => new Vec3Field({ x: 1, y: 2, z: 3 }),
+      keys: ['x', 'y', 'z'],
+      values: [1, 2, 3],
+    },
+  ]
+
+  it.each(vectorFields)('$name has no channel fields until they are opened', ({ create, keys }) => {
+    const field = create()
+    expect(supportsChannelPorts(field)).toBe(true)
+    expect(field.channels).toBeNull()
+    expect(field.channelKeys).toEqual(keys)
+  })
+
+  it.each(vectorFields)('$name channels start from the whole value', ({ create, keys, values }) => {
+    const field = create()
+    const channels = field.openChannels()
+    expect(Object.keys(channels)).toEqual(keys)
+    expect(keys.map(key => channels[key].value)).toEqual(values)
+    // Opening twice keeps the same fields
+    expect(field.openChannels()).toBe(channels)
+  })
+
+  it.each(vectorFields)('$name composes channel edits into the whole value', ({ create, keys }) => {
+    const field = create()
+    const channels = field.openChannels()
+    channels[keys[0]].setValue(10)
+    expect((field.value as Record<string, number>)[keys[0]]).toBe(10)
+  })
+
+  it.each(vectorFields)('$name mirrors whole-value edits into channels', ({ create, keys }) => {
+    const field = create()
+    const channels = field.openChannels()
+    const whole = Object.fromEntries(keys.map((key, i) => [key, 20 + i]))
+    field.setValue(whole as never)
+    expect(keys.map(key => channels[key].value)).toEqual(keys.map((_, i) => 20 + i))
+  })
+
+  it('leaves other field types without channels', () => {
+    expect(supportsChannelPorts(new NumberField(1))).toBe(false)
+    expect(supportsChannelPorts(new BboxField())).toBe(false)
+  })
+
+  it('does not add the sync subscriptions to field.subscriptions', () => {
+    const field = new Point2DField({ lng: 1, lat: 2 })
+    const channels = field.openChannels()
+    expect(field.subscriptions.size).toBe(0)
+    expect(channels.lng.subscriptions.size).toBe(0)
+  })
+
+  it('stops syncing once the channels are closed', () => {
+    const field = new Point2DField({ lng: 1, lat: 2 })
+    const { lng } = field.openChannels()
+    field.closeChannels()
+    expect(field.channels).toBeNull()
+    lng.setValue(50)
+    expect(field.value).toEqual({ lng: 1, lat: 2 })
+  })
+
+  it('composes a tuple for tuple return types', () => {
+    const field = new Point2DField([1, 2], { returnType: 'tuple' })
+    field.openChannels().lat.setValue(5)
+    expect(field.value).toEqual([1, 5])
+  })
+
+  it('keeps extra keys of a passthrough point object', () => {
+    const field = new Point2DField({ lng: 1, lat: 2, name: 'A' } as never)
+    field.openChannels().lng.setValue(3)
+    expect(field.value).toMatchObject({ lng: 3, lat: 2, name: 'A' })
+  })
+
+  it('composes an accessor when a channel holds one', () => {
+    const field = new Point2DField({ lng: 1, lat: 2 }, { accessor: true })
+    const channels = field.openChannels()
+    channels.lng.setValue(((d: { x: number }) => d.x) as never)
+    expect(typeof field.value).toBe('function')
+    expect((field.value as unknown as (d: { x: number }) => unknown)({ x: 7 })).toEqual({
+      lng: 7,
+      lat: 2,
+    })
+  })
+
+  it('marks the operator dirty from the channel edit and the whole value', () => {
+    const op = new SplitXYOp('/split')
+    const { x } = op.inputs.vec.openChannels()
+    const markDirty = vi.spyOn(op, 'markDirty')
+    x.setValue(4)
+    expect(op.inputs.vec.value).toEqual({ x: 4, y: 0 })
+    expect(markDirty).toHaveBeenCalledTimes(2)
+    markDirty.mockClear()
+    // A whole-value write reaches the channels without dirtying the operator again
+    op.inputs.vec.setValue({ x: 1, y: 1 })
+    expect(markDirty).toHaveBeenCalledTimes(1)
+    expect(x.value).toBe(1)
+  })
+
+  describe('channel expressions', () => {
+    beforeEach(() => {
+      clearOps()
+    })
+
+    it('drives one channel from an expression', () => {
+      const op = new SplitXYOp('/split')
+      const { x, y } = op.inputs.vec.openChannels()
+      y.setValue(3)
+      x.setExpression('2 + 5')
+      expect(op.inputs.vec.value).toEqual({ x: 7, y: 3 })
+      // A whole-value write doesn't overwrite the driven channel
+      op.inputs.vec.setValue({ x: 1, y: 1 })
+      expect(x.value).toBe(7)
+      expect(y.value).toBe(1)
+    })
+
+    it('serializes channel expressions per channel', () => {
+      const op = new SplitXYOp('/split')
+      const { x, y } = op.inputs.vec.openChannels()
+      y.setValue(3)
+      x.setExpression('2 + 5')
+      expect(op.inputs.vec.serialize()).toEqual({ x: { $expr: '2 + 5' }, y: 3 })
+    })
+
+    it('serializes the whole value when no channel is driven', () => {
+      const op = new SplitXYOp('/split')
+      op.inputs.vec.openChannels().x.setValue(2)
+      expect(op.inputs.vec.serialize()).toEqual({ x: 2, y: 0 })
+    })
+
+    it('restores per-channel expressions, opening the channels', () => {
+      const op = new SplitXYOp('/split')
+      applySerializedFieldValue(op.inputs.vec, { x: { $expr: '4 * 2' }, y: 1 })
+      expect(op.inputs.vec.channels?.fields.x.expression).toBe('4 * 2')
+      expect(op.inputs.vec.value).toEqual({ x: 8, y: 1 })
+    })
+
+    it('reads other operators from a channel expression', () => {
+      setOp('/source', new NumberOp('/source', { val: 3 }))
+      const op = new SplitXYOp('/split')
+      op.inputs.vec.openChannels().x.setExpression("op('/source').par.val * 10")
+      expect(op.inputs.vec.value).toEqual({ x: 30, y: 0 })
+    })
   })
 })

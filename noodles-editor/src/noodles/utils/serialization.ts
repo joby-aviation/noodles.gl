@@ -6,11 +6,12 @@ import type {
 } from '@xyflow/react'
 import { debugSerialize } from '../../utils/debug'
 import { resizeableNodes } from '../components/op-components'
-import { captureNodeUIMetadata } from '../fields'
+import { captureNodeUIMetadata, supportsChannelPorts } from '../fields'
 import { UnknownOperator } from '../operators'
 import type { useGraphStore } from '../store'
 import { deepEqual } from './deep-equal'
 import type { ExtractProps } from './extract-props'
+import { rootInputName } from './field-resolution'
 import type { StorageType } from './filesystem'
 import { MULTI_INPUT_EDGE_TYPE } from './multi-input-utils'
 import { CACHE_DIRECTORY_NAME, type OutputCacheFiles } from './output-cache'
@@ -177,10 +178,15 @@ export function serializeNodes(
 
     // Don't set node data for connected inputs (saves space). A locked upstream op restores
     // its own outputs from the cache folder, so its values aren't copied here either.
-    const incomers = edges
+    // A channel edge (`par.center.lng`) leaves the rest of the input to be saved, so the
+    // value check uses full handle paths and visibility uses the input names.
+    const incomingPaths = edges
       .filter(edge => edge.target === node.id && edge.type !== 'ReferenceEdge')
       .map(edge => parseHandleId(edge.targetHandle)?.fieldName)
       .reduce((acc, fieldName) => acc.add(fieldName), new Set<string | undefined>())
+    const incomers = new Set(
+      [...incomingPaths].map(fieldName => (fieldName ? rootInputName(op, fieldName) : fieldName))
+    )
 
     // Serialize fields
     const inputs: ExtractProps<ReturnType<typeof op.createInputs>> = {}
@@ -198,13 +204,16 @@ export function serializeNodes(
         // If parsing fails, use the raw default value
       }
       // Expression-driven fields always serialize — the expression must persist even
-      // when its current evaluated value happens to equal the default
+      // when its current evaluated value happens to equal the default. So does a split
+      // vector with an expression in one of its channels.
+      const hasExpression =
+        field.expression !== null ||
+        (supportsChannelPorts(field) && field.channels?.hasExpressions() === true)
       const hasNonDefaultValue =
-        serialized !== undefined &&
-        (field.expression !== null || !deepEqual(field.value, normalizedDefault))
+        serialized !== undefined && (hasExpression || !deepEqual(field.value, normalizedDefault))
       // Internal state is never legitimately connection-driven, so always persist it even
       // if a malformed/stale edge happens to name the field.
-      if (hasNonDefaultValue && (field.internal || !incomers.has(name))) {
+      if (hasNonDefaultValue && (field.internal || !incomingPaths.has(name))) {
         inputs[name] = serialized
       }
     }
@@ -252,6 +261,7 @@ export function serializeNodes(
     }
 
     const ui = captureNodeUIMetadata(op.inputs)
+    const portModes = op.inputPortModes?.value
 
     preparedNodes.push({
       ...cleanedNode,
@@ -266,6 +276,9 @@ export function serializeNodes(
           : {}),
         ...(ui ? { ui } : {}),
         ...visibilityData,
+        ...(portModes && Object.keys(portModes).length > 0
+          ? { inputPortModes: { ...portModes } }
+          : {}),
       },
     })
   }

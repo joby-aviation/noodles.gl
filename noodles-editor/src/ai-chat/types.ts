@@ -81,6 +81,8 @@ export interface FieldSchema {
   required: boolean
   defaultValue?: unknown
   internal?: boolean
+  // Inputs only: the channel ports a vector input can split into, e.g. ['lng', 'lat']
+  channels?: string[]
 }
 
 export interface DocsIndex {

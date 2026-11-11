@@ -21,6 +21,7 @@ import { type LockChange, redoLockChange, undoLockChange } from './lock-history'
 import {
   applyOperatorInputs,
   captureOperatorInputs,
+  PORT_MODES_KEY,
   type PropertyMutationOptions,
   UI_STATE_KEY,
 } from './property-history'
@@ -843,16 +844,44 @@ function withOperatorInputs(nodes: ReactFlowNode[], snapshot: string | undefined
     return nodes
   }
   const uiState = state[UI_STATE_KEY] as Record<string, unknown> | undefined
+  const portModes = state[PORT_MODES_KEY] as Record<string, unknown> | undefined
   return nodes.map(node => {
     const inputs = state[node.id]
     if (!inputs) return node
     const data = node.data as { inputs?: Record<string, unknown> }
     const ui = uiState?.[node.id]
+    const inputPortModes = portModes?.[node.id] as Record<string, unknown> | undefined
     return {
       ...node,
-      data: { ...node.data, inputs: { ...data.inputs, ...inputs }, ...(ui ? { ui } : {}) },
+      data: {
+        ...node.data,
+        inputs: { ...data.inputs, ...nestChannelInputs(inputs, inputPortModes) },
+        ...(ui ? { ui } : {}),
+        ...(inputPortModes ? { inputPortModes } : {}),
+      },
     }
   })
+}
+
+// A snapshot keeps a split input per channel (`vec.x`, `vec.y`), as applyOperatorInputs
+// needs. Node data holds it under the input, as a saved project does:
+// { vec: { x: { $expr: '...' }, y: 4 } }. A connected channel isn't in the snapshot.
+function nestChannelInputs(
+  inputs: Record<string, unknown>,
+  portModes: Record<string, unknown> | undefined
+): Record<string, unknown> {
+  const result: Record<string, unknown> = {}
+  for (const [key, value] of Object.entries(inputs)) {
+    const dot = key.lastIndexOf('.')
+    const name = key.slice(0, dot)
+    if (dot <= 0 || portModes?.[name] !== 'channels') {
+      result[key] = value
+      continue
+    }
+    const channels = (result[name] ?? {}) as Record<string, unknown>
+    result[name] = { ...channels, [key.slice(dot + 1)]: value }
+  }
+  return result
 }
 
 // React Flow replaces a node or edge object when it changes, so identity is enough
