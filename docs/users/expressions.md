@@ -1,10 +1,10 @@
 # Expressions
 
-Noodles has two kinds of expression. A **row expression** computes a value for every row of a table: a position, a radius, a color. A **parameter expression** computes one number for a parameter from the time and other parameters, like expressions in Houdini and TouchDesigner or drivers in Blender. Neither needs a separate node for simple math.
+Noodles has two kinds of expression. A **row expression** computes a value for every row of a table: a position, a radius, a color. A **parameter expression** computes one number for a parameter from the time and other parameters, like expressions in Houdini and TouchDesigner or drivers in Blender.
 
 ## Row Expressions
 
-Layer channels (Position, Color, Radius, Width...), Attribute Create, the inputs of Map Range and Color Ramp, and a Filter in Expression mode all take a row expression over the input table's columns:
+Layer channels (Position, Color, Radius, Width...), Attribute Create, the inputs of Map Range and Color Ramp, and a Filter in Expression mode take a row expression over the input table's columns:
 
 ```
 [lng, lat]                    a position from two columns
@@ -16,21 +16,30 @@ present(h3, hex, 'none')      the first of these columns the rows have
 hex_color(color)              a "#rrggbb" text column as a color
 ```
 
-- The input lists the table's columns as you type, and the functions once you type a letter. Names are column names exactly as the table has them; case matters. A channel holding just a column name, such as `position` or `Cd`, reads that column.
-- `[a, b]` makes a vector. A column with 2 to 4 numbers per row (`coordinates: [lng, lat]` in JSON) is a vector too: read one item with `coordinates[1]` or `coordinates.y`.
-- A vector attribute, such as a Color Ramp's `magnitude_color` or `position = [lng, lat]`, reads the same way wherever it goes: whole (`magnitude_color`), by index (`magnitude_color[0]`) or by component name (`magnitude_color.r`, `position.x`; `x y z w` and `r g b a` both work). Tables store it as numbered columns (`magnitude_color_0`, `_1`, `_2`); the Spreadsheet shows them under the vector's name, each by its component letter, and a Code node's `d` has it as one array (`d[i].magnitude_color`, which also reads `.r`).
-- Operators: `+ - * / %`, comparisons, `&&`, `||`, `!` and `test ? a : b`.
-- Functions include `sqrt`, `abs`, `floor`, `ceil`, `round`, `exp`, `ln`, `log10`, `pow`, `sin`, `cos`, `atan2`, `min`, `max`, `clamp`, `fit(x, inMin, inMax, outMin, outMax)`, `lerp(a, b, t)`, `smoothstep`, `ramp(t)`, `coalesce`, `present` (the columns among its arguments that the rows have, then `coalesce` of them: one file names a column `h3`, another `hex`), `to_number` (text as a number), `category(value, n)` (a bucket from 0 to n - 1 per distinct value) and `random()`.
-- In a layer's channels, `colmin(col)` and `colmax(col)` are a column's smallest and largest value over the layer's rows, so `ramp(fit(mag, colmin(mag), colmax(mag), 0, 1))` spreads the ramp over the data. They are computed once in SQL and reused until the rows change.
-- Geographic functions take `[lng, lat]` points: `distance(a, b)` in kilometers, `bearing(a, b)`, `destination(p, km, degrees)`, `midpoint(a, b)`, and `st_distance`, `st_dwithin` and `st_contains` against a WKT or GeoJSON literal.
-- `ch('node/param')` reads a parameter's value, as in a parameter expression below: `mag * ch('size/value')`.
+- The input suggests the table's columns as you type, and the functions once you type a letter. Column names are case-sensitive. A channel holding just a column name, such as `position` or `Cd`, reads that column.
+- `[a, b]` makes a vector. A column with 2 to 4 numbers per row (`coordinates: [lng, lat]` in JSON) is a vector too. Read one item by index (`coordinates[1]`) or by component name (`coordinates.y`; `x y z w` and `r g b a` both work). A vector column, such as a Color Ramp's output, reads the same way wherever it goes.
+- Tables store a vector as numbered columns (`magnitude_color_0`, `_1`, `_2`). The Spreadsheet shows them under the vector's name, and a Code node's `d` has it as one array (`d[i].magnitude_color`).
+- Operators: `+ - * / %`, comparisons (`== != < <= > >=`), `&&`, `||`, `!` and `test ? a : b`.
+- `ch('node/param')` reads a parameter's value: `mag * ch('size/value')`.
 - Colors are `[r, g, b]` from 0 to 1 in expressions. Constant color parameters, such as a layer's Fill color, are 0 to 255.
 
 A value several layers share belongs in an **Attribute Create** node (`attribute`): it writes one column, and the layers after it name that column.
 
+### Functions
+
+| Kind | Functions |
+|------|-----------|
+| Math | `sqrt`, `abs`, `sign`, `floor`, `ceil`, `round`, `fract`, `exp`, `ln`, `log10`, `log2`, `pow`, `sin`, `cos`, `tan`, `asin`, `atan`, `atan2`, `min`, `max`, `clamp`, `fit(x, inMin, inMax, outMin, outMax)`, `lerp(a, b, t)`, `smoothstep`, `radians`, `degrees` |
+| Vectors | `length`, `normalize`, `dot`, `cross` |
+| Values | `coalesce(a, b)` (`a` unless it is missing), `present(a, b, ...)` (the arguments that are columns the rows have, then `coalesce` of them: for files that name one column differently, such as `h3` and `hex`), `to_number` (text as a number), `category(value, n)` (a bucket from 0 to n - 1, always the same one for the same value), `random()` (0 to 1 per row) |
+| Color | `ramp(t)` (the layer's Color ramp at `t` from 0 to 1), `hex_color(text)` |
+| Dates | Times are epoch seconds. `epoch(t)` (a timestamp, date or ISO text as seconds), `date_add(t, n, 'days')`, `date_diff(a, b, 'hours')`, `date_part(t, 'month')`, `date_format(t, 'YYYY-MM-DD')`. Units: `years`, `months`, `weeks`, `days`, `hours`, `minutes`, `seconds`, `milliseconds` |
+| Geographic | Points are `[lng, lat]`. `distance(a, b)` in kilometers, `bearing(a, b)`, `destination(p, km, degrees)`, `midpoint(a, b)`; `st_distance`, `st_dwithin` and `st_contains` against a WKT or GeoJSON literal |
+| Layer channels only | `colmin(col)` and `colmax(col)`: a column's smallest and largest value over the layer's rows, so `ramp(fit(mag, colmin(mag), colmax(mag), 0, 1))` spreads the ramp over the data |
+
 ### JS Function
 
-For logic the expression language has no words for, a **JS Function** node (`js-function`) defines a function that any expression can call by name. Set its **Name**, **Parameters** (comma-separated; `name: text` for a text parameter), **Returns** (1 number, or an array of 2 to 4) and **Body**:
+For logic the expression language has no words for, a **JS Function** node (`js-function`) defines a function any expression can call by name. Set its **Name**, **Parameters** (comma-separated; `name: text` for a text parameter), **Returns** (1 number, or an array of 2 to 4) and **Body**:
 
 ```javascript
 // Name: jitter, Parameters: x
@@ -41,7 +50,7 @@ A layer's Position can then be `[jitter(lng), jitter(lat)]`. The body runs in th
 
 ## Parameter Expressions
 
-Right-click a number parameter in the parameter pane and choose **Set expression...**. The parameter then shows the expression and its current value. Choose **Revert to value** to go back to a plain number.
+Right-click a number parameter in the parameter pane and choose **Set expression...**. The parameter then shows the expression and its current value. **Revert to value** goes back to a plain number.
 
 | Name | Value |
 |------|-------|
@@ -50,24 +59,24 @@ Right-click a number parameter in the parameter pane and choose **Set expression
 | `MX`, `MY` | The pointer over the map, in pixels from its top left |
 | `ch('node/param')` | Another parameter's value, by path (`ch('../controls/size')` reaches up out of a subnet) |
 
-The math functions above work here too:
+The math functions work here too:
 
 ```
 4 + 2 * sin(T)
 ch('threshold/value') * 2
 ```
 
-An expression updates when the playhead or the pointer moves, or when a parameter it reads changes. A name other than `T`, `F`, `MX`, `MY` or a `ch()` reference is an error on the node.
+An expression updates when the playhead or the pointer moves, or when a parameter it reads changes. Any other name is an error on the node.
 
 ## References
 
-To make a parameter follow another one, right-click it and choose **Reference a parameter...**, or click the link button next to it, and pick a parameter of the same kind on another node. A referenced parameter shows a chip naming its source: click the chip to go to that node, or click × to break the reference and keep the current value. **Copy parameter** and **Paste relative reference** do the same from the context menu.
+To make a parameter follow another one, right-click it and choose **Reference a parameter...**, or click the link button next to it, and pick a parameter of the same kind on another node. A referenced parameter shows a chip naming its source: click the chip to go to that node, or × to break the reference and keep the current value. **Copy parameter** and **Paste relative reference** in the same menu do it by copy and paste.
 
-References work for numbers, colors, toggles and text. They are how several layers share one color from a **Color** node. Every reference and `ch()` call draws a dashed edge on the canvas, and the output port of a parameter that others read lists them when you rest the pointer on it.
+References work for numbers, colors, toggles and text; several layers can share one color from a **Color** node this way. Every reference and `ch()` call draws a dashed edge on the canvas.
 
 ## In SQL
 
-A `sql` node's query can read parameters with `ch()` as well, so a slider can drive a `WHERE` clause:
+A `sql` node's query reads parameters with `ch()` as well, so a slider can drive a `WHERE` clause:
 
 ```sql
 SELECT * FROM {{input0}} WHERE pop > ch('threshold/value')

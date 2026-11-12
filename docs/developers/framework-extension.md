@@ -1,193 +1,46 @@
 # Extending the Framework
 
-## Creating New Operators
+[Creating Operators](./creating-operators.md) covers adding an operator to Noodles.gl. This page covers the rest: registering operators and color ramps from an application, converting older projects, and debugging.
 
-### Basic Operator Template
+## Registering from an application
 
-```typescript
-export class CustomOperator extends Operator<CustomOperator> {
-  static displayName = 'Custom Operator'
-  static description = 'Description of what this operator does'
-
-  createInputs() {
-    return {
-      data: new ArrayField(new DataField()),
-      amount: new NumberField(50, { min: 0, max: 100 })
-    }
-  }
-
-  createOutputs() {
-    return {
-      result: new DataField()
-    }
-  }
-
-  execute({ data, amount }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
-    // Pure function implementation
-    return {
-      result: data.map(item => ({
-        ...item,
-        processed: item.value * amount
-      }))
-    }
-  }
-}
-```
-
-### Registration
+An application that embeds the planner can add to its catalog at startup, without editing `packages/planner`:
 
 ```typescript
-// Add to opTypes in operators.ts
-export const opTypes = {
-  // ... existing operators
-  CustomOperator,
-} as const
+import { registerOperator, registerRamp } from '@noodles.gl/planner'
+
+// An operator, by the same OpDef shape as the built-ins. Registering an existing type
+// replaces it. One without `lower` is skipped by lowering, as host operators are.
+registerOperator(myOperatorDef)
+
+// A color ramp for ramp(), colorscale nodes and every ramp menu: 0 to 1 RGB stops,
+// evenly spaced
+registerRamp('sunset', [[0.1, 0.0, 0.3], [0.9, 0.3, 0.2], [1.0, 0.9, 0.5]], 'Sunset')
 ```
 
-### Category Organization
+The editor does this itself: `registerDeckOperators()` (in `src/runtime/deck-ops.ts`) adds the deck operators, and `registerNoodlesRamps()` (in `src/runtime/ramps.ts`) adds the editor's d3 color schemes.
 
-```typescript
-// Add to categories.ts
-export const categories = {
-  'Processing': [
-    'CustomOperator',
-    // ... other operators
-  ],
-  // ... other categories
-}
-```
+## Converting older projects
 
-## Creating New Fields
+Projects saved before documents are operator graphs (`noodles.json` schema 1 to 23). When one loads, its schema migrations in `src/noodles/__migrations__/` run first, then `toEditorDoc` in `src/runtime/migrate/to-editor-doc.ts` converts it to an `EditorDoc`.
 
-### Field Template
+- `op-catalog.ts` says what each older operator type becomes: planner operators, row operators, a `code` node, a deck operator, a subnet, a host operator, or refused (the ForLoop operators).
+- `to-editor-doc.ts` holds the conversions, and `gis-conversions.ts` the GIS ones. A conversion writes every older default explicitly, since `noodles.json` stored only what was set and planner defaults differ.
+- Anything a conversion cannot express throws a `MigrationError` naming the node and why. It never falls back to a JavaScript accessor or a silent default.
+- Test a conversion with a case in `src/runtime/migrate/*-conversions.node.test.ts` that converts a node, lowers it, and checks the rows.
 
-```typescript
-export class CustomField extends Field<z.ZodString> {
-  createSchema(options: CustomFieldOptions) {
-    return z.string()
-      .min(options.minLength || 0)
-      .max(options.maxLength || 1000)
-  }
-}
-```
-
-### Type Safety
-
-```typescript
-// Use Zod schemas for runtime validation
-const schema = z.object({
-  name: z.string(),
-  value: z.number().min(0)
-})
-
-// Leverage TypeScript for compile-time checking
-type InputType = z.infer<typeof schema>
-```
-
-### UI Component
-
-```typescript
-// In field-components.tsx
-
-const CustomFieldComponent = ({ field }) => {
-  const [value, setValue] = useState(field.value)
-
-  useEffect(() => {
-    field.subscribe(v => setValue(v))
-  }, [field.value])
-
-  const onChange = (newValue: string) => {
-    field.setValue(newValue)
-  }
-
-  return (
-    <div className="custom-field">
-      <input
-        type="text"
-        value={value}
-        onChange={e => onChange(e.target.value)}
-        placeholder="Enter custom value..."
-      />
-    </div>
-  )
-}
-export const inputComponents = {
-  CustomField: CustomFieldComponent
-}
-```
-
-## Migration System
-
-### Creating Migrations
-
-```typescript
-// In __migrations__/005-new-feature.ts
-export const up = (data: any) => {
-  // Transform old data format to new format
-  return {
-    ...data,
-    newField: 'defaultValue'
-  }
-}
-
-export const down = (data: any) => {
-  // Transform new data format back to old format
-  const { newField, ...rest } = data
-  return rest
-}
-```
-
-### Running Migrations
-
-Migrations run automatically when loading older save files:
-
-```typescript
-// Automatic migration on load
-const migratedData = migrateSchema(savedData, currentVersion)
-```
+To migrate such files on disk, run `npm run migrate-projects -- <file or folder>` from `noodles-editor/`. `--check` lists what would change without writing. To check a document against the operator registry, run `npm run validate:projects -- path/to/noodles.json` from the repo root.
 
 ## Debugging
 
-### Development Tools
-
-- **Browser DevTools**: Inspect React components and state
-- **RxJS DevTools**: Trace observable streams
-- **Timeline Panel**: Debug keyframes and animation curves
-
-### Debugging Techniques
+- **Debug mode.** Turn on **Show editor debug info** in the top menu to see each node's SQL, memoization, routes and engine badges. Users never see these otherwise.
+- **The engine.** `window.plannerEngine` is the running engine: `errors()` lists errors by node, `lowering()` returns the lowered graph and scalar program, and `vis()` what was drawn.
+- **Logging.** The [`debug`](https://www.npmjs.com/package/debug) package logs nothing until enabled. Set `localStorage.debug = 'noodles:*'` in the console and reload; `src/utils/debug.ts` lists the namespaces. To add a log line:
 
 ```typescript
-// Add debug logging to operators
-execute(inputs) {
-  console.log('Operator inputs:', inputs)
-  const result = processInputs(inputs)
-  console.log('Operator output:', result)
-  return result
-}
+import { debugMigration } from '../utils/debug'
+
+debugMigration('converted %s to %d nodes', name, doc.nodes.length)
 ```
 
-### Common Issues
-
-- **Circular Dependencies**: Check connection graph for cycles
-- **Type Mismatches**: Verify field type compatibility
-- **Performance**: Profile slow operators with large datasets
-- **Memory Leaks**: Ensure proper subscription cleanup
-
-## Performance Optimization
-
-### Profiling
-
-```typescript
-// Measure operator execution time
-const startTime = performance.now()
-const result = operator.execute(inputs)
-const duration = performance.now() - startTime
-console.log(`Execution time: ${duration}ms`)
-```
-
-### Optimization Strategies
-
-- **Memoization**: Cache expensive computations
-- **Batching**: Group multiple updates
-- **Lazy Loading**: Load data only when needed
-- **Web Workers**: Offload heavy computations
+- **Tests.** A failing project is usually quickest to reproduce as a `*.node.test.ts` that lowers a small document with DuckDB in Node; see [Creating Operators](./creating-operators.md#tests-and-generated-files).

@@ -1,298 +1,69 @@
-# Data Flow Architecture
+# Data Flow
 
-The Noodles.gl system uses reactive programming principles to manage data flow through the node graph, ensuring efficient updates and consistent state.
+A Noodles.gl project is not a set of functions that pass JavaScript arrays to each other. It is a document that Noodles compiles into a query plan and runs in DuckDB. This page follows a document from the file to the map. The [architecture guide](https://github.com/joby-aviation/noodles.gl/blob/main/dev-docs/architecture.md) has the full detail.
 
-## Reactive Programming Model
+## The document
 
-### RxJS Foundation
+A project is an `EditorDoc`, defined in `packages/planner/src/doc.ts`:
 
-The system is built on RxJS observables for reactive data flow:
-
-```typescript
-field.setValue(value) // equivalent to field.next(field.schema.parse(value))
-
-const value = field.value
-
-// Listen to changes and re-render UI
-field.subscribe(value => {
-  // Update logic
-})
-```
-
-### Data Flow Principles
-
-1. **Unidirectional**: Data flows from outputs to inputs
-2. **Reactive**: Changes propagate automatically
-3. **Lazy**: Nodes only execute when upstream values change
-4. **Memoized**: Results are cached to avoid recomputation
-
-## Connection System
-
-### Edge Structure in Project Serialization
-
-In the project serialization format (noodles.json), edges connect operators through their input and output handles:
-
-```typescript
-// Edge format
+```json
 {
-  "id": "/add-1.out.result->/viewer.par.data", // Unique edge ID
-  "source": "/add-1",            // Source node ID
-  "target": "/viewer",           // Target node ID
-  "sourceHandle": "out.result",  // Name of the output field
-  "targetHandle": "par.data"     // Name of the input field
+  "version": 1,
+  "name": "earthquakes",
+  "nodes": [
+    { "id": "n1", "op": "file", "name": "quakes", "x": 0, "y": 0,
+      "params": { "url": "@/data.csv", "format": "csv" } },
+    { "id": "n2", "op": "attribute", "name": "position", "x": 300, "y": 0,
+      "params": { "name": "position", "expression": "[Longitude, Latitude]" } },
+    { "id": "n3", "op": "scatter", "name": "points", "x": 600, "y": 0,
+      "params": { "position": "position", "radiusScale": { "expr": "4 + 2 * sin(T)" } } },
+    { "id": "n4", "op": "deck", "name": "deck", "x": 900, "y": 0, "params": {} }
+  ],
+  "edges": [
+    { "id": "e1", "source": "n1", "sourcePort": "out", "target": "n2", "targetPort": "in" },
+    { "id": "e2", "source": "n2", "sourcePort": "out", "target": "n3", "targetPort": "in" },
+    { "id": "e3", "source": "n3", "sourcePort": "out", "target": "n4", "targetPort": "layers", "index": 0 }
+  ],
+  "timeline": { "tracks": [] }
 }
 ```
 
-### Example Connection
+- **Nodes** have an opaque `id`, an `op` (the operator type), a `name` unique within their network, and `params`. A parameter left at its default is left out.
+- **Edges** join an output port to an input port. A `targetPort` of `par:<name>` drives a parameter from a number or value output, and `index` orders the edges into a multi-input port such as the deck's `layers`.
+- **Parameters** hold a literal, an expression (`{ "expr": "..." }`, with `T` for seconds, `F` for frames, `ch('node/param')` and math), or a reference (`{ "ref": "node/param" }`).
+- **The timeline** holds keyframe tracks keyed `nodeId.param`.
 
-```typescript
-// Two nodes, in the `nodes` array:
-{
-  "id": "/data-loader",
-  "type": "FileOp",
-  "data": {
-    "inputs": {
-      "format": "csv",
-      "url": "@/data.csv"
-    },
-  }
-},
-{
-  "id": "/filter",
-  "type": "FilterOperator",
-  "data": {
-    "inputs": {
-      "columnName": "age",
-      "condition": "greater than",
-      "value": 30
-    },
-  }
-}
+The editor changes the document through `docStore().edit(fn, tag)` and the functions in `noodles-editor/src/editor/doc-ops.ts`. The document is the source of truth: the engine only reads it.
 
-// Edge connecting them, in the `edges` array:
-{
-  "id": "/data-loader.out.data->/filter.par.data",
-  "source": "/data-loader",  // Source node ID, matches data-loader operator
-  "target": "/filter",       // Target node ID, matches filter operator
-  "sourceHandle": "out.data",    // Connect from data-loader's "data" output
-  "targetHandle": "par.data"     // to filter's "data" input
-}
-```
+## From document to map
 
-### Reactive references in CodeField
+1. **Lowering.** `lowerDocument` (`packages/planner/src/lower.ts`) flattens subnets, applies bypass, and calls each node's `lower()`. The result is an IR graph (relations, filters, joins, attributes, layers) and a **scalar program**: every parameter's value as a function of time, from literals, expressions, references, keyframes and number operators. Lowering is pure and fast, and runs on every edit.
+2. **Compiling.** `compileProgram` plans the IR. It decides which relations become temp tables and which inline into their readers, writes the SQL each layer runs, and gives each parameter a **route** (below).
+3. **Running.** `ProgramRuntime` (`noodles-editor/src/runtime/program-runtime.ts`) keeps the compiled program live in the engine worker (`src/runtime/worker/engine.worker.ts`), which owns DuckDB-Wasm. `code` nodes run there and their rows become DuckDB tables; `js-function` nodes become functions DuckDB calls per row. Layer data comes back to the main thread as binary attribute buffers.
+4. **Drawing.** The `Engine` (`src/runtime/engine.ts`) builds deck.gl layers from the buffers, builds views, widgets and extensions from deck operators, runs host operators, and hands the result to deck.gl and MapLibre.
 
-When writing code expressions in a `CodeField`, you can reference other operators in the graph using path-based syntax:
+A path, trips or polygon layer draws one row per path: the worker flattens a list-of-positions or geometry column into deck's vertex buffers. Don't unnest paths into vertex rows just to draw them.
 
-```typescript
-// In a CodeField expression, reference other operators
-const upstream = op('/data-loader').out.data
-const filtered = op('./filter').par.data
-```
+## What an edit costs
 
-This will get parsed into a special `ReferenceEdge` in the edges array that connects the output of the referenced operator to the CodeField's input.
+On each change the engine lowers the document again and compares the new graph with the last one:
 
-You can also use mustache syntax for reactive references in fields that support it (like DuckDbOp):
+- **Different structure** (a node added, a wire moved, a structural parameter changed): `runtime.setGraph` recompiles. Memoization keeps the cost to what changed: an untouched relation is a table that already exists.
+- **Same structure, new values** (a slider, the playhead): `runtime.setValues` sends each changed parameter down its routes.
 
-```sql
-SELECT * FROM 'data.csv' WHERE age > {{/age.par.value}}
-```
+| Route | Work done |
+|-------|-----------|
+| `prop` | Re-resolve the layer's deck props. Never waits for a query. |
+| `uniform`, `cpu` | Rerun the layer's CPU stage |
+| `requery` | Rerun the layer's query with new bound values, then its CPU stage |
+| `rematerialize` | Rebuild the changed relation and what reads it |
 
-### Creating Connections Programmatically
+Which route a parameter gets depends on how its operator reads it. A value bound with `ctx.bind` can be requeried or passed as a uniform; a value read with `ctx.str` or `ctx.num` is structural and recompiles. See [Creating Operators](./creating-operators.md#key-principles).
 
-```typescript
-// Connect nodes using field references
-sourceNode.fields.output.addConnection(
-  targetNode.fields.input
-)
-```
+## Host operators
 
-### Connection Lifecycle
+A few operators cannot compile: they call an API with the user's key (Geocoder, Directions), draw into the page (Chart), or work with JavaScript objects (TileLayer, a CodeOp from an older project that reads `op()`). They have no `lower()`. `HostRunner` (`src/runtime/host/host-runner.ts`) runs their `execute()` on the main thread in dependency order, memoized by input, and passes any rows they return to DuckDB for the planner nodes downstream.
 
-1. **Validation**: Check type compatibility
-2. **Subscription**: Set up reactive subscription
-3. **Data Flow**: Values flow from source to target
-4. **Cleanup**: Remove subscriptions when disconnected
+## Seeing it
 
-### Connection Rules
-
-- **Type Safety**: Zod schemas ensure type compatibility
-- **Single Input**: Each input accepts one connection
-- **Multiple Outputs**: Outputs can connect to many inputs
-- **Cycle Detection**: Prevents circular dependencies
-
-## Execution Model
-
-### Operator Execution
-
-```typescript
-class AddOperator extends Operator<AddOperator> {
-  static displayName = 'Add'
-  static description = 'Add two numbers'
-
-  createInputs() {
-    return {
-      a: new NumberField(0, { step: 1 }),
-      b: new NumberField(0, { step: 1 }),
-    }
-  }
-
-  createOutputs() {
-    return {
-      sum: new NumberField(),
-    }
-  }
-
-  execute({ a, b }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
-    // Pure function transformation
-    return { sum: a + b }
-  }
-}
-```
-
-### Execution Triggers
-
-- **Input Changes**: When connected field values update
-- **Parameter Changes**: When operator parameters change
-- **Manual Trigger**: Explicit re-execution requests
-
-### Execution Order
-
-1. **Topological Sort**: Determine execution order
-2. **Dependency Resolution**: Execute upstream nodes first
-3. **Parallel Execution**: Independent branches run concurrently
-4. **Result Propagation**: Outputs trigger downstream execution
-
-## Memoization Strategy
-
-### Automatic Caching
-
-```typescript
-// Results cached based on input hash
-const cachedResult = memoize(operator.execute, inputs)
-```
-
-### Cache Invalidation
-
-- **Input Changes**: Clear cache when inputs change
-- **Parameter Updates**: Invalidate on configuration changes
-- **Manual Clearing**: Explicit cache clearing for debugging
-
-### Memory Management
-
-- **LRU Eviction**: Remove least recently used results
-- **Size Limits**: Prevent unbounded cache growth
-- **Weak References**: Allow garbage collection
-
-## Performance Optimization
-
-### Batching Updates
-
-```typescript
-// Batch multiple changes to avoid cascading updates
-batch(() => {
-  node1.fields.param1.setValue(value1)
-  node2.fields.param2.setValue(value2)
-})
-```
-
-### Debouncing
-
-```typescript
-// Debounce rapid changes to reduce computation
-field.pipe(
-  debounceTime(100),
-  distinctUntilChanged()
-).subscribe(value => {
-  // Process debounced value
-})
-```
-
-### Selective Updates
-
-- **Change Detection**: Only update when values actually change
-- **Shallow Comparison**: Use object references for arrays/objects
-- **Dirty Tracking**: Mark nodes that need re-execution
-
-## Error Handling
-
-### Error Propagation
-
-```typescript
-try {
-  const result = operator.execute(inputs)
-  field.next(result)
-} catch (error) {
-  field.error(error)  // Propagate error downstream
-}
-```
-
-### Error Recovery
-
-- **Graceful Degradation**: Continue execution with partial data
-- **Default Values**: Fall back to safe defaults
-- **Error Boundaries**: Isolate errors to prevent cascade failures
-
-### Debugging Support
-
-- **Execution Tracing**: Track data flow through graph
-- **Performance Profiling**: Measure execution times
-- **State Inspection**: Examine intermediate values
-
-## Operator References in CodeField
-
-When writing code expressions in a `CodeField`, you can reference other operators in the graph using path-based syntax:
-
-### Path Resolution Rules
-
-Operator paths use Unix-style notation, allowing both absolute and relative references. Slash (`/`) is used as the separator and special symbols like `.` and `..` denote the current and parent containers, respectively:
-
-```typescript
-// Absolute paths (from root)
-op('/data-loader')              // Root level operator
-op('/analysis/filter')          // Nested in analysis container
-
-// Relative paths (from current operator)
-op('./sibling')                 // Same container
-op('../parent-sibling')         // Parent container
-op('local-name')                // Same container (shorthand)
-```
-
-### Example Usage in CodeField
-
-```typescript
-// In a CodeField expression, reference other operators
-const upstream = op('/data-loader').out.data
-const filtered = op('./filter').out.data
-```
-
-Note: This path-based syntax is only used within CodeField expressions for programmatic operator references. For regular node-to-node connections in the graph, use the edge format with `sourceHandle` and `targetHandle` as described in the Connection System section.
-
-## Best Practices
-
-### Graph Design
-
-- **Minimize Connections**: Reduce complexity where possible
-- **Logical Grouping**: Group related operations
-- **Clear Naming**: Use descriptive node and field names
-- **Documentation**: Comment complex data transformations
-
-### Performance
-
-- **Avoid Deep Graphs**: Limit nesting depth
-- **Batch Operations**: Group related changes
-- **Profile Bottlenecks**: Identify slow operations
-- **Optimize Hot Paths**: Focus on frequently executed nodes
-
-### Debugging
-
-- **Incremental Building**: Test small graph sections
-- **Data Inspection**: Examine intermediate results
-- **Error Logging**: Capture and log execution errors
-- **Visual Debugging**: Use graph visualization tools
-
-### Maintenance
-
-- **Version Control**: Track graph changes
-- **Migration Scripts**: Handle schema updates
-- **Testing**: Unit test individual operators
-- **Documentation**: Maintain up-to-date docs
+Turn on **Show editor debug info** in the top menu to see each node's SQL, memoization and routes. Users never see these otherwise. [Debugging](./framework-extension.md#debugging) covers the console tools.

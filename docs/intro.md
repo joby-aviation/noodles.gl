@@ -5,7 +5,7 @@ sidebar_label: Start here
 
 # Welcome to Noodles.gl
 
-Noodles.gl is the animation studio for maps — a node-based editor for building cinematic geospatial visualizations, entirely in the browser.
+Noodles.gl is a node-based editor for animated maps. It runs in the browser.
 
 <video autoPlay loop muted playsInline style={{width: '100%', borderRadius: '12px', marginBottom: '1.5rem'}}>
   <source src="/img/example-nyc-taxi-brushing.mp4" type="video/mp4" />
@@ -13,7 +13,7 @@ Noodles.gl is the animation studio for maps — a node-based editor for building
 
 ## Start here
 
-The editor runs in your browser. There is nothing to install.
+There is nothing to install.
 
 <OpenInEditor label="Open the editor">
 
@@ -33,37 +33,24 @@ Drop a CSV, GeoJSON, GeoParquet or Shapefile file on the start screen, or on the
 
 Once you are in the editor, [Editor Basics](./users/getting-started.md) explains the parts of the screen.
 
-## What makes it different
-
-Most map tools give you a static snapshot. Noodles gives you a **timeline**. Every parameter in your visualization — camera angle, layer opacity, data filter, color ramp, arc height — can be keyframed and animated with bezier interpolation.
-
-The result: data-driven stories you can export as video, publish as interactive pages, or render as print-quality stills.
-
-## What you can build
-
-- **Cinematic route animations** — fly a camera along a path while trip data trails behind, with smooth easing and timed reveals
-- **Temporal data stories** — scrub through years of earthquake activity, urban growth, or flight patterns with a single timeline
-- **Live data dashboards** — wire a DuckDB SQL query to a map layer; the visualization updates reactively when inputs change
-- **Publication renders** — export at any resolution (4K video, 300dpi stills) with 30+ GPU-accelerated layer types, including GeoJSON and H3, S2 and A5 cells
-- **Repeatable workflows** — every project is a portable JSON file you can version-control, share, and re-run on new data
-
-## Who it's for
-
-**Storytellers** who need motion — you have a dataset and a narrative, and static maps aren't enough.
-**Visualization engineers** who want composability — wire up reactive pipelines instead of writing imperative rendering code.
-**Data teams** publishing analysis — go from exploration (DuckDB query, scatter plot) to polished animated render without switching tools.
-**Researchers** sharing results — hand someone a project file and they see exactly what you see.
-
 ## How it works
 
-You connect nodes (data sources, row operations, layers) into a network, and Noodles.gl compiles it to queries that run in DuckDB in your browser. Change a value and the map updates: there's no "run" button, and only the work that change needs runs again.
+You connect nodes into a network: a data source, the steps that filter it and add columns, the layers that draw it, and the deck that shows the layers on a map. Noodles.gl compiles the network to queries that run in DuckDB in your browser. There's no "run" button: change a value and only the work that change needs runs again.
 
 ![The NYC Taxis network over its map: a CSV of trips becomes arcs and points](/img/noodles-nyc-taxis-graph.png)
 
-The timeline editor lets you keyframe any parameter at any point in time. Scrub, preview, adjust curves, then export — the same workflow motion designers use in animation tools, applied to geospatial data.
+The timeline can keyframe any number parameter: the camera, a layer's opacity, a filter's threshold, an arc's height. Scrub and adjust the curves, then export the timeline as a video or the current frame as an image.
+
+## What you can build
+
+- **Route animations**: fly the camera along a path while trips trail behind it
+- **Data over time**: scrub through years of earthquakes, urban growth or flights on one timeline
+- **Query-driven maps**: a DuckDB SQL query feeding a layer, updated as you change its inputs
+- **High-resolution renders**: video and stills at the size you set, from two dozen deck.gl layer types, including H3, S2 and A5 cells
+- **Repeatable projects**: every project is a JSON file you can keep in version control, share, and run on new data
 
 ## Next steps
 
 - **<EditorLink>Open the editor →</EditorLink>**, or start from one of the [examples above](#start-from-an-example)
-- **[Editor Basics →](./users/getting-started)**: the node editor, properties panel, timeline and tools shelf
-- **[Framework Developers →](./developers/overview)**: extend Noodles.gl with custom operators and field types
+- **[Editor Basics →](./users/getting-started)**: workspaces, the node graph, properties, the timeline and the tools shelf
+- **[Framework Developers →](./developers/overview)**: add operators to Noodles.gl

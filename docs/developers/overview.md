@@ -2,144 +2,63 @@
 
 > Want to make maps with Noodles.gl rather than change its code? Go to [Start here](../intro.md) to open the editor or an example.
 
-Learn how to extend Noodles.gl by creating custom operators and fields. This guide is for developers who want to add new functionality to the framework.
+This section is for changing Noodles.gl itself: adding an operator, a parameter widget, or a helper that code nodes can call. Noodles.gl draws on a long line of [node-based tools](./node-based-tools.md), Houdini and TouchDesigner most of all.
 
-## Architecture Overview
+## How a project runs
 
-Noodles.gl uses a reactive programming model built on RxJS with the following core concepts:
+A project is a document of nodes and edges (an `EditorDoc`). Noodles compiles it into a query plan and runs the plan in DuckDB, in a web worker:
 
-- **Operators**: Processing nodes that transform data
-- **Fields**: Typed inputs/outputs with validation and UI hints
-- **Reactive Flow**: Automatic updates when upstream data changes
+```
+EditorDoc ─lowerDocument─► planner IR + scalar program ─compileProgram─► ProgramRuntime
+                                                         (engine worker: DuckDB-Wasm)
+                                                                     │ binary layer buffers
+                                       Engine (main thread): deck layers, host operators
+```
 
-You can also read about [prior art with node-based tools](./node-based-tools.md).
+- **Operators** are `OpDef`s registered with `@noodles.gl/planner` (`packages/planner`). Each one declares its ports and parameters, and a `lower()` that turns a node into IR: SQL relations, filters, joins, attribute expressions, layers.
+- **The planner** decides which relations are kept as tables and how each parameter change is handled. Dragging a slider never recompiles; a structural edit recompiles only what changed.
+- **Per-row values are columns**, made by attribute nodes and expressions. There are no per-row accessor functions.
+- **Host operators** are the few that cannot compile (Geocoder, Directions, Chart, TileLayer and similar). They run on the main thread.
 
-## Development Setup
+[Data Flow](./data-flow.md) follows a document through these steps.
 
-### Prerequisites
-- Node.js (managed by Volta)
-- Yarn with PnP mode
-- TypeScript knowledge
-- Familiarity with RxJS observables
+## Setup
 
-### Getting Started
+The repo uses npm workspaces, with the Node version pinned in `.nvmrc`:
+
 ```bash
-# Install dependencies
-npm run install:all
-
-# Start development server with hot reload
-npm run start:app
-
-# Run tests
-npm run test:app
+npm ci                 # at the repo root
+cd noodles-editor
+npm start              # http://localhost:5173/examples/nyc-taxis
+npm test               # Vitest; *.node.test.ts run in Node with DuckDB
+npm run lint
+npm test -w @noodles.gl/planner   # planner tests, from the repo root
 ```
 
-## Core Concepts for Developers
+The [development guide](https://github.com/joby-aviation/noodles.gl/blob/main/dev-docs/developing.md) covers environment variables, code style and the other commands.
 
-### Reactive Data Flow
-```typescript
-// Fields are RxJS observables
-field.setValue(value) // Equivalent to field.next(field.schema.parse(value))
+## Where the code lives
 
-const currentValue = field.value
+| Path | What it holds |
+|------|---------------|
+| `packages/planner/src/operators.ts`, `gis.ts` | Planner operators. New operators usually go here. |
+| `packages/planner/src/doc.ts`, `lower.ts` | The document format and its lowering |
+| `noodles-editor/src/runtime/engine.ts` | Lowers the document, routes changes, builds deck layers |
+| `noodles-editor/src/runtime/worker/` | The engine worker: DuckDB, the runtime, JavaScript tables and functions |
+| `noodles-editor/src/runtime/deck-ops.ts`, `value-ops.ts` | Deck operators (views, widgets, extensions, tiles, map style) and curves |
+| `noodles-editor/src/runtime/host/` | Runs host operators |
+| `noodles-editor/src/runtime/migrate/` | Converts older operator-graph projects to documents |
+| `noodles-editor/src/noodles/operators.ts`, `fields.ts` | Host operator classes, and the fields behind parameter widgets |
+| `noodles-editor/src/editor/` | The editor: document store, network, parameter pane |
 
-// Listen to changes
-field.subscribe(value => {
-  // Handle updates
-})
-```
+## Next steps
 
-### Type Safety
-- All data validated with Zod schemas at runtime
-- TypeScript provides compile-time safety
-- Fields define both validation and UI hints
+- **[Creating Operators](./creating-operators.md)**: add a planner, deck or host operator
+- **[Data Flow](./data-flow.md)**: the document, compiling, and what an edit costs
+- **[Paths and Subnets](./paths-containers.md)**: node names, parameter references and subnets
+- **[Field System](./field-system.md)**: the widgets that edit parameters
+- **[Extending the Framework](./framework-extension.md)**: converting older projects, registering operators from an application, debugging
+- **[Utils API Reference](./utils-api-reference.md)**: helpers in scope in code nodes
+- **[Contributing](./contributing.md)**: pull requests and tests
 
-### Performance
-- **Memoization**: Results cached to avoid recomputation
-- **Lazy Evaluation**: Nodes only execute when inputs change
-- **Pure Functions**: Operators should be deterministic
-
-## What You Can Build
-
-### Custom Operators
-- **Data Sources**: New APIs, databases, file formats
-- **Processors**: Custom algorithms and transformations
-- **Visualizations**: New Deck.gl layers or rendering engines
-- **Utilities**: Helper functions and data manipulation
-
-### Custom Fields
-- **Input Types**: Specialized UI controls
-- **Validation**: Custom data validation rules
-- **Complex Types**: Arrays, objects, and nested structures
-
-### Extensions
-- **Timeline Integration**: Animation-aware operators
-- **External APIs**: Third-party service integrations
-- **Export Formats**: New output and sharing options
-
-## Development Workflow
-
-### 1. Create an Operator
-```typescript
-export class CustomOperator extends Operator<CustomOperator> {
-  static displayName = 'CustomOperator'
-  static description = 'Description of what this operator does'
-
-  createInputs() {
-    return {
-      data: new ArrayField(new UnknownField()),
-      threshold: new NumberField(50, { min: 0, max: 100 })
-    }
-  }
-
-  createOutputs() {
-    return {
-      result: new DataField()
-    }
-  }
-
-  execute(props: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
-    // Pure function: inputs → outputs
-    return { result: processedData }
-  }
-}
-```
-
-### 2. Add to opTypes
-
-```typescript
-// In operators.ts, add your operator to the opTypes export
-export const opTypes = {
-  // ... existing operators
-  CustomOperator,
-} as const
-```
-
-### 3. Add to categories
-
-```typescript
-// In categories.ts, add your operator to the appropriate category
-export const categories = {
-  'data': [
-    'CustomOperator',
-    // ... other operators
-  ],
-  // ... other categories
-}
-```
-
-## Next Steps
-
-- **[Creating Operators](./creating-operators)** - Build custom processing nodes
-- **[Field System](./field-system)** - Understand inputs, outputs, and validation
-- **[Data Flow](./data-flow)** - Master reactive programming patterns
-- **[Path System](./paths-containers)** - Organization and referencing
-- **[Contributing](./contributing.md)** - Contribute back to the framework
-
-## Framework Philosophy
-
-- **Composability**: Small, focused operators that work together
-- **Type Safety**: Runtime validation with developer experience
-- **Performance**: Efficient reactive updates and memoization
-- **Extensibility**: Easy to add new operators and field types
-- **Developer Experience**: Hot reload, debugging tools, clear APIs
+The [architecture guide](https://github.com/joby-aviation/noodles.gl/blob/main/dev-docs/architecture.md) in the repo has the full detail.

@@ -21,9 +21,9 @@ The fastest way to try the second one is the quick start prompt on the [home pag
 
 ## The in-app assistant
 
-The chat panel inside the editor (`Cmd+K` / `Ctrl+K`) is its own agent. It reads your graph, runs code against it, searches the docs, and proposes changes. Each proposed batch of changes shows up as a card listing every change, and nothing touches the graph until you click **Accept**. An accepted batch is one undo step.
+The chat panel inside the editor (the **Assistant** button in the top bar) is its own agent. It reads your graph, runs code against it, searches the docs, and changes the graph. When it finishes, a card lists every change it made: **Accept** keeps them as one undo step, and **Reject** undoes them.
 
-It runs on a free OpenRouter connection, a model on your own GPU, or your own API key. See [AI Assistant](./ai-assistant.md) for setup.
+It runs on a free OpenRouter connection, a model on your own GPU, your own API key, or an ACP agent such as Claude Code on your machine. See [AI Assistant](./ai-assistant.md) for setup.
 
 Use it when you are already in the editor and want help with the project in front of you. Use a coding agent when you want to work from your terminal or IDE, change files in a repo, or export video without clicking.
 
@@ -124,10 +124,10 @@ Do these in order. The relay starts with your agent, and the page looks for it f
 
 Ask in plain words: "make the arcs red", "zoom to Manhattan and tilt the camera", "fade the points in over the first 2 seconds", "export a 5 second video". The agent can:
 
-- read the graph and each node's inputs, outputs and current data
+- read the graph and each node's parameters, output and errors
 - add, change and remove nodes and connections
-- run JavaScript against the live graph to inspect data
-- read and write the project's data files (it writes only under `@/.agent/`)
+- run JavaScript against the project to inspect data
+- read the project's data files and write new ones under `@/.agent/`
 - capture a screenshot of the map to check its work
 - read and set timeline keyframes
 - render the timeline to an MP4 with `export_video`
@@ -142,7 +142,7 @@ Exporting needs WebCodecs, so use Chrome or Edge. Example projects live in memor
 
 ### Things to know
 
-- **Changes go straight to the open project.** Unlike the in-app assistant, a connected agent doesn't wait for you to accept each change. Save before you ask for a large one.
+- **Changes go straight to the open project.** There is no Accept or Reject card as in the in-app assistant. Each `apply_modifications` call is one undo step, so `Cmd+Z` / `Ctrl+Z` takes it back. Save before you ask for a large change.
 - **Live edits don't write files.** Save from the editor to keep them, or have the agent edit `noodles.json` as described below.
 - **Keep the tab visible.** A hidden tab stops drawing, so screenshots fail until you bring the browser back to the front.
 - **Use one tab.** With several Noodles tabs open, the relay adds a tab id to each tool name.
@@ -159,7 +159,7 @@ A project is a `noodles.json` file: a list of nodes, the edges between them, and
 - `list_examples` and `get_example`: the example projects, with their READMEs and data files
 - `validate_project`: the check below, as a tool
 
-**The validator** checks a file against the operator registry: schema version, operator types, input names, connections, duplicates and loops. Each error names the fix. From the repo root:
+**The validator** checks a file against the operator registry: operators, parameters, ports, wire types and references. Each error names the fix. From the repo root:
 
 ```bash
 npm run validate:projects -- path/to/noodles.json
@@ -250,7 +250,7 @@ To look at the result, open the project folder (the one holding `noodles.json` a
 
 `/examples/<name>` is only for the bundled examples. In a local checkout, a project written to `noodles-editor/src/examples/<name>/noodles.json` shows up there too.
 
-Small graphs work best: five to eight nodes that a person can read. One `CodeOp` with a few lines of JavaScript is easier to check than a chain of filter, map and sort nodes. The validator doesn't check the timeline, so set keyframes in the editor or through a running editor (above) rather than by hand.
+Small graphs work best: five to eight nodes that a person can read, such as a source (`file`, `geojson`), a `filter` or `attribute` node, a layer (`scatter`, `path`, `heatmap`) and the `deck` node. Per-row values such as positions and colors are columns made by `attribute` nodes or a layer's expressions (`[lng, lat]`), not JavaScript functions. One `sql` node is easier to check than a long chain of reshaping nodes. The validator only checks that timeline tracks point at real parameters, so set keyframes in the editor or through a running editor (above) rather than by hand.
 
 The repo's [`AGENTS.md`](https://github.com/joby-aviation/noodles.gl/blob/main/AGENTS.md) describes the file format and code layout for agents. Codex, Cursor, Claude Code (through `CLAUDE.md`) and other agents that read `AGENTS.md` load it on their own.
 

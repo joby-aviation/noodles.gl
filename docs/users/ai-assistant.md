@@ -1,370 +1,121 @@
 # AI Assistant
 
-The Noodles.gl AI Assistant helps you create geospatial visualizations, debug projects, and learn about operators through natural language conversation.
+The assistant is a chat panel inside the editor. It reads your project, answers questions about operators, changes the graph for you to review, and can check its work with a screenshot. Open it with the **Assistant** button at the right end of the top bar.
 
-## Overview
+To work from a coding agent in your terminal or IDE instead, see [Use Noodles with your AI agent](./ai-agents.md).
 
-The AI Assistant is an interactive chat interface that:
+## Connect a provider
 
-- Answers questions about operators and workflows
-- Creates and modifies nodes in your visualization graph
-- Debugs errors and suggests fixes
-- Searches documentation and examples
-- Finds relevant data sources and examples on the web
+The first time you open the panel, it asks which model to use. The quickest choice is **Connect OpenRouter**: a sign-in window opens, you approve, and the editor receives its own OpenRouter key. There is nothing to copy or paste. OpenRouter's free tier allows about 50 messages a day, and the model picker lists free models that support tool calling first. The assistant needs tool calling to read and change your graph.
 
-## Getting Started
-
-### Opening the Chat Panel
-
-Click the **AI Assistant** button in the main menu, or use the keyboard shortcut `Cmd+K` (Mac) or `Ctrl+K` (Windows/Linux).
-
-### The fastest way in
-
-Open the chat and click **Connect OpenRouter**. A small window opens, you approve, it closes, and you can ask a question. There is no key to copy and nothing to paste — the editor gets its own key and remembers it, so this happens once per browser.
-
-OpenRouter's free tier runs to roughly 50 requests a day without adding credit, which is enough to try the assistant properly. Free models that support tool calling are listed first in the model picker; the assistant needs tools to read and change your graph, so the picker only offers models that have them.
-
-Nothing downloads and nothing is charged.
-
-### Other ways to connect
-
-| Option | What it costs | Good for |
+| Provider | Cost | Notes |
 | --- | --- | --- |
-| **Connect OpenRouter** | Free, one click | Getting started. Start here. |
-| **Run a model locally** | A one-time download of 0.9–5.6 GB | Privacy, offline work, no account at all |
-| **A free key from Groq, Google AI Studio or Cerebras** | Free, one signup, no card | An alternative if OpenRouter's daily cap is in the way |
-| **Your own API key** | Whatever the provider charges | Best answers, hardest tasks |
-| **An agent on your machine** (Claude Code, Codex, Gemini CLI) | Your existing subscription or key | Using the agent and plan you already have |
+| OpenRouter | Free tier, or paid models with credit | Connect in one click, or paste a key |
+| Anthropic | Your API key (`sk-ant-…`) | Claude Sonnet 5, Opus 5 and Haiku 4.5. The best answers |
+| Custom endpoint | Depends on the service | Any OpenAI-compatible API, including a server on your own machine |
+| Local model | Free, a one-time download of 0.9 to 4.7 GB | Runs on your GPU. Nothing leaves the browser |
+| Chrome built-in AI | Free | Experimental. Chrome 127 or later |
+| ACP agent | Your agent's own plan or key | Claude Code, Codex, Gemini CLI and others, running on your machine |
 
-All of these live in Settings → **AI Provider** (the gear icon in the chat header). Leave the provider on **Automatic** and the editor uses whichever you have set up, preferring the strongest one.
+Every provider is set up in Settings → **AI Provider** (the ⚙️ beside the model picker in the panel). Anthropic and OpenRouter keys can also be pasted in Settings → **API Keys**.
 
-### Running a model locally
+### Choosing a provider and model
 
-Settings → AI Provider → **Local model (on-device)**, then pick a model. Nothing downloads until you pick one. Each model shows its download size and the GPU memory it needs:
+The two dropdowns at the top of the panel pick the provider and the model. Picking a provider you haven't set up opens its settings instead.
 
-- **Qwen3.5 4B** (2.4 GB download, 3.9 GB GPU memory): the default, and the better answers
-- **Qwen3.5 2B** (1.1 GB download, 2.2 GB GPU memory): faster, and needs about half the memory
+In Settings → AI Provider, **Automatic (recommended)** uses the first provider that is ready, in this order: Anthropic, OpenRouter, custom endpoint, local model. The local model only counts once you have chosen one, so nothing large downloads unless you ask for it. Chrome built-in AI and ACP agents are never picked automatically. If a provider you picked stops working because its key was removed, the panel falls back to the same order.
 
-Older models sit under **Advanced compatibility**, so a model you picked before keeps working. If a model fails to load, the editor offers the 2B.
+### Local model
 
-The download happens once and shows a progress bar. After that the model is cached in your browser and starts immediately, and no prompt ever leaves your machine.
+Settings → AI Provider → **Local model (on-device)**, then choose a model. Nothing downloads until you do. Each entry shows its download size and the GPU memory it needs:
 
-This needs a browser with WebGPU — Chrome or Edge 113+, or Safari 17+. If the option is greyed out, your browser does not offer it.
+- **Qwen3.5 4B** (2.4 GB download, 3.9 GB GPU memory): the default, with the better answers
+- **Qwen3.5 2B** (1.1 GB download, 2.2 GB GPU memory): faster and needs about half the memory. The panel offers it if the 4B fails to load
 
-Local models are small. Expect them to answer questions about your graph and make single-step edits; they are not going to build a visualization from a sentence.
+Older models are under **Advanced compatibility**. The download happens once with a progress bar; after that the model is cached in the browser.
 
-### Using an agent on your machine
+This needs WebGPU (Chrome and Edge have it). Without it, the option is disabled. Expect 10 seconds to a minute per answer. A local model has a 4,096-token window, so it is good for questions about your graph and single edits, not for building a visualization from a sentence.
 
-Any agent that speaks the [Agent Client Protocol](https://agentclientprotocol.com/) can run the chat: Claude Code, Codex, Gemini CLI, Goose, OpenCode and others. The agent runs on your computer with its own login and model, and the editor's tools are handed to it, so it can read and change your graph the way the built-in assistant does.
+### Custom endpoint
 
-A browser tab cannot start a program, so a small bridge does it. From a noodles.gl checkout:
+Settings → AI Provider → **Custom Endpoint Configuration** takes a base URL, an optional key, a model name and a display name. The presets fill these in for Groq, Google AI Studio, Cerebras and OpenAI, and link to the page that issues a key. Groq, Google AI Studio and Cerebras give free keys without a card.
+
+A server on your own machine (LM Studio, llama.cpp, Ollama) needs no key: enter its address, such as `http://localhost:1234/v1`, and the model name it reports. **Test and Save** checks that the server answers and serves that model before saving, so a typo shows up there instead of mid-conversation. After a successful test, the model field suggests the models the endpoint listed.
+
+### ACP agent
+
+Any agent that speaks the [Agent Client Protocol](https://agentclientprotocol.com/) can run the chat: Claude Code, Codex, Gemini CLI, Goose, OpenCode and others. The agent runs on your computer with its own login and model, and gets the editor's tools so it can read and change your graph.
+
+A browser tab cannot start a program, so a small bridge starts the agent. From a noodles.gl checkout:
 
 ```bash
 node noodles-mcp/bin/noodles-mcp.ts acp -- npx -y @agentclientprotocol/claude-agent-acp
 ```
 
-Use `@agentclientprotocol/codex-acp` for Codex, or the command your agent's documentation gives for ACP. The bridge prints a URL. Paste it into Settings → AI Provider → **ACP agent** and press Save.
+Use `@agentclientprotocol/codex-acp` for Codex, or the ACP command your agent's documentation gives. The bridge prints a `ws://127.0.0.1:7341/acp?token=…` URL. Paste it into Settings → AI Provider → **ACP agent** and press **Save**, then pick the agent in the panel.
 
-- The agent works in the folder you started the bridge in, and can read and change files there. It asks before it runs a command; the chat shows its question with the options it offers.
-- Sign in to the agent once in a terminal first (for Claude Code, run `claude` and log in). The chat says so if you have not.
-- The model dropdown shows the models the agent offers.
-- The URL contains a token that changes each time the bridge starts. To keep one URL, start it with `--token <something long>` or set `NOODLES_ACP_TOKEN`.
-- Only the hosted editor and a local dev server may connect. Add another address with `--allow-origin https://your.host`.
+- Sign in to the agent once in a terminal first (for Claude Code, run `claude` and log in).
+- The agent works in the folder you started the bridge in (or `--cwd <dir>`) and can read and change files there. It asks before it runs a command, and the chat shows its question with the options it offers.
+- The model dropdown lists the models the agent offers.
+- The token in the URL changes each time the bridge starts. To keep one URL, pass `--token <something long>` or set `NOODLES_ACP_TOKEN`.
+- Only noodles.gl and a local dev server on port 5173 may connect. Add another address with `--allow-origin https://your.host`. `--help` lists every option.
 
-### Using your own API key
+## Using the assistant
 
-Settings → **API Keys**, or Settings → AI Provider for the endpoint options:
+Type a question and press Enter (Shift+Enter for a new line). Some things to ask:
 
-- **Anthropic** — a key from [console.anthropic.com](https://console.anthropic.com/), starting `sk-ant-`. The best answers available in the editor.
-- **OpenRouter** — Connect handles this for you, but you can also paste a key.
-- **Custom endpoint** — anything speaking the OpenAI chat-completions format. Presets fill in Groq, Google AI Studio, Cerebras and OpenAI; the first three hand out a free key with no card, and each preset links to the page that issues one. A server on your own machine (LM Studio, llama.cpp, Ollama) needs no key at all — just the address and the model name.
+- "What does the heatmap layer do?" or "How do I load a CSV file?"
+- "Show these stations as points colored by line"
+- "Nothing is showing up on the map, can you help?"
+- "Find an example that animates paths"
 
-**Test and Save** checks the endpoint before storing it, so a mistyped address or model name is caught there rather than in the middle of a conversation.
-
-Keys are stored in your browser and never sent to Noodles.gl. They are never saved in a project file, and a key inside a project file someone else made is ignored. See [API Keys Configuration](./api-keys.md).
-
-## Using the Assistant
-
-### Asking Questions
-
-Simply type your question in the chat input and press Enter. The assistant can help with:
-
-**Learning about operators:**
-- "What does the ScatterplotLayer do?"
-- "How do I load a CSV file?"
-- "What's the difference between ArcLayer and PathLayer?"
-
-**Creating visualizations:**
-- "Show me NYC bike share stations as a scatterplot"
-- "Create a heatmap of earthquake data"
-- "Draw flight routes between cities with arcs"
-
-**Debugging:**
-- "My visualization isn't showing up, can you help?"
-- "I'm getting a 'data is undefined' error"
-- "Why are my layers not rendering?"
-
-**Finding examples:**
-- "Show me an example of using DuckDB"
-- "How do I create an animated path?"
-- "Find examples of H3 hexagon layers"
-
-### Tools the Assistant Can Use
-
-The assistant has access to powerful tools to help you:
-
-**Visual Debugging:**
-- Capture screenshots of your visualization
-- Check browser console for errors
-- Inspect rendering performance and memory usage
-- Examine individual layer properties
-
-**Project Modification:**
-- Add new operators to your graph
-- Update operator inputs and settings
-- Delete nodes and connections
-- Create complete visualizations from scratch
-
-**Data & Computation:**
-- Run JavaScript against your live graph to compute a result
-- List, read, and search your project's data files
-- Write a derived dataset to `@/.agent/` and load it with a `file` node
-
-**Documentation & Examples:**
-- Search the Noodles.gl documentation
-- Find relevant code examples
-- Look up operator schemas and field types
-- Explain how existing projects work
-
-**Web Search:**
-- Find data sources and APIs
-- Search for tutorials and guides
-- Look up Deck.gl and MapLibre documentation
-- Find GeoJSON datasets and examples
+To answer, the assistant can read your graph and each node's output, change nodes and connections, run JavaScript against your project to compute something, read the project's data files and write new ones under `@/.agent/` (which a `file` node can then load), set timeline keyframes, search these docs, the example projects and the source code, and look up an operator's inputs. With an Anthropic or OpenRouter key it can also search the web. OpenRouter bills web searches even on free models.
 
 ### Reviewing changes
 
-When the assistant wants to change your graph, it doesn't change it right away. The chat shows a card that lists each node, input and connection it would add, change or remove. Nothing touches the graph until you click **Accept**, and an accepted batch is one undo step. **Reject** drops the batch and tells the assistant, so you can ask for something different.
+The assistant makes its changes as it works, so it can see the results and fix errors. When it finishes, the panel shows a **Review graph update** card listing every node, value and connection it added, changed or removed, and the map already shows them. **Accept** keeps the changes as one undo step. **Reject** undoes them and tells the assistant, so you can ask for something different.
 
-You can't send another message while a card is waiting. Starting or loading a conversation, or opening another project, drops it.
+You can't send another message while a card is waiting. Starting a new conversation or loading an old one undoes the waiting changes; opening another project drops them.
 
-### Example Conversations
+### Screenshots
 
-**Example 1: Creating a Visualization**
+When the current model accepts images, a **📸 Capture** button appears in the panel. It attaches a screenshot of the map to your next message, which helps when something looks wrong. The assistant can also take its own screenshots to check a change.
 
-> **You:** Show me earthquakes from the past week as a heatmap.
->
-> **Assistant:** I'll help you create a heatmap of recent earthquakes. Let me search for the data source first.
->
-> *[Searches web for USGS earthquake data]*
->
-> **Assistant:** I found the USGS earthquake feed. Creating your visualization now...
->
-> *[Adds a `file` node to load the data and a Heatmap Layer]*
->
-> **Assistant:** Done! I've created a heatmap showing 2,547 earthquakes from the past 7 days. The intensity represents magnitude. You can adjust the radius and intensity in the Heatmap Layer's parameters.
+### Conversation history
 
-**Example 2: Debugging an Error**
+The 📋 button in the panel header lists your last 50 conversations. Click one to resume it, or delete one or all of them. ➕ starts a new conversation. Conversations are saved in your browser when you start a new one, load another, or close the panel.
 
-> **You:** I'm getting an error and nothing is showing up.
->
-> **Assistant:** Let me check your console for errors.
->
-> *[Checks console errors]*
->
-> **Assistant:** I found the issue: your Path Layer has no rows because the `geojson` node feeding it failed to load. Its URL is incorrect. The file should be `@/data.geojson` (relative to your project), not `/data.geojson` (absolute path).
->
-> Would you like me to fix the URL?
+## Tips
 
-## Settings
-
-Click the gear icon (⚙️) in the chat panel header, or open Settings → **AI Provider**.
-
-### Switching provider
-
-The two dropdowns in the chat header are the quickest way: the first picks the provider, the second the model. Anything you have not set up is greyed out, and the gear beside them opens the full settings.
-
-**Automatic** — the default — uses whichever provider you have configured, preferring the strongest: Anthropic, then OpenRouter, then a custom endpoint, then a local model, then Chrome's built-in one. A local model is only ever used if you picked one yourself, so nothing large is ever downloaded on your behalf. Pinning a provider that later loses its key falls back to the same order rather than breaking.
-
-Your conversation history is preserved when switching.
-
-### Model selection
-
-The second dropdown lists what the current provider offers:
-
-- **Anthropic** — Claude models.
-- **OpenRouter** — free tool-capable models first, then paid ones. The list comes from OpenRouter, so it reflects what is actually free today.
-- **Local model** — the five WebLLM models, with download sizes.
-- **Custom endpoint** — the model you configured. After a successful test, the field suggests the models that endpoint reported.
-- **Chrome built-in** — one model, so there is nothing to choose.
-- **ACP agent** — whatever the agent offers once it connects. Some agents offer no choice and run their own default.
-
-### Auto-capture screenshots
-
-Sends a screenshot of your visualization with each message.
-
-- Helpful for visual debugging
-- Slower, and uses more of the model's context
-- Can be triggered manually with the camera button instead
-
-
-## Tips for Better Results
-
-### Be Specific
-
-**Instead of:** "Create a map"
-**Try:** "Create a scatterplot showing NYC subway stations colored by line"
-
-**Instead of:** "Fix my error"
-**Try:** "I'm getting 'undefined data' in my PathLayer, can you help?"
-
-### Break Down Complex Tasks
-
-For large projects, work step-by-step:
-
-1. "Load data from this CSV: [URL]"
-2. "Filter to only show points in California"
-3. "Create a heatmap of the filtered data"
-4. "Add a dark basemap"
-
-### Use Screenshots for Visual Issues
-
-If something looks wrong visually, click the camera button to share a screenshot. The AI can see your visualization and provide better help.
-
-### Match the Model to the Task
-
-A local or built-in model is fine for questions about your graph and single-step edits. If one is taking too long or answering vaguely, switch to OpenRouter or Anthropic for the harder task rather than rephrasing at it.
+- **Be specific.** "Show NYC subway stations as points colored by line" works better than "make a map".
+- **Go step by step** on larger tasks: load the data, filter it, then style it.
+- **Match the model to the task.** A local or Chrome model is fine for questions and single edits. For anything multi-step, switch to OpenRouter or Anthropic rather than rephrasing.
 
 ## Troubleshooting
 
-### "WebGPU not supported"
+**The local model option is disabled.** Your browser doesn't offer WebGPU. Use Chrome or Edge, or click **Connect OpenRouter**.
 
-**Problem:** Your browser doesn't support WebGPU, which is required for the local model.
+**The model download failed.** Check your connection and choose the model again in Settings → AI Provider. If it keeps failing, try a smaller model or use OpenRouter.
 
-**Solutions:**
-- Update your browser to the latest version (Chrome 113+, Edge 113+, Safari 17+)
-- Click **Connect OpenRouter** instead — free, no download, and no key to paste
-- Use a different device with a modern browser
+**Answers are slow or the browser runs out of memory.** Close other tabs that use the GPU, start a new conversation (a long transcript is slower on a small model), or pick Qwen3.5 2B, which needs about half the memory of the 4B. Hosted providers don't use your GPU at all.
 
-### "Model download failed"
+**A key isn't working.** Check that it is complete: Anthropic keys start with `sk-ant-` and OpenRouter keys with `sk-or-`. Check that the account has credit; on OpenRouter's free tier, requests fail once the daily cap is reached. For a custom endpoint, **Test and Save** says whether the address, the key or the model name is the problem.
 
-**Problem:** The model download was interrupted or failed.
+**Answers are wrong or vague.** On a local or Chrome model, ask for one change at a time. On a hosted model, give more detail or attach a screenshot. Report persistent problems on [GitHub](https://github.com/joby-aviation/noodles.gl/issues).
 
-**Solutions:**
-- Check your internet connection
-- Pick the model again in Settings → AI Provider to restart the download; finished parts are cached, so a retry resumes rather than starting over
-- Clear your browser cache and try again
-- Try a smaller model — Llama 3.2 1B is 0.9 GB
-- If problems persist, click **Connect OpenRouter** instead
+## Privacy
 
-### Responses are very slow
+- **Local model and Chrome built-in AI:** everything runs in your browser and no prompt is sent anywhere. Model files are stored in the browser, and clearing site data deletes them.
+- **Anthropic, OpenRouter and custom endpoints:** your messages go to that provider, along with whatever the assistant reads to answer them: node settings, rows of your data, file contents and screenshots. The provider's own privacy policy applies.
+- **ACP agent:** the agent on your machine sees the same things and sends them to whatever model service it uses.
+- **Keys** are stored in your browser's local storage and are never sent to Noodles.gl. AI keys are never saved in a project file, and an AI key inside a project file someone else made is ignored. See [API Keys Configuration](./api-keys.md).
+- **Conversation history** stays in your browser's local storage. Delete conversations from the history panel when you work with sensitive data.
 
-**Problem:** The local model is taking 10+ seconds to respond.
+For sensitive data, use a local model.
 
-**Causes:**
-- Your device may not have enough GPU power
-- Other tabs or applications are using GPU resources
-- A long conversation: the whole transcript is re-read on every turn, and a local model has only a 4,096-token window to fit it in
+## More help
 
-**Solutions:**
-- Close other tabs and applications
-- Start a new conversation (➕ in the chat header) — a long transcript is slower on a small model
-- Try a smaller local model, or switch to OpenRouter for faster responses
-- Restart your browser
-
-### "Out of memory" error
-
-**Problem:** The browser ran out of memory while running the AI model.
-
-**Solutions:**
-- Close other tabs and applications
-- Restart your browser
-- Pick a smaller local model: Qwen3.5 2B needs about half the GPU memory of Qwen3.5 4B
-- Use OpenRouter or Anthropic instead; neither uses your device's memory
-
-### AI gives incorrect or unhelpful answers
-
-**Problem:** The response isn't helpful or contains mistakes.
-
-**On a local or built-in model:**
-- Break the task into smaller steps; these models handle one change at a time
-- Ask about your graph rather than asking it to design one
-- Switch to OpenRouter or Anthropic for anything multi-step
-
-**On a hosted model:**
-- Provide more context in your question
-- Use screenshots to show visual issues
-- Report persistent issues on [GitHub](https://github.com/joby-aviation/noodles.gl/issues)
-
-### API key isn't working
-
-**Problem:** The provider rejects the key.
-
-**Solutions:**
-- Check the key is complete — an Anthropic key starts `sk-ant-`, an OpenRouter key `sk-or-`
-- Check the account has credit. A free OpenRouter tier also has a daily request cap of roughly 50; past that, requests fail until the next day or you add credit
-- For a custom endpoint, press **Test and Save** — it will say whether the address, the key, or the model name is the problem
-- Try removing and re-entering the key
-
-## Privacy & Security
-
-### On-device models (local model, Chrome built-in)
-
-- All computation happens in your browser; no prompt is sent anywhere
-- Model files are stored in your browser (IndexedDB), and clearing browser data deletes them
-- Conversation history is stored only in your browser's localStorage
-
-### Hosted providers (Anthropic, OpenRouter, custom endpoint)
-
-- Your messages, and whatever graph context the assistant reads to answer them, are sent to that provider
-- Each provider's own policy applies — Anthropic's is [here](https://www.anthropic.com/legal/privacy)
-- Conversation history is still stored locally in your browser
-- Keys are stored in your browser's localStorage and are never sent to Noodles.gl
-
-### Recommendations
-
-- Use a **local model** or Chrome's built-in one for sensitive or private data
-- Use a **hosted provider** for public projects where quality and speed matter
-- Don't store API keys in git repositories or share them publicly
-- Clear conversation history regularly if working with sensitive data (delete conversations in history panel)
-
-## Advanced Features
-
-### A model on your own machine
-
-If you run LM Studio, llama.cpp or Ollama locally, point the editor at it: Settings → AI Provider → Custom Endpoint, base URL `http://localhost:1234/v1` (whatever your server uses), model name as the server reports it, and no API key. **Test and Save** will confirm the server is reachable and serves that model.
-
-This is a different thing from the built-in local model: your server, your choice of weights, and no download inside the browser.
-
-### Conversation History
-
-Access past conversations by clicking the history button (📚) in the chat panel header.
-
-- View up to 50 recent conversations
-- Click to resume a conversation
-- Delete individual conversations
-- Clear all history
-
-Conversations are automatically saved as you chat.
-
-## Keyboard Shortcuts
-
-- `Cmd/Ctrl + K` - Open/close chat panel
-- `Enter` - Send message
-- `Shift + Enter` - New line in message
-- `Escape` - Close chat panel or settings modal
-
-## Need More Help?
-
-- **Documentation:** Browse the [user guides](/users/getting-started)
-- **Examples:** Open the example projects from the Examples gallery
-- **GitHub Issues:** Report bugs or request features at [github.com/joby-aviation/noodles.gl/issues](https://github.com/joby-aviation/noodles.gl/issues)
-- **Discussions:** Ask questions in [GitHub Discussions](https://github.com/joby-aviation/noodles.gl/discussions)
-
----
-
-**Next Steps:**
-- [Use Noodles with Claude Code, Codex, Gemini CLI or Cursor →](./ai-agents.md)
-- [Learn about operators →](/users/operators-guide)
-- [Explore workflows →](/users/workflows-intro)
-- [Read developer documentation →](/developers/overview)
+- [Use Noodles with Claude Code, Codex, Gemini CLI or Cursor](./ai-agents.md)
+- [Operators guide](/users/operators-guide)
+- [Workflows](/users/workflows-intro)
+- [GitHub Discussions](https://github.com/joby-aviation/noodles.gl/discussions)

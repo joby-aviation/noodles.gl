@@ -19,7 +19,7 @@ Before writing `position`, call `get_node_output` on the data node: expressions 
 
 ## Per-row values are expressions
 
-Every per-row value is an expression in the layer's params: arithmetic, `sqrt`, `clamp`, `mix`, `ramp(t)` for a color from the layer's `ramp` parameter (t in 0–1), `[a, b]` for a vector, `coalesce(a, b)` for a missing value, `hex_color('#ff8800')` for a color column held as text. A value several layers share belongs in an `attribute` node: `{ "op": "attribute", "params": { "name": "size", "expression": "sqrt(pop) / 100.0" } }`, wired between the data and the layers, which then name `size`.
+Every per-row value is an expression in the layer's params: arithmetic, `sqrt`, `clamp`, `lerp(a, b, t)`, `ramp(t)` for a color from the layer's `ramp` parameter (t in 0–1), `[a, b]` for a vector, `coalesce(a, b)` for a missing value, `hex_color('#ff8800')` for a color column held as text. A value several layers share belongs in an `attribute` node: `{ "op": "attribute", "params": { "name": "size", "expression": "sqrt(pop) / 100.0" } }`, wired between the data and the layers, which then name `size`.
 
 ## Colors by value
 

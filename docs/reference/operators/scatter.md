@@ -70,7 +70,7 @@ A few defaults differ from deck.gl's own ScatterplotLayer, which matters when yo
 
 Circles therefore keep their size on screen as you zoom. To size them on the ground, set Radius units to meters.
 
-An empty Color draws every circle in Fill color. A Color expression gives `[r, g, b]` from 0 to 255, or uses `ramp(t)` for a value from 0 to 1 on the layer's Color ramp. Radius scale, Fill color and Opacity are deck props: dragging them redraws without reading any rows again.
+An empty Color draws every circle in Fill color. A Color expression gives `[r, g, b]` from 0 to 1, or uses `ramp(t)` for a value from 0 to 1 on the layer's Color ramp. Radius scale, Fill color and Opacity are deck props: dragging them redraws without reading any rows again.
 
 ## Examples
 
