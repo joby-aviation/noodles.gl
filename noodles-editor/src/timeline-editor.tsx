@@ -24,7 +24,7 @@ import {
   writesStatic,
 } from './editor/camera-control'
 import { CameraToolbar } from './editor/camera-toolbar'
-import { currentEngine, engineState } from './editor/doc-engine'
+import { currentEngine, engineState, whenShown } from './editor/doc-engine'
 import { useDocNoodles } from './editor/doc-noodles'
 import { docStore, useEditor } from './editor/doc-store'
 import { pendingKeys, usePendingKeys } from './editor/pending-keys'
@@ -549,11 +549,14 @@ export default function TimelineEditor() {
   // names what is still loading (the graph, deck layers, a basemap not yet idle) so a test
   // knows when to take a screenshot and a timed-out test can say why.
   useEffect(() => {
-    const pendingWork = () => {
-      // The engine reports 'drawn' once it has drawn the current document and time
+    const pendingWork = async () => {
+      // 'drawn' means the engine has handed the view the store's document and time, but
+      // queries and host operators it set off can still be running. whenShown also waits for
+      // those and for the view to commit the result; a short timeout keeps each poll short.
+      const shown = await whenShown(1000)
       const { status } = engineState()
       const pending: string[] =
-        status.kind === 'drawn'
+        shown && status.kind === 'drawn'
           ? []
           : [status.kind === 'failed' ? `graph (failed: ${status.error})` : 'graph']
       if (basemapEnabled && !mapIdleRef.current) pending.push('basemap')

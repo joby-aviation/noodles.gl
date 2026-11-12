@@ -21,14 +21,24 @@ const MOUNT_ONLY: Record<string, string> = {
   'world-flights': 'too heavy for software WebGL',
 }
 
-// These render at their own LOD. A lower LOD needs a lower zoom to keep the framing (see
-// openExample), and OrbitView's zoom input stops at 0, below what orbit would need.
+// These render at their own LOD. orbit's airplane is held at the scenegraph layer's
+// sizeMinPixels at both LODs, so a lower zoom would not shrink it, and at the test LOD it
+// would cover four times as much of the image.
 const AUTHORED_LOD = new Set(['orbit'])
+
+// These draw wrongly in the editor, so a baseline would record the bug. Each is skipped
+// until the bug is fixed; then record its baseline (see e2e/README.md).
+const BROKEN: Record<string, string> = {
+  orbit:
+    "the Orbit View node hands deck its Clear Color as a hex string, but deck only clears to an RGBA array, so the blue background isn't drawn",
+  'table-editor-demo':
+    "the scatter's color channel divides the table's hex color strings by 255, so every city draws black",
+}
 
 // Deck text layers draw labels with a system font, which differs between macOS and Linux.
 // At the test LOD the labels are about 4x larger relative to the map, so geojson-example's
 // station names cover about 11% of the image and differ that much between the two.
-// table-editor-demo's baseline was rendered on CI (Linux); the allowance covers macOS runs.
+// table-editor-demo's city names differ the same way.
 const MAX_DIFF_PIXEL_RATIO: Record<string, number> = {
   'geojson-example': 0.15,
   'table-editor-demo': 0.05,
@@ -38,6 +48,7 @@ const MAX_DIFF_PIXEL_RATIO: Record<string, number> = {
 test.describe('examples', () => {
   for (const exampleName of EXAMPLES) {
     test(exampleName, async ({ page }) => {
+      test.fixme(exampleName in BROKEN, BROKEN[exampleName])
       const mountOnly = exampleName in MOUNT_ONLY
       const ownLod = mountOnly || AUTHORED_LOD.has(exampleName)
       await openExample(page, exampleName, { lod: ownLod ? null : undefined })

@@ -1,6 +1,6 @@
 // CUJ A1: a new visitor opens an example and exports a still or a video. Picks Image or
 // Video from the top bar's Export menu and checks that a file arrives. Codec, framerate
-// and resolution come from the Out node's Render Settings, which the test sets first.
+// and resolution come from the deck node's Export parameters, which the test sets first.
 
 import { readFileSync } from 'node:fs'
 import { type Download, expect, type Page, test } from '@playwright/test'
@@ -40,10 +40,20 @@ async function openForExport(page: Page, { savePicker = true } = {}) {
   await expect(exportButton(page)).toBeEnabled()
 }
 
-// The top bar's Export button, not Render Settings' "Export Photo" and "Export Video". The
-// icon glyphs end up in its accessible name, hence \W* around the word.
+// The top bar's Export button, the one that opens a menu, not the Properties pane's Export
+// folder heading. The icon glyphs end up in its accessible name, hence \W* around the word.
 function exportButton(page: Page) {
-  return page.getByRole('button', { name: /^\W*Export\W*$/ })
+  return page
+    .getByRole('button', { name: /^\W*Export\W*$/ })
+    .and(page.locator('[aria-haspopup="menu"]'))
+}
+
+// A number in the deck's Export parameters: typed, then committed when the field loses focus
+async function setParam(page: Page, label: string, value: string) {
+  const input = page.getByLabel(label, { exact: true })
+  await input.fill(value)
+  await input.blur()
+  await expect(input).toHaveValue(value)
 }
 
 async function exportFromMenu(page: Page, item: 'Image (PNG)' | 'Video (MP4)') {
@@ -86,10 +96,10 @@ async function exportShortMp4(page: Page) {
   test.skip(codec === null, 'this browser has no video encoder for any export codec')
 
   // Smaller than any preset: software WebGL on CI can take over 10s to read a 720p frame
-  await page.locator('#render-resolution-width').fill('640')
-  await page.locator('#render-resolution-height').fill('360')
-  await page.locator('#render-codec').selectOption(codec as string)
-  await page.locator('#render-framerate').fill('10')
+  await setParam(page, 'Width', '640')
+  await setParam(page, 'Height', '360')
+  await page.getByLabel('Codec', { exact: true }).selectOption(codec as string)
+  await setParam(page, 'Frame rate', '10')
   // Five frames keep the encode short; a user would drag the out marker
   await page.evaluate(() => window.__noodlesTest?.getTimelineStore().setOutPoint(0.5))
 
@@ -102,6 +112,19 @@ async function exportShortMp4(page: Page) {
   expect(bytes.length).toBeGreaterThan(1000)
   // Every MP4 starts with an ftyp box
   expect(bytes.subarray(4, 8).toString('ascii')).toBe('ftyp')
+  // The size typed into the deck's Export parameters reached the encoder
+  expect(videoSize(bytes)).toEqual({ width: 640, height: 360 })
+}
+
+// The video track's size from its tkhd box, in 16.16 fixed point after the matrix
+function videoSize(bytes: Buffer) {
+  const at = bytes.indexOf('tkhd')
+  if (at < 0) return null
+  const offset = at + (bytes[at + 4] === 1 ? 92 : 80)
+  return {
+    width: bytes.readUInt32BE(offset) / 65536,
+    height: bytes.readUInt32BE(offset + 4) / 65536,
+  }
 }
 
 test.describe('export', () => {

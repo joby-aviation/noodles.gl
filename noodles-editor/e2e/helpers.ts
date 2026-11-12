@@ -14,7 +14,7 @@ type TestHooks = {
   getTimelineStore: () => {
     setOutPoint: (time: number) => void
   }
-  pendingWork: () => string[]
+  pendingWork: () => Promise<string[]>
 }
 
 declare global {
@@ -23,25 +23,21 @@ declare global {
   }
 }
 
-// Wait until operators are idle, deck layers are loaded and basemap tiles are in, and
-// stay that way for a few polls: a single ready frame can come before the next load starts
+// Wait until the engine has drawn the document, deck layers are loaded and basemap tiles
+// are in, and stay that way for a few polls: a single ready frame can come before the next
+// load starts
 export async function waitForScene(page: Page, timeout = 60_000) {
-  try {
-    await page.waitForFunction(
-      () => {
-        const w = window as Window & { __readyStreak?: number }
-        const pending = w.__noodlesTest?.pendingWork() ?? ['editor']
-        w.__readyStreak = pending.length === 0 ? (w.__readyStreak ?? 0) + 1 : 0
-        return w.__readyStreak >= 4
-      },
-      undefined,
-      { timeout, polling: 250 }
+  const deadline = Date.now() + timeout
+  let pending: string[] = []
+  for (let streak = 0; streak < 4; ) {
+    if (Date.now() > deadline) {
+      throw new Error(`Scene did not settle within ${timeout}ms, waiting on: ${pending.join(', ')}`)
+    }
+    await page.waitForTimeout(250)
+    pending = await page.evaluate(
+      async () => (await window.__noodlesTest?.pendingWork()) ?? ['editor']
     )
-  } catch (error) {
-    const pending = await page.evaluate(() => window.__noodlesTest?.pendingWork() ?? ['editor'])
-    throw new Error(`Scene did not settle within ${timeout}ms, waiting on: ${pending.join(', ')}`, {
-      cause: error,
-    })
+    streak = pending.length === 0 ? streak + 1 : 0
   }
   await waitForSmoothFrames(page, timeout)
 }
@@ -73,67 +69,52 @@ async function waitForSmoothFrames(page: Page, timeout: number) {
 }
 
 // Examples render at 1920x1080 with LOD 2, a 4K canvas that software WebGL draws too
-// slowly to test. Lower the Out node's LOD in the project as it loads: changing it in
-// Render Settings after the map has drawn sometimes leaves the basemap drawn into one
+// slowly to test. Lower the deck node's LOD in the project as it loads: changing it in the
+// deck's Export settings after the map has drawn sometimes leaves the basemap drawn into one
 // corner of the resized canvas.
 export const TEST_LOD = 0.5
 
-type Keyframe = { value: unknown }
+// The parts of a project file (an EditorDoc, see packages/planner/src/doc.ts) lowerLod reads
 type Project = {
-  nodes?: { id: string; type: string; data: { inputs?: Record<string, unknown> } }[]
-  edges?: { target: string; targetHandle: string }[]
-  timeline?: {
-    sheetsById?: Record<
-      string,
-      {
-        sequence?: {
-          tracksByObject?: Record<
-            string,
-            {
-              trackIdByPropPath?: Record<string, string>
-              trackData?: Record<string, { keyframes?: Keyframe[] }>
-            }
-          >
-        }
-      }
-    >
-  }
+  nodes?: { id: string; op: string; params?: Record<string, unknown> }[]
+  edges?: { target: string; targetPort: string }[]
+  timeline?: { tracks?: { target: string; keyframes?: { value: unknown }[] }[] }
 }
 
 // LOD scales the map's viewport, not only its pixel density: at a quarter of the authored
 // LOD the same zoom shows a quarter of the authored width. Map and orbit zoom are both log2
 // scales, so lowering each literal zoom by log2 of the LOD change keeps the framing. Zoom
-// that arrives over an edge (BoundingBox already fits the render surface) is left alone.
+// that arrives over an edge (BoundingBox already fits the render surface) or from an
+// expression or reference is left alone.
 function lowerLod(project: Project, lod: number): Project {
-  const out = project.nodes?.find(node => node.type === 'OutOp')
-  if (!out) return project
-  const authoredLod = Number(out.data.inputs?.lod ?? DEFAULT_RENDER_SETTINGS.lod)
-  out.data.inputs = { ...out.data.inputs, lod }
+  const deck = project.nodes?.find(node => node.op === 'deck')
+  if (!deck) return project
+  deck.params ??= {}
+  const authoredLod = Number(deck.params.lod ?? DEFAULT_RENDER_SETTINGS.lod)
+  deck.params.lod = lod
   const shift = Math.log2(authoredLod / lod)
 
-  const connected = new Set(project.edges?.map(edge => `${edge.target} ${edge.targetHandle}`))
+  // An edge into a parameter targets `par:<name>`; a value port such as viewState its name
+  const wired = new Set(project.edges?.map(edge => `${edge.target} ${edge.targetPort}`))
+  const isWired = (nodeId: string, param: string) =>
+    wired.has(`${nodeId} par:${param}`) || wired.has(`${nodeId} ${param}`)
   for (const node of project.nodes ?? []) {
-    const inputs = node.data.inputs ?? {}
-    // A zoom input (MapViewState) or a zoom inside a compound input (viewState, basemap)
-    for (const [key, value] of Object.entries(inputs)) {
-      if (connected.has(`${node.id} par.${key}`)) continue
-      if (key === 'zoom' && typeof value === 'number') inputs.zoom = value - shift
+    const params = node.params ?? {}
+    // A zoom parameter (the deck's camera, a View State node) or a zoom inside a compound
+    // parameter (a view's viewState)
+    for (const [key, value] of Object.entries(params)) {
+      if (isWired(node.id, key)) continue
+      if (key === 'zoom' && typeof value === 'number') params.zoom = value - shift
       const nested = value as { zoom?: unknown } | null
-      if (typeof nested?.zoom === 'number' && !connected.has(`${node.id} par.${key}.zoom`)) {
-        inputs[key] = { ...nested, zoom: nested.zoom - shift }
-      }
+      if (typeof nested?.zoom === 'number') params[key] = { ...nested, zoom: nested.zoom - shift }
     }
   }
 
-  // Keyframed zoom: the timeline keys tracks by a JSON prop path such as ["viewState","zoom"]
-  for (const sheet of Object.values(project.timeline?.sheetsById ?? {})) {
-    for (const object of Object.values(sheet.sequence?.tracksByObject ?? {})) {
-      for (const [propPath, trackId] of Object.entries(object.trackIdByPropPath ?? {})) {
-        if (JSON.parse(propPath).at(-1) !== 'zoom') continue
-        for (const keyframe of object.trackData?.[trackId]?.keyframes ?? []) {
-          if (typeof keyframe.value === 'number') keyframe.value -= shift
-        }
-      }
+  // Keyframed zoom: a track drives `nodeId.param`, or `nodeId.param.zoom` inside a compound
+  for (const track of project.timeline?.tracks ?? []) {
+    if (track.target.split('.').at(-1) !== 'zoom') continue
+    for (const keyframe of track.keyframes ?? []) {
+      if (typeof keyframe.value === 'number') keyframe.value -= shift
     }
   }
   return project
@@ -163,10 +144,12 @@ export async function openExample(
   await page.locator('canvas').first().waitFor({ state: 'attached', timeout: 60_000 })
 }
 
-export async function openRenderSettings(page: Page) {
-  // The Out node can sit outside the graph viewport, where a real click cannot reach it
-  await page.locator('.react-flow__node[data-id="/out"]').dispatchEvent('click')
-  await page.getByRole('button', { name: 'Export Photo' }).waitFor()
+// Render settings are the deck node's Export parameters. Select the deck in the Layers
+// panel's Scene section, as a user would, and wait for the Properties pane to show them.
+export async function openRenderSettings(page: Page, deckName = 'deck') {
+  await page.getByRole('button', { name: `${deckName} Deck`, exact: true }).click()
+  await page.getByRole('button', { name: /Export$/, expanded: true }).waitFor()
+  await page.getByLabel('Frame rate', { exact: true }).waitFor()
 }
 
 // The rendered map only: the output canvas is letterboxed inside the #map pane, and the
@@ -186,7 +169,10 @@ export async function screenshotMap(page: Page) {
   const right = Math.floor(Math.min(output.x + output.width, pane.x + pane.width))
   const bottom = Math.floor(Math.min(output.y + output.height, pane.y + pane.height))
   const clip = { x: left, y: top, width: right - left, height: bottom - top }
-  const shoot = () => page.screenshot({ clip, animations: 'disabled', timeout: 60_000 })
+  // The camera toolbar (Viewport | camera, the lock) floats in the pane's top-left corner, over
+  // the map when the map fills the pane's height
+  const style = 'div:has(> fieldset[aria-label="Map shows"]) { visibility: hidden !important }'
+  const shoot = () => page.screenshot({ clip, style, animations: 'disabled', timeout: 60_000 })
 
   // pendingWork() can report idle a beat before the last basemap tiles are drawn, so also
   // wait for two identical captures a second apart
