@@ -84,6 +84,35 @@ describe('useDeckDrawLoop', () => {
     expect(deck.redraw).not.toHaveBeenCalled()
   })
 
+  // A pass that drew its frame and is waiting out the capture delay must not report it once
+  // the next pass replaces it: that frame may be stale
+  it('drops the capture of a pass replaced while it waits for the capture delay', async () => {
+    const deck = fakeDeck()
+    const captureFrame = vi.fn()
+    const { rerender } = renderLoop(deck, captureFrame)
+    drawFrame(deck)
+    await vi.advanceTimersByTimeAsync(rendererConfig.captureDelay / 2)
+    rerender({ props: {}, isRendering: true })
+    await vi.advanceTimersByTimeAsync(rendererConfig.captureDelay)
+    expect(captureFrame).not.toHaveBeenCalled()
+
+    // The pass that replaced it captures once its own frame is drawn
+    drawFrame(deck)
+    await vi.advanceTimersByTimeAsync(rendererConfig.captureDelay)
+    expect(captureFrame).toHaveBeenCalledTimes(1)
+  })
+
+  it('drops a waiting capture when the export ends', async () => {
+    const deck = fakeDeck()
+    const captureFrame = vi.fn()
+    const { rerender } = renderLoop(deck, captureFrame)
+    drawFrame(deck)
+    await vi.advanceTimersByTimeAsync(rendererConfig.captureDelay / 2)
+    rerender({ props: {}, isRendering: false })
+    await vi.advanceTimersByTimeAsync(rendererConfig.captureDelay * 2)
+    expect(captureFrame).not.toHaveBeenCalled()
+  })
+
   it('stops redrawing when the export ends before the frame is drawn', async () => {
     const deck = fakeDeck()
     const captureFrame = vi.fn()
