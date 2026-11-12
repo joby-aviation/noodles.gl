@@ -2574,6 +2574,17 @@ export function toEditorDoc(original: NoodlesProject): Migrated {
     return { color: c.rgb }
   }
 
+  // Hex color columns of the rows a planner node makes: its Noodles source's, carried through the
+  // steps that keep every column (a Filter, a Sort, a DataFilterExtension's filter)
+  const KEEPS_COLUMNS = new Set(['filter', 'range', 'sort', 'limit'])
+  const hexColumnsOf = (id: string, depth = 0): Set<string> => {
+    const own = hexColumns(byId.get(id))
+    const node = nodes.find(n => n.id === id)
+    if (own.size || depth > 32 || !node || !KEEPS_COLUMNS.has(node.op)) return own
+    const up = edges.find(e => e.target === id && e.targetPort === 'in')
+    return up ? hexColumnsOf(up.source, depth + 1) : own
+  }
+
   // Accessors for colors return 0–255 arrays or hex strings in Noodles, and 0–1 in the planner.
   const colorChannel = (v: Value) => {
     if (v.kind !== 'row') return v
@@ -2584,8 +2595,9 @@ export function toEditorDoc(original: NoodlesProject): Migrated {
     // `d.color` reads like a number, but a column of hex strings is text
     const readsHex =
       writer?.node.op === 'attribute' &&
-      hexColumns(byId.get(found?.src ?? '')).has(String(writer.node.params.expression))
-    if (writer && (writer.stringValued || readsHex)) {
+      hexColumnsOf(found?.src ?? '').has(String(writer.node.params.expression))
+    // An attribute another channel already made a color (`hex_color(...)`) is 0–1 already
+    if (writer && (writer.color || writer.stringValued || readsHex)) {
       if (!writer.color) {
         writer.node.params.expression = `hex_color(${writer.node.params.expression})`
         writer.color = true
