@@ -16,6 +16,7 @@ import * as kml from '../../utils/kml-to-geojson'
 import * as mapStyles from '../../utils/map-styles'
 import * as osm from '../../utils/osm-to-geojson'
 import * as random from '../../utils/random'
+import { supercluster } from '../../utils/supercluster'
 import * as wkt from '../../utils/wkt'
 
 // `utils` as CodeOp has it, less directions, which needs the page (Google Maps, API keys)
@@ -34,6 +35,7 @@ const utils = {
   ...wkt,
   binarySearchClosest,
   choroplethJoin,
+  supercluster,
 }
 
 export const JS_SCOPE: Record<string, unknown> = { utils, d3, turf }
