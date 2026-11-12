@@ -55,7 +55,7 @@ A parameter can take its value from somewhere other than its editor:
 - **Expression**: the row shows the expression and its current value. See [Expressions](./expressions.md).
 - **Reference**: the row shows a chip naming the parameter it follows. Click the chip to go to that node, or click × to break the reference and keep the value.
 
-To make a node that drives a number, right-click its row and choose **Drive with** > Number, Time, Math or Expression. The new node is placed beside this one, wired in, and starts from the current value, so nothing jumps. On the deck's map style, **Drive with** makes a Map Style node.
+To make a node that drives a number, right-click its row and choose **Drive with** > Number, Time, Math or Expression. The new node is placed beside this one and wired in. Number, Math and Expression start from the current value, so nothing jumps; Time follows the playhead in seconds, so the value changes to the current time. On the deck's map style, **Drive with** makes a Map Style node.
 
 ### Linking Parameters by Dragging
 

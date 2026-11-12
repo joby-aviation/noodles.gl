@@ -96,8 +96,8 @@ npm ci
 # Start the editor
 cd noodles-editor && npm start
 
-# Build the editor and the website
-npm run build:all
+# Build the editor and the website, from the repo root
+cd .. && npm run build:all
 ```
 
 ### Testing
