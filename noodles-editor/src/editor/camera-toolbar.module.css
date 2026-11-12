@@ -1,0 +1,109 @@
+/* Over the map's top-left corner, as Blender's viewport header sits over the view */
+.toolbar {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  z-index: var(--z-index-chrome);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  max-width: calc(100% - 16px);
+  font-size: 11px;
+}
+
+.segmented {
+  display: flex;
+  margin: 0;
+  padding: 2px;
+  border: 1px solid rgb(255 255 255 / 16%);
+  border-radius: 5px;
+  background: rgb(18 24 34 / 88%);
+}
+
+.segment,
+.lock {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  height: 22px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 3px;
+  background: transparent;
+  color: var(--color-text-secondary, #aaa);
+  font: inherit;
+  cursor: pointer;
+}
+
+.segment:hover,
+.lock:hover {
+  color: var(--color-text-primary, #fff);
+}
+
+.segmentOn {
+  background: rgb(255 255 255 / 12%);
+  color: var(--color-text-primary, #fff);
+}
+
+.lock {
+  width: 28px;
+  justify-content: center;
+  padding: 0;
+  border: 1px solid rgb(255 255 255 / 16%);
+  border-radius: 5px;
+  background: rgb(18 24 34 / 88%);
+  height: 28px;
+}
+
+/* Locked: the map moves the camera, so it reads as armed */
+.lockOn {
+  border-color: #9fc0ff;
+  color: #9fc0ff;
+}
+
+.keyChanges,
+.dropChanges {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 9px;
+  border: 1px solid #ff8a3d;
+  border-radius: 5px;
+  background: rgb(18 24 34 / 88%);
+  color: #ff8a3d;
+  font: inherit;
+  cursor: pointer;
+}
+
+.dropChanges {
+  width: 28px;
+  justify-content: center;
+  padding: 0;
+  border-color: rgb(255 255 255 / 16%);
+  color: var(--color-text-secondary, #aaa);
+}
+
+.keyChanges:hover {
+  background: rgb(255 138 61 / 16%);
+}
+
+/* A keyframe diamond, in the changed color */
+.keyDiamond {
+  width: 7px;
+  height: 7px;
+  transform: rotate(45deg);
+  background: #ff8a3d;
+}
+
+.reason {
+  flex-basis: 100%;
+  max-width: 360px;
+  padding: 6px 9px;
+  border: 1px solid rgb(255 255 255 / 16%);
+  border-radius: 5px;
+  background: rgb(18 24 34 / 88%);
+  color: var(--color-text-secondary, #aaa);
+  pointer-events: none;
+}

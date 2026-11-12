@@ -92,6 +92,13 @@ conversion cannot express is a `MigrationError` that names the node and why.
 - `doc-store.ts`: the document, selection, current network, playhead and debug flag. Undo is by
   document snapshot; edits with the same tag inside 500 ms coalesce into one step.
 - `doc-engine.ts`: binds the store to the engine and publishes what it drew (`useEngineState`).
+  It hands the engine one step at a time, the store as it is when the step starts, and says
+  where it is in `status`: `waiting` (no project, or the engine starting), `drawing`, `drawn`
+  (the store's document and time as they are now) or `failed`, each naming the project's
+  `loadId`. `whenDrawn()` resolves once the store's current document has drawn: the agent's
+  read tools and screenshots wait for it, so a read after an edit sees that edit. The engine
+  queues its own runs the same way: a change during a run joins the next one, and
+  `openProject` waits for the last project's run and forgets it before the next project runs.
 - `doc-network.tsx`, `doc-node.tsx`: the network editor (React Flow), in d-d-d's layout:
   compact nodes, Houdini keys (Tab, B, D, Shift+C, Enter, U, F), subnets.
 - `doc-properties.tsx`, `param-row.tsx`: the parameter pane, by folder. `field-adapter.ts`

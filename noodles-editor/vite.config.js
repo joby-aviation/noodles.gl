@@ -82,6 +82,8 @@ export default defineConfig(({ mode }) => {
     // dev server's dep cache for every user who never picks a local model.
     optimizeDeps: {
       exclude: ['@duckdb/duckdb-wasm', '@mlc-ai/web-llm'],
+      // Loaded only when the style editor opens; bundled up front so dev doesn't find it late
+      include: ['@maplibre/maplibre-gl-style-spec'],
     },
     // Workers ship as ES modules rather than Vite's default IIFE. The WebLLM
     // worker's dependency graph code-splits, which an IIFE build cannot express,

@@ -20,6 +20,12 @@
     0 4px 14px rgb(0 0 0 / 50%);
 }
 
+/* A node that can take the property port being dragged */
+.linkTarget {
+  outline: 1px dashed #9fc0ff;
+  outline-offset: 3px;
+}
+
 .nodeError {
   border-color: #ff6b6b;
 }

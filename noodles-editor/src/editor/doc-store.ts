@@ -20,9 +20,12 @@ export interface EditorState {
   time: number
   /** Incremented by every `load`, so views can reset once per opened document. */
   loadId: number
-  /** Edits since the last load or save. */
+  /** Edits since the last load, or since the revision a save wrote. */
   dirty: boolean
-  /** Counts changes that make the project unsaved, so a save marks saved only what it wrote. */
+  /**
+   * Counts changes to what the project file holds: each edit, undo, redo and load. A save
+   * records the revision it wrote, so an edit made while it was writing stays unsaved.
+   */
   revision: number
   /** A parameter copied to paste as a reference, `nodeId.param`. */
   copiedParam?: string
@@ -76,7 +79,10 @@ export class DocStore {
   /** View state: never an undo step. */
   set(patch: Partial<EditorState> | ((s: EditorState) => Partial<EditorState>)): void {
     const next = typeof patch === 'function' ? patch(this.state) : patch
-    const revision = next.dirty === true ? this.state.revision + 1 : this.state.revision
+    // A patch that sets the revision itself (changed, load) counts it once; any other patch
+    // that marks the project unsaved counts as one more change
+    const revision =
+      next.revision ?? (next.dirty === true ? this.state.revision + 1 : this.state.revision)
     this.state = { ...this.state, ...next, revision }
     for (const l of this.listeners) l()
   }
@@ -103,7 +109,15 @@ export class DocStore {
     this.lastTag = tag
     const draft = structuredClone(this.state.doc)
     const result = fn(draft) ?? draft
-    this.set({ doc: result, dirty: true })
+    this.changed({ doc: result })
+  }
+
+  /**
+   * A change to what the project file holds; with no patch, one outside the document, such as
+   * a project key edited in Settings.
+   */
+  changed(patch: Partial<EditorState> = {}): void {
+    this.set(s => ({ ...patch, dirty: true, revision: s.revision + 1 }))
   }
 
   /** Replace the document outright, e.g. opening a project. Clears history. */
@@ -118,6 +132,7 @@ export class DocStore {
       time: 0,
       loadId: s.loadId + 1,
       dirty: false,
+      revision: s.revision + 1,
     }))
   }
 
@@ -143,7 +158,7 @@ export class DocStore {
     this.undoStack.length = Math.min(this.undoStack.length, m.depth)
     this.redoStack = []
     this.lastTag = undefined
-    this.set({ doc: m.doc, dirty: true })
+    this.changed({ doc: m.doc })
   }
 
   canUndo = () => this.undoStack.length > 0
@@ -154,7 +169,7 @@ export class DocStore {
     if (!prev) return
     this.redoStack.push(this.state.doc)
     this.lastTag = undefined
-    this.set({ doc: prev, dirty: true })
+    this.changed({ doc: prev })
   }
 
   redo(): void {
@@ -162,7 +177,7 @@ export class DocStore {
     if (!next) return
     this.undoStack.push(this.state.doc)
     this.lastTag = undefined
-    this.set({ doc: next, dirty: true })
+    this.changed({ doc: next })
   }
 }
 

@@ -462,15 +462,32 @@ export function lowerDocument(doc: EditorDoc, options: LowerOptions = {}): Lower
         }
         return ir;
       },
+      sources(port) {
+        return edges
+          .filter((x) => x.target === id && x.targetPort === port)
+          .sort((a, b) => (a.index ?? 0) - (b.index ?? 0))
+          .map((e) => {
+            const op = byId.get(e.source)?.op ?? '';
+            return { op, type: OPERATOR_INDEX.get(op)?.outputs.find((o) => o.name === e.sourcePort)?.type };
+          });
+      },
       inputs(port) {
         return edges
           .filter((x) => x.target === id && x.targetPort === port)
           .sort((a, b) => (a.index ?? 0) - (b.index ?? 0))
           .flatMap((e) => {
-            // A host operator's layers are the host's to draw; its tables are not layers. A
-            // table input reads the rows a host operator handed over, as a single input does.
-            const rows = op.inputs.find((p) => p.name === port)?.type === 'table';
-            if (!rows && !OPERATOR_INDEX.get(byId.get(e.source)?.op ?? '')?.lower) return [];
+            // A host operator's layers are the host's to draw; its tables are read as the rows it
+            // handed over (hostTable), as `input` reads them, by a port that takes rows: a table
+            // input (from any host output that holds rows), or a Switch's of any type from a
+            // table or code output, not a deck's layers
+            const src = OPERATOR_INDEX.get(byId.get(e.source)?.op ?? '');
+            if (!src?.lower) {
+              const type = src?.outputs.find((o) => o.name === e.sourcePort)?.type;
+              // Code's output may be rows or layers; hostTable has a table only for rows
+              const rows = type === 'table' || type === 'any';
+              const into = op.inputs.find((p) => p.name === port)?.type;
+              if (into !== 'table' && !(into === 'any' && rows)) return [];
+            }
             // A bypassed or failed layer drops out of a deck rather than failing it.
             const up = lowerNode(e.source);
             const ir = up?.[e.sourcePort];

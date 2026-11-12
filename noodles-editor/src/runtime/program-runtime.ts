@@ -46,7 +46,13 @@ import {
   withDerived,
 } from '@noodles.gl/planner'
 import { MaterializingCatalog } from './catalog'
-import { evaluateLayer, type LayerData, type QueriedLayer, queryLayer } from './execute'
+import {
+  evaluateLayer,
+  type LayerData,
+  type QueriedLayer,
+  queryLayer,
+  type StatsCache,
+} from './execute'
 import { plainRow, readPlainRows } from './plain-rows'
 import type { BlockingSql } from './worker/blocking-sql'
 import { JsTables } from './worker/js-tables'
@@ -113,6 +119,8 @@ export class ProgramRuntime {
   private values: Record<string, number | string> = {}
   private readonly states = new Map<string, LayerState>()
   private readonly queried = new Map<string, QueriedLayer>()
+  // Stats results reused across requeries until the relations are rebuilt
+  private readonly statsCache: StatsCache = new Map()
   /** Parameter values each layer's data was produced under, to skip work that would repeat. */
   private readonly readWith = new Map<string, string>()
   private chain: Promise<unknown> = Promise.resolve()
@@ -144,9 +152,12 @@ export class ProgramRuntime {
     })
   }
 
-  /** A relation's rows as plain objects, decimals and 64-bit integers as numbers. */
-  relationRows(relation: string): Promise<Record<string, unknown>[]> {
-    return readPlainRows(this.sql, relation)
+  /** A relation's rows as plain objects, decimals and 64-bit integers as numbers, its vectors as Vecs. */
+  relationRows(
+    relation: string,
+    vectors: readonly { name: string; width: number }[] = []
+  ): Promise<Record<string, unknown>[]> {
+    return readPlainRows(this.sql, relation, vectors)
   }
 
   /** Rows of a query as plain objects. */
@@ -285,6 +296,8 @@ export class ProgramRuntime {
 
   private async rebuild(kind: 'graph' | 'values'): Promise<UpdateReport> {
     const started = performance.now()
+    // Rebuilt relations may hold other rows under the same query
+    this.statsCache.clear()
     const graph = this.graph
     if (!graph) throw new Error('setGraph first')
     const before = this.catalog.counters.materialized
@@ -404,7 +417,7 @@ export class ProgramRuntime {
     try {
       let q = this.queried.get(lp.id)
       if (query || !q) {
-        q = await queryLayer(this.sql, lp, this.values)
+        q = await queryLayer(this.sql, lp, this.values, this.statsCache)
         this.queried.set(lp.id, q)
         this.counters.requeries++
         state.queryMs = q.queryMs

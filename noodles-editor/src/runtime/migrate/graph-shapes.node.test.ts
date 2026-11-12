@@ -1,7 +1,7 @@
 // Shapes older projects wire their operators in, converted: whole-value expressions, switches
 // over tables and values, features and numbers that code reads, and code both a layer and a
 // host operator read. Run on DuckDB where they draw.
-import { lowerDocument, parameterValues } from '@noodles.gl/planner'
+import { type EditorDoc, lowerDocument, parameterValues } from '@noodles.gl/planner'
 import { beforeAll, describe, expect, it } from 'vitest'
 import { type NodeDuck, openNodeDuck } from '../__tests__/duckdb-node'
 import { registerHostOperators } from '../host/host-ops'
@@ -66,7 +66,7 @@ async function draw(p: NoodlesProject) {
   return { doc, warnings, runtime, lowered }
 }
 
-const node = (doc: { nodes: { id: string }[] }, id: string) => doc.nodes.find(n => n.id === id)
+const node = (doc: EditorDoc, id: string) => doc.nodes.find(n => n.id === id)
 
 describe('switches', () => {
   const tables = (
@@ -92,9 +92,9 @@ describe('switches', () => {
     )
   }
 
-  it('passes the table at its index through, as a parameter a number can drive', async () => {
+  it('passes the table at its index through, as a parameter when a number drives it', async () => {
     const second = await draw(tables({ index: 1 }))
-    expect(node(second.doc, '/pick')).toMatchObject({ op: 'switch-rows', params: { index: 1 } })
+    expect(node(second.doc, '/pick')).toMatchObject({ op: 'switch', params: { index: 1 } })
     expect(second.runtime.layers()[0].data?.rows).toBe(2)
     // Clamped, as Switch clamped it
     expect((await draw(tables({ index: 9 }))).runtime.layers()[0].data?.rows).toBe(2)
@@ -102,6 +102,7 @@ describe('switches', () => {
     const driven = await draw(
       tables({}, [op('/n', 'NumberOp', { val: 0 })], [wire('/n', 'val', '/pick', 'index')])
     )
+    expect(node(driven.doc, '/pick')).toMatchObject({ op: 'switch-rows' })
     expect(driven.doc.edges).toContainEqual(
       expect.objectContaining({ source: '/n', target: '/pick', targetPort: 'par:index' })
     )
@@ -216,9 +217,7 @@ describe('what code reads', () => {
       expect.objectContaining({ source: '/origin', target: '/at', targetPort: 'par:data' })
     )
     // The host hands over a FeatureCollection; the code reads its one feature as before
-    const code = String(
-      node(doc, '/at') && (node(doc, '/at') as { params: { code: string } }).params.code
-    )
+    const code = String(node(doc, '/at')?.params.code)
     const feature = {
       type: 'Feature',
       geometry: { type: 'Point', coordinates: [3, 4] },
@@ -243,7 +242,7 @@ describe('what code reads', () => {
       )
     )
     expect(node(doc, '/lng')).toMatchObject({ op: 'number', params: { value: 5 } })
-    expect((node(doc, '/at') as { params: { code: string } }).params.code).toBe(
+    expect(node(doc, '/at')?.params.code).toBe(
       "return [{ lng: op('/lng').par.value, lat: op('/lng').out.val }]"
     )
     expect(warnings.join('\n')).not.toMatch(/dropped NumberOp/)

@@ -39,6 +39,11 @@ An edge into it ends at `"targetPort": "in"`; one out of it starts at `"sourcePo
 | `widthMinPixels` | `float` | `1` |  |
 | `widthUnits` | `menu` | `"pixels"` | `pixels`, `meters` |
 | `lineColor` | `color` | `[120,200,255]` |  |
+| `capRounded` | `toggle` | `true` |  |
+| `jointRounded` | `toggle` | `true` |  |
+| `miterLimit` | `float` | `4` |  |
+| `billboard` | `toggle` | `false` |  |
+| `wrapLongitude` | `toggle` | `false` |  |
 | `opacity` | `float` | `1` |  |
 | `blend` | `menu` | `"normal"` | `normal`, `additive`, `subtractive` |
 | `extensions` | `field` | `[]` |  |

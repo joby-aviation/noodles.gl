@@ -1,0 +1,240 @@
+{
+  "version": 1,
+  "name": "Camera Switch",
+  "nodes": [
+    {
+      "id": "deck",
+      "op": "deck",
+      "name": "deck",
+      "x": 1400,
+      "y": 60,
+      "params": {
+        "mapStyle": "https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json",
+        "longitude": -98.5,
+        "latitude": 39.5,
+        "zoom": 3.6
+      }
+    },
+    {
+      "id": "cities",
+      "op": "file",
+      "name": "cities",
+      "x": 0,
+      "y": 60,
+      "params": {
+        "url": "@/data.csv",
+        "format": "csv"
+      }
+    },
+    {
+      "id": "position",
+      "op": "attribute",
+      "name": "position",
+      "x": 280,
+      "y": 60,
+      "params": {
+        "name": "position",
+        "expression": "[lng, lat]"
+      }
+    },
+    {
+      "id": "dots",
+      "op": "scatter",
+      "name": "dots",
+      "x": 560,
+      "y": 60,
+      "params": {
+        "position": "position",
+        "radiusScale": 14,
+        "radiusUnits": "pixels",
+        "fillColor": "#ff5a36"
+      }
+    },
+    {
+      "id": "san-francisco",
+      "op": "view-state",
+      "name": "san-francisco",
+      "x": 560,
+      "y": 320,
+      "params": {
+        "longitude": -122.33,
+        "latitude": 37.68,
+        "zoom": 9.2,
+        "pitch": 45,
+        "bearing": -20
+      }
+    },
+    {
+      "id": "usa",
+      "op": "view-state",
+      "name": "usa",
+      "x": 560,
+      "y": 480,
+      "params": {
+        "longitude": -98.5,
+        "latitude": 39.5,
+        "zoom": 3.6,
+        "pitch": 0,
+        "bearing": 0
+      }
+    },
+    {
+      "id": "new-york",
+      "op": "view-state",
+      "name": "new-york",
+      "x": 560,
+      "y": 640,
+      "params": {
+        "longitude": -74.05,
+        "latitude": 40.72,
+        "zoom": 10,
+        "pitch": 50,
+        "bearing": 25
+      }
+    },
+    {
+      "id": "shots",
+      "op": "switch-value",
+      "name": "shots",
+      "x": 900,
+      "y": 480,
+      "params": {
+        "blend": true
+      }
+    },
+    {
+      "id": "shots-note",
+      "op": "comment",
+      "name": "shots-note",
+      "x": 900,
+      "y": 250,
+      "params": {
+        "text": "The camera is whichever View State shots' Index picks: 0 San Francisco, 1 the whole country, 2 New York. Index is keyframed from 0 to 2, and Blend is on, so the camera flies between them. Turn Blend off to cut instead.",
+        "width": 300,
+        "height": 150
+      }
+    },
+    {
+      "id": "try-next",
+      "op": "comment",
+      "name": "try-next",
+      "x": 1400,
+      "y": 320,
+      "params": {
+        "text": "Try next:\n- Click the padlock in the map's corner with the playhead at 0s and move the map: it moves san-francisco.\n- Add a fourth View State and wire it into shots.\n- Scrub the timeline to watch the flight.",
+        "width": 300,
+        "height": 150
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "source": "cities",
+      "sourcePort": "out",
+      "target": "position",
+      "targetPort": "in"
+    },
+    {
+      "id": "e2",
+      "source": "position",
+      "sourcePort": "out",
+      "target": "dots",
+      "targetPort": "in"
+    },
+    {
+      "id": "e3",
+      "source": "dots",
+      "sourcePort": "out",
+      "target": "deck",
+      "targetPort": "layers",
+      "index": 0
+    },
+    {
+      "id": "e4",
+      "source": "san-francisco",
+      "sourcePort": "viewState",
+      "target": "shots",
+      "targetPort": "par:values",
+      "index": 0
+    },
+    {
+      "id": "e5",
+      "source": "usa",
+      "sourcePort": "viewState",
+      "target": "shots",
+      "targetPort": "par:values",
+      "index": 1
+    },
+    {
+      "id": "e6",
+      "source": "new-york",
+      "sourcePort": "viewState",
+      "target": "shots",
+      "targetPort": "par:values",
+      "index": 2
+    },
+    {
+      "id": "e7",
+      "source": "shots",
+      "sourcePort": "value",
+      "target": "deck",
+      "targetPort": "viewState"
+    }
+  ],
+  "timeline": {
+    "length": 10,
+    "fps": 30,
+    "tracks": [
+      {
+        "target": "shots.index",
+        "keyframes": [
+          {
+            "id": "k0",
+            "time": 0,
+            "value": 0,
+            "interpolation": "hold"
+          },
+          {
+            "id": "k1",
+            "time": 1,
+            "value": 0,
+            "interpolation": "bezier",
+            "handles": {
+              "left": [
+                0.42,
+                0
+              ],
+              "right": [
+                0.58,
+                1
+              ]
+            }
+          },
+          {
+            "id": "k2",
+            "time": 4.5,
+            "value": 1,
+            "interpolation": "bezier",
+            "handles": {
+              "left": [
+                0.42,
+                0
+              ],
+              "right": [
+                0.58,
+                1
+              ]
+            }
+          },
+          {
+            "id": "k3",
+            "time": 8,
+            "value": 2,
+            "interpolation": "hold"
+          }
+        ]
+      }
+    ]
+  }
+}

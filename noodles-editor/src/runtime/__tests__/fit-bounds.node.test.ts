@@ -1,7 +1,8 @@
-// The SQL a camera fit reads its bounds with, for each way rows hold a position.
+// The SQL a camera fit reads its bounds with, for each way rows hold a position, and the
+// position it reads when none is set.
 import type { RelShape } from '@noodles.gl/planner'
 import { beforeAll, describe, expect, it } from 'vitest'
-import { boundsSelect, fitRow } from '../deck-ops'
+import { autoPosition, boundsSelect, fitRow } from '../deck-ops'
 import { type NodeDuck, openNodeDuck } from './duckdb-node'
 
 let duck: NodeDuck
@@ -38,6 +39,45 @@ describe('boundsSelect', () => {
     const from = 'SELECT 1 AS lng, 2 AS lat, [1.0, 2.0] AS pos UNION ALL SELECT 3, 5, [3.0, 5.0]'
     expect(await bounds(boundsSelect('[lng, lat]', shape([])), from)).toEqual(expected)
     expect(await bounds(boundsSelect('pos', shape([['pos', 'DOUBLE[]']])), from)).toEqual(expected)
+  })
+})
+
+describe('autoPosition', () => {
+  it('reads a geometry, then a position, then longitude and latitude columns, then a pair', () => {
+    const lngLat: [string, string][] = [
+      ['Longitude', 'DOUBLE'],
+      ['Latitude', 'DOUBLE'],
+    ]
+    expect(autoPosition(shape([...lngLat, ['geom', 'GEOMETRY']], ['position']))).toBe('geom')
+    expect(autoPosition(shape(lngLat, ['position']))).toBe('position')
+    expect(autoPosition(shape(lngLat, ['offset']))).toBe('[Longitude, Latitude]')
+    expect(
+      autoPosition(
+        shape([
+          ['lon', 'DOUBLE'],
+          ['lat', 'DOUBLE'],
+        ])
+      )
+    ).toBe('[lon, lat]')
+    expect(autoPosition(shape([['x', 'DOUBLE']], ['offset']))).toBe('offset')
+  })
+
+  it('asks for a position when the rows have none', () => {
+    expect(() => autoPosition(shape([['name', 'VARCHAR']]))).toThrow('Set Position')
+  })
+
+  it('fits rows with no position set by their longitude and latitude', async () => {
+    const from = 'SELECT 1 AS Longitude, 2 AS Latitude UNION ALL SELECT 3, 5'
+    const columns: [string, string][] = [
+      ['Longitude', 'INTEGER'],
+      ['Latitude', 'INTEGER'],
+    ]
+    expect(await bounds(boundsSelect('', shape(columns)), from)).toEqual({
+      west: 1,
+      east: 3,
+      south: 2,
+      north: 5,
+    })
   })
 })
 

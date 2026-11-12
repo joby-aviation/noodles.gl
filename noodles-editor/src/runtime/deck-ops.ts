@@ -18,7 +18,7 @@ import {
 } from '@noodles.gl/planner'
 import * as d3 from 'd3'
 import type { KeyType } from '../noodles/keys-store'
-import { applyStyleOverrides } from '../utils/map-style-utils'
+import { styleWithChanges } from './map-style'
 import { registerValueOperators } from './value-ops'
 
 export interface DeckOp {
@@ -181,7 +181,7 @@ const viewOp = (
     category: 'output',
     description,
     inputs: [],
-    outputs: [{ name: 'view', type: 'value' }],
+    outputs: [{ name: 'view', type: 'value', shape: 'view' }],
     params: [...viewBase(noodles), ...params, field(noodles, 'viewState', viewState, true)],
   },
   build: build ?? ((p, id) => ({ type: deckType, id, ...p })),
@@ -203,7 +203,7 @@ const widgetOp = (
     category: 'output',
     description,
     inputs: [],
-    outputs: [{ name: 'widget', type: 'value' }],
+    outputs: [{ name: 'widget', type: 'value', shape: 'widget' }],
     params: [menu('placement', placement, PLACEMENTS), ...params, text('viewId', '')],
   },
   build: (p, id) => {
@@ -227,7 +227,7 @@ const extensionOp = (
     category: 'output',
     description,
     inputs: [],
-    outputs: [{ name: 'extension', type: 'value' }],
+    outputs: [{ name: 'extension', type: 'value', shape: 'extension' }],
     params,
   },
   build,
@@ -270,30 +270,32 @@ function flatBounds(b: unknown): number[] {
 
 const ramps = d3 as unknown as Record<string, ((t: number) => string) | undefined>
 
-// Base styles by URL, fetched once: an override edit should not refetch the style
-const styles = new Map<string, Promise<Record<string, unknown>>>()
-function fetchStyle(url: string): Promise<Record<string, unknown>> {
-  let style = styles.get(url)
-  if (!style) {
-    style = fetch(url).then(r => {
-      if (!r.ok) throw new Error(`Failed to fetch map style: ${r.statusText}`)
-      return r.json()
-    })
-    styles.set(url, style)
-    style.catch(() => styles.delete(url))
-  }
-  return style
-}
-
 // SQL for the west, east, south and north of a position over a relation's rows: a geometry
 // column, a vector stored as components, or an expression such as `[lng, lat]`
+// Where rows are, when Fit Bounds isn't told: a geometry, a position vector, longitude and
+// latitude columns by their usual names, or any two-component vector
+export function autoPosition(shape: RelShape): string {
+  const geometry = shape.columns.find(c => /^GEOMETRY/i.test(c.duckType))
+  if (geometry) return geometry.name
+  if (shape.vectors.some(v => v.name === 'position')) return 'position'
+  const named = (re: RegExp) => shape.columns.find(c => re.test(c.name))?.name
+  const x = named(/^(lng|lon|long|longitude)$/i)
+  const y = named(/^(lat|latitude)$/i)
+  if (x && y) return `[${x}, ${y}]`
+  const pair = shape.vectors.find(v => v.width === 2)
+  if (pair) return pair.name
+  throw new Error(
+    'Set Position: the rows have no geometry, position, or longitude and latitude columns'
+  )
+}
+
 export function boundsSelect(position: string, shape: RelShape): string {
   // Doubles: a DECIMAL column would come back as something other than a number
   const span = (x: string, y: string) => {
     const [dx, dy] = [x, y].map(c => `CAST(${c} AS DOUBLE)`)
     return `min(${dx}) AS west, max(${dx}) AS east, min(${dy}) AS south, max(${dy}) AS north`
   }
-  const name = position.trim()
+  const name = position.trim() || autoPosition(shape)
   const column = shape.columns.find(c => c.name === name)
   if (column && /^GEOMETRY/i.test(column.duckType)) {
     const g = quoteIdent(name)
@@ -310,17 +312,6 @@ export function boundsSelect(position: string, shape: RelShape): string {
   }
   const code = `(${toSql(tree).code})`
   return span(`${code}[1]`, `${code}[2]`)
-}
-
-// The value at an index, clamped to the list, as Noodles' Switch chose it. With blend, a
-// fractional index interpolates its two neighbors (numbers, colors, view state objects).
-export function switchValue(values: unknown[], index: number, blend: boolean): unknown {
-  if (values.length === 0) return undefined
-  const at = Math.max(0, Math.min(index, values.length - 1))
-  const lo = Math.floor(at)
-  const hi = Math.ceil(at)
-  if (!blend || lo === hi) return values[lo]
-  return d3.interpolate(values[lo] as never, values[hi] as never)(at - lo)
 }
 
 // The camera that fits the bounds a row of `boundsSelect` holds into the render surface
@@ -353,8 +344,47 @@ export function fitRow(
   }
 }
 
+const finite = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v)
+const isPoint = (v: unknown): v is number[] =>
+  Array.isArray(v) && v.length >= 2 && finite(v[0]) && finite(v[1])
+
+/**
+ * What a camera port reads, as camera fields: a camera's own, a point as its center
+ * (`{ lng, lat }`, `[lng, lat]`, a GeoJSON Point), or bounds `[[west, south], [east, north]]` as
+ * the camera that fits them into the render surface. Anything else sets nothing.
+ */
+export function asCamera(
+  v: unknown,
+  surface: { width: number; height: number }
+): Record<string, unknown> {
+  if (Array.isArray(v)) {
+    if (v.length === 2 && isPoint(v[0]) && isPoint(v[1])) {
+      const [[w, s], [e, n]] = v as number[][]
+      const { longitude, latitude, zoom } = fitBounds({
+        bounds: [
+          [w, s],
+          [e, n],
+        ],
+        width: Math.max(surface.width, 1),
+        height: Math.max(surface.height, 1),
+      })
+      return { longitude, latitude, zoom }
+    }
+    return isPoint(v) ? { longitude: v[0], latitude: v[1] } : {}
+  }
+  if (!v || typeof v !== 'object') return {}
+  const o = v as Record<string, unknown>
+  const point = (o.geometry as { coordinates?: unknown } | undefined)?.coordinates ?? o.coordinates
+  if (isPoint(point)) return { longitude: point[0], latitude: point[1] }
+  if (finite(o.lng) && finite(o.lat)) {
+    const { lng, lat, ...rest } = o
+    return { ...rest, longitude: lng, latitude: lat }
+  }
+  return o
+}
+
 // A wired-only parameter: the pane shows where it comes from
-const wired = (name: string, portType: PortType): ParamDef => ({
+const wired = (name: string, portType: PortType, extra: Extra = {}): ParamDef => ({
   name,
   label: label(name),
   kind: 'field',
@@ -362,6 +392,7 @@ const wired = (name: string, portType: PortType): ParamDef => ({
   port: true,
   portType,
   field: { wired: portType },
+  ...extra,
 })
 
 export const DECK_OPS: DeckOp[] = [
@@ -373,14 +404,14 @@ export const DECK_OPS: DeckOp[] = [
       label: 'Fit Bounds',
       category: 'output',
       description:
-        'The camera that fits rows into the render surface: wire its view state into the deck, or its longitude, latitude and zoom into a View State. The bounds are computed in DuckDB.',
+        'The camera that fits rows into the render surface: wire its view state or its bounds into the deck or a View State. The bounds are computed in DuckDB.',
       inputs: [],
       outputs: [
-        { name: 'viewState', type: 'value' },
+        { name: 'viewState', type: 'value', shape: 'viewState' },
         { name: 'longitude', type: 'number' },
         { name: 'latitude', type: 'number' },
         { name: 'zoom', type: 'number' },
-        { name: 'bounds', type: 'value' },
+        { name: 'bounds', type: 'value', shape: 'bounds' },
       ],
       params: [
         wired('data', 'table'),
@@ -388,8 +419,8 @@ export const DECK_OPS: DeckOp[] = [
           name: 'position',
           label: 'Position',
           kind: 'expr',
-          default: '[lng, lat]',
-          help: 'A position column, a geometry column, or an expression such as [lng, lat].',
+          default: '',
+          help: 'A position column, a geometry column, or an expression such as [lng, lat]. Empty: a geometry, a position, or longitude and latitude columns, whichever the rows have.',
         },
         num('padding', 0, { min: 0, max: 1000, step: 1 }),
       ],
@@ -418,26 +449,6 @@ export const DECK_OPS: DeckOp[] = [
         {},
         ...((p.objects as unknown[] | undefined) ?? []).filter(o => o && typeof o === 'object')
       ),
-  },
-  {
-    noodles: 'SwitchOp',
-    def: {
-      type: 'switch-value',
-      label: 'Switch Value',
-      category: 'output',
-      description:
-        'One of several values, chosen by index: view states, map styles, colors. With blend on, a fractional index blends the two values beside it.',
-      inputs: [],
-      outputs: [{ name: 'value', type: 'value' }],
-      params: [
-        wired('values', 'value'),
-        num('index', 0, { min: 0, max: 16, step: 1 }),
-        toggle('blend', false),
-      ],
-    },
-    lists: ['values'],
-    build: p =>
-      switchValue((p.values as unknown[] | undefined) ?? [], Number(p.index) || 0, !!p.blend),
   },
   {
     noodles: 'LayerPropsOp',
@@ -553,10 +564,11 @@ export const DECK_OPS: DeckOp[] = [
       label: 'View State',
       category: 'output',
       description:
-        'A camera: longitude, latitude, zoom, pitch and bearing, which numbers can drive.',
+        "A camera: longitude, latitude, zoom, pitch and bearing, which numbers can drive. A camera, point or bounds wired into From sets the fields it has, and the rest are this node's.",
       inputs: [],
-      outputs: [{ name: 'viewState', type: 'value' }],
+      outputs: [{ name: 'viewState', type: 'value', shape: 'viewState' }],
       params: [
+        wired('from', 'value', { portShape: 'viewState' }),
         num('longitude', -74.006, { min: -180, max: 180, step: 0.001 }),
         num('latitude', 40.7128, { min: -90, max: 90, step: 0.001 }),
         num('zoom', 12, { min: 0, max: 24, step: 0.1 }),
@@ -564,13 +576,35 @@ export const DECK_OPS: DeckOp[] = [
         num('bearing', 0, { step: 0.1 }),
       ],
     },
-    build: p => ({
+    surface: true,
+    build: (p, _id, env) => ({
       longitude: p.longitude,
       latitude: p.latitude,
       zoom: p.zoom,
       pitch: p.pitch,
       bearing: p.bearing,
+      ...asCamera(p.from, env.surface),
     }),
+  },
+
+  {
+    noodles: 'SwitchOp',
+    def: {
+      type: 'switch-value',
+      label: 'Switch Value',
+      category: 'output',
+      description:
+        'One of several values, chosen by Index: a camera from several View States wired into the deck, say. Keyframe Index to cut between cameras; with Blend, a decimal Index blends the two either side, so keyframing it flies from one camera to the next.',
+      inputs: [],
+      outputs: [{ name: 'value', type: 'value' }],
+      params: [
+        wired('values', 'value'),
+        num('index', 0, { min: 0, step: 1, help: 'Which value, counting from 0 in wiring order' }),
+        toggle('blend', false),
+      ],
+    },
+    lists: ['values'],
+    build: p => switchValue((p.values as unknown[] | undefined) ?? [], Number(p.index), !!p.blend),
   },
 
   // --- widgets -------------------------------------------------------------------------
@@ -631,7 +665,7 @@ export const DECK_OPS: DeckOp[] = [
       category: 'output',
       description: 'Display a bitmap image as a screen-space overlay',
       inputs: [],
-      outputs: [{ name: 'widget', type: 'value' }],
+      outputs: [{ name: 'widget', type: 'value', shape: 'widget' }],
       params: [
         url('image'),
         menu('placement', 'top-right', [...PLACEMENTS, 'fill']),
@@ -658,7 +692,7 @@ export const DECK_OPS: DeckOp[] = [
       category: 'output',
       description: 'Display a color scale legend overlay on the visualization',
       inputs: [],
-      outputs: [{ name: 'widget', type: 'value' }],
+      outputs: [{ name: 'widget', type: 'value', shape: 'widget' }],
       params: [
         text('colorScheme', 'viridis'),
         text('label', ''),
@@ -1027,7 +1061,7 @@ export const DECK_OPS: DeckOp[] = [
       description:
         "A basemap style with your changes: layers hidden or recolored, from the style editor. Wire it into the deck's map style.",
       inputs: [],
-      outputs: [{ name: 'mapStyle', type: 'value' }],
+      outputs: [{ name: 'mapStyle', type: 'value', shape: 'mapStyle' }],
       params: [
         url(
           'baseStyle',
@@ -1039,10 +1073,8 @@ export const DECK_OPS: DeckOp[] = [
     build: async p => {
       const base = p.baseStyle
       if (!base) return ''
-      const style =
-        typeof base === 'string' ? await fetchStyle(base) : (base as Record<string, unknown>)
       const overrides = (p.overrides ?? { layers: [], global: {} }) as never
-      return applyStyleOverrides(style as never, overrides)
+      return styleWithChanges(base as string | Record<string, unknown>, overrides)
     },
   },
 
@@ -1109,6 +1141,18 @@ export const DECK_OPS: DeckOp[] = [
     },
   },
 ]
+
+/**
+ * The value at `index`, as the Noodles SwitchOp chose it: the one below a decimal index, or with
+ * `blend` the two either side interpolated.
+ */
+export function switchValue(values: unknown[], index: number, blend: boolean): unknown {
+  if (values.length === 0) return undefined
+  const i = Math.max(0, Math.min(Number.isFinite(index) ? index : 0, values.length - 1))
+  const lower = Math.floor(i)
+  if (!blend || lower === i) return values[lower]
+  return d3.interpolate(values[lower] as object, values[Math.ceil(i)] as object)(i - lower)
+}
 
 export const DECK_OP_INDEX = new Map(DECK_OPS.map(o => [o.def.type, o]))
 // The deck operator replacing a Noodles operator class

@@ -47,7 +47,7 @@ A layer's channels (Position, Color, Radius...) are column names or expressions 
 - **Views** (Map, Globe, Orbit, Orthographic, First Person) and **View State**: other cameras, wired into the deck's `views` and `viewState` ports
 - **Widgets**: Compass, Zoom, Scale, Fullscreen, Screenshot, FPS, Legend and Bitmap Overlay, wired into the deck's `widgets` port
 - **Extensions**: Brightness / Contrast, Hue / Saturation, Vibrance, Clip, Mask, Path Style, Fill Style, Collision Filter, Brushing and Terrain, wired into a layer's Extensions
-- **Fit Bounds** (`fit-bounds`): The camera that fits a table's rows into the render surface. Wire rows into its Data and its view state into the deck, or its longitude, latitude and zoom into a View State. Position is a position column, a geometry column or an expression such as `[lng, lat]`
+- **Fit Bounds** (`fit-bounds`): The camera that fits a table's rows into the render surface. Wire rows into its Data, and its view state or its bounds into the deck or a View State's From. Position is a position column, a geometry column or an expression such as `[lng, lat]`; left empty, it is the rows' geometry, their `position`, or their longitude and latitude columns
 - **Merge** (`merge`): One object from several, later ones winning: view states, say
 - **Layer Props** (`layer-props`): Props added to a layer, such as operation `mask` for a mask layer or `beforeId` to draw under a MapLibre layer
 

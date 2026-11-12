@@ -40,6 +40,8 @@ An edge into it ends at `"targetPort": "in"`; one out of it starts at `"sourcePo
 | `sizeScale` | `float` | `1` |  |
 | `sizeUnits` | `menu` | `"pixels"` | `pixels`, `meters`, `common` |
 | `sizeMinPixels` | `float` | `0` |  |
+| `sizeMaxPixels` | `float` | `0` |  |
+| `sizeBasis` | `menu` | `"height"` | `height`, `width` |
 | `billboard` | `toggle` | `true` |  |
 | `iconColor` | `color` | `[0,0,0]` |  |
 | `offsetX` | `float` | `0` |  |

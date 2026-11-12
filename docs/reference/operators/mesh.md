@@ -37,6 +37,7 @@ An edge into it ends at `"targetPort": "in"`; one out of it starts at `"sourcePo
 | `mesh` | `url` | `"https://raw.githubusercontent.com/visgl/deck.gl-data/master/website/humanoid_quad.obj"` |  |
 | `sizeScale` | `float` | `1` |  |
 | `wireframe` | `toggle` | `false` |  |
+| `texture` | `url` | `""` |  |
 | `modelColor` | `color` | `[255,255,255]` |  |
 | `ramp` | `menu` | `"viridis"` | 37 choices |
 | `opacity` | `float` | `1` |  |

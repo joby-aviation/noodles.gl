@@ -89,6 +89,15 @@ export class HostRunner {
     return this.chain.then(() => undefined)
   }
 
+  /** Drop every operator and its outputs, after the run under way: another project opened. */
+  forget(): Promise<void> {
+    const next = this.chain.then(() => {
+      for (const id of [...this.entries.keys()]) this.drop(id)
+    })
+    this.chain = next.catch(() => undefined)
+    return next
+  }
+
   run(doc: EditorDoc, inputs: HostInputs): Promise<HostReport> {
     const next = this.chain.then(() => this.runNow(doc, inputs))
     this.chain = next.catch(() => undefined)
@@ -216,7 +225,14 @@ export class HostRunner {
       return
     }
     const plain = (name: string) => node.params[name] ?? params.find(p => p.name === name)?.default
-    const read: unknown[] = await Promise.all(
+    const fail = (error: unknown) => {
+      failed.add(node.id)
+      entry.outputs = undefined
+      report.errors.push({ nodeId: node.id, message: (error as Error).message })
+    }
+    // A statistic that didn't compute (a Fit Bounds position the rows don't have) is this
+    // node's error
+    const read: unknown[] | undefined = await Promise.all(
       params.map(p => {
         const edges = into(p.name)
         if (deck.aggregate?.param === p.name) {
@@ -234,7 +250,11 @@ export class HostRunner {
         const values = edges.map(edgeValue)
         return deck.lists?.includes(p.name) ? values : values[0]
       })
-    )
+    ).catch(error => {
+      fail(error)
+      return undefined
+    })
+    if (!read) return
     const surface = getRenderSurfaceSize()
     if (deck.surface) read.push(`${surface.width}x${surface.height}`)
     if (deck.usesKeys) read.push(...keyValues(deck.usesKeys))
@@ -259,9 +279,7 @@ export class HostRunner {
       entry.read = read
       report.ran.push(node.id)
     } catch (error) {
-      failed.add(node.id)
-      entry.outputs = undefined
-      report.errors.push({ nodeId: node.id, message: (error as Error).message })
+      fail(error)
     }
   }
 
