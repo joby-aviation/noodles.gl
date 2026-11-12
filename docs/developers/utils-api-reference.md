@@ -102,6 +102,14 @@ utils.cross(['NYC', 'LA', 'CHI'])
 // [['NYC', 'LA'], ['NYC', 'CHI'], ['LA', 'CHI']]
 ```
 
+### `binarySearchClosest(arr, val, i?)`
+
+The index of the value closest to `val` in a sorted array of numbers. `i` is an optional index to start the search from, such as the last result when stepping through time.
+
+```javascript
+utils.binarySearchClosest([0, 10, 20, 30], 12)  // 1
+```
+
 ## Geospatial Utilities
 
 ### `parseWkt(wkt)`

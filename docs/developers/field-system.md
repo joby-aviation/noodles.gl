@@ -1,17 +1,15 @@
 # Field System
 
-Fields are the classes behind the parameter widgets. An operator's parameters are declared in its `OpDef` (see [Creating Operators](./creating-operators.md)), and the document stores their values. Fields remain as the backing for the widgets that edit those values, and as the inputs and outputs of the few host operators.
+Fields are the classes behind the parameter widgets, in `noodles-editor/src/noodles/fields.ts`. An operator declares its parameters in its `OpDef` (see [Creating Operators](./creating-operators.md)), and the document stores their values. Fields do two jobs on top of that:
 
-## Field Fundamentals
+1. **Validate** a value with a Zod schema.
+2. **Pick the widget** that edits it, through `inputComponents` in `noodles-editor/src/noodles/components/field-components.tsx`, keyed by the field's `type`.
 
-Fields serve two purposes:
+A field is an RxJS `BehaviorSubject`: `field.value` reads it, `field.setValue(v)` parses and sets it, and `field.subscribe` follows it. Host operators also use fields for their inputs and outputs.
 
-1. **Data Schema**: Validate and normalize a value with a Zod schema
-2. **UI**: Pick the widget that edits it, through `inputComponents` in `noodles-editor/src/noodles/components/field-components.tsx`
+## From parameter to widget
 
-`noodles-editor/src/editor/field-adapter.ts` builds a field for each parameter of the selected node and keeps the two in step both ways: a widget's `setValue` writes the document (one undo step per gesture), and a document change (undo, an assistant edit, a keyframe) sets the field.
-
-### Parameter Kinds and Fields
+`noodles-editor/src/editor/field-adapter.ts` builds a field for each parameter of the selected node and keeps the two in step both ways. A widget's `setValue` writes the document (one undo step per gesture), and a document change (undo, an assistant edit, a keyframe at the playhead) sets the field.
 
 A planner parameter's `kind` picks its field:
 
@@ -20,164 +18,78 @@ A planner parameter's `kind` picks its field:
 | `float`, `int` | `NumberField` | `min`, `max` and `step` from the parameter; `int` steps by 1 |
 | `toggle` | `BooleanField` | |
 | `menu` | `StringLiteralField` | The parameter's `options` |
-| `color` | `ColorField` | The document stores `[r, g, b]` 0 to 255; the field edits `#rrggbb` |
-| `code` | `CodeField` | SQL or JavaScript, from the parameter's `language` |
+| `color` | `ColorField` | The document stores `[r, g, b]` from 0 to 255; the field edits `#rrggbb` |
+| `code` | `CodeField` | SQL when the parameter's `language` is `sql`, otherwise JavaScript |
 | `string`, `text`, `url`, `expr`, `column` | `StringField` | Text the planner reads |
-| `field` | The class named by `field: { op, input }` | A widget a Noodles operator class owns |
+| `field` | Named by the parameter's `field` | See below |
 
-A `field` parameter is how a deck operator borrows a richer widget: an extension list, a bounding box, a view state, a Bezier curve, a map style's overrides. The adapter builds the field from that class's input of the same name. A host operator's parameters are its own fields, built by its class.
+A `field` parameter borrows a richer widget from a Noodles operator class. `field: { op, input }` names the class and its input, and the adapter builds that field: a bounding box, a view state, a Bezier curve, a map style's overrides. `field: { list: 'extensions' }` is a list of layer extensions, set by wiring.
 
-## Core Field Types
+## Common fields
 
-### Primitive Fields
-
-#### NumberField
 ```typescript
-new NumberField(50, {
-  min: 0,           // Hard minimum (validation enforced)
-  max: 100,         // Hard maximum (validation enforced)
-  softMin: 10,      // UI hint for slider minimum (not enforced)
-  softMax: 90,      // UI hint for slider maximum (not enforced)
-  step: 1,          // Increment step
-})
-```
-
-**Soft vs Hard Limits:**
-- `min`/`max`: Validation is enforced; values outside this range fail schema validation
-- `softMin`/`softMax`: UI hints only; sliders use these bounds but values outside are allowed
-- Defaults: `softMin: -Infinity`, `softMax: Infinity`
-
-#### BooleanField
-```typescript
+new NumberField(50, { min: 0, max: 100, softMin: 10, softMax: 90, step: 1 })
 new BooleanField(true)
+new StringField('')
+new ColorField('#ff0000')                                  // stored as #rrggbbaa
+new CodeField('return d', { language: 'javascript' })      // or 'sql', 'json', 'overpass-ql'
+new Point2DField([-74.0, 40.7], { returnType: 'tuple' })   // [lng, lat]; 'object' gives { lng, lat }
+new Vec2Field([0, 0], { returnType: 'object' })            // { x, y }
+new DataField()                                            // rows or objects on a host operator's port
+new CompoundPropsField({ name: new StringField(''), size: new NumberField(1) })
 ```
 
-#### ColorField
-```typescript
-new ColorField('#ff0000')  // stored as #rrggbbaa; a 6-digit hex gets ff alpha
-```
+- `min` and `max` are enforced by the schema. `softMin` and `softMax` only bound the slider, so a typed value outside them is allowed.
+- `Point3DField` adds an altitude, `BboxField` holds two corners, and `Vec3Field` and `Vec4Field` work like `Vec2Field`.
 
-### Geometric Fields
+Every field also takes these options:
 
-#### Point2DField
-```typescript
-new Point2DField([-74.0, 40.7], {
-  returnType: 'tuple',  // [lng, lat], or 'object' for { lng, lat }
-})
-```
-
-`Point3DField` adds an altitude, and `BboxField` holds two corners.
-
-#### Vec2Field
-```typescript
-new Vec2Field([0, 0], {
-  returnType: 'object',  // { x, y }, or 'tuple' for [x, y]
-})
-```
-
-`Vec3Field` and `Vec4Field` work the same way.
-
-### Data Fields
-
-#### DataField
-For open-ended data on a host operator's ports:
-```typescript
-new DataField([]) // Any array or object
-```
-
-#### CompoundPropsField
-For specific object schemas:
-```typescript
-new CompoundPropsField({
-  view: z.object({
-    name: z.string(),
-    value: z.number()
-  })
-})
-```
-
-### Advanced Fields
-
-#### CodeField
-For code input:
-```typescript
-new CodeField('return d', {
-  language: 'javascript'
-})
-```
-
-Also accepts `language: 'sql'`.
-
-## Field Options
-
-### Common Options
 ```typescript
 {
-  optional: true,          // Allow undefined values
-  transform: (val) => val, // Transform the parsed value
-  showByDefault: false,    // Hide the field until shown
+  optional: true,          // allow undefined
+  transform: v => v,       // transform the parsed value
+  showByDefault: false,    // hide the field until shown
+  label: 'Radius',         // name shown in the UI; defaults to the humanized key
+  description: '...',      // one-line help shown in the UI
 }
 ```
 
-## Connections
+## Ports and connections
 
-Wires are not between fields. In a document, edges join ports: `out` to `in` for tables, `out` to the deck's `layers` for layers, and `par:<name>` to drive a parameter from a number output:
+Wires join ports, not fields. In a document, edges go `out` to `in` for tables, `out` to the deck's `layers` for layers, and to `par:<name>` to drive a parameter from a number output. `canConnect(from, to)` in `@noodles.gl/planner` decides whether one port type can feed another, and the editor only lets a wire connect where it returns true.
 
-```json
-{ "id": "e1", "source": "n1", "sourcePort": "out", "target": "n2", "targetPort": "in" }
-```
+A host operator's inputs are parameters with `par:` handles, typed by their field: a `NumberField` takes a number, a `DataField` or `GeoJsonField` takes a table, and a `LayerField` takes a layer.
 
-`canConnect(from, to)` in `@noodles.gl/planner` decides whether one port type may feed another, and the editor only lets a wire connect where it returns true. A host operator's inputs are parameters with `par:` handles, typed by their field: a `NumberField` takes a number, a `DataField` or `GeoJsonField` a table, a `LayerField` a layer.
+## A custom field
 
-## Custom Fields
-
-Create a field type by extending `Field` with a `type` and a schema:
+Extend `Field` with a `type` and a schema:
 
 ```typescript
-export class CustomField extends Field<z.ZodString> {
-  static type = 'custom'
-  createSchema(options: CustomFieldOptions) {
-    return z.string().min(options.minLength || 0)
+export class SlugField extends Field<z.ZodString> {
+  static type = 'slug'
+  static defaultValue = ''
+  createSchema() {
+    return z.string().regex(/^[a-z0-9-]*$/)
   }
 }
 ```
 
-### UI Components
-Register its widget under the same `type`:
+Register its widget under the same `type` in `field-components.tsx`. A widget subscribes to the field and calls `setValue`:
 
-```typescript
-// In field-components.tsx
-const CustomFieldComponent = ({ id, field, disabled }) => (
-  <input
-    value={field.value}
-    onChange={e => field.setValue(e.target.value)}
-    className="custom-input"
-  />
-)
+```tsx
+function SlugFieldComponent({ field, disabled }: { field: SlugField; disabled: boolean }) {
+  const [value, setValue] = useState(field.value)
+  useEffect(() => {
+    const sub = field.subscribe(setValue)
+    return () => sub.unsubscribe()
+  }, [field])
+  return <input value={value} disabled={disabled} onChange={e => field.setValue(e.target.value)} />
+}
+
 export const inputComponents = {
   // ...
-  custom: CustomFieldComponent,
+  slug: SlugFieldComponent,
 }
 ```
 
-A planner operator reaches the widget through a `field` parameter whose `{ op, input }` names an operator class that has a field of this type.
-
-## Best Practices
-
-### Field Design
-
-- Provide sensible default values
-- Set appropriate validation constraints
-- Prefer a planner parameter kind; reach for a `field` parameter only when a richer widget is needed
-
-### Type Safety
-
-- Leverage Zod schemas for validation
-- Use TypeScript for compile-time checking
-- Handle validation errors gracefully
-
-### User Experience
-
-- Group related parameters with `folder`
-- Hide parameters that don't apply with `when`
-- Support keyboard navigation
+A planner operator reaches the widget through a `field` parameter whose `{ op, input }` names an operator class with a field of this type. Prefer a planner parameter kind; reach for a custom field only when no kind fits.

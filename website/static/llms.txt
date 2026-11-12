@@ -1,18 +1,18 @@
 # Noodles.gl
 
-> A React-based visualization platform for creating animated timeline presentations and geospatial data visualizations
+> A node-based editor for animated maps and geospatial data visualizations, running entirely in the browser on DuckDB-Wasm and deck.gl
 
 ## Overview
 
-Noodles.gl is a node-based editor for creating geospatial visualizations and animations. It combines visual programming with reactive data flow to build interactive presentations and high-quality renders.
+Noodles.gl is a node-based editor for geospatial visualizations and animations. A project is a document of nodes and edges that Noodles compiles to queries and runs in DuckDB in the browser, so a slider or the timeline re-runs only what a change needs.
 
 Key Features:
-- Node-based visual programming editor
-- Real-time reactive data flow
-- Geospatial visualization built on Deck.gl and MapLibre
-- Timeline-based animation with native bezier interpolation
-- Support for JSON, CSV, GeoJSON, and other data formats
-- Export to video, images, or interactive web presentations
+- A node graph, a layers list and a properties panel, arranged in workspaces
+- The whole graph runs in DuckDB-Wasm; per-row values are columns made by expressions
+- Layers drawn with deck.gl over a MapLibre basemap
+- A keyframe timeline for any number parameter
+- CSV, JSON, Parquet, GeoJSON, GeoParquet, shapefiles and SQL queries
+- Export to MP4 video and PNG images
 
 ## Use with an AI agent
 
@@ -43,7 +43,7 @@ Key Features:
 ### Developer Documentation
 - Developer Overview: https://noodles.gl/developers/overview
 - Node-Based Tools: https://noodles.gl/developers/node-based-tools
-- Paths and Containers: https://noodles.gl/developers/paths-containers
+- Paths and Subnets: https://noodles.gl/developers/paths-containers
 - Data Flow: https://noodles.gl/developers/data-flow
 - Framework Extension: https://noodles.gl/developers/framework-extension
 - Creating Operators: https://noodles.gl/developers/creating-operators
@@ -52,20 +52,17 @@ Key Features:
 ## Repository Structure
 
 ```
-/noodles-editor/          # Main editor application (React + TypeScript)
-  /src/
-    /noodles/
-      /components/        # UI components for the editor
-      /operators/         # Built-in operator implementations
-      /fields/            # Field type system
-    /visualizations/      # Deck.gl visualization layers
-    /utils/               # Utility functions
+/packages/planner/        # Operators, the document format, lowering and the query planner
+/noodles-editor/          # The editor (React + TypeScript)
+  /src/editor/            # Network, properties panel, layers, workspaces, project files
+  /src/runtime/           # Engine, DuckDB worker, deck operators, host operators
+  /src/runtime/migrate/   # Converting older operator-graph projects to documents
+  /src/noodles/           # Field widgets and the remaining host operator classes
+  /src/examples/          # Example projects
+/noodles-mcp/             # MCP server: operator schemas, docs, examples, validation
+/noodles-validate/        # Project file validator and the operator registry
+/docs/                    # Documentation markdown (served by the website)
 /website/                 # Documentation site (Docusaurus)
-  /docs/                  # Documentation markdown files
-    /users/               # User-facing documentation
-    /developers/          # Developer documentation
-  /static/                # Static assets
-/docs/                    # Additional documentation (symlinked to website/docs)
 /dev-docs/                # Development and architecture documentation
 ```
 
@@ -74,7 +71,7 @@ Key Features:
 ### Core Technologies
 - **React** - UI framework
 - **TypeScript** - Type-safe JavaScript
-- **Native Timeline** - Keyframe animation with bezier curves
+- **DuckDB-Wasm** - Runs the compiled graph in a worker
 - **Deck.gl** - WebGL-powered geospatial visualization
 - **MapLibre GL JS** - Map rendering
 - **Vite** - Build tool and development server
@@ -82,8 +79,7 @@ Key Features:
 ### Key Libraries
 - **Zustand** - State management
 - **React Flow** - Node-based editor UI
-- **DuckDB-WASM** - In-browser SQL queries
-- **Immer** - Immutable state updates
+- **Apache Arrow** - Moves rows and layer buffers out of DuckDB
 
 ## Contributing
 
@@ -94,14 +90,14 @@ Key Features:
 ### Development Setup
 
 ```bash
-# Install dependencies
-yarn install:all
+# Install dependencies (npm workspaces)
+npm ci
 
-# Start development server
-yarn start:app
+# Start the editor
+cd noodles-editor && npm start
 
-# Build for production
-yarn build:all
+# Build the editor and the website, from the repo root
+cd .. && npm run build:all
 ```
 
 ### Testing
@@ -118,14 +114,12 @@ yarn build:all
 
 ## Architecture
 
-Noodles.gl uses a node-based system where:
-1. **Operators** are nodes that process data
-2. **Fields** define inputs/outputs with type safety
-3. **Paths** enable deep data access and manipulation
-4. **Containers** manage collections of operators
-5. **Timeline** integration allows keyframing any parameter
-
-The system uses a reactive data flow where changes automatically propagate through the node graph.
+- A project is an `EditorDoc`: nodes (`op`, `name`, `params`) joined by edges between ports.
+- `@noodles.gl/planner` lowers the document to relations, attribute expressions and layers, and decides how each parameter is applied: a deck prop, a uniform, a CPU pass, a requery or a rematerialize. A value change never recompiles.
+- The engine worker runs the relations in DuckDB-Wasm and hands deck.gl binary attribute buffers.
+- A few operators that can't compile (code that reads `op()` or the timeline, geocoding, directions, charts, tiles) run on the main thread as host operators.
+- Subnets group nodes; a node's path is its name under its subnets' names (`/subnet/filter`).
+- Any number parameter can be keyframed on the timeline.
 
 ## Additional Resources
 

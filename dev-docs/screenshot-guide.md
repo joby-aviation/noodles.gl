@@ -92,9 +92,9 @@ Taken at 1440x900 with a device pixel ratio of 2 (`emulate({ viewport: '1440x900
 | `properties-panel-context-menu.png` | The right-click menu on Width scale | `docs/users/properties-panel.md` |
 | `properties-panel-keyframe.png` | Style rows, Width scale keyframed | `docs/users/properties-panel.md` |
 | `noodles-nyc-taxis-graph.png` | The Nodes workspace, map behind the graph | `docs/intro.md`, the website's pipeline section |
-| `example-world-flights.png`, `example-california-earthquakes.png`, `example-us-unemployment.png` | Each example's graph over its map, cropped to the map | The website's gallery |
+| `example-world-flights.png`, `example-uk-commute.png`, `example-california-earthquakes.png`, `example-us-unemployment.png` | Each example's graph over its map, cropped to the map | The website's gallery |
 
-The gallery's other images (`example-chargemap.png`, `example-joby-storytelling.png`, `example-nyc-taxi-brushing.mp4`) are renders rather than editor screenshots. The chargers example needs a Mapbox key for its geocoder.
+The gallery's video (`example-nyc-taxi-brushing.mp4`) and the hero image (`example-joby-storytelling.png`) are renders rather than editor screenshots.
 
 For a graph over its map: open the Nodes workspace, click **Show map behind the node graph** under the map, then close the Map area. Hide comment nodes and the zoom controls before capturing:
 

@@ -58,8 +58,8 @@ export default function MediaShowcase(): ReactNode {
           <div className={styles.galleryItem}>
             <div className={styles.galleryImage}>
               <img
-                src="/img/example-chargemap.png"
-                alt="Example ChargeMap Screenshot"
+                src="/img/example-uk-commute.png"
+                alt="UK commute arcs from home to workplace"
                 className={styles.screenshotImage} />
             </div>
             <div className={styles.galleryCaption}>

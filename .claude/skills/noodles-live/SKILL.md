@@ -55,7 +55,7 @@ Send one change per `apply_modifications` call. Parameters merge, so send only t
 ] }
 ```
 
-- Per-row values are expressions over the rows' columns: a layer's `color` can be `"[255, 0, 0]"` or a column an `attribute` node made. Colors are `[r, g, b]` from 0 to 255.
+- Per-row values are expressions over the rows' columns: a layer's `color` can be `"[1.0, 0.0, 0.0]"` or a column an `attribute` node made. Per-row colors are `[r, g, b]` from 0 to 1; constant color parameters (Fill color) are 0 to 255.
 - A parameter can be `{ "expr": "4 + 2 * sin(T)" }` (`T` is seconds) or `{ "ref": "other-node/param" }`.
 - Wires: `{ "type": "add_edge", "source": "data", "sourcePort": "out", "target": "points", "targetPort": "in" }`. A `targetPort` of `par:<name>` drives a parameter from a number output.
 - Data: point a `file` node's `url` at another file. Use `list_files` to see what the project has. To use derived data, write it with `write_file` to `@/.agent/<name>.csv` and point the `file` node there. Source data is read-only.
