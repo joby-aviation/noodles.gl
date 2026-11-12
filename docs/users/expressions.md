@@ -12,6 +12,7 @@ sqrt(pop) * 2.0               arithmetic and functions
 ramp(fit(mag, 0, 8, 0, 1))    a color from the layer's color ramp
 mag > 5 ? 2.0 : 1.0           a condition
 coalesce(depth, 0)            a fallback for missing values
+present(h3, hex, 'none')      the first of these columns the rows have
 hex_color(color)              a "#rrggbb" text column as a color
 ```
 
@@ -19,7 +20,7 @@ hex_color(color)              a "#rrggbb" text column as a color
 - `[a, b]` makes a vector. A column with 2 to 4 numbers per row (`coordinates: [lng, lat]` in JSON) is a vector too: read one item with `coordinates[1]` or `coordinates.y`.
 - A vector attribute, such as a Color Ramp's `magnitude_color` or `position = [lng, lat]`, reads the same way wherever it goes: whole (`magnitude_color`), by index (`magnitude_color[0]`) or by component name (`magnitude_color.r`, `position.x`; `x y z w` and `r g b a` both work). Tables store it as numbered columns (`magnitude_color_0`, `_1`, `_2`); the Spreadsheet shows them under the vector's name, each by its component letter, and a Code node's `d` has it as one array (`d[i].magnitude_color`, which also reads `.r`).
 - Operators: `+ - * / %`, comparisons, `&&`, `||`, `!` and `test ? a : b`.
-- Functions include `sqrt`, `abs`, `floor`, `ceil`, `round`, `exp`, `ln`, `log10`, `pow`, `sin`, `cos`, `atan2`, `min`, `max`, `clamp`, `fit(x, inMin, inMax, outMin, outMax)`, `lerp(a, b, t)`, `smoothstep`, `ramp(t)`, `coalesce`, `to_number` (text as a number), `category(value, n)` (a bucket from 0 to n - 1 per distinct value) and `random()`.
+- Functions include `sqrt`, `abs`, `floor`, `ceil`, `round`, `exp`, `ln`, `log10`, `pow`, `sin`, `cos`, `atan2`, `min`, `max`, `clamp`, `fit(x, inMin, inMax, outMin, outMax)`, `lerp(a, b, t)`, `smoothstep`, `ramp(t)`, `coalesce`, `present` (the columns among its arguments that the rows have, then `coalesce` of them: one file names a column `h3`, another `hex`), `to_number` (text as a number), `category(value, n)` (a bucket from 0 to n - 1 per distinct value) and `random()`.
 - In a layer's channels, `colmin(col)` and `colmax(col)` are a column's smallest and largest value over the layer's rows, so `ramp(fit(mag, colmin(mag), colmax(mag), 0, 1))` spreads the ramp over the data. They are computed once in SQL and reused until the rows change.
 - Geographic functions take `[lng, lat]` points: `distance(a, b)` in kilometers, `bearing(a, b)`, `destination(p, km, degrees)`, `midpoint(a, b)`, and `st_distance`, `st_dwithin` and `st_contains` against a WKT or GeoJSON literal.
 - `ch('node/param')` reads a parameter's value, as in a parameter expression below: `mag * ch('size/value')`.

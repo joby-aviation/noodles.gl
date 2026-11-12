@@ -157,4 +157,41 @@ describe('Engine host bridge', () => {
     expect(engine.lowering()?.errors).toEqual([])
     expect(engine.runtime.layers().find(l => l.id === '/fill')?.data?.rows).toBe(3)
   })
+
+  it('hands a host operator a geometry node’s features as a FeatureCollection', async () => {
+    let planner: ((nodeId: string, port: string) => unknown) | undefined
+    const host: EngineHost = {
+      runner: {
+        run: async (_doc, options) => {
+          planner = options.planner as never
+          return { errors: [] }
+        },
+        output: () => undefined,
+        idle: async () => undefined,
+      },
+      layer: d => d as never,
+      widget: d => d,
+      view: d => d,
+    }
+    const engine = new Engine(duck, { host, registerFile: async () => undefined })
+    await engine.setDoc({
+      version: 1,
+      name: 'point',
+      nodes: [
+        { id: '/origin', op: 'point', x: 0, y: 0, params: { lng: 3, lat: 4 } },
+        { id: '/dot', op: 'scatter', x: 0, y: 0, params: { position: 'geom' } },
+        { id: '/reader', op: 'RowsTestOp', x: 0, y: 0, params: {} },
+        { id: '/map', op: 'deck', x: 0, y: 0, params: { basemap: 'none' } },
+      ],
+      edges: [
+        { id: 'e1', source: '/origin', sourcePort: 'out', target: '/dot', targetPort: 'in' },
+        { id: 'e2', source: '/dot', sourcePort: 'out', target: '/map', targetPort: 'layers' },
+      ],
+    })
+    await engine.settle()
+    expect(engine.lowering()?.errors).toEqual([])
+    const fc = (await planner?.('/origin', 'out')) as GeoJSON.FeatureCollection
+    expect(fc.type).toBe('FeatureCollection')
+    expect(fc.features.map(f => f.geometry)).toEqual([{ type: 'Point', coordinates: [3, 4] }])
+  })
 })

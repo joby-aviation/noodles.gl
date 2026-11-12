@@ -4,7 +4,7 @@ import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it } from 'vitest'
 import { StringField } from '../noodles/fields'
 import type { ColumnInfo } from './expression-completion'
-import { ExpressionInput } from './expression-input'
+import { ExpressionInput, hasUnwrittenEdit } from './expression-input'
 
 const columns: ColumnInfo[] = [
   { name: 'Latitude', type: 'DOUBLE' },
@@ -56,6 +56,15 @@ describe('ExpressionInput', () => {
     expect(field.value).toBe('0.0')
     fireEvent.blur(input)
     expect(field.value).toBe('[Longitude,')
+  })
+
+  it('counts text that does not parse yet as an open edit, until the input loses focus', () => {
+    const { input } = setup('expr', '0.0')
+    fireEvent.focus(input)
+    type(input, '[Longitude,')
+    expect(hasUnwrittenEdit()).toBe(true)
+    fireEvent.blur(input)
+    expect(hasUnwrittenEdit()).toBe(false)
   })
 
   it('moves through the list with the arrow keys and closes it with Escape', () => {

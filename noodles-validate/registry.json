@@ -6095,6 +6095,29 @@
         }
       }
     },
+    "switch-rows": {
+      "name": "Switch Rows",
+      "type": "switch-rows",
+      "category": "structure",
+      "description": "Pass one of several tables through, chosen by index, which numbers and keyframes can drive. Columns are matched by name. A change requeries; the tables are not made again.",
+      "inputs": {
+        "in": {
+          "type": "table",
+          "multi": true
+        }
+      },
+      "outputs": {
+        "out": {
+          "type": "table"
+        }
+      },
+      "params": {
+        "index": {
+          "kind": "float",
+          "default": 0
+        }
+      }
+    },
     "switch-value": {
       "name": "Switch Value",
       "type": "switch-value",
@@ -6273,6 +6296,22 @@
         },
         "borderWidthBy": {
           "kind": "expr",
+          "default": ""
+        },
+        "angleBy": {
+          "kind": "expr",
+          "default": ""
+        },
+        "offsetBy": {
+          "kind": "expr",
+          "default": ""
+        },
+        "anchorBy": {
+          "kind": "column",
+          "default": ""
+        },
+        "baselineBy": {
+          "kind": "column",
           "default": ""
         },
         "ramp": {

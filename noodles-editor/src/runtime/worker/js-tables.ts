@@ -4,7 +4,7 @@
 
 import type { RelationPlan } from '@noodles.gl/planner'
 import { tableFromJSON, tableToIPC } from 'apache-arrow'
-import { flatRow, isFeatureCollection, readPlainRows } from '../plain-rows'
+import { flatRow, isFeatureCollection, jsRows, readPlainRows } from '../plain-rows'
 import { tableFromRows } from './arrow-rows'
 import type { BlockingSql } from './blocking-sql'
 import { featuresTable, geometryFromWkb } from './geojson-wkb'
@@ -88,7 +88,7 @@ export class JsTables {
   ): Promise<unknown> {
     const columns = await this.sql.rows(`DESCRIBE SELECT * FROM ${relation}`)
     const geom = columns.find(c => c.column_name === 'geom' && c.column_type === 'GEOMETRY')
-    if (!geom) return readPlainRows(this.sql, relation, vectors)
+    if (!geom) return jsRows(await readPlainRows(this.sql, relation, vectors))
     // As WKB, read in JS: ST_AsGeoJSON drops m (a path's timestamps, say), and parsing a JSON
     // text per feature is slower
     const rows = await readPlainRows(

@@ -99,6 +99,8 @@ async function openJson(
     fs.setActiveStorageType(location.storage)
   }
   showDoc(doc, keysProject)
+  // Shown to the user, since saving writes the project as converted
+  getUIStore().setLoadWarnings(warnings)
   useProjectOpen.setState({ status: 'open', route }, true)
   return true
 }

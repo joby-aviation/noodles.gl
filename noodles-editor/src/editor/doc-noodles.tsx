@@ -28,6 +28,7 @@ import {
 import { TimelineProvider } from '../timeline/timeline-context'
 import { getTimelineStore, useTimelineStore } from '../timeline/timeline-store'
 import { analytics } from '../utils/analytics'
+import { staleChunk } from '../utils/stale-chunk'
 import type { Visualization } from '../visualizations'
 import { CanvasPaste } from './canvas-paste'
 import { bindEngine, settleEngine, useEngineState, visCommitted } from './doc-engine'
@@ -45,6 +46,8 @@ import { docStore, useEditor } from './doc-store'
 import { bindTimeline } from './doc-timeline'
 import type { CopyControlsRef, UndoRedoHandlerRef } from './edit-menu'
 import { historyShortcut } from './edit-menu'
+import { hasUnwrittenEdit } from './expression-input'
+import { LoadWarningsDialog } from './load-warnings-dialog'
 import { useProjectFiles } from './project-files'
 import { closeProject, openFile, openRoute, routePath } from './project-open'
 import { DOC_DECK, renderSettingsOf } from './render-settings'
@@ -241,6 +244,33 @@ export function useDocNoodles(): Visualization {
     }
   }, [loadId])
 
+  // Leaving with unsaved changes asks first, and the title marks them with `*`. Examples are
+  // read-only demos; a project only in memory is unsaved until it has a folder.
+  useEffect(() => {
+    if (!projectName) return
+    const isExamples = routePrefix === '/examples'
+    const unsaved = !isExamples && (dirty || storageType === 'memory')
+    const onBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (unsaved || (!isExamples && hasUnwrittenEdit())) {
+        e.preventDefault()
+        e.returnValue = ''
+      }
+    }
+    const displayName =
+      storageType === 'memory'
+        ? memoryProjectStore.getDisplayName(projectName) || 'Untitled'
+        : projectName
+    document.title = `Noodles.gl - ${displayName}${unsaved ? ' *' : ''}`
+    // A stale chunk after a deploy prompts instead of reloading while this guard is armed
+    staleChunk.setUnsavedWork(unsaved)
+    window.addEventListener('beforeunload', onBeforeUnload)
+    return () => {
+      staleChunk.setUnsavedWork(false)
+      window.removeEventListener('beforeunload', onBeforeUnload)
+      document.title = 'Noodles.gl'
+    }
+  }, [dirty, projectName, storageType, routePrefix])
+
   // Version history: every save commits a snapshot (storage.ts); autosave saves after a pause
   // when the project's settings ask for it. Reading the settings through the hook re-runs this
   // when version control or autosave is turned off, which cancels a pending save.
@@ -326,6 +356,7 @@ export function useDocNoodles(): Visualization {
             onClose={() => setPendingCreateFromSQL(null)}
           />
           <KeyPrompts />
+          <LoadWarningsDialog />
         </TimelineProvider>
       </PrimeReactProvider>
     </div>

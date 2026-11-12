@@ -4,7 +4,7 @@ import { type FC, useEffect, useRef, useState } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { useStore } from 'zustand'
-import { docStore, useEditor } from '../editor/doc-store'
+import { type DocMark, docStore, useEditor } from '../editor/doc-store'
 import { useUIStore } from '../editor/ui-store'
 import type { CustomEndpointConfig, ProviderPreference } from '../noodles/keys-store'
 import { useKeysStore } from '../noodles/keys-store'
@@ -114,6 +114,8 @@ export const ChatPanel: FC<ChatPanelProps> = ({ onClose, isVisible, initialMessa
   // Another project replacing the document is told apart by its load count
   const loadId = useEditor(st => st.loadId)
   const loadIdRef = useRef(loadId)
+  // Where the reply running now started, so leaving its conversation can undo its edits
+  const runStart = useRef<{ mark: DocMark; loadId: number } | null>(null)
 
   // Get API keys directly from store (reactive)
   const apiKey = useKeysStore(state => state.getKey('anthropic'))
@@ -498,6 +500,7 @@ export const ChatPanel: FC<ChatPanelProps> = ({ onClose, isVisible, initialMessa
     let proposal: ModificationProposal | null = null
     // Where the run's edits start: Reject comes back here, Accept folds them into one undo step
     const runMark = docStore().mark()
+    runStart.current = { mark: runMark, loadId: docStore().get().loadId }
     try {
       const response = await session.send({
         message: input,
@@ -599,9 +602,16 @@ export const ChatPanel: FC<ChatPanelProps> = ({ onClose, isVisible, initialMessa
   }
 
   // The edits of a proposal still waiting, which leaving its conversation undoes
+  // Leaving a conversation undoes the edits that belong to it: a proposal still waiting, or
+  // what a reply still running has done so far (the run is aborted, and makes no more). After
+  // another project opened there is nothing of it to undo.
   const revertPending = () => {
     const turn = turns.store.getState().turn
     if (turn.phase === 'proposal') docStore().revert(turn.proposal.mark)
+    const start = runStart.current
+    if (turn.phase === 'sending' && start && start.loadId === docStore().get().loadId) {
+      docStore().revert(start.mark)
+    }
   }
 
   const handleStop = () => {

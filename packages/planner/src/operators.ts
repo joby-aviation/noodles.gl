@@ -1325,6 +1325,10 @@ export const OPERATORS: OpDef[] = [
       channel('sizeBy', 'Size', '', 'Per-row size, times Size. Empty: every label is Size.'),
       channel('borderColorChannel', 'Border color', '', 'Per-row background border color in 0–1. Empty uses the constant Border color.'),
       channel('borderWidthBy', 'Border width', '', 'Per-row background border width in pixels. Empty uses Border width (px).'),
+      channel('angleBy', 'Angle', '', 'Per-row angle in degrees. Empty: every label is at Angle.'),
+      channel('offsetBy', 'Offset', '', 'Per-row [x, y] offset in pixels. Empty: every label is at Offset X and Y.'),
+      { name: 'anchorBy', label: 'Anchor', kind: 'column', default: '', of: 'in', columnType: 'str', folder: 'Channels', help: 'Per-row start, middle or end. Empty: every label uses Anchor.' },
+      { name: 'baselineBy', label: 'Baseline', kind: 'column', default: '', of: 'in', columnType: 'str', folder: 'Channels', help: 'Per-row top, center or bottom. Empty: every label uses Baseline.' },
       rampParam,
       { name: 'size', label: 'Size (px)', kind: 'float', default: 12, min: 4, max: 64, step: 1, bind: 'prop', folder: 'Style', port: true },
       { name: 'sizeUnits', label: 'Size units', kind: 'menu', default: 'pixels', options: [{ value: 'pixels', label: 'Pixels' }, { value: 'meters', label: 'Meters' }, { value: 'common', label: 'Common' }], folder: 'Style' },
@@ -1362,6 +1366,7 @@ export const OPERATORS: OpDef[] = [
         [
           { channel: 'position', param: 'position' }, { channel: 'color', param: 'color' }, { channel: 'size', param: 'sizeBy' },
           { channel: 'borderColor', param: 'borderColorChannel' }, { channel: 'borderWidth', param: 'borderWidthBy' },
+          { channel: 'angle', param: 'angleBy' }, { channel: 'offset', param: 'offsetBy' },
         ],
         {
           size: ctx.bind('size'), sizeUnits: ctx.str('sizeUnits'), color: ctx.bindColor('textColor'),
@@ -1375,7 +1380,9 @@ export const OPERATORS: OpDef[] = [
           borderColor: ctx.bindColor('borderColor'), borderWidth: ctx.bind('borderWidth'),
         });
       const layer = r.nodes[r.nodes.length - 1] as LayerNode;
-      layer.channels = { ...layer.channels, text };
+      const anchor = ctx.str('anchorBy');
+      const baseline = ctx.str('baselineBy');
+      layer.channels = { ...layer.channels, text, ...(anchor ? { anchor } : {}), ...(baseline ? { baseline } : {}) };
       return r;
     },
   },
@@ -1720,6 +1727,25 @@ export const OPERATORS: OpDef[] = [
       if (inputs.length === 0) ctx.error('Switch needs a table or a layer');
       const i = Math.max(0, Math.min(inputs.length - 1, Math.floor(ctx.num('index') || 0)));
       return { nodes: [], outputs: { out: inputs[i] } };
+    },
+  },
+  {
+    type: 'switch-rows', label: 'Switch Rows', category: 'structure',
+    description: 'Pass one of several tables through, chosen by index, which numbers and keyframes can drive. Columns are matched by name. A change requeries; the tables are not made again.',
+    inputs: [table('in', 'tables', { multi: true })], outputs: [out()],
+    params: [{ name: 'index', label: 'Index', kind: 'float', default: 0, min: 0, max: 16, step: 1, port: true }],
+    lower(ctx) {
+      const tables = ctx.inputs('in');
+      if (tables.length === 0) ctx.error('Switch Rows needs a table');
+      if (tables.length === 1) return { nodes: [], outputs: { out: tables[0] } };
+      // Each table kept only while the index, clamped and floored, is its own; a filter, so
+      // the index binds as a parameter and a change requeries rather than making new tables
+      const index = `floor(min(max(${ctx.bind('index')}, 0), ${tables.length - 1}))`;
+      const kept = tables.map((input, k) => ({ id: `${ctx.id}#${k}`, type: 'filter' as const, input, predicate: `${index} == ${k}` }));
+      return {
+        nodes: [...kept, { id: ctx.id, type: 'union', inputs: kept.map((n) => n.id), distinct: false }],
+        outputs: { out: ctx.id },
+      };
     },
   },
   {

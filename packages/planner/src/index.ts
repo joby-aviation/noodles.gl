@@ -10,7 +10,7 @@
 
 // --- expression IR ---------------------------------------------------------
 export {
-  parseExpr, walk, columnsOf, paramsOf, simplifyExpr, enginesFor, compactable, isAggregate, widthOf,
+  parseExpr, walk, columnsOf, paramsOf, simplifyExpr, enginesFor, compactable, isAggregate, resolvePresent, widthOf,
   FUNCTIONS, ExprError,
   type Expr, type UnaryOp, type BinaryOp, type Engine, type FnSpec, type WidthEnv,
 } from './expr.js';

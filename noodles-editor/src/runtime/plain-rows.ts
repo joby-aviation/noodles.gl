@@ -83,6 +83,15 @@ export function foldVectors(
   return out
 }
 
+/**
+ * Rows as JS code reads them: a table of one `value` column is the values JS made (a row that
+ * wasn't an object reaches a table as `{ value }`, flatRow), so they are handed back bare.
+ */
+export function jsRows(rows: Record<string, unknown>[]): unknown[] {
+  const bare = rows.length > 0 && rows.every(r => Object.keys(r).length === 1 && 'value' in r)
+  return bare ? rows.map(r => r.value) : rows
+}
+
 /** Column types JS reads wrongly from Arrow (decimals as words, 64-bit integers as BigInt). */
 const NUMERIC_CAST = /^(DECIMAL|NUMERIC|HUGEINT|UHUGEINT|BIGINT|UBIGINT)/
 

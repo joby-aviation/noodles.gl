@@ -158,6 +158,10 @@ export const LAYER_SPECS: Record<LayerKind, LayerKindSpec> = {
       { name: 'size', type: 'num' },
       { name: 'borderColor', type: 'color' },
       { name: 'borderWidth', type: 'num' },
+      { name: 'angle', type: 'num' },
+      { name: 'offset', type: 'vec' },
+      { name: 'anchor', type: 'str' },
+      { name: 'baseline', type: 'str' },
     ],
   },
   polygon: {
