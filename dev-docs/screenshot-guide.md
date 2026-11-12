@@ -81,11 +81,30 @@ resize_page({ width: 1280, height: 800 })
 
 ## Existing Screenshots
 
-| File | Shows |
-|------|-------|
-| `properties-panel-overview.png` | Full properties panel with arc-layer selected |
-| `properties-panel-context-menu.png` | Right-click context menu on a field |
-| `properties-panel-keyframe.png` | Field rows with keyframe diamond indicators |
+Taken at 1440x900 with a device pixel ratio of 2 (`emulate({ viewport: '1440x900x2' })`), from the examples named.
+
+| File | Shows | Used in |
+|------|-------|---------|
+| `editor-workspace-layout.png` | The Layout workspace on nyc-taxis | `docs/users/getting-started.md` |
+| `editor-node-graph.png` | The nyc-taxis node graph, comments hidden | `docs/users/getting-started.md` |
+| `workflow-overview.png` | The nyc-taxis graph labeled Data, Rows, Layers, Deck | `docs/users/workflows-intro.md` |
+| `properties-panel-overview.png` | Properties with nyc-taxis' arc-layer selected | `docs/users/properties-panel.md` |
+| `properties-panel-context-menu.png` | The right-click menu on Width scale | `docs/users/properties-panel.md` |
+| `properties-panel-keyframe.png` | Style rows, Width scale keyframed | `docs/users/properties-panel.md` |
+| `noodles-nyc-taxis-graph.png` | The Nodes workspace, map behind the graph | `docs/intro.md`, the website's pipeline section |
+| `example-world-flights.png`, `example-california-earthquakes.png`, `example-us-unemployment.png` | Each example's graph over its map, cropped to the map | The website's gallery |
+
+The gallery's other images (`example-chargemap.png`, `example-joby-storytelling.png`, `example-nyc-taxi-brushing.mp4`) are renders rather than editor screenshots. The chargers example needs a Mapbox key for its geocoder.
+
+For a graph over its map: open the Nodes workspace, click **Show map behind the node graph** under the map, then close the Map area. Hide comment nodes and the zoom controls before capturing:
+
+```javascript
+() => {
+  const st = document.createElement('style')
+  st.textContent = '.react-flow__node-comment, .react-flow__controls { display: none !important }'
+  document.head.appendChild(st)
+}
+```
 
 ## Tips
 

@@ -6,6 +6,8 @@ Edit a node's parameters, drive them from other parameters, and keyframe them in
 
 The Properties Panel shows the node you select on the canvas, in the Layers list or on the map. In the default workspace it sits on the left, under Layers; see [Workspaces and Areas](./getting-started.md#workspaces-and-areas) to move it. At the top are the node's operator type, its name (click to rename), its path, its **B** (bypass) and **D** (display) flags, and a description of the operator. Below are its parameters, grouped into folders such as Channels, Style and Export. Click a folder's heading to fold it away.
 
+<img src="/img/properties-panel-overview.png" alt="The Properties panel with an Arc Layer selected: its channels, then its style" width="388" />
+
 With nothing selected, the panel shows the project's name.
 
 When you open an example, its main map layer is already selected, so the panel starts with controls you can change.
@@ -72,11 +74,17 @@ A link between parameters is a reference, so it shows as a chip and breaks with 
 
 ### Keyframes
 
-The **diamond icon** (◇) next to a number parameter is its keyframe indicator. Click it to add a keyframe at the playhead, and click it again on a keyframe to remove it. See [Animation and Rendering](./animation-and-rendering.md) for details.
+The **diamond icon** (◇) next to a number parameter is its keyframe indicator. Click it to add a keyframe at the playhead, and click it again on a keyframe to remove it. A filled diamond marks a keyframe at the playhead.
+
+<img src="/img/properties-panel-keyframe.png" alt="Width scale has a keyframe at the playhead; the other parameters have none" width="388" />
+
+ See [Animation and Rendering](./animation-and-rendering.md) for details.
 
 ## Right-Click Context Menu
 
 Right-click any parameter row for its menu. Items appear disabled when they don't apply.
+
+<img src="/img/properties-panel-context-menu.png" alt="The menu for Width scale, opened by right-clicking its row" width="412" />
 
 | Action | Description |
 |--------|-------------|

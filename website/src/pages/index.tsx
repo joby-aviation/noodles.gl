@@ -87,7 +87,7 @@ const showcaseItems = [
 		type: "image" as const,
 		title: "World Flights",
 		description:
-			"Arc layer with camera flythrough, animated by timestamp and colored by airline",
+			"Trails for every flight, animated along the timeline and colored by origin country",
 		tag: "Cinematic",
 		wide: false,
 		example: "world-flights",
@@ -107,7 +107,7 @@ const showcaseItems = [
 		type: "image" as const,
 		title: "California Earthquakes",
 		description:
-			"Magnitude-scaled scatter with animated time window and turbo color ramp",
+			"Points sized by magnitude and colored with a turbo ramp",
 		tag: "Scientific",
 		wide: false,
 		example: "california-earthquakes",
@@ -117,7 +117,7 @@ const showcaseItems = [
 		type: "image" as const,
 		title: "US County Unemployment",
 		description:
-			"Choropleth driven by SQL, exportable as print-resolution image or video",
+			"Counties colored by unemployment rate, exportable as a print-resolution image or video",
 		tag: "Publication",
 		wide: false,
 		example: "us-county-unemployment",

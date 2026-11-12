@@ -20,6 +20,8 @@ Open the editor and follow along.
 
 The editor's window is split into areas, as in Blender. Each area shows one editor: the Map, the Node Graph, Layers, Properties, the Timeline or the Spreadsheet.
 
+![The Layout workspace: Layers and Properties on the left, the map, and the timeline under it](/img/editor-workspace-layout.png)
+
 - **Workspaces**: The tabs at the top right switch between layouts. **Layout** has Layers and Properties on the left, the map, and the timeline under it, with no node graph. **Animation** runs the timeline across the whole window. **Nodes** adds the node graph under the map.
 - **Change an area's editor**: Click its name in the area's header. Picking an editor that is open in another area swaps the two.
 - **Split or close an area**: Hover the area's header and use the buttons on its right. Drag the line between two areas to resize them.
@@ -28,6 +30,9 @@ The editor's window is split into areas, as in Blender. Each area shows one edit
 Each workspace keeps its own arrangement, and the editor remembers them between visits. Closing the Map area pops the map out into a floating window; its dock button brings the area back.
 
 ### Node Editor
+
+![The NYC Taxis network: a file, two attribute nodes, three layers and the deck](/img/editor-node-graph.png)
+
 - **Add Nodes**: Press `Tab` or right-click an empty area of the canvas to open the Add Node menu
 - **Connect Data**: Drag from an output port to an input port
 - **Order Inputs**: A port that takes several wires, such as the deck's `layers`, is a pill with a slot per wire, top slot first. Drop a wire between two slots to put it there, or drag a wire's end to another slot to reorder

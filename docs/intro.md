@@ -56,9 +56,9 @@ The result: data-driven stories you can export as video, publish as interactive 
 
 ## How it works
 
-Noodles.gl uses a **pull-based reactive graph**: you connect operators (data sources, transforms, visualization layers) and the output updates automatically when any upstream input changes. There's no "run" button — changes propagate in real time.
+You connect nodes (data sources, row operations, layers) into a network, and Noodles.gl compiles it to queries that run in DuckDB in your browser. Change a value and the map updates: there's no "run" button, and only the work that change needs runs again.
 
-![EV charging stations across the Pacific Northwest — live data loaded via DuckDB SQL](/img/example-chargemap.png)
+![The NYC Taxis network over its map: a CSV of trips becomes arcs and points](/img/noodles-nyc-taxis-graph.png)
 
 The timeline editor lets you keyframe any parameter at any point in time. Scrub, preview, adjust curves, then export — the same workflow motion designers use in animation tools, applied to geospatial data.
 

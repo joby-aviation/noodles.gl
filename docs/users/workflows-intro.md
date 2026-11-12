@@ -8,7 +8,7 @@ A workflow in Noodles.gl is a network of connected nodes (operators). Tables flo
 
 You work on an **infinite canvas** where you can freely arrange nodes, zoom in and out, and move through large networks without running out of space.
 
-![Workflow Overview](/img/workflow-overview.png)
+![A network that reads data, adds rows, draws layers and shows them on the deck, from left to right](/img/workflow-overview.png)
 
 ## The Basic Workflow Structure
 
