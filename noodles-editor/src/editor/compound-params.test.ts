@@ -5,6 +5,7 @@ import {
   colorValue,
   compoundsFor,
   compoundsOf,
+  emptyUses,
   rampExpression,
 } from './compound-params'
 
@@ -136,5 +137,17 @@ describe('addressable', () => {
     expect(addressable('total_cost')).toBe(true)
     expect(addressable('total-cost')).toBe(false)
     expect(addressable('2021 sales')).toBe(false)
+  })
+})
+
+describe('emptyUses', () => {
+  it('reads what an empty channel uses from its help, fast on any text', () => {
+    expect(emptyUses('Per-row color. Empty uses Fill color.')).toBe('Fill color')
+    expect(emptyUses('Empty uses the constant Border color.')).toBe('the constant Border color')
+    expect(emptyUses('No default here')).toBeUndefined()
+    expect(emptyUses()).toBeUndefined()
+    const start = performance.now()
+    expect(emptyUses(`Empty uses ${'Empty uses -'.repeat(50_000)}`)).toBeUndefined()
+    expect(performance.now() - start).toBeLessThan(100)
   })
 })

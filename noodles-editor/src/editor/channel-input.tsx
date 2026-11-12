@@ -6,6 +6,7 @@
 import type { ParamDef } from '@noodles.gl/planner'
 import cx from 'classnames'
 import { useEffect, useId, useState } from 'react'
+import { emptyUses } from './compound-params'
 import s from './doc-editor.module.css'
 
 export type ChannelKind = 'default' | 'attribute' | 'expression'
@@ -23,8 +24,8 @@ export const isChannel = (def: ParamDef) => def.kind === 'expr' && def.of !== un
 
 // What an empty channel uses, from its help ("Empty uses Fill color.")
 export function channelDefault(def: ParamDef): string {
-  const m = /Empty uses ([^.]+)\./.exec(def.help ?? '')
-  return m ? `default · ${m[1]}` : 'default'
+  const uses = emptyUses(def.help)
+  return uses ? `default · ${uses}` : 'default'
 }
 
 const BADGE: Record<ChannelKind, string> = { default: '', attribute: '▦', expression: 'ƒ' }

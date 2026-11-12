@@ -37,6 +37,16 @@ export interface Compounds {
   absorbed: Set<string>
 }
 
+// What a help text says an empty channel uses: "Empty uses Fill color." is `Fill color`. Read
+// by index rather than a regular expression, which help text could make backtrack.
+export function emptyUses(help = ''): string | undefined {
+  const at = help.indexOf('Empty uses ')
+  if (at < 0) return undefined
+  const rest = help.slice(at + 'Empty uses '.length)
+  const end = rest.indexOf('.')
+  return end > 0 ? rest.slice(0, end) : undefined
+}
+
 const isChannel = (p: ParamDef) => p.kind === 'expr' && p.of !== undefined
 
 export function compoundsOf(op: Pick<OpDef, 'params'>): Compounds {
@@ -60,7 +70,9 @@ export function compoundsOf(op: Pick<OpDef, 'params'>): Compounds {
     if (!isChannel(p) || !/color(Channel)?$/i.test(p.name)) continue
     // The help names what an empty channel uses ("Empty uses the constant Outline color."), in
     // any folder; without one, the layer's first Style color nobody else claimed
-    const named = /Empty uses (?:the constant )?([^.]+)\./.exec(p.help ?? '')?.[1]?.toLowerCase()
+    const named = emptyUses(p.help)
+      ?.replace(/^the constant /, '')
+      .toLowerCase()
     const solid =
       solids.find(c => named && c.label.toLowerCase() === named && !taken.has(c.name)) ??
       (named ? undefined : solids.find(c => c.folder === 'Style' && !taken.has(c.name)))
