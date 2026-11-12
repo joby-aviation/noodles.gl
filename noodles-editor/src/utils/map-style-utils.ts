@@ -1,3 +1,5 @@
+import { scaleNumbers } from './map-style-props'
+
 export type LayerCategory =
   | 'background'
   | 'land'
@@ -112,11 +114,10 @@ export function applyStyleOverrides(
       layers: result.layers.map(layer => {
         if (layer.type !== 'symbol') return layer
         const textSize = layer.layout?.['text-size']
-        if (typeof textSize !== 'number') return layer
-        return {
-          ...layer,
-          layout: { ...layer.layout, 'text-size': textSize * scale },
-        }
+        // A number, or a zoom ramp's stops; a data expression keeps its sizes
+        const scaled = scaleNumbers(textSize, scale)
+        if (scaled === textSize) return layer
+        return { ...layer, layout: { ...layer.layout, 'text-size': scaled } }
       }),
     }
   }
@@ -128,11 +129,9 @@ export function applyStyleOverrides(
       layers: result.layers.map(layer => {
         if (layer.type !== 'line') return layer
         const lineWidth = layer.paint?.['line-width']
-        if (typeof lineWidth !== 'number') return layer
-        return {
-          ...layer,
-          paint: { ...layer.paint, 'line-width': lineWidth * scale },
-        }
+        const scaled = scaleNumbers(lineWidth, scale)
+        if (scaled === lineWidth) return layer
+        return { ...layer, paint: { ...layer.paint, 'line-width': scaled } }
       }),
     }
   }

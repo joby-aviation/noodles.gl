@@ -20,26 +20,33 @@ import {
 
 function makeRegistry(): Registry {
   return {
-    projectVersion: 19,
+    documentVersion: 1,
+    convertsFrom: 19,
+    categories: ['data', 'number'],
     operators: {
-      NumberOp: {
+      number: {
         name: 'Number',
-        type: 'NumberOp',
+        type: 'number',
+        category: 'number',
         description: 'A number',
-        inputs: { val: { type: 'NumberField', default: 0 } },
-        outputs: { val: { type: 'NumberField' } },
+        inputs: {},
+        outputs: { out: { type: 'number' } },
+        params: { value: { kind: 'float', default: 0 } },
       },
-      FileOp: {
+      file: {
         name: 'File',
-        type: 'FileOp',
+        type: 'file',
+        category: 'data',
         description: 'Fetch a file',
-        inputs: {
-          format: { type: 'StringLiteralField', default: 'json' },
-          url: { type: 'FileUrlField', default: '' },
+        inputs: {},
+        outputs: { out: { type: 'table' } },
+        params: {
+          format: { kind: 'menu', default: 'csv', options: ['csv', 'json'] },
+          url: { kind: 'url', default: '' },
         },
-        outputs: { data: { type: 'DataField' } },
       },
     },
+    formerly: { NumberOp: ['number'] },
   }
 }
 
@@ -50,7 +57,7 @@ Hand-written text that has to survive regeneration, including a | pipe and {brac
 ## Examples
 
 \`\`\`json
-{ "id": "/number", "type": "NumberOp", "position": { "x": 0, "y": 0 }, "data": { "inputs": { "val": 2 } } }
+{ "id": "n1", "op": "number", "name": "number", "x": 0, "y": 0, "params": { "value": 2 } }
 \`\`\`
 `
 
@@ -62,8 +69,6 @@ describe('generate-operator-docs', () => {
     dir = fs.mkdtempSync(path.join(os.tmpdir(), 'op-docs-'))
     options = {
       registry: makeRegistry(),
-      categories: { data: ['File'], number: ['Number'] },
-      migrations: [{ version: 7, name: '007-rename-number', types: ['NumberOp'] }],
       pagesDir: path.join(dir, 'operators'),
       indexFile: path.join(dir, 'operators.md'),
     }
@@ -83,8 +88,10 @@ describe('generate-operator-docs', () => {
     expect(fs.readdirSync(options.pagesDir).sort()).toEqual(['file.md', 'number.md'])
     const number = read(page('number'))
     expect(number.startsWith('# Number\n')).toBe(true)
-    expect(number).toContain('| `val` | `NumberField` | `0` |')
-    expect(number).toContain('[`007-rename-number`]')
+    expect(number).toContain('| `value` | `float` | `0` |  |')
+    // The operator class older projects used, which converts to it
+    expect(number).toContain('These convert to `number` when they open: `NumberOp`.')
+    expect(read(page('file'))).toContain('| `format` | `menu` | `"csv"` | `csv`, `json` |')
     expect(read(page('file'))).toContain('[Data](../operators.md#data)')
     const index = read(options.indexFile)
     expect(index).toContain('## Data\n\n- [File](./operators/file.md): Fetch a file.')
@@ -106,14 +113,14 @@ describe('generate-operator-docs', () => {
     const original = read(page('number'))
     const edited = original
       .replace(/<!-- Add hand-written[^\n]*\n/, REMARKS)
-      .replace('| `val` | `NumberField` | `0` |', '| `val` | `NumberField` | `42` |')
+      .replace('| `value` | `float` | `0` |  |', '| `value` | `float` | `42` |  |')
     fs.writeFileSync(page('number'), edited)
 
     generateDocs(options)
 
     const regenerated = read(page('number'))
     expect(regenerated).toContain(REMARKS)
-    expect(regenerated).toContain('| `val` | `NumberField` | `0` |')
+    expect(regenerated).toContain('| `value` | `float` | `0` |  |')
     expect(regenerated).not.toContain('`42`')
     expect(read(options.indexFile)).toContain('1 of 2 have written Remarks')
   })
@@ -124,14 +131,14 @@ describe('generate-operator-docs', () => {
       page('number'),
       read(page('number')).replace(/<!-- Add hand-written[^\n]*\n/, REMARKS)
     )
-    options.registry.operators.NumberOp.inputs.val.default = 5
-    options.registry.operators.NumberOp.name = 'Constant'
+    options.registry.operators.number.params.value.default = 5
+    options.registry.operators.number.name = 'Constant'
 
     generateDocs(options)
 
     const regenerated = read(page('number'))
     expect(regenerated.startsWith('# Constant\n')).toBe(true)
-    expect(regenerated).toContain('| `val` | `NumberField` | `5` |')
+    expect(regenerated).toContain('| `value` | `float` | `5` |  |')
     expect(regenerated).toContain(REMARKS)
   })
 
@@ -139,7 +146,7 @@ describe('generate-operator-docs', () => {
     it('reports drift without writing', () => {
       generateDocs(options)
       const before = read(page('number'))
-      options.registry.operators.NumberOp.inputs.val.default = 5
+      options.registry.operators.number.params.value.default = 5
 
       const result = generateDocs(options, { check: true })
 
@@ -149,23 +156,24 @@ describe('generate-operator-docs', () => {
 
     it('reports a new operator with no page', () => {
       generateDocs(options)
-      options.registry.operators.StringOp = {
-        name: 'String',
-        type: 'StringOp',
+      options.registry.operators.text = {
+        name: 'Text',
+        type: 'text',
         inputs: {},
-        outputs: { val: { type: 'StringField' } },
+        outputs: { out: { type: 'value' } },
+        params: {},
       }
 
       const result = generateDocs(options, { check: true })
 
-      expect(result.changed).toContain(page('string'))
+      expect(result.changed).toContain(page('text'))
       expect(result.changed).toContain(options.indexFile)
-      expect(fs.existsSync(page('string'))).toBe(false)
+      expect(fs.existsSync(page('text'))).toBe(false)
     })
 
     it('reports pages for operators that no longer exist', () => {
       generateDocs(options)
-      delete options.registry.operators.FileOp
+      delete options.registry.operators.file
 
       const result = generateDocs(options, { check: true })
 
@@ -174,7 +182,7 @@ describe('generate-operator-docs', () => {
 
     it('reports an example that does not validate', () => {
       generateDocs(options)
-      const bad = REMARKS.replace('"type": "NumberOp"', '"type": "Number"')
+      const bad = REMARKS.replace('"op": "number"', '"op": "Numbr"')
       fs.writeFileSync(
         page('number'),
         read(page('number')).replace(/<!-- Add hand-written[^\n]*\n/, bad)
@@ -183,9 +191,7 @@ describe('generate-operator-docs', () => {
       const result = generateDocs(options, { check: true })
 
       expect(result.errors).toHaveLength(1)
-      expect(result.errors[0]).toMatch(
-        /number\.md: example nodes\[0\].*Unknown operator type Number/
-      )
+      expect(result.errors[0]).toMatch(/number\.md: example nodes\[0\].*Unknown operator Numbr/)
     })
 
     it('reports broken markers instead of guessing', () => {
@@ -195,7 +201,7 @@ describe('generate-operator-docs', () => {
       const result = generateDocs(options, { check: true })
 
       expect(result.errors).toEqual([
-        expect.stringMatching(/gen:begin outputs inside gen:begin inputs/),
+        expect.stringMatching(/gen:begin params inside gen:begin inputs/),
       ])
     })
   })
@@ -235,7 +241,8 @@ describe('generate-operator-docs', () => {
     })
   })
 
-  it('names files after the type without Op', () => {
+  it("names a page after the operator, and a host class's after its type without Op", () => {
+    expect(toSlug('fit-bounds')).toBe('fit-bounds')
     expect(toSlug('FileOp')).toBe('file')
     expect(toSlug('ScatterplotLayerOp')).toBe('scatterplot-layer')
     expect(toSlug('H3HexagonLayerOp')).toBe('h3-hexagon-layer')
@@ -256,10 +263,10 @@ describe('generate-operator-docs', () => {
   })
 
   it('shows defaults JSON lost as their JS text', () => {
-    expect(renderDefault({ type: 'NumberField', defaultText: 'Infinity' })).toBe('`Infinity`')
+    expect(renderDefault({ kind: 'float', defaultText: 'Infinity' })).toBe('`Infinity`')
     expect(
       renderDefault({
-        type: 'UnknownField',
+        kind: 'field',
         defaultText: '[-Infinity,-Infinity,Infinity,Infinity]',
       })
     ).toBe('`[-Infinity,-Infinity,Infinity,Infinity]`')
@@ -271,10 +278,10 @@ describe('generate-operator-docs', () => {
   })
 
   it('escapes table cells and MDX-sensitive prose', () => {
-    expect(renderDefault({ type: 'StringField', default: 'a|b' })).toBe('`"a\\|b"`')
-    expect(renderDefault({ type: 'StringField', default: 'a`b' })).toBe('`` "a`b" ``')
-    expect(renderDefault({ type: 'FunctionField' })).toBe('')
-    expect(renderDefault({ type: 'UnknownField', default: { long: 'x'.repeat(200) } })).toMatch(
+    expect(renderDefault({ kind: 'string', default: 'a|b' })).toBe('`"a\\|b"`')
+    expect(renderDefault({ kind: 'string', default: 'a`b' })).toBe('`` "a`b" ``')
+    expect(renderDefault({ kind: 'field' })).toBe('')
+    expect(renderDefault({ kind: 'field', default: { long: 'x'.repeat(200) } })).toMatch(
       /^`\{"long":"x+\.\.\.`$/
     )
     expect(escapeProse('Use {a} or <b>, but `{code}` stays')).toBe(
@@ -290,9 +297,9 @@ describe('generate-operator-docs', () => {
     )
   })
 
-  it('validates project, fragment and node examples, filling in the version', () => {
+  it('validates document, fragment and node examples, filling in the version', () => {
     const registry = makeRegistry()
-    const node = '{ "id": "/n", "type": "NumberOp", "position": { "x": 0, "y": 0 }, "data": {} }'
+    const node = '{ "id": "n", "op": "number", "name": "count", "x": 0, "y": 0, "params": {} }'
     const fence = (json: string) => `\`\`\`json\n${json}\n\`\`\`\n`
 
     expect(checkExamples(fence(node), registry)).toEqual([])
@@ -301,17 +308,26 @@ describe('generate-operator-docs', () => {
     expect(checkExamples(fence('{ "nodes": [] '), registry)).toEqual([
       expect.stringMatching(/not valid JSON/),
     ])
-    const badEdge = `{ "nodes": [${node}], "edges": [{ "id": "e", "source": "/n", "sourceHandle": "out.nope", "target": "/n", "targetHandle": "par.val" }] }`
+    const badEdge = `{ "nodes": [${node}], "edges": [{ "id": "e", "source": "n", "sourcePort": "nope", "target": "n", "targetPort": "par:value" }] }`
     expect(checkExamples(fence(badEdge), registry)).toEqual([
-      expect.stringMatching(/\[edge-handle\]/),
+      expect.stringMatching(/\[edge-port\]/),
     ])
   })
 
-  it('attributes migrations to the operators their source names', () => {
-    const { migrations } = defaultOptions()
-    const bounds = migrations.filter(m => m.types.includes('BoundsOp')).map(m => m.name)
-
-    expect(bounds).toEqual(['017-rename-bounds-fields', '019-rename-bounds-literal-inputs'])
+  it('gives a host class its own page beside the planner operator of its name', () => {
+    const registry = makeRegistry()
+    registry.operators.CodeOp = {
+      name: 'Code (page)',
+      type: 'CodeOp',
+      category: 'host',
+      inputs: {},
+      outputs: {},
+      params: {},
+    }
+    registry.operators.code = { ...registry.operators.CodeOp, type: 'code', category: 'data' }
+    generateDocs({ ...options, registry })
+    expect(fs.existsSync(page('code'))).toBe(true)
+    expect(read(page('code-host'))).toContain('on the page, not in the engine')
   })
 
   // CI runs this through npm test, the same way the registry snapshot test catches a

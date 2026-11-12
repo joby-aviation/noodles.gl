@@ -1,10 +1,9 @@
-// Maps a feature picked on the map back to the operator that drew it, for click-to-edit.
+// Maps a feature picked on the map back to the node that drew it, for click-to-edit.
 //
-// Layer operators set the deck.gl layer `id` to their own path (`/scatter`, or
-// `/group/scatter` inside a container). Composite layers (GeoJsonLayer, TripsLayer, ...)
-// draw through sublayers whose ids add a suffix (`/scatter-points-circle`), and deck
-// reports both the top-level layer (`info.layer`) and the one that drew the pixel
-// (`info.sourceLayer`), each with a `parent` chain.
+// The engine ids a node's deck layer `<node>:<kind>` (`<node>` for a layer deck loads itself).
+// Composite layers (TextLayer, TripsLayer, ...) draw through sublayers whose ids add a suffix
+// (`<node>:text-characters`), and deck reports both the top-level layer (`info.layer`) and the
+// one that drew the pixel (`info.sourceLayer`), each with a `parent` chain.
 
 export type PickedLayer = { id: string; parent?: PickedLayer | null }
 
@@ -33,11 +32,10 @@ function layerChain(info: PickedInfo): string[] {
   return ids.reverse()
 }
 
-// Returns the id of the layer operator whose layer drew the picked feature, or null when
-// the pick is empty or no layer operator has that exact id (a code-built layer with its
-// own id, an id replaced through LayerProps, the editor's selection overlay). Ids are never
-// guessed from prefixes: a layer named `/custom-copy` is not `/custom`'s. `isLayerOperator`
-// must reject non-layer operators, so a data node that shares an id is never selected.
+// Returns the id of the outermost picked layer `isLayerOperator` accepts, or null when the
+// pick is empty or it accepts none (a code-built layer with its own id, an id replaced
+// through Layer Props). `isLayerOperator` must reject ids no layer node drew, so a data node
+// that shares an id is never selected.
 export function findPickedOperatorId(
   info: PickedInfo | null | undefined,
   isLayerOperator: LayerOperatorLookup
@@ -65,22 +63,4 @@ export function isClickNotDrag(
 ): boolean {
   if (!down || !up) return true
   return Math.hypot(up.x - down.x, up.y - down.y) <= tolerance
-}
-
-type Size = { width: number; height: number }
-
-// Puts a label below and right of the pointer, flipping to the other side of an axis
-// where it would run past the edge of the map
-export function placeLabel(
-  pointer: ScreenPoint,
-  label: Size,
-  bounds: Size,
-  offset: number
-): ScreenPoint {
-  const axis = (at: number, size: number, limit: number) =>
-    at + offset + size <= limit ? at + offset : Math.max(0, at - offset - size)
-  return {
-    x: axis(pointer.x, label.width, bounds.width),
-    y: axis(pointer.y, label.height, bounds.height),
-  }
 }

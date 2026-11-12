@@ -3,21 +3,50 @@
 
 import { readdirSync, statSync } from 'node:fs'
 import { join } from 'node:path'
-import { getOperator } from './fields.ts'
 import type { Diagnostic, Registry } from './types.ts'
 
 // projectScheme in noodles-editor/src/noodles/utils/filesystem.ts
 const PROJECT_SCHEME = '@/'
 // DATA_DIRECTORY_NAME in noodles-editor/src/noodles/storage.ts
 const DATA_DIRECTORY = 'data'
-// The inputs that take a file: a FileUrlField's upload button writes @/<name>,
-// and a MapStyleField takes an @/ icon mapping. In any other input, such as a
-// text or code field, an @/ string is just text
-const FILE_FIELD_TYPES = new Set(['FileUrlField', 'MapStyleField'])
+// The parameters that take a file are the registry's `url` kind: a file node's URL, a map
+// style, an image, an icon atlas, a mesh. In any other parameter, such as text or code, an
+// @/ string is just text.
+const FILE_KIND = 'url'
+
+// The parameters of `op` that take a file
+function fileParams(registry: Registry, op: string): Set<string> {
+  const params = registry.operators[op]?.params ?? {}
+  return new Set(
+    Object.entries(params).flatMap(([name, p]) => (p.kind === FILE_KIND ? [name] : []))
+  )
+}
+
+// A node's id and the values that may name a file: a document's params, or an operator-graph
+// node's inputs, whose class names the operators it converts to (`formerly`)
+function fileValues(
+  node: Record<string, unknown>,
+  registry: Registry
+): { id: string; values: [string, unknown][] } | null {
+  if (typeof node.id !== 'string') return null
+  if (typeof node.op === 'string') {
+    const names = fileParams(registry, node.op)
+    const params = isObject(node.params) ? node.params : {}
+    return { id: node.id, values: Object.entries(params).filter(([name]) => names.has(name)) }
+  }
+  if (typeof node.type === 'string') {
+    const names = new Set(
+      (registry.formerly?.[node.type] ?? []).flatMap(op => [...fileParams(registry, op)])
+    )
+    const inputs = isObject(node.data) && isObject(node.data.inputs) ? node.data.inputs : {}
+    return { id: node.id, values: Object.entries(inputs).filter(([name]) => names.has(name)) }
+  }
+  return null
+}
 
 // As readAsset and readAssetBinary in storage.ts read a saved project's files:
 // @/x.csv and @/data/x.csv are both <project>/data/x.csv, and a nested name is
-// split on "/" with empty segments dropped. Only a file input whose whole value
+// split on "/" with empty segments dropped. Only a file parameter whose whole value
 // is an @/ string names a file.
 export function checkAssets(
   project: unknown,
@@ -29,13 +58,10 @@ export function checkAssets(
   const listings = new Map<string, string[] | null>()
 
   project.nodes.forEach((node, index) => {
-    if (!isObject(node) || typeof node.id !== 'string' || typeof node.type !== 'string') return
-    const fields = getOperator(registry, node.type)?.inputs ?? {}
-    const inputs = isObject(node.data) && isObject(node.data.inputs) ? node.data.inputs : {}
-    for (const [name, value] of Object.entries(inputs)) {
+    const found = isObject(node) ? fileValues(node, registry) : null
+    if (!found) return
+    for (const [name, value] of found.values) {
       if (typeof value !== 'string' || !value.startsWith(PROJECT_SCHEME)) continue
-      const field = Object.hasOwn(fields, name) ? fields[name] : undefined
-      if (!field || !FILE_FIELD_TYPES.has(field.type)) continue
       const problem = assetProblem(value, projectDir, listings)
       if (!problem) continue
       // Bundled examples read @/ files from the example's own folder; a project
@@ -48,8 +74,8 @@ export function checkAssets(
         severity: 'error',
         rule: 'missing-asset',
         at: `nodes[${index}]`,
-        id: node.id,
-        message: `${node.id} ${name} is ${value}, but ${problem} ${fix}`,
+        id: found.id,
+        message: `${found.id} ${name} is ${value}, but ${problem} ${fix}`,
       })
     }
   })

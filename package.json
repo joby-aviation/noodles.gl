@@ -6,7 +6,8 @@
 		"website",
 		"noodles-editor",
 		"noodles-validate",
-		"noodles-mcp"
+		"noodles-mcp",
+		"packages/planner"
 	],
 	"scripts": {
 		"postinstall": "node scripts/patch-vitest-browser-playwright.cjs",

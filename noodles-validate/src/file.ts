@@ -38,9 +38,9 @@ export function validateFile(
   // Examples load their files from the example's own folder, not data/, so
   // this is for external projects only
   const errors = [...result.errors, ...checkAssets(project, dirname(file), registry)]
-  // An external file behind the schema gets a version warning, and only the
-  // checks that don't depend on the schema
-  const partial = result.warnings.some(d => d.rule === 'version')
+  // An external operator-graph file gets a warning, and only the checks that don't depend on
+  // the document format
+  const partial = result.warnings.some(d => d.rule === 'operator-graph')
   return {
     valid: errors.length === 0,
     errors,

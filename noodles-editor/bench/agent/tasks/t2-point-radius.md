@@ -1,6 +1,6 @@
 ---
 id: t2-point-radius
-taskVersion: 1
+taskVersion: 3
 family: single-edit
 tier: T2
 tags: [geojson, sizing]
@@ -10,10 +10,21 @@ budget:
   maxWallClockSeconds: 240
 grader:
   checks:
-    - { type: inputEquals, node: /geojson-layer, input: getPointRadius, value: 10 }
+    # The GeoJSON layer converts to fill, line, point and label layers; points are a scatter,
+    # whose drawn radius is the radius channel (empty is 1) times Radius scale
+    - type: anyOf
+      checks:
+        - type: allOf
+          checks:
+            - { type: paramMatches, node: /geojson-layer-points, param: radius, pattern: '^\s*$' }
+            - { type: paramEquals, node: /geojson-layer-points, param: radiusScale, value: 10 }
+        - type: allOf
+          checks:
+            - { type: paramMatches, node: /geojson-layer-points, param: radius, pattern: '^\s*10(\.0*)?\s*$' }
+            - { type: paramEquals, node: /geojson-layer-points, param: radiusScale, value: 1 }
     - type: applySucceeded
     - type: edgesValid
-    - type: noNewOperatorErrors
+    - type: noNewErrors
 ---
 
 Set the point radius of the GeoJSON layer to 10.

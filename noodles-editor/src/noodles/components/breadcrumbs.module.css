@@ -45,27 +45,3 @@
   line-height: 0;
   cursor: help;
 }
-
-.menu {
-  background-color: var(--color-bg-base);
-  border: 1px solid var(--color-border);
-  border-radius: 6px;
-  padding: 4px;
-  box-shadow:
-    0 10px 38px -10px rgba(0, 0, 0, 0.35),
-    0 10px 20px -15px rgba(0, 0, 0, 0.2);
-}
-
-.menuItem {
-  padding: 8px 12px;
-  border-radius: 3px;
-  cursor: pointer;
-  background-color: transparent;
-  color: var(--color-text-primary);
-  font-size: 13px;
-  transition: background-color 0.15s;
-}
-
-.menuItem:hover {
-  background-color: var(--color-bg-hover);
-}

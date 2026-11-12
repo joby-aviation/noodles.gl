@@ -140,7 +140,8 @@ interface KeysActions {
   reportKeyRejected: (key: KeyType, value: string) => void
   copyKeyOverridesTo: (projectId: string) => void
   moveKeyOverridesTo: (projectId: string) => void
-  markProjectKeysSaved: () => void
+  /** `keys`: the project keys the save wrote, when they may have changed since. */
+  markProjectKeysSaved: (keys?: KeysConfig) => void
   setProviderPreference: (preference: ProviderPreference) => void
   setCustomEndpoint: (config: CustomEndpointConfig | undefined) => void
   setAcpBridgeUrl: (url: string | undefined) => void
@@ -287,8 +288,8 @@ export const useKeysStore = create<KeysStore>()(
         set({ keyOverrides: others })
       },
 
-      markProjectKeysSaved: () => {
-        set({ savedProjectKeys: get().projectKeys })
+      markProjectKeysSaved: (keys = get().projectKeys) => {
+        set({ savedProjectKeys: keys })
       },
 
       // Computed getters (priority: project > browser > env, unless the user overrode the

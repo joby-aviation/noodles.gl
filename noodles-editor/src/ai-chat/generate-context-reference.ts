@@ -1,19 +1,20 @@
 // Generate compact context reference for system prompt
 
+import { OPERATORS } from '@noodles.gl/planner'
 import { getCodeIndex } from './runtime-code-index'
 import { getDocsIndex } from './runtime-docs-loader'
 import { listExamples } from './runtime-examples-loader'
-import { getOperatorRegistry } from './runtime-operator-registry'
 
-// Generate a compact operator reference (categories + names only, no schemas)
+// The document's operators by category, names only: get_operator_schema has the rest. Host
+// operators run Noodles' own classes and are only made by converting older projects.
 function generateOperatorReference(): string {
-  const registry = getOperatorRegistry()
   const lines = ['## Available Operators\n']
-
-  // Sort categories alphabetically for consistency
-  const sortedCategories = Object.entries(registry.categories).sort(([a], [b]) =>
-    a.localeCompare(b)
-  )
+  const byCategory = new Map<string, string[]>()
+  for (const op of OPERATORS) {
+    if (op.category === 'host') continue
+    byCategory.set(op.category, [...(byCategory.get(op.category) ?? []), op.type])
+  }
+  const sortedCategories = [...byCategory].sort(([a], [b]) => a.localeCompare(b))
 
   for (const [category, operators] of sortedCategories) {
     if (operators.length === 0) continue

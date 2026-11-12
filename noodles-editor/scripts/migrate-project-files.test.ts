@@ -215,3 +215,24 @@ describe('runMigrateCli', () => {
     expect(failed.stdout).toContain('1 file(s) updated, 0 already up to date, 1 failed')
   })
 })
+
+describe('documents', () => {
+  it('leaves a document alone, as the format the editor saves now', async () => {
+    const document = {
+      version: 1,
+      name: 'quakes',
+      nodes: [{ id: 'n1', op: 'file', name: 'quakes', x: 0, y: 0, params: {} }],
+      edges: [],
+    }
+    const root = writeFiles({ 'quakes/noodles.json': document, 'old/noodles.json': project(0) })
+    const results = await migrateProjectFiles([root])
+    expect(results.map(r => [r.file.split('/').at(-2), r.status])).toEqual([
+      ['old', 'migrated'],
+      ['quakes', 'document'],
+    ])
+    expect(read(join(root, 'quakes/noodles.json'))).toEqual(document)
+    const { stdout } = await cli(['--check', join(root, 'quakes')], root)
+    expect(stdout).toContain('(a document)')
+    expect(stdout).toContain('0 file(s) would change, 1 up to date')
+  })
+})

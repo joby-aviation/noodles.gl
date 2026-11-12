@@ -10,39 +10,40 @@ Display a bitmap image as a screen-space overlay.
 
 <!-- gen:begin syntax -->
 ```json
-{
-  "id": "/bitmap-overlay-widget",
-  "type": "BitmapOverlayWidgetOp",
-  "position": { "x": 0, "y": 0 },
-  "data": { "inputs": {} }
-}
+{ "id": "n1", "op": "bitmap-overlay-widget", "name": "bitmap-overlay-widget", "x": 0, "y": 0, "params": {} }
 ```
 
-Expressions and code read its fields as `op('/bitmap-overlay-widget').par.image` (an input) and `op('/bitmap-overlay-widget').out.widget` (an output). Edges name the same fields as handles: `par.image`, `out.widget`.
+One out of it starts at `"sourcePort": "widget"`; a parameter is set in `params` (leave out the ones at their default), driven by an edge to `par:width`, or read elsewhere as `ch('bitmap-overlay-widget/width')`.
 <!-- gen:end syntax -->
 
 ## Inputs
 
 <!-- gen:begin inputs -->
-| Name | Type | Default |
-|------|------|---------|
-| `image` | `FileUrlField` | `""` |
-| `placement` | `StringLiteralField` | `"top-right"` |
-| `width` | `NumberField` | `200` |
-| `height` | `NumberField` | `200` |
-| `opacity` | `NumberField` | `1` |
-| `scale` | `NumberField` | `1` |
-| `offsetX` | `NumberField` | `0` |
-| `offsetY` | `NumberField` | `0` |
-| `viewId` | `StringField` | `""` |
+This operator has no input ports.
 <!-- gen:end inputs -->
+
+## Parameters
+
+<!-- gen:begin params -->
+| Parameter | Kind | Default | Choices |
+|-----------|------|---------|---------|
+| `image` | `url` | `""` |  |
+| `placement` | `menu` | `"top-right"` | `top-left`, `top-right`, `bottom-left`, `bottom-right`, `fill` |
+| `width` | `float` | `200` |  |
+| `height` | `float` | `200` |  |
+| `opacity` | `float` | `1` |  |
+| `scale` | `float` | `1` |  |
+| `offsetX` | `float` | `0` |  |
+| `offsetY` | `float` | `0` |  |
+| `viewId` | `string` | `""` |  |
+<!-- gen:end params -->
 
 ## Outputs
 
 <!-- gen:begin outputs -->
-| Name | Type |
+| Port | Type |
 |------|------|
-| `widget` | `WidgetField` |
+| `widget` | `value` |
 <!-- gen:end outputs -->
 
 <!-- Add hand-written "## Remarks" and "## Examples" sections here. See the operator reference index for what goes in them. -->
@@ -50,9 +51,12 @@ Expressions and code read its fields as `op('/bitmap-overlay-widget').par.image`
 ## Details
 
 <!-- gen:begin details -->
-- **Category:** [Widget](../operators.md#widget)
-- **Type name:** `BitmapOverlayWidgetOp`
+- **Category:** [Output](../operators.md#output)
+- **Operator:** `bitmap-overlay-widget`
 <!-- gen:end details -->
 
 <!-- gen:begin history -->
+## Older projects
+
+Projects saved before documents used operator classes. These convert to `bitmap-overlay-widget` when they open: `BitmapOverlayWidgetOp`.
 <!-- gen:end history -->

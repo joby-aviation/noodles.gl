@@ -6,6 +6,10 @@
 //
 // Flags (all optional except --provider):
 //   --provider   webllm | chrome | anthropic | openrouter
+//   --via        bedrock: run the anthropic provider on Bedrock, with AWS credentials from the
+//                default chain and AWS_REGION. Models are API names (claude-sonnet-5, sent as
+//                us.anthropic.claude-sonnet-5; BENCH_BEDROCK_PREFIX changes the prefix) or
+//                Bedrock ids. Time to first token reads as time to the whole reply.
 //   --model      one or more model ids, comma-separated
 //   --knobs      ablation settings, e.g. ctx=16384. Repeat the flag for a matrix.
 //   --tasks      tiers (T1) and/or task ids, comma-separated. Default: all.
@@ -39,6 +43,7 @@ import type {
   BenchResult,
   BenchTask,
 } from '../../src/ai-chat/bench/bench-hook'
+import { bedrockClient, routeAnthropicToBedrock } from './bedrock-proxy'
 import { grade } from './grade'
 import { configKey, type Environment, type RunRow, renderMarkdown, type Summary } from './summary'
 import { parseTask, type Task } from './tasks'
@@ -61,6 +66,7 @@ const { values: args } = parseArgs({
     browser: { type: 'string', default: 'chrome' },
     headless: { type: 'boolean', default: false },
     judge: { type: 'boolean', default: false },
+    via: { type: 'string' },
   },
 })
 
@@ -271,10 +277,11 @@ function crashed(
     knobs,
     setupApply: null,
     turns: [],
-    finalProject: null,
-    finalOps: {},
-    initialOperatorErrors: [],
-    operatorErrors: [],
+    initialDoc: null,
+    finalDoc: null,
+    finalParams: {},
+    initialErrors: [],
+    errors: [],
     registry: {},
     loadMs: 0,
     error,
@@ -357,6 +364,9 @@ function prefillNote(providerLog: string[]): string {
 async function main() {
   const providerId = args.provider as ProviderId | undefined
   if (!providerId) fail('--provider is required')
+  if (args.via && (args.via !== 'bedrock' || providerId !== 'anthropic')) {
+    fail('--via bedrock is the only route, and only for --provider anthropic')
+  }
 
   const tasks = loadTasks(args.tasks)
   const models = args.model ? args.model.split(',') : [undefined]
@@ -375,6 +385,13 @@ async function main() {
 
   try {
     context = await launch(args.browser ?? 'chrome', args.headless ?? false)
+    if (args.via === 'bedrock') {
+      await routeAnthropicToBedrock(
+        context,
+        await bedrockClient(),
+        process.env.BENCH_BEDROCK_PREFIX
+      )
+    }
     const page = context.pages()[0] ?? (await context.newPage())
     await openTask(page, url, tasks[0])
     const summary: Summary = {
@@ -390,7 +407,9 @@ async function main() {
     for (const model of models) {
       for (const knobSpec of knobSets) {
         const knobs = parseKnobs(knobSpec)
-        const config: BenchProviderConfig = { providerId, model, apiKey: apiKeyFor(providerId) }
+        // Through Bedrock the page's key is never checked, but the provider wants one to send
+        const apiKey = args.via === 'bedrock' ? 'bedrock' : apiKeyFor(providerId)
+        const config: BenchProviderConfig = { providerId, model, apiKey }
         for (const task of tasks) {
           for (let repeat = 0; repeat < repeats; repeat++) {
             const { result, consoleErrors, providerLog } = await runOne(

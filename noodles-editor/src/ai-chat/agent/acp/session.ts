@@ -521,7 +521,7 @@ export class AcpSession implements ChatSession {
         if (name === FIND_TOOLS_NAME) {
           result = this.router.findTools(input)
         } else if (definition) {
-          result = await definition.execute(this.tools, input, () => this.tools.getProject())
+          result = await definition.execute(this.tools, input)
         } else {
           result = { success: false, error: `Unknown tool: ${name}` }
         }

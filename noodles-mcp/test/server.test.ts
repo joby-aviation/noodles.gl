@@ -62,7 +62,7 @@ describe('noodles-mcp', () => {
     it('lists every operator', async () => {
       const operators = await data('list_operators')
       assert.ok(operators.length > 100)
-      assert.ok(operators.some((op: { type: string }) => op.type === 'ScatterplotLayerOp'))
+      assert.ok(operators.some((op: { type: string }) => op.type === 'scatter'))
     })
 
     it('filters by category, and names the categories when one is wrong', async () => {
@@ -75,27 +75,32 @@ describe('noodles-mcp', () => {
   })
 
   describe('get_operator_schema', () => {
-    it('returns fields and the handles to wire them', async () => {
-      const schema = await data('get_operator_schema', { type: 'ScatterplotLayerOp' })
-      assert.equal(schema.inputs.getRadius.type, 'NumberField')
-      assert.ok(schema.handles.inputs.includes('par.getPosition'))
-      assert.deepEqual(schema.handles.outputs, ['out.layer'])
+    it('returns ports, parameters and the port names to wire them', async () => {
+      const schema = await data('get_operator_schema', { type: 'scatter' })
+      assert.equal(schema.inputs.in.type, 'table')
+      assert.equal(schema.params.radiusScale.kind, 'float')
+      assert.ok(schema.ports.inputs.includes('in'))
+      assert.ok(schema.ports.inputs.includes('par:radiusScale'))
+      assert.deepEqual(schema.ports.outputs, ['out'])
     })
 
     it('accepts a display name', async () => {
-      assert.equal((await data('get_operator_schema', { type: 'File' })).type, 'FileOp')
+      assert.equal(
+        (await data('get_operator_schema', { type: 'Scatterplot Layer' })).type,
+        'scatter'
+      )
     })
 
     it('points at list_operators when no type is close', async () => {
-      const { isError, text } = await call('get_operator_schema', { type: 'QwertyOp' })
+      const { isError, text } = await call('get_operator_schema', { type: 'qwertyuiop' })
       assert.equal(isError, true)
-      assert.match(text, /list_operators shows every type\./)
+      assert.match(text, /list_operators shows every operator\./)
     })
 
     it('suggests a type for one that does not exist', async () => {
-      const { isError, text } = await call('get_operator_schema', { type: 'ScaterplotLayerOp' })
+      const { isError, text } = await call('get_operator_schema', { type: 'ScatterplotLayerOp' })
       assert.equal(isError, true)
-      assert.match(text, /Did you mean: .*ScatterplotLayerOp/)
+      assert.match(text, /In a document it is scatter\./)
     })
   })
 
@@ -156,7 +161,7 @@ describe('noodles-mcp', () => {
     it('returns a project with its README and data files', async () => {
       const example = await data('get_example', { id: 'california-earthquakes' })
       assert.ok(example.files.includes('noodles.json'))
-      assert.ok(example.layerTypes.includes('ScatterplotLayerOp'))
+      assert.ok(example.layerTypes.includes('scatter'))
       assert.equal(typeof example.project.version, 'number')
     })
 
@@ -175,7 +180,7 @@ describe('noodles-mcp', () => {
       })
       assert.equal(result.valid, true)
       assert.match(result.summary, /^OK: .*The file is done\.$/)
-      assert.equal(typeof result.registry.projectVersion, 'number')
+      assert.equal(result.registry.documentVersion, 1)
     })
 
     it('reports each error with its fix', async () => {
@@ -183,11 +188,11 @@ describe('noodles-mcp', () => {
         path: join(FIXTURES, 'broken/noodles.json'),
       })
       assert.equal(result.valid, false)
-      assert.match(result.summary, /^FAIL: 4 errors/)
-      assert.match(result.errors[0].message, /Did you mean: FileOp\?/)
+      assert.match(result.summary, /^FAIL: 3 errors/)
+      assert.match(result.errors[0].message, /Did you mean: file\?/)
     })
 
-    it('says a project behind the schema was checked only in part', async () => {
+    it('says an operator-graph project was checked only in part', async () => {
       const dir = mkdtempSync(join(tmpdir(), 'noodles-mcp '))
       const file = join(dir, 'noodles.json')
       const project = JSON.parse(readFileSync(join(FIXTURES, 'valid/noodles.json'), 'utf8'))
@@ -202,7 +207,7 @@ describe('noodles-mcp', () => {
       assert.match(missing.summary, /^FAIL: 1 error .*only its JSON, version and data files/)
 
       mkdirSync(join(dir, 'data'))
-      writeFileSync(join(dir, 'data/data.csv'), 'a\n1\n')
+      writeFileSync(join(dir, 'data/quakes.csv'), 'a\n1\n')
       const stale = await data('validate_project', { path: file })
       assert.equal(stale.valid, true)
       assert.match(stale.summary, /^PARTLY CHECKED: .*open and save it in the editor/)
@@ -231,9 +236,10 @@ describe('noodles-mcp', () => {
       const [content] = result.content as Array<{ text: string }>
       const parsed = JSON.parse(content.text)
       assert.equal(parsed.profile, 'examples')
+      // The bundled examples ship as documents
       assert.deepEqual(
         parsed.errors.map((d: { rule: string }) => d.rule),
-        ['version']
+        ['operator-graph']
       )
     })
 

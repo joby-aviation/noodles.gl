@@ -1,94 +1,20 @@
 {
-  "version": 18,
-  "name": "Fixture: valid",
+  "version": 1,
+  "name": "earthquakes",
   "nodes": [
-    {
-      "id": "/earthquakes",
-      "type": "FileOp",
-      "position": { "x": 0, "y": 0 },
-      "data": { "inputs": { "format": "csv", "url": "@/data.csv" }, "locked": false }
-    },
-    {
-      "id": "/position",
-      "type": "AccessorOp",
-      "position": { "x": 0, "y": 200 },
-      "data": { "inputs": { "expression": "[d.longitude, d.latitude]" } }
-    },
-    {
-      "id": "/quakes-layer",
-      "type": "ScatterplotLayerOp",
-      "position": { "x": 350, "y": 0 },
-      "data": { "inputs": { "getRadius": 500, "getFillColor": "#ff0000ff" } }
-    },
-    {
-      "id": "/fault-lines",
-      "type": "PathLayerOp",
-      "position": { "x": 350, "y": 300 },
-      "data": { "inputs": {} }
-    },
-    {
-      "id": "/basemap",
-      "type": "MaplibreBasemapOp",
-      "position": { "x": 350, "y": 600 },
-      "data": { "inputs": {} }
-    },
-    {
-      "id": "/deck",
-      "type": "DeckRendererOp",
-      "position": { "x": 700, "y": 0 },
-      "data": { "inputs": {} }
-    },
-    {
-      "id": "/out",
-      "type": "OutOp",
-      "position": { "x": 1050, "y": 0 },
-      "data": { "inputs": {} }
-    }
+    { "id": "n1", "op": "file", "name": "quakes", "x": 0, "y": 0,
+      "params": { "url": "@/quakes.csv", "format": "csv" } },
+    { "id": "n2", "op": "attribute", "name": "position", "x": 300, "y": 0,
+      "params": { "name": "position", "expression": "[Longitude, Latitude]" } },
+    { "id": "n3", "op": "number", "name": "size", "x": 300, "y": 200, "params": { "value": 4 } },
+    { "id": "n4", "op": "scatter", "name": "points", "x": 600, "y": 0,
+      "params": { "position": "position", "radiusScale": { "expr": "ch('size/value') + sin(T)" } } },
+    { "id": "n5", "op": "deck", "name": "deck", "x": 900, "y": 0, "params": {} }
   ],
   "edges": [
-    {
-      "id": "/earthquakes.out.data->/quakes-layer.par.data",
-      "source": "/earthquakes",
-      "sourceHandle": "out.data",
-      "target": "/quakes-layer",
-      "targetHandle": "par.data"
-    },
-    {
-      "id": "/position.out.accessor->/quakes-layer.par.getPosition",
-      "source": "/position",
-      "sourceHandle": "out.accessor",
-      "target": "/quakes-layer",
-      "targetHandle": "par.getPosition"
-    },
-    {
-      "id": "/quakes-layer.out.layer->/deck.par.layers",
-      "source": "/quakes-layer",
-      "sourceHandle": "out.layer",
-      "target": "/deck",
-      "targetHandle": "par.layers"
-    },
-    {
-      "id": "/fault-lines.out.layer->/deck.par.layers",
-      "source": "/fault-lines",
-      "sourceHandle": "out.layer",
-      "target": "/deck",
-      "targetHandle": "par.layers"
-    },
-    {
-      "id": "/basemap.out.maplibre->/deck.par.basemap",
-      "source": "/basemap",
-      "sourceHandle": "out.maplibre",
-      "target": "/deck",
-      "targetHandle": "par.basemap"
-    },
-    {
-      "id": "/deck.out.vis->/out.par.vis",
-      "source": "/deck",
-      "sourceHandle": "out.vis",
-      "target": "/out",
-      "targetHandle": "par.vis"
-    }
+    { "id": "e1", "source": "n1", "sourcePort": "out", "target": "n2", "targetPort": "in" },
+    { "id": "e2", "source": "n2", "sourcePort": "out", "target": "n4", "targetPort": "in" },
+    { "id": "e3", "source": "n4", "sourcePort": "out", "target": "n5", "targetPort": "layers", "index": 0 }
   ],
-  "viewport": { "x": 0, "y": 0, "zoom": 1 },
-  "timeline": {}
+  "timeline": { "tracks": [{ "target": "n4.opacity", "keys": [{ "time": 0, "value": 0 }, { "time": 2, "value": 1 }] }] }
 }

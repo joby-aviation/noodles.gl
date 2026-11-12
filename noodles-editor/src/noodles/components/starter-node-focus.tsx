@@ -6,7 +6,8 @@ import {
   useStoreApi,
 } from '@xyflow/react'
 import { useEffect, useRef, useState } from 'react'
-import { useUIStore } from '../store'
+import { useUIStore } from '../../editor/ui-store'
+import { useEditorShown } from '../../editor/workspace-store'
 import { panViewportToShow } from '../utils/starter-node'
 import s from './starter-node-focus.module.css'
 
@@ -62,8 +63,11 @@ function useShowNode(nodeId: string | null, focusKey: string, onShown?: (nodeId:
   ])
 }
 
-// Never zoom past 100% to fit, so a small graph doesn't open blown up
-export const LOAD_FIT_VIEW_OPTIONS: FitViewOptions = { padding: 0.2, maxZoom: 1, duration: 0 }
+// The whole graph, never past 100%, so a small graph doesn't open blown up
+export const LOAD_FIT_VIEW_OPTIONS: FitViewOptions = { padding: 0.1, maxZoom: 1, duration: 0 }
+
+// A graph that was just shown stops waiting for its pane to be pinned after this many frames
+const PANE_READY_FRAMES = 60
 
 // Frames the graph after a project loads. A fresh load fits the whole graph so it opens
 // on an overview; then the node an example selected on open is panned into view if the
@@ -72,10 +76,13 @@ export const LOAD_FIT_VIEW_OPTIONS: FitViewOptions = { padding: 0.2, maxZoom: 1,
 // which keep the user's view, and for empty projects.
 //
 // The fit waits for every node to be measured: a fitView queued while nodes are still
-// mounting resolves on the first measured node and zooms all the way in on it.
+// mounting resolves on the first measured node and zooms all the way in on it. It also waits
+// for the graph to be on screen at its area's size: a project opened in a workspace with no
+// Node Graph area is framed when one first shows it, not in the hidden pane.
 export function ProjectLoadView({ loadId, fitView }: { loadId: number; fitView: boolean }) {
   const nodeId = useUIStore(state => state.starterHintNodeId)
   const nodesInitialized = useNodesInitialized()
+  const shown = useEditorShown('graph')
   const store = useStoreApi()
   const reactFlow = useReactFlow()
   const [framedLoadId, setFramedLoadId] = useState<number | null>(null)
@@ -86,57 +93,69 @@ export function ProjectLoadView({ loadId, fitView }: { loadId: number; fitView: 
       setFramedLoadId(loadId)
       return
     }
-    if (!nodesInitialized) return
+    if (!nodesInitialized || !shown) return
     let cancelled = false
-    // Wait a frame so React Flow has the new project's nodes, not the previous project's
-    const frame = requestAnimationFrame(async () => {
-      const { nodeLookup, nodesInitialized: measured } = store.getState()
+    let tries = 0
+    const attempt = async () => {
+      const { nodeLookup, nodesInitialized: measured, domNode, width, height } = store.getState()
       if (!measured || nodeLookup.size === 0) return
+      // The pane is pinned over its area a frame or two after the area appears, and React
+      // Flow learns its new size after that
+      const ready =
+        domNode &&
+        getComputedStyle(domNode).visibility !== 'hidden' &&
+        domNode.clientWidth === width &&
+        domNode.clientHeight === height
+      if (!ready) {
+        if (++tries < PANE_READY_FRAMES) frame = requestAnimationFrame(attempt)
+        return
+      }
       await reactFlow.fitView(LOAD_FIT_VIEW_OPTIONS)
       if (!cancelled) setFramedLoadId(loadId)
-    })
+    }
+    // Wait a frame so React Flow has the new project's nodes, not the previous project's
+    let frame = requestAnimationFrame(attempt)
     return () => {
       cancelled = true
       cancelAnimationFrame(frame)
     }
-  }, [loadId, fitView, framedLoadId, nodesInitialized, store, reactFlow])
+  }, [loadId, fitView, framedLoadId, nodesInitialized, shown, store, reactFlow])
 
   // Pan after the fit, so the check starts from the fitted view
   useShowNode(framedLoadId === loadId ? nodeId : null, `${loadId}:${nodeId}`)
   return null
 }
 
-// Brings a node picked on the map into view and pulses its outline for a second
+// Brings a node picked on the map into view and pulses its outline for a second. The
+// network draws the pulse from `pulsingNodeId`, so a re-render (the selection arriving)
+// keeps it.
 export function MapPickFocus() {
   const request = useUIStore(state => state.mapPickFocus)
-  const domNode = useStore(state => state.domNode)
-  const timersRef = useRef(new Map<Element, ReturnType<typeof setTimeout>>())
+  const timerRef = useRef<ReturnType<typeof setTimeout>>(undefined)
+  const frameRef = useRef(0)
 
   useShowNode(request?.nodeId ?? null, `map:${request?.seq}`, nodeId => {
-    const element = domNode?.querySelector(`.react-flow__node[data-id="${CSS.escape(nodeId)}"]`)
-    if (!element) return
-    const timers = timersRef.current
-    clearTimeout(timers.get(element))
-    // Restart the animation when the same node is picked again mid-pulse
-    element.classList.remove(s.mapPickPulse)
-    void (element as HTMLElement).offsetWidth
-    element.classList.add(s.mapPickPulse)
-    timers.set(
-      element,
-      setTimeout(() => {
-        element.classList.remove(s.mapPickPulse)
-        timers.delete(element)
-      }, MAP_PICK_PULSE_MS)
-    )
+    const { setPulsingNodeId } = useUIStore.getState()
+    clearTimeout(timerRef.current)
+    cancelAnimationFrame(frameRef.current)
+    // Off for a frame first, so picking the same node mid-pulse restarts the animation
+    setPulsingNodeId(null)
+    frameRef.current = requestAnimationFrame(() => {
+      setPulsingNodeId(nodeId)
+      timerRef.current = setTimeout(() => setPulsingNodeId(null), MAP_PICK_PULSE_MS)
+    })
   })
 
-  useEffect(() => {
-    const timers = timersRef.current
-    return () => {
-      for (const timer of timers.values()) clearTimeout(timer)
-      timers.clear()
-    }
-  }, [])
+  useEffect(
+    () => () => {
+      clearTimeout(timerRef.current)
+      cancelAnimationFrame(frameRef.current)
+    },
+    []
+  )
 
   return null
 }
+
+// The class the network puts on the node `pulsingNodeId` names
+export const mapPickPulseClass = s.mapPickPulse

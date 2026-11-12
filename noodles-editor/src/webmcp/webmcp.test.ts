@@ -1,6 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { toolDefinitions } from '../ai-chat/tool-definitions'
-import { setCurrentProject, setModificationApplier } from './bridge'
 import { initWebMCP } from './register'
 
 // The polyfill import is a side effect only — the tests install their own fake
@@ -85,7 +84,6 @@ describe('initWebMCP', () => {
       configurable: true,
       value: { registerTool },
     })
-    setModificationApplier(null)
   })
 
   afterEach(() => {
@@ -172,74 +170,19 @@ describe('initWebMCP', () => {
     expect(meta.text).toContain('"width"')
   })
 
-  it('fails apply_modifications when the editor applier is not registered', async () => {
+  it('returns apply_modifications as MCPTools applied it, with no editor applier', async () => {
     await init()
-    const response = await getRegistered('apply_modifications').execute({
-      modifications: [{ type: 'add_node', data: { id: '/n', type: 'NumberOp' } }],
-    })
-    expect(response.isError).toBe(true)
-    expect(response.content[0].text).toContain('Editor not mounted')
-  })
-
-  it('applies modifications through the registered editor applier', async () => {
-    await init()
-    const applier = vi.fn(() => ({ success: true, warnings: undefined }))
-    setModificationApplier(applier)
-
-    const modifications = [{ type: 'add_node', data: { id: '/n', type: 'NumberOp' } }]
+    const modifications = [{ type: 'add_node', op: 'number', name: 'n' }]
     const response = await getRegistered('apply_modifications').execute({ modifications })
-
-    expect(response.isError).toBeUndefined()
-    expect(applier).toHaveBeenCalledWith(modifications)
-    expect(response.content[0].text).toContain('1 modification(s) applied')
-  })
-
-  it('reports applier failures as isError responses', async () => {
-    await init()
-    setModificationApplier(() => ({ success: false, error: 'validation failed' }))
-    const response = await getRegistered('apply_modifications').execute({
-      modifications: [{ type: 'add_node', data: { id: '/n', type: 'NumberOp' } }],
-    })
-    expect(response.isError).toBe(true)
-    expect(response.content[0].text).toContain('validation failed')
-  })
-
-  it('forgets a rejected batch so a corrected retry is not refused', async () => {
-    await init()
     const { MCPTools } = await import('../ai-chat/mcp-tools')
     const instances = (
       MCPTools as unknown as {
-        instances: Array<{ clearQueuedModifications: ReturnType<typeof vi.fn> }>
+        instances: Array<{ applyModifications: ReturnType<typeof vi.fn> }>
       }
     ).instances
-    const tools = instances[instances.length - 1]
-    const modifications = [{ type: 'add_node', data: { id: '/n', type: 'NumberOp' } }]
-
-    setModificationApplier(() => ({ success: true }))
-    await getRegistered('apply_modifications').execute({ modifications })
-    expect(tools.clearQueuedModifications).not.toHaveBeenCalled()
-
-    setModificationApplier(() => ({ success: false, error: 'last Output node' }))
-    await getRegistered('apply_modifications').execute({ modifications })
-    expect(tools.clearQueuedModifications).toHaveBeenCalledTimes(1)
-  })
-
-  it('keeps the MCPTools project in sync via the bridge', async () => {
-    await init()
-    const { MCPTools } = await import('../ai-chat/mcp-tools')
-    const instances = (
-      MCPTools as unknown as { instances: Array<{ setProject: ReturnType<typeof vi.fn> }> }
-    ).instances
-    const tools = instances[instances.length - 1]
-
-    const project = { nodes: [{ id: '/n', type: 'NumberOp' }], edges: [] }
-    setCurrentProject(project)
-    expect(tools.setProject).toHaveBeenCalledWith(project)
-
-    // After abort the subscription is removed
-    controller.abort()
-    tools.setProject.mockClear()
-    setCurrentProject(project)
-    expect(tools.setProject).not.toHaveBeenCalled()
+    expect(instances[instances.length - 1].applyModifications).toHaveBeenCalledWith({
+      modifications,
+    })
+    expect(response.isError).toBeUndefined()
   })
 })

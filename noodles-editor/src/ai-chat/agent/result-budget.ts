@@ -35,7 +35,7 @@ const LADDER: ReadonlyArray<{ arrayItems: number; stringChars: number }> = [
 const HINTS: Record<string, string> = {
   list_nodes: 'call get_node_info with a specific nodeId for full detail',
   get_current_project: 'call list_nodes, then get_node_info per node',
-  get_node_output: 'lower maxRows, or narrow the data upstream with DuckDbOp',
+  get_node_output: 'lower maxRows, or narrow the data upstream with a filter or sql node',
   search_code: 'narrow the pattern, pass path, or lower maxResults',
   get_source_code: 'request a smaller startLine/endLine range',
   get_documentation: 'use a more specific query, or pass a single id to read one topic',

@@ -17,16 +17,17 @@ const MAX_SNIFF_BYTES = 2 * 1024 * 1024
 
 const USAGE = `Usage: validate-projects [--json] [--strict] [--external | --examples] [path ...]
 
-Checks noodles.json project files against the operator registry: schema
-version, operator types, input names, edge handles, duplicate edges.
+Checks noodles.json documents against the operator catalog: operators,
+parameters, ports, wire types, names, references, loops.
 
   path        A project file, or a directory to search for them. Defaults to
               noodles-editor/src/examples.
   --json      Print results as JSON.
   --strict    Exit 1 on warnings as well as errors.
-  --external  Check every file as a project outside the examples: an older
-              schema version is a warning, @/ files must exist in the
-              project's data/ folder, and node names aren't style-checked.
+  --external  Check every file as a project outside the examples: an
+              operator-graph file is a warning and is checked only in part,
+              @/ files must exist in the project's data/ folder, and node
+              names aren't style-checked.
               This is the default for files outside noodles-editor/src/examples.
   --examples  Check every file with the rules for the bundled examples, the
               default for files inside noodles-editor/src/examples.
@@ -102,7 +103,7 @@ export function run(argv: string[], io: Io, registry: Registry = loadRegistry())
         {
           valid,
           registry: {
-            projectVersion: registry.projectVersion,
+            documentVersion: registry.documentVersion,
             operators: Object.keys(registry.operators).length,
           },
           files: results,
@@ -172,7 +173,7 @@ function formatResults(results: FileResult[], registry: Registry, strict: boolea
     )
   } else if (errors === 0) {
     lines.push(
-      `OK: ${files} valid against ${Object.keys(registry.operators).length} operators, schema version ${registry.projectVersion}${warned}.`
+      `OK: ${files} valid against ${Object.keys(registry.operators).length} operators, document version ${registry.documentVersion}${warned}.`
     )
   } else {
     lines.push(
@@ -182,7 +183,7 @@ function formatResults(results: FileResult[], registry: Registry, strict: boolea
   const partial = results.filter(r => r.partial).length
   if (partial > 0) {
     lines.push(
-      `${partial === 1 ? '1 file is' : `${partial} files are`} behind schema version ${registry.projectVersion}, so only ${partial === 1 ? 'its' : 'their'} JSON, version and data files were checked. Open and save ${partial === 1 ? 'it' : 'each one'} in the editor to migrate it, then run validate-projects again.`
+      `${partial === 1 ? '1 file is an operator-graph file' : `${partial} files are operator-graph files`}, so only ${partial === 1 ? 'its' : 'their'} JSON, version and data files were checked. Open and save ${partial === 1 ? 'it' : 'each one'} in the editor to write it as a document, then run validate-projects again.`
     )
   }
   return lines.join('\n')

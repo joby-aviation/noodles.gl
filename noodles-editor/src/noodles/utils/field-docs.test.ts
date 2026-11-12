@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { DataField, NumberField } from '../fields'
-import { ArcLayerOp, CodeOp, NumberOp } from '../operators'
+import { CompoundPropsField, DataField, LayerField, NumberField } from '../fields'
+import { CodeOp } from '../operators'
 import { getFieldDocs, humanizeFieldName, LAYER_FIELD_DOCS } from './field-docs'
 
 describe('humanizeFieldName', () => {
@@ -28,10 +28,14 @@ describe('humanizeFieldName', () => {
   })
 })
 
+// Stand-ins for a layer operator and another operator: only their outputs matter here
+const arcLayer = { outputs: { layer: new LayerField() } }
+const number = { outputs: { val: new NumberField(0) } }
+
 describe('getFieldDocs', () => {
   it('uses the label and description declared on the field', () => {
     const field = new NumberField(1, { label: 'Line thickness', description: 'How wide.' })
-    expect(getFieldDocs('getWidth', field, new ArcLayerOp('/arc'))).toEqual({
+    expect(getFieldDocs('getWidth', field, arcLayer)).toEqual({
       label: 'Line thickness',
       description: 'How wide.',
     })
@@ -43,21 +47,21 @@ describe('getFieldDocs', () => {
   })
 
   it('falls back to the shared deck.gl prop docs on layer operators', () => {
-    const op = new ArcLayerOp('/arc')
-    expect(getFieldDocs('getSourcePosition', op.inputs.getSourcePosition, op)).toEqual({
+    expect(getFieldDocs('getSourcePosition', new DataField(), arcLayer)).toEqual({
       label: 'Source position',
       description: LAYER_FIELD_DOCS.getSourcePosition.description,
     })
-    expect(getFieldDocs('parameters', op.inputs.parameters, op).label).toBe('Render parameters')
+    expect(getFieldDocs('parameters', new CompoundPropsField({}), arcLayer).label).toBe(
+      'Render parameters'
+    )
   })
 
   it('does not apply layer prop docs to other operators', () => {
-    const op = new NumberOp('/num')
-    expect(getFieldDocs('data', new NumberField(1), op)).toEqual({
+    expect(getFieldDocs('data', new NumberField(1), number)).toEqual({
       label: 'Data',
       description: undefined,
     })
-    expect(getFieldDocs('opacity', new NumberField(1), op).description).toBeUndefined()
+    expect(getFieldDocs('opacity', new NumberField(1), number).description).toBeUndefined()
   })
 
   it('shows user-named custom fields as typed', () => {
@@ -67,8 +71,7 @@ describe('getFieldDocs', () => {
   })
 
   it('ignores inherited keys when looking up layer prop docs', () => {
-    const op = new ArcLayerOp('/arc')
-    expect(getFieldDocs('constructor', new NumberField(1), op)).toEqual({
+    expect(getFieldDocs('constructor', new NumberField(1), arcLayer)).toEqual({
       label: 'Constructor',
       description: undefined,
     })

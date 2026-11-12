@@ -28,6 +28,10 @@ export function BasemapGallery({
   const [providerFilter, setProviderFilter] = useState('all')
   const [categoryFilter, setCategoryFilter] = useState<'all' | BasemapCategory>('all')
 
+  // A style URL or style JSON pasted into the search, to use as it is
+  const pasted = search.trim()
+  const custom = /^https?:\/\//i.test(pasted) ? 'URL' : pasted.startsWith('{') ? 'JSON' : undefined
+
   const filtered = useMemo(() => {
     let items = BASEMAP_CATALOG
     if (providerFilter !== 'all') {
@@ -75,7 +79,7 @@ export function BasemapGallery({
             <input
               type="text"
               className={s.searchInput}
-              placeholder="Search basemaps..."
+              placeholder="Search basemaps, or paste a style URL or JSON"
               value={search}
               onChange={e => setSearch(e.target.value)}
               // biome-ignore lint/a11y/noAutofocus: the dialog moves focus on open; this picks the search field
@@ -110,7 +114,22 @@ export function BasemapGallery({
           <div className={s.count}>{filtered.length} basemaps</div>
 
           <div className={s.list}>
-            {filtered.length === 0 ? (
+            {custom && (
+              <button
+                type="button"
+                className={s.item}
+                onClick={() => {
+                  onSelect(pasted)
+                  onOpenChange(false)
+                }}
+              >
+                <div className={s.itemInfo}>
+                  <span className={s.itemName}>Use this style {custom}</span>
+                  <span className={s.itemMeta}>{pasted.slice(0, 80)}</span>
+                </div>
+              </button>
+            )}
+            {custom ? null : filtered.length === 0 ? (
               <div className={s.emptyState}>No basemaps match your filters</div>
             ) : (
               filtered.map(entry => (

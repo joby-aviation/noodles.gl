@@ -44,6 +44,9 @@ export type MigrateResult =
       from: number
       to: number
     }
+  // A document, the format the editor saves now: migrations are for the operator graphs
+  // before it, which the editor converts when it opens them
+  | { file: string; status: 'document' }
   | { file: string; status: 'error'; error: string }
 
 export interface MigrateOptions {
@@ -51,6 +54,19 @@ export interface MigrateOptions {
   from?: number
   // false reports what would change without writing anything
   write?: boolean
+}
+
+// As isEditorDoc in src/editor/load-doc.ts: both formats have small version numbers, so the
+// shape decides. A document's nodes name an `op`, an operator graph's a `type`.
+function isDocument(data: unknown): boolean {
+  const j = data as { version?: unknown; nodes?: unknown; edges?: unknown } | null
+  return (
+    j?.version === 1 &&
+    Array.isArray(j.nodes) &&
+    Array.isArray(j.edges) &&
+    j.nodes.every(n => typeof (n as { op?: unknown })?.op === 'string') &&
+    j.edges.every(e => typeof (e as { sourcePort?: unknown })?.sourcePort === 'string')
+  )
 }
 
 function isProject(data: unknown): data is NoodlesProjectJSON {
@@ -107,6 +123,7 @@ export async function migrateProjectFile(
 ): Promise<MigrateResult> {
   try {
     const data: unknown = JSON.parse(await readFile(file, 'utf8'))
+    if (isDocument(data)) return { file, status: 'document' }
     if (!isProject(data)) {
       return { file, status: 'error', error: 'not a noodles project (no version or nodes)' }
     }
@@ -232,6 +249,10 @@ export async function runMigrateCli(
     if (result.status === 'error') {
       errors++
       error(`✗ ${name}: ${result.error}`)
+      continue
+    }
+    if (result.status === 'document') {
+      log(`- No changes needed for ${name} (a document)`)
       continue
     }
     const saved = result.from === result.savedVersion ? '' : `, saved as v${result.savedVersion}`

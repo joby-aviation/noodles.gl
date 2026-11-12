@@ -1,0 +1,40 @@
+{
+  "runId": "2026-10-23-14-44-mac.lan",
+  "startedAt": "2026-10-23T14:44:57.240Z",
+  "environment": {
+    "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/155.0.0.0 Safari/537.36",
+    "gpu": {
+      "vendor": "apple",
+      "architecture": "metal-3",
+      "device": "",
+      "description": ""
+    },
+    "deviceMemoryGb": 32,
+    "cpuCores": 16,
+    "gitSha": "a3b3787f",
+    "dirty": true,
+    "machine": "mac.lan"
+  },
+  "rows": [
+    {
+      "taskId": "t4-wrong-columns",
+      "tier": "T4",
+      "provider": "anthropic",
+      "model": "claude-sonnet-5",
+      "contextWindow": 200000,
+      "knobs": "",
+      "repeat": 0,
+      "score": 4,
+      "pass": true,
+      "mechanicalFailure": false,
+      "steps": 4,
+      "toolCalls": 3,
+      "inputTokens": 5145,
+      "outputTokens": 372,
+      "diagnostics": {},
+      "ms": 8392.100000023842,
+      "loadMs": 247.09999990463257,
+      "timedOut": false
+    }
+  ]
+}
