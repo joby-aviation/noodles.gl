@@ -5,7 +5,7 @@ import { useFileSystemStore } from '../../filesystem-store'
 import { type FileImportResult, useFileImport } from '../../hooks/use-file-import'
 import s from './canvas-drop-import.module.css'
 import { describeDetection } from './detect-coordinates'
-import { extensionOf, IMPORTABLE_EXTENSIONS, isImportable } from './import-pipelines'
+import { extensionOf, IMPORTABLE_EXTENSIONS, isImportable, isSidecar } from './import-pipelines'
 
 interface Notice {
   tone: 'error' | 'info'
@@ -19,7 +19,7 @@ function detectionNotice({ detection }: FileImportResult): Notice | null {
   if (detection.kind === 'none') {
     return {
       tone: 'info',
-      text: `${describeDetection(detection)}. Edit the position Accessor to place the rows.`,
+      text: `${describeDetection(detection)}. Edit the layer's position to place the rows.`,
     }
   }
   return { tone: 'info', text: describeDetection(detection) }
@@ -94,6 +94,8 @@ export function CanvasDropImport({ pendingFile, onPendingFileHandled }: CanvasDr
       }
 
       const supported = files.filter(file => isImportable(file.name))
+      // A shapefile's .shx and .dbf come along with its .shp: copied with it, not skipped
+      const unsupported = files.filter(file => !isImportable(file.name) && !isSidecar(file, files))
       if (supported.length === 0) {
         const unsupportedFile = files[0]
         const fileType = extensionOf(unsupportedFile.name) || 'unknown'
@@ -118,15 +120,15 @@ export function CanvasDropImport({ pendingFile, onPendingFileHandled }: CanvasDr
           const result = await importFile(
             file,
             { x: dropPosition.x, y: dropPosition.y + index * 700 },
-            'canvas_drop'
+            'canvas_drop',
+            files
           )
           setNotice(detectionNotice(result))
         }
-        const skipped = files.length - supported.length
+        const skipped = unsupported.length
         if (skipped > 0) {
           // Track each skipped file
-          const unsupportedFiles = files.filter(file => !isImportable(file.name))
-          for (const file of unsupportedFiles) {
+          for (const file of unsupported) {
             const fileType = extensionOf(file.name) || 'unknown'
             analytics.track('file_import_failed', {
               fileType,

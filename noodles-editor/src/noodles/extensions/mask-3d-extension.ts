@@ -1,15 +1,25 @@
-import type { Layer, UpdateParameters } from '@deck.gl/core'
+import type { DefaultProps, Layer, LayerContext } from '@deck.gl/core'
 import { LayerExtension, project32 } from '@deck.gl/core'
 import type { ShaderModule } from '@luma.gl/shadertools'
 
-type Props = {
+export type Mask3DExtensionProps = {
+  // [lng, lat, altitude in meters] in geospatial views, world units otherwise
+  targetPosition?: [number, number, number]
+  // Radius of the visible sphere, in meters (geospatial) or world units
+  innerRadius?: number
+  // Width of the fade-to-white band beyond innerRadius, in the same units
+  fadeRange?: number
+}
+
+type UniformProps = {
   targetPosition: [number, number, number]
   innerRadius: number
   fadeRange: number
 }
 
-// Define the shader module for the mask3D uniforms
-const mask3DUniforms: ShaderModule<Props> = {
+// All values are in deck.gl common space so every sublayer shares one frame,
+// regardless of its coordinateSystem, coordinateOrigin or modelMatrix
+const mask3DUniforms: ShaderModule<UniformProps> = {
   name: 'mask3D',
   vs: `
     uniform mask3DUniforms {
@@ -30,124 +40,76 @@ const mask3DUniforms: ShaderModule<Props> = {
     innerRadius: 'f32',
     fadeRange: 'f32',
   },
-  getUniforms: (props: Partial<Props>) => ({
-    targetPosition: props.targetPosition || [0.0, 0.0, 0.0],
-    innerRadius: props.innerRadius || 1000.0,
-    fadeRange: props.fadeRange || 7.0,
-  }),
 }
 
-// WGS84 geodetic coordinates (degrees, meters above the ellipsoid) to Earth-centered,
-// Earth-fixed (ECEF) meters: X through lng 0 on the equator, Y through lng 90, Z north.
-export function toGeocentric(
-  longitude: number,
-  latitude: number,
-  height = 0
-): [number, number, number] {
-  const a = 6378137 // semi-major axis
-  const f = 1 / 298.257223563 // flattening
-  const e2 = f * (2 - f) // eccentricity squared
-
-  const lat = (latitude * Math.PI) / 180
-  const lng = (longitude * Math.PI) / 180
-  const sinLat = Math.sin(lat)
-  const n = a / Math.sqrt(1 - e2 * sinLat * sinLat) // prime vertical radius
-
-  return [
-    (n + height) * Math.cos(lat) * Math.cos(lng),
-    (n + height) * Math.cos(lat) * Math.sin(lng),
-    (n * (1 - e2) + height) * sinLat,
-  ]
-}
-
-// The targetPosition uniform for a lng/lat/alt. glTF tiles are Y-up, and the shader reads
-// geometry.worldPosition before the tile's model matrix turns it Z-up, so vWorldPosition is
-// ECEF as (X, Z, -Y). The shader compares vWorldPosition.zyx = (-Y, Z, X) with
-// targetPosition.yzx, so the target is ECEF with Y negated. The fork this came from negated
-// the longitude instead, which flips Y the same way.
-export function toMaskTargetPosition(
-  longitude: number,
-  latitude: number,
-  height = 0
-): [number, number, number] {
-  const [x, y, z] = toGeocentric(longitude, latitude, height)
-  return [x, -y, z]
+const defaultProps: DefaultProps<Mask3DExtensionProps> = {
+  targetPosition: { type: 'array', value: [0, 0, 0], compare: true },
+  innerRadius: 1000,
+  fadeRange: 7,
 }
 
 // Forked from https://github.com/grahambates-code/3d_tiles_mask
 export class Mask3DExtension extends LayerExtension {
   static extensionName = 'Mask3DExtension'
+  // Listing the props here lets CompositeLayers (e.g. Tile3DLayer) forward them to sublayers
+  static defaultProps = defaultProps
 
   getShaders() {
     return {
       modules: [project32, mask3DUniforms],
       inject: {
         'vs:#decl': `
-          out vec3 vWorldPosition;
+          out vec3 vMask3DCommonPosition;
         `,
         'vs:#main-end': `
-          // Capture world position
-          vWorldPosition = geometry.worldPosition;
-
-          //   vec3 centroid = geometry.positionOrigin;
-          //vec3 direction = geometry.worldPosition - centroid;
-          //geometry.worldPosition += direction * (uScaleFactor - 1.0);
-
+          vMask3DCommonPosition = geometry.position.xyz;
         `,
         'fs:#decl': `
-          in vec3 vWorldPosition;
+          in vec3 vMask3DCommonPosition;
         `,
         'fs:DECKGL_FILTER_COLOR': `
-
-          // Calculate the distance in adjusted coordinates
-          float distanceToTarget = distance(vWorldPosition.zyx, mask3D.targetPosition.yzx);
+          float distanceToTarget = distance(vMask3DCommonPosition, mask3D.targetPosition);
 
           // Discard fragments fully outside the highlight (beyond fade range)
-          if (distanceToTarget > mask3D.innerRadius + 0.75 * mask3D.fadeRange ) {
-              discard;
+          if (distanceToTarget > mask3D.innerRadius + 0.75 * mask3D.fadeRange) {
+            discard;
           }
 
-          // Compute fade factor using smoothstep
-          float fade = smoothstep(mask3D.innerRadius, mask3D.innerRadius + mask3D.fadeRange, distanceToTarget);
-
-          // Blend the colors: original color inside, fade to white outside
-          vec3 tint = vec3(1.0, 1.0, 1.0); // Fade color
-          vec3 finalColor = mix(color.rgb, tint, fade);
-
-          // Apply the final color
-          color = vec4(finalColor, color.a);
+          // Fade to white between innerRadius and innerRadius + fadeRange
+          float fade = mask3D.fadeRange > 0.0
+            ? smoothstep(mask3D.innerRadius, mask3D.innerRadius + mask3D.fadeRange, distanceToTarget)
+            : 0.0;
+          color = vec4(mix(color.rgb, vec3(1.0), fade), color.a);
         `,
       },
     }
   }
 
-  // biome-ignore lint/suspicious/noExplicitAny: Deck.gl extension context type is not fully typed
-  initializeState(this: Layer, _context: any, _extension: this) {
-    // Set default uniform values using the new API
-    this.setShaderModuleProps({
-      mask3D: {
-        targetPosition: [0.0, 0.0, 0.0],
-        innerRadius: 1000.0,
-        fadeRange: 7.0,
-      },
-    })
-  }
-
-  updateState(this: Layer, params: UpdateParameters<Layer>, _extension: this) {
-    // biome-ignore lint/suspicious/noExplicitAny: accessing dynamic extension props from layer
-    const props = params.props as any
+  // Project the target into common space each frame, since the common-space
+  // offset origin moves with the viewport
+  draw(this: Layer<Mask3DExtensionProps>, _params: unknown, _extension: this) {
     const {
-      targetPosition = props.targetPosition,
-      innerRadius = props.innerRadius || 1000.0,
-      fadeRange = props.fadeRange || 7.0,
-    } = props
+      targetPosition = [0, 0, 0],
+      innerRadius = defaultProps.innerRadius as number,
+      fadeRange = defaultProps.fadeRange as number,
+    } = this.props
+    const viewport = (this.internalState?.viewport ||
+      this.context.viewport) as LayerContext['viewport']
 
-    // Use the layer's setShaderModuleProps method to update uniforms
+    // Interpret the target in the view's default frame, ignoring the layer's own
+    // coordinateOrigin / modelMatrix (Tile3DLayer sets these per tile)
+    const commonTarget = this.projectPosition(targetPosition, {
+      fromCoordinateSystem: 'default',
+      fromCoordinateOrigin: [0, 0, 0],
+      modelMatrix: null,
+    } as Parameters<Layer['projectPosition']>[1])
+    const [unitsPerMeter] = viewport.getDistanceScales(targetPosition).unitsPerMeter
+
     this.setShaderModuleProps({
       mask3D: {
-        targetPosition,
-        innerRadius,
-        fadeRange,
+        targetPosition: commonTarget,
+        innerRadius: innerRadius * unitsPerMeter,
+        fadeRange: fadeRange * unitsPerMeter,
       },
     })
   }

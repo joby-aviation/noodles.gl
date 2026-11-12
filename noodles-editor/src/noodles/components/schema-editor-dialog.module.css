@@ -70,6 +70,34 @@
   color: var(--text-color-secondary);
 }
 
+.validationError,
+.clipboardStatus {
+  margin: 0;
+  padding: 8px 10px;
+  border-radius: 4px;
+  font-size: 0.8125rem;
+}
+
+.validationError {
+  color: var(--red-200);
+  background: color-mix(in srgb, var(--red-500) 16%, transparent);
+  border: 1px solid color-mix(in srgb, var(--red-500) 40%, transparent);
+}
+
+.clipboardStatus {
+  color: var(--text-color-secondary);
+  background: var(--surface-ground);
+  border: 1px solid var(--surface-border);
+}
+
+.schemaActions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--surface-border);
+}
+
 .body {
   flex: 1;
   overflow: auto;

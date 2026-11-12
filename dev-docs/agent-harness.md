@@ -1,6 +1,6 @@
 # Agent harness (in-app AI chat)
 
-**Last updated:** 2026-09-17
+**Last updated:** 2026-11-02
 
 The in-app assistant runs on a hand-rolled agent loop in `noodles-editor/src/ai-chat/agent/`.
 It is provider-agnostic: the same loop, tool surface, and context budgets serve a
@@ -32,7 +32,10 @@ every tool schema on every request, and serialized tool results with no size cap
 | `agent/providers/openai-format.ts` | The OpenAI chat-completions wire format, shared by `openrouter` and `custom` |
 | `agent/providers/json-tools.ts` | Tool-call emulation for the two on-device providers, which have no native tools |
 | `agent/providers/endpoint-presets.ts` | Starting points for the custom-endpoint form |
-| `agent/provider-selection.ts` | `isProviderReady` / `resolveProviderId` — which of the five actually runs |
+| `agent/provider-selection.ts` | `isProviderReady` / `resolveProviderId` — which of the six actually runs |
+| `agent/acp/session.ts` | `AcpSession` — the `ChatSession` for an ACP agent, which runs its own loop |
+| `agent/acp/connection.ts` | JSON-RPC over the WebSocket to the local bridge (`noodles-mcp/src/acp-bridge.ts`) |
+| `tool-response.ts` | `ToolResult` to MCP `CallToolResult`, shared by WebMCP and ACP |
 | `noodles/openrouter-oauth.ts` | The PKCE flow that mints an OpenRouter key without a paste |
 | `prompts/core.md` | The always-in-context system prompt |
 | `prompts/sections/*.md` | Workflow walkthroughs, retrieved on demand via `get_documentation` |
@@ -105,6 +108,9 @@ provider that is not ready falls back to the same walk rather than showing an er
   selecting a model starts a download of gigabytes, so it must be something the user
   asked for and never a consequence of no key being configured.
 - `chrome` — the Prompt API reports the model as available.
+- `acp` — a saved bridge URL. Whether the bridge is running is only known by
+  connecting, so, like Chrome, it is not in the automatic walk and runs only when
+  pinned.
 
 Two provider flags carry all the behavioural difference: `supportsNativeTools`
 (false routes the provider through `providers/json-tools.ts`, which emulates the tool
@@ -121,6 +127,50 @@ an HTTP provider holds nothing between turns, a local model holds gigabytes.
 `AgentSession.dispose()` forwards to it, and `chat-panel.tsx` calls that from its
 init effect's cleanup — including for a session that was superseded while still
 being built.
+
+### ACP agents: someone else's loop
+
+`acp` is the one provider that is not an `AgentProvider`. An agent that speaks the
+[Agent Client Protocol](https://agentclientprotocol.com/) (Claude Code through
+`claude-agent-acp`, Codex through `codex-acp`, Gemini CLI, Goose, OpenCode) runs its
+own loop: it keeps the transcript, picks the model, and calls tools, its own and
+ours. So the panel holds a `ChatSession` (`agent/session.ts`), which `AgentSession`
+and `AcpSession` both implement, and `createProvider` refuses `acp`.
+
+ACP agents speak JSON-RPC over stdio, and a tab cannot start a process, so
+`noodles-mcp acp -- <agent command>` starts the agent and relays each message
+between its stdio and one WebSocket (see `noodles-mcp/README.md` for the transport
+and its origin and token checks). The ACP remote transport (streamable HTTP and
+WebSocket) is still an RFD; when agents ship it, `AcpConnection` could connect to
+one directly.
+
+What `AcpSession` does differently from `AgentSession`:
+
+- **Tools.** The bridge gives the agent one MCP server whose calls come back to the
+  tab as `noodles/listTools` and `noodles/callTool`. The list is the whole
+  `availableToolDefinitions()` surface plus `find_tools`, not the five-tool start:
+  an agent's MCP client lists tools once, so a tool unlocked later would never reach
+  it. `find_tools` stays so `prompts/core.md` reads true. Results are capped by
+  `result-budget.ts` at a 200k window, and screenshots go back as MCP image blocks
+  through `tool-response.ts`, like WebMCP.
+- **Edits.** `apply_modifications` results collect into the turn's proposal, as in
+  the loop; the agent is told in its first prompt that they land only when the user
+  accepts. Tool calls outside a prompt turn are refused, since there would be no
+  proposal to put them in.
+- **Prompt.** The first prompt of each ACP session carries a short preamble plus
+  `getSystemPrompt()`; agents have their own system prompts, and not all of them
+  read MCP server instructions.
+- **History.** The agent keeps the transcript, so later prompts carry only what it
+  did not see: messages the panel added itself, such as a rejected proposal. New
+  conversation and loading a saved one call `reset()`, which starts a new ACP
+  session on the next send and replays the loaded history into its first prompt.
+- **Permissions.** `session/request_permission` shows a card with the agent's
+  options; stopping the turn answers it `cancelled`. `fs/*` and `terminal/*` are
+  declined in `initialize`: the agent uses its own, in the bridge's directory.
+- **Models.** Read from the session's `configOptions` (category `model`), or the
+  older `models` field many agents still send. Changing model calls
+  `session/set_config_option` or `session/set_model` on the live session rather than
+  rebuilding it, which would restart the agent.
 
 ### Getting a credential without a paste: OpenRouter PKCE
 
@@ -490,8 +540,8 @@ path cannot clobber the dataset the project is built on.
 
 Two deviations from the plan, both deliberate:
 
-- **Writes are not in the undo stack.** `UndoRedoManager` snapshots
-  `projectState: NodesProjectJSON` and keeps 50 entries; putting file contents there
+- **Writes are not in the undo stack.** The undo stack (`useUndoRedo`) snapshots the
+  graph and keeps 50 entries; putting file contents there
   would make undo a memory problem. Instead, replacing a scratch file copies the
   previous contents to `@/.agent/.previous/<path>`, which is hidden from `list_files`
   and `grep_files` and is itself not writable. Combined with the write sandbox — which

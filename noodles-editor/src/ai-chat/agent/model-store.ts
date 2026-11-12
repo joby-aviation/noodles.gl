@@ -54,10 +54,12 @@ export function getEnvModel(provider: ProviderId): string | undefined {
     // These carry their model with them, or have nothing to override: a custom
     // endpoint's model is part of its saved config, Chrome exposes exactly one
     // built-in model, and a WebLLM model is a gigabyte-scale download nobody
-    // should trigger from a build-time env var
+    // should trigger from a build-time env var. An ACP agent offers its own
+    // models once connected.
     case 'custom':
     case 'webllm':
     case 'chrome':
+    case 'acp':
       return undefined
   }
 }

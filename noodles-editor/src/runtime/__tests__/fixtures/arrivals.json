@@ -1,0 +1,345 @@
+{
+  "version": 1,
+  "name": "Airport arrivals replay",
+  "description": "The shape of a terminal-operations replay: one day of flights, cross-joined with the airport chosen by its IATA code, filtered to arrivals, then expanded \u2014 a cross join with Generate \u2014 into interpolated 3D trails with a descent profile. The step count is read by both the relation and the wrangle through a ch() reference.",
+  "credits": [
+    "Flights: The OpenSky Network, via deck.gl example data (github.com/visgl/deck.gl-data)",
+    "Airports: OpenFlights, openflights.org (Open Database License)"
+  ],
+  "nodes": [
+    {
+      "id": "flights_file",
+      "op": "file",
+      "name": "flights_file",
+      "x": 0,
+      "y": 0,
+      "params": {
+        "url": "https://raw.githubusercontent.com/visgl/deck.gl-data/master/examples/globe/2020-01-14.csv",
+        "format": "csv"
+      }
+    },
+    {
+      "id": "flights",
+      "op": "sql",
+      "x": 260,
+      "y": 0,
+      "params": {
+        "query": "SELECT row_number() OVER () AS flight, * FROM {{input0}} WHERE time2 > time1"
+      }
+    },
+    {
+      "id": "airports",
+      "op": "file",
+      "x": 0,
+      "y": 220,
+      "params": {
+        "url": "https://raw.githubusercontent.com/jpatokal/openflights/master/data/airports.dat",
+        "format": "csv",
+        "header": false,
+        "names": "id, name, city, country, iata, icao, lat, lng, alt, tz, dst, tzdb, kind, origin",
+        "nullstr": "\\N"
+      }
+    },
+    {
+      "id": "airport",
+      "op": "filter",
+      "x": 260,
+      "y": 220,
+      "params": {
+        "mode": "match",
+        "column": "iata",
+        "text": "LHR"
+      }
+    },
+    {
+      "id": "pair",
+      "op": "join",
+      "x": 520,
+      "y": 0,
+      "params": {
+        "how": "cross",
+        "prefix": "ap_"
+      }
+    },
+    {
+      "id": "gap",
+      "op": "distance",
+      "x": 780,
+      "y": 0,
+      "params": {
+        "lng1": "lon2",
+        "lat1": "lat2",
+        "lng2": "ap_lng",
+        "lat2": "ap_lat",
+        "name": "km"
+      }
+    },
+    {
+      "id": "arriving",
+      "op": "filter",
+      "x": 1040,
+      "y": 0,
+      "params": {
+        "mode": "compare",
+        "column": "km",
+        "op": "<",
+        "value": 40
+      }
+    },
+    {
+      "id": "steps",
+      "op": "generate",
+      "x": 1040,
+      "y": 180,
+      "params": {
+        "count": 24,
+        "name": "s"
+      }
+    },
+    {
+      "id": "expand",
+      "op": "join",
+      "x": 1300,
+      "y": 60,
+      "params": {
+        "how": "cross",
+        "prefix": ""
+      }
+    },
+    {
+      "id": "interp",
+      "op": "wrangle",
+      "x": 1560,
+      "y": 60,
+      "params": {
+        "code": "// The last 15% of each flight: the approach, which is what an arrivals board shows.\n// OpenSky gives first and last contact only, so positions are interpolated between them.\nvar u = 0.85 + 0.15 * s / (ch('steps/count') - 1.0);\nvar e = (u - 0.85) / 0.15;\n// Descend from at least 3 km to the runway, easing into the flare.\nvar h = lerp(max(alt1, 3000.0), alt2, e * e * (3.0 - 2.0 * e));\n@P = [lerp(lon1, lon2, u), lerp(lat1, lat2, u), max(h, 0.0)];\n@t = lerp(time1, time2, u);\n@Cd = ramp(0.3 + 0.7 * clamp(h / 3000.0, 0.0, 1.0));",
+        "ramp": "turbo"
+      }
+    },
+    {
+      "id": "clock",
+      "op": "time",
+      "x": 1560,
+      "y": -120,
+      "params": {
+        "speed": 600,
+        "offset": 0
+      }
+    },
+    {
+      "id": "trails",
+      "op": "trips",
+      "x": 1820,
+      "y": 60,
+      "params": {
+        "position": "P",
+        "timestamp": "t",
+        "pathId": "flight",
+        "order": "s",
+        "color": "Cd",
+        "trailLength": 900,
+        "widthMinPixels": 3
+      }
+    },
+    {
+      "id": "site",
+      "op": "position",
+      "x": 520,
+      "y": 220,
+      "params": {
+        "lng": "lng",
+        "lat": "lat",
+        "alt": "0.0"
+      }
+    },
+    {
+      "id": "pin",
+      "op": "scatter",
+      "x": 1820,
+      "y": 220,
+      "params": {
+        "position": "P",
+        "radiusScale": 7,
+        "fillColor": [255, 255, 255]
+      }
+    },
+    {
+      "id": "label",
+      "op": "text",
+      "x": 1820,
+      "y": 340,
+      "params": {
+        "position": "P",
+        "text": "name",
+        "size": 13,
+        "offsetY": -18
+      }
+    },
+    {
+      "id": "map",
+      "op": "deck",
+      "x": 2100,
+      "y": 120,
+      "params": {
+        "basemap": "dark-matter",
+        "longitude": -0.45,
+        "latitude": 51.47,
+        "zoom": 8.2,
+        "pitch": 50,
+        "bearing": 15,
+        "follow": true
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "source": "flights_file",
+      "sourcePort": "out",
+      "target": "flights",
+      "targetPort": "in0"
+    },
+    {
+      "id": "e2",
+      "source": "airports",
+      "sourcePort": "out",
+      "target": "airport",
+      "targetPort": "in"
+    },
+    {
+      "id": "e3",
+      "source": "flights",
+      "sourcePort": "out",
+      "target": "pair",
+      "targetPort": "left"
+    },
+    {
+      "id": "e4",
+      "source": "airport",
+      "sourcePort": "out",
+      "target": "pair",
+      "targetPort": "right"
+    },
+    {
+      "id": "e5",
+      "source": "pair",
+      "sourcePort": "out",
+      "target": "gap",
+      "targetPort": "in"
+    },
+    {
+      "id": "e6",
+      "source": "gap",
+      "sourcePort": "out",
+      "target": "arriving",
+      "targetPort": "in"
+    },
+    {
+      "id": "e7",
+      "source": "arriving",
+      "sourcePort": "out",
+      "target": "expand",
+      "targetPort": "left"
+    },
+    {
+      "id": "e8",
+      "source": "steps",
+      "sourcePort": "out",
+      "target": "expand",
+      "targetPort": "right"
+    },
+    {
+      "id": "e9",
+      "source": "expand",
+      "sourcePort": "out",
+      "target": "interp",
+      "targetPort": "in"
+    },
+    {
+      "id": "e10",
+      "source": "interp",
+      "sourcePort": "out",
+      "target": "trails",
+      "targetPort": "in"
+    },
+    {
+      "id": "e11",
+      "source": "clock",
+      "sourcePort": "out",
+      "target": "trails",
+      "targetPort": "par:currentTime"
+    },
+    {
+      "id": "e12",
+      "source": "airport",
+      "sourcePort": "out",
+      "target": "site",
+      "targetPort": "in"
+    },
+    {
+      "id": "e13",
+      "source": "site",
+      "sourcePort": "out",
+      "target": "pin",
+      "targetPort": "in"
+    },
+    {
+      "id": "e14",
+      "source": "site",
+      "sourcePort": "out",
+      "target": "label",
+      "targetPort": "in"
+    },
+    {
+      "id": "e15",
+      "source": "trails",
+      "sourcePort": "out",
+      "target": "map",
+      "targetPort": "layers",
+      "index": 0
+    },
+    {
+      "id": "e16",
+      "source": "pin",
+      "sourcePort": "out",
+      "target": "map",
+      "targetPort": "layers",
+      "index": 1
+    },
+    {
+      "id": "e17",
+      "source": "label",
+      "sourcePort": "out",
+      "target": "map",
+      "targetPort": "layers",
+      "index": 2
+    }
+  ],
+  "timeline": {
+    "length": 144,
+    "fps": 30,
+    "tracks": [
+      {
+        "target": "map.bearing",
+        "keyframes": [
+          {
+            "id": "k1",
+            "time": 0,
+            "value": 15,
+            "interpolation": "bezier",
+            "handles": {
+              "left": [0.42, 0],
+              "right": [0.58, 1]
+            }
+          },
+          {
+            "id": "k2",
+            "time": 144,
+            "value": 75,
+            "interpolation": "linear"
+          }
+        ]
+      }
+    ]
+  }
+}

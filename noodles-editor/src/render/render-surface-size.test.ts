@@ -1,8 +1,9 @@
 import { fitBounds } from '@math.gl/web-mercator'
+import { type EditorDoc, OPERATOR_INDEX } from '@noodles.gl/planner'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-
-import { BoundingBoxOp } from '../noodles/operators'
 import { DEFAULT_RENDER_SETTINGS } from '../noodles/utils/render-settings-constants'
+import { registerHostOperators } from '../runtime/host/host-ops'
+import { HostRunner } from '../runtime/host/host-runner'
 import {
   calculateRenderSurfaceSize,
   getRenderSurfaceSize,
@@ -10,6 +11,7 @@ import {
   resetRenderSurfaceSize,
   setRenderSurfaceSize,
   subscribeToRenderSurfaceSize,
+  toRenderSurfacePoint,
 } from './render-surface-size'
 
 beforeEach(() => {
@@ -91,70 +93,72 @@ describe('render surface size', () => {
   })
 })
 
-describe('BoundingBoxOp render size reactivity', () => {
-  const data = [
-    { lng: -97.3159, lat: 32.9917 },
-    { lng: -96.8629, lat: 32.8517 },
-  ]
+// A 1000x500 surface laid out at `rect` on screen
+function createSurface(rect: { left: number; top: number; width: number; height: number }) {
+  const element = document.createElement('div')
+  Object.defineProperties(element, {
+    offsetWidth: { configurable: true, get: () => 1000 },
+    offsetHeight: { configurable: true, get: () => 500 },
+  })
+  element.getBoundingClientRect = () => ({ ...rect, x: rect.left, y: rect.top }) as DOMRect
+  return element
+}
+
+describe('toRenderSurfacePoint', () => {
+  it('offsets by the surface position in responsive mode', () => {
+    const element = createSurface({ left: 100, top: 50, width: 1000, height: 500 })
+    expect(toRenderSurfacePoint(element, 350, 150)).toEqual({ x: 250, y: 100 })
+  })
+
+  it('removes the TransformScale factor in fixed mode', () => {
+    // Scaled down to half size on screen
+    const element = createSurface({ left: 100, top: 50, width: 500, height: 250 })
+    expect(toRenderSurfacePoint(element, 350, 150)).toEqual({ x: 500, y: 200 })
+  })
+})
+
+describe('Fit Bounds render size reactivity', () => {
+  // The one row DuckDB gives the fit: the data's extent
+  const row = { west: -97.3159, east: -96.8629, south: 32.8517, north: 32.9917 }
   const bounds: [[number, number], [number, number]] = [
     [-97.3159, 32.8517],
     [-96.8629, 32.9917],
   ]
+  const doc: EditorDoc = {
+    version: 1,
+    name: 'b',
+    nodes: [
+      { id: 'rows', op: 'sql', x: 0, y: 0, params: {} },
+      { id: 'b', op: 'fit-bounds', x: 0, y: 0, params: { padding: 100 } },
+    ],
+    edges: [{ id: 'e', source: 'rows', sourcePort: 'out', target: 'b', targetPort: 'par:data' }],
+  }
+  const aggregate = vi.fn(async () => row)
+  const inputs = { planner: () => undefined, slots: new Map(), time: 0, aggregate }
 
-  it('fits to the published render size rather than the browser viewport', () => {
+  // The host runner memoizes an operator by what it read; a fit reads the render surface too
+  it('fits to the published render size, and refits when it changes, only then', async () => {
+    registerHostOperators()
+    const runner = new HostRunner()
     setRenderSurfaceSize({ width: 1000, height: 500 })
-    const operator = new BoundingBoxOp('/bbox')
-    const result = operator.execute({ data, padding: 180 })
-    const expected = fitBounds({ bounds, width: 1000, height: 500, padding: 180 })
-
-    expect(result.viewState).toEqual({
-      longitude: expected.longitude,
-      latitude: expected.latitude,
-      zoom: expected.zoom,
+    expect((await runner.run(doc, inputs)).ran).toEqual(['b'])
+    const first = fitBounds({ bounds, width: 1000, height: 500, padding: 100 })
+    expect(runner.output('b', 'viewState')).toEqual({
+      longitude: first.longitude,
+      latitude: first.latitude,
+      zoom: first.zoom,
     })
-    operator.dispose()
-  })
-
-  it('invalidates a cached result when the render size changes', async () => {
-    setRenderSurfaceSize({ width: 1000, height: 500 })
-    const operator = new BoundingBoxOp('/bbox')
-    operator.inputs.data.setValue(data)
-    operator.inputs.padding.setValue(100)
-    await operator.pull()
-    expect(operator.dirty).toBe(false)
+    expect((await runner.run(doc, inputs)).reused).toEqual(['b'])
 
     setRenderSurfaceSize(calculateRenderSurfaceSize({ width: 1000, height: 500 }, 2))
-    expect(operator.dirty).toBe(true)
-    const resized = await operator.pull()
+    expect((await runner.run(doc, inputs)).ran).toEqual(['b'])
     const expected = fitBounds({ bounds, width: 2000, height: 1000, padding: 100 })
-
-    expect(resized.viewState.zoom).toBe(expected.zoom)
-    expect(operator.inputs.padding.value).toBe(100)
-    operator.dispose()
+    expect(runner.output('b', 'zoom')).toBe(expected.zoom)
   })
 
-  it('does not dirty a settled operator when the size is unchanged', async () => {
-    const operator = new BoundingBoxOp('/bbox')
-    await operator.pull()
-    expect(operator.dirty).toBe(false)
-
-    setRenderSurfaceSize(getRenderSurfaceSize())
-    expect(operator.dirty).toBe(false)
-    operator.dispose()
-  })
-
-  it('unsubscribes from render-size changes when disposed', async () => {
-    const operator = new BoundingBoxOp('/bbox')
-    await operator.pull()
-    operator.dispose()
-
-    setRenderSurfaceSize({ width: 1000, height: 500 })
-    expect(operator.dirty).toBe(false)
-  })
-
-  it('does not expose the render size as an input', () => {
-    const operator = new BoundingBoxOp('/bbox')
-    expect(Object.keys(operator.inputs)).toEqual(['data', 'padding'])
-    operator.dispose()
+  it('does not take the render size as a parameter', () => {
+    registerHostOperators()
+    const params = OPERATOR_INDEX.get('fit-bounds')?.params.map(p => p.name)
+    expect(params).toEqual(['data', 'position', 'padding'])
   })
 })

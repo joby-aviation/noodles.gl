@@ -29,7 +29,7 @@ describe('validate-projects', () => {
   it('exits 0 and says OK for a valid project', () => {
     const { code, stdout } = cli('test/fixtures/valid/noodles.json')
     assert.equal(code, EXIT_OK)
-    assert.match(stdout, /^OK: 1 file valid against \d+ operators, schema version \d+\.$/)
+    assert.match(stdout, /^OK: 1 file valid against \d+ operators, document version 1\.$/)
   })
 
   it('exits 1 and lists each problem with its location and rule', () => {
@@ -38,10 +38,13 @@ describe('validate-projects', () => {
     assert.match(stdout, /^test\/fixtures\/broken\/noodles\.json$/m)
     assert.match(
       stdout,
-      /error {3}nodes\[0\] {2}\/earthquakes: Unknown operator type File\..*\[unknown-operator\]/
+      /error {3}nodes\[0\] {2}n1: Unknown operator File\. Did you mean: file\? \[unknown-operator\]/
     )
-    assert.match(stdout, /error {3}edges\[1\] .*in\.vis is malformed.*\[edge-handle\]/)
-    assert.match(stdout, /^FAIL: 4 errors in 1 of 1 file\./m)
+    assert.match(
+      stdout,
+      /error {3}edges\[1\] .*par\.layers is an old handle; write layers\..*\[edge-port\]/
+    )
+    assert.match(stdout, /^FAIL: 3 errors in 1 of 1 file\./m)
   })
 
   it('searches directories for project files', () => {
@@ -59,9 +62,9 @@ describe('validate-projects', () => {
     const broken = result.files.find((f: { file: string }) => f.file.includes('broken'))
     assert.deepEqual(
       broken.errors.map((d: { rule: string }) => d.rule),
-      ['unknown-operator', 'unknown-input', 'edge-handle', 'edge-handle']
+      ['unknown-operator', 'unknown-param', 'edge-port']
     )
-    assert.equal(typeof result.registry.projectVersion, 'number')
+    assert.equal(result.registry.documentVersion, 1)
   })
 
   it('reports a file that is not JSON', () => {

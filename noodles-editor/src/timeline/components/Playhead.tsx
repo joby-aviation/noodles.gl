@@ -1,7 +1,8 @@
 // Playhead component - draggable position indicator
 
-import { useCallback, useRef, useState } from 'react'
+import { useCallback } from 'react'
 import { useTimelineStore } from '../timeline-store'
+import { useScrubDrag } from '../use-scrub-drag'
 import s from './TimelinePanel.module.css'
 
 export interface PlayheadProps {
@@ -11,11 +12,10 @@ export interface PlayheadProps {
 }
 
 export function Playhead({ position, pixelsPerSecond, height }: PlayheadProps) {
-  const [isDragging, setIsDragging] = useState(false)
-  const dragStartRef = useRef<{ startX: number; startPosition: number } | null>(null)
-
+  const isDragging = useTimelineStore(state => state.scrubSource === 'playhead')
   const sequence = useTimelineStore(state => state.sequence)
   const setPosition = useTimelineStore(state => state.setPosition)
+  const startScrub = useScrubDrag('playhead')
 
   const x = position * pixelsPerSecond
 
@@ -24,35 +24,15 @@ export function Playhead({ position, pixelsPerSecond, height }: PlayheadProps) {
       e.preventDefault()
       e.stopPropagation()
 
-      setIsDragging(true)
-      dragStartRef.current = {
-        startX: e.clientX,
-        startPosition: position,
-      }
+      const startX = e.clientX
+      const startPosition = position
 
-      const handleMouseMove = (moveEvent: MouseEvent) => {
-        if (!dragStartRef.current) return
-
-        const deltaX = moveEvent.clientX - dragStartRef.current.startX
-        const deltaTime = deltaX / pixelsPerSecond
-        const newPosition = Math.max(
-          0,
-          Math.min(dragStartRef.current.startPosition + deltaTime, sequence.length)
-        )
-        setPosition(newPosition)
-      }
-
-      const handleMouseUp = () => {
-        setIsDragging(false)
-        dragStartRef.current = null
-        document.removeEventListener('mousemove', handleMouseMove)
-        document.removeEventListener('mouseup', handleMouseUp)
-      }
-
-      document.addEventListener('mousemove', handleMouseMove)
-      document.addEventListener('mouseup', handleMouseUp)
+      startScrub(moveEvent => {
+        const deltaTime = (moveEvent.clientX - startX) / pixelsPerSecond
+        setPosition(Math.max(0, Math.min(startPosition + deltaTime, sequence.length)))
+      })
     },
-    [position, pixelsPerSecond, sequence.length, setPosition]
+    [position, pixelsPerSecond, sequence.length, setPosition, startScrub]
   )
 
   return (

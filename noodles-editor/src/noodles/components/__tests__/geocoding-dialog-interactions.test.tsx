@@ -47,7 +47,7 @@ describe('GeocodingDialog interactions', () => {
     useKeysStore.setState({
       browserKeys: {},
       projectKeys: undefined,
-      saveInProject: false,
+      keyOverrides: {},
       // Ignore env keys so tests control which providers are configured
       getKey: key => useKeysStore.getState().browserKeys[key],
     })

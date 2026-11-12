@@ -508,6 +508,12 @@ async function executeTool(
 ): Promise<ToolResult> {
   const { tools, router, depth, signal } = params
 
+  // A stopped run keeps reading until it settles, but it changes nothing more: the user may
+  // have moved on to another conversation, which undoes what the run already did
+  if (signal?.aborted && !isReadOnly(name, router)) {
+    return { success: false, error: 'The user stopped this reply.' }
+  }
+
   if (name === FIND_TOOLS_NAME) return router.findTools(input)
 
   // A narrowed router (a sub-agent's) has to refuse here as well as omit from the
@@ -530,7 +536,7 @@ async function executeTool(
   // next request instead of it guessing at the arguments again.
   if (!router.isCallable(name)) router.findTools({ query: name, limit: 1 })
 
-  return definition.execute(tools, input, () => tools.getProject())
+  return definition.execute(tools, input)
 }
 
 function accumulateUsage(total: AgentUsage, turn: AgentUsage | null) {

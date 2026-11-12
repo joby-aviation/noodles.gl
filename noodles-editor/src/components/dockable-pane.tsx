@@ -50,6 +50,16 @@ function loadRect(storageKey: string, fallback: Rect): Rect {
 
 export type PaneMode = 'docked' | 'floating' | 'underlay'
 
+// With nothing to dock to, the pane waits off screen at a real size rather than at zero, so
+// its content (a map, a React Flow canvas) keeps a sane viewport until it is shown again
+const HIDDEN_STYLE = {
+  visibility: 'hidden',
+  left: -10000,
+  top: 0,
+  width: 1024,
+  height: 768,
+} as const
+
 // Hosts content that must never unmount or reparent — moving a WebGL canvas in the DOM
 // loses its context (MapLibre recovers, deck.gl's layer resources don't). The pane is a
 // single fixed-position element pinned over dockTo's bounding box ('docked' above the
@@ -169,9 +179,7 @@ export function DockablePane({
       ref={containerRef}
       className={modeClass}
       style={
-        rect
-          ? { left: rect.x, top: rect.y, width: rect.width, height: rect.height }
-          : { visibility: 'hidden' }
+        rect ? { left: rect.x, top: rect.y, width: rect.width, height: rect.height } : HIDDEN_STYLE
       }
     >
       {floating && (

@@ -189,6 +189,7 @@
       }
     },
     "viewport": {
+      "description": "Ignored, and no longer written: the editor fits the graph when a project opens",
       "type": "object",
       "properties": {
         "x": {

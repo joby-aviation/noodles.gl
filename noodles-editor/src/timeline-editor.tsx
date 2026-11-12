@@ -1,10 +1,42 @@
 import type { Deck, DeckProps } from '@deck.gl/core'
 import { MapLibreOverlay, type MapLibreOverlayProps } from '@deck.gl/maplibre'
 import { DeckGL } from '@deck.gl/react'
+import { nameOf } from '@noodles.gl/planner'
 import { ReactFlowProvider } from '@xyflow/react'
 import type { CustomLayerInterface, Map as MapLibre } from 'maplibre-gl'
-import { forwardRef, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import {
+  forwardRef,
+  type PointerEvent as ReactPointerEvent,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
 import ReactMapGL, { type MapProps, useControl } from 'react-map-gl/maplibre'
+import {
+  CAMERA_PARAMS,
+  cameraControlOf,
+  cameraGesture,
+  drivingCamera,
+  writeCamera,
+  writesStatic,
+} from './editor/camera-control'
+import { CameraToolbar } from './editor/camera-toolbar'
+import { currentEngine, engineState } from './editor/doc-engine'
+import { useDocNoodles } from './editor/doc-noodles'
+import { docStore, useEditor } from './editor/doc-store'
+import { pendingKeys, usePendingKeys } from './editor/pending-keys'
+import { useUIStore } from './editor/ui-store'
+import {
+  cameraOf,
+  navigates,
+  playheadShowsCamera,
+  showsCamera,
+  useViewportCamera,
+  viewportCamera,
+} from './editor/viewport-camera'
 import { Layout } from './layout'
 import { ErrorBoundary } from './noodles/components/error-boundary'
 import { useMapClickToEdit } from './noodles/components/map-click-to-edit'
@@ -15,32 +47,23 @@ import { TopMenuBar } from './noodles/components/top-menu-bar'
 import { ExportActionsProvider } from './noodles/contexts/export-actions-context'
 import { useActiveStorageType, useCurrentDirectory } from './noodles/filesystem-store'
 import { agentBench, externalControl } from './noodles/globals'
-import { getExecutor } from './noodles/graph-executor'
-import { useActiveOutOp } from './noodles/hooks/use-active-outop'
-import { useRenderSettings } from './noodles/hooks/use-render-settings'
-import { getNoodles } from './noodles/noodles'
 import { fnWithSource } from './noodles/operators'
-import { useUIStore } from './noodles/store'
 import {
   trackDeckInteraction,
   trackMapLibreGesture,
   trackPanelToggled,
 } from './noodles/utils/editor-analytics'
-import {
-  createCameraGestureHistory,
-  updateCameraInputs,
-  useCameraControlState,
-} from './noodles/utils/map-camera-control'
-import { captureOperatorInputs, firePropertyMutation } from './noodles/utils/property-history'
-import type { RenderSettings } from './noodles/utils/serialization'
+import { DEFAULT_RENDER_SETTINGS, type RenderSettings } from './noodles/utils/serialization'
 import { PREVIEW_FRAME_DELAY, useDeckDrawLoop } from './render/draw-loop'
 import { FrameCounter } from './render/frame-stats'
+import { type BasemapLight, type BasemapSky, syncLightAndSky } from './render/map-light-sky'
 import type { RenderSource } from './render/render-analytics'
-import { resetRenderProgress, setRenderProgress } from './render/render-progress-store'
+import { isRendering as isExportRunning, setRenderProgress } from './render/render-session'
 import {
   calculateRenderSurfaceSize,
   observeRenderSurface,
   setRenderSurfaceSize,
+  toRenderSurfacePoint,
 } from './render/render-surface-size'
 import { captureScreenshot, useRenderer } from './render/renderer'
 import { deckRenderingDefaults, mapRenderingDefaults } from './render/rendering-defaults'
@@ -54,7 +77,6 @@ import {
 } from './render/video-export'
 import { TimelinePanel } from './timeline/components/TimelinePanel'
 import { getTimelineStore, useTimelineStore } from './timeline/timeline-store'
-import s from './timeline-editor.module.css'
 import { debugRender } from './utils/debug'
 import setRef from './utils/set-ref'
 import { workerSetTimeout } from './utils/worker-timer'
@@ -133,12 +155,13 @@ export default function TimelineEditor() {
   const mapIdleRef = useRef(false)
   const deckRef = useRef<Deck>(null)
   const renderSurfaceRef = useRef<HTMLDivElement>(null)
-  const isRenderingRef = useRef(false)
   // Session-only handle set by selectRendersDirectory; takes priority over project subdir
   const rendersDirectoryHandleRef = useRef<FileSystemDirectoryHandle | null>(null)
   const customLayersRef = useRef<Set<string>>(new Set())
   // Track style version to trigger layer re-addition after style changes
   const [styleVersion, setStyleVersion] = useState(0)
+  // The map from the last onLoad. mapRef alone can't re-run effects once the map has loaded
+  const [loadedMap, setLoadedMap] = useState<MapLibre | null>(null)
 
   // Trigger a redraw of React, mapbox and deck when the renderer state changes,
   // to ensure that the VideoStreamReader in renderer.ts runs
@@ -152,10 +175,10 @@ export default function TimelineEditor() {
     deckRef.current?.redraw()
     // Only trigger React re-renders outside of the render loop — during export this
     // runs every frame and causes CSSStyleRule/DOM churn from React re-renders.
-    if (!isRenderingRef.current) setRand(Math.random())
+    if (!isExportRunning()) setRand(Math.random())
   }, [])
 
-  const noodles = getNoodles()
+  const noodles = useDocNoodles()
   const {
     flowGraph,
     nodeSidebar,
@@ -163,16 +186,13 @@ export default function TimelineEditor() {
     chatPanel,
     gitHistoryPanel,
     selectedNodeIds,
-    edges,
     ...visualization
   } = noodles
 
   const setTimelineExpanded = useUIStore(state => state.setTimelineExpanded)
 
-  // Render settings are now stored as OutOp inputs
-  const renderSettings = useRenderSettings()
-  // Active OutOp for updating rendersDirectory when user picks a directory
-  const activeOutOp = useActiveOutOp()
+  // Render settings are the document's deck parameters
+  const renderSettings = noodles.renderSettings ?? DEFAULT_RENDER_SETTINGS
   // File system state for resolving the renders directory
   const currentDirectory = useCurrentDirectory()
   const activeStorageType = useActiveStorageType()
@@ -205,39 +225,118 @@ export default function TimelineEditor() {
     bitrate: bitrateMbps * 1_000_000,
     bitrateMode,
     redraw,
+    settle: noodles.settle,
   })
-  isRenderingRef.current = isRendering
 
   const isPlaying = useTimelineStore(state => state.playing)
-  const cameraControl = useCameraControlState(selectedNodeIds ?? [], {
-    edges: edges ?? [],
-    isRendering,
-    isPlaying,
-  })
-  const cameraHistoryRef = useRef(
-    createCameraGestureHistory(captureOperatorInputs, before =>
-      firePropertyMutation('Move map camera', before)
-    )
+  const doc = useEditor(state => state.doc)
+  // Only which camera the playhead picks (a Switch Value's), not the playhead itself: this
+  // component renders the whole editor, and the playhead moves every frame of playback
+  const activeCameraId = useEditor(state => drivingCamera(state.doc, state.time))
+  const cameraControl = useMemo(
+    () => cameraControlOf(doc, { isRendering, isPlaying, camera: activeCameraId }),
+    [doc, isRendering, isPlaying, activeCameraId]
   )
+  const cameraHistoryRef = useRef(cameraGesture())
 
-  // Starting playback or an export, or changing the selection, can turn camera control off
-  // mid-drag. Close the gesture then so the next drag takes a fresh history snapshot.
+  // The viewport and the camera view and lock switches are the editor's, per project: an example
+  // and a saved project can share a name, so the key says where it lives
+  const viewportKey = noodles.projectName && `${activeStorageType}:${noodles.projectName}`
   useEffect(() => {
-    if (!cameraControl.enabled) cameraHistoryRef.current.finish()
-  }, [cameraControl.enabled])
+    viewportCamera().open(viewportKey)
+    pendingKeys().clear()
+  }, [viewportKey])
+  const viewport = useViewportCamera(st => st.viewport)
+  const lookThrough = useViewportCamera(st => st.lookThrough)
+  const lock = useViewportCamera(st => st.lock)
+  // The viewport is a map's: a deck whose camera has no longitude and latitude (an OrbitView's)
+  // keeps its own camera. A Map View wired into a deck is still a map.
+  const activeCamera = cameraOf(visualization.deckProps?.viewState)
+  const geographic = activeCamera !== undefined
+  const shownViewport =
+    geographic && !showsCamera({ lookThrough, lock, viewport }, isRendering) ? viewport : undefined
+  const navigation = isRendering ? 'none' : navigates({ lookThrough, lock }, cameraControl.enabled)
+  // Nothing to move until the engine has drawn a camera: deck's controller asserts without one
+  const canNavigate =
+    !!(shownViewport ?? activeCamera) &&
+    (navigation === 'camera' || (navigation === 'viewport' && geographic))
+  const cameraNode = doc.nodes.find(n => n.id === cameraControl.nodeId)
+  // A locked camera's unkeyed changes, which the map shows over its keyed values
+  const pending = usePendingKeys(st => st.values)
+  const pendingCamera = useMemo(() => {
+    const id = cameraControl.nodeId
+    const changed = id ? CAMERA_PARAMS.filter(p => pending[`${id}.${p}`] !== undefined) : []
+    if (!id || changed.length === 0) return undefined
+    return Object.fromEntries(changed.map(p => [p, pending[`${id}.${p}`]]))
+  }, [pending, cameraControl.nodeId])
+  // What the map shows instead of the engine's camera: the viewport, or the camera with its
+  // unkeyed changes
+  const shownCamera =
+    shownViewport ??
+    (geographic && lookThrough && !isRendering && pendingCamera
+      ? { ...activeCamera, ...pendingCamera }
+      : undefined)
+
+  // Moving the playhead (scrubbing, stepping, playing) goes back to the camera, unless the
+  // viewport is locked
+  useEffect(() => {
+    let last = docStore().get().time
+    return docStore().subscribe(() => {
+      const { time } = docStore().get()
+      if (time === last) return
+      last = time
+      // Unkeyed changes belong to the frame they were made on
+      pendingKeys().clear()
+      const v = viewportCamera()
+      if (playheadShowsCamera(v)) v.setLookThrough(true)
+    })
+  }, [])
+
+  // An edit to a changed parameter's keyframes (typing a value, removing the track, an undo)
+  // wins over the change made before it
+  useEffect(() => pendingKeys().reconcile(doc), [doc])
+
+  // An export renders the document's camera, keyed values and all
+  useEffect(() => {
+    if (isRendering) pendingKeys().clear()
+  }, [isRendering])
+
+  // Starting playback or an export, or leaving camera view, can stop the map moving the camera
+  // mid-drag. Close the gesture then so the next drag is an undo step of its own.
+  useEffect(() => {
+    if (navigation !== 'camera') cameraHistoryRef.current.finish()
+  }, [navigation])
 
   const beginCameraGesture = useCallback(() => {
-    if (!cameraControl.enabled) return
-    cameraHistoryRef.current.begin()
-  }, [cameraControl.enabled])
+    if (navigation === 'camera') cameraHistoryRef.current.begin()
+  }, [navigation])
 
-  const updateSelectedCamera = useCallback(
+  // Moving the map: the active camera when locked to it, else the viewport, leaving camera view
+  const navigate = useCallback(
     (viewState: unknown) => {
-      if (!cameraControl.enabled || !cameraControl.op) return
-      beginCameraGesture()
-      updateCameraInputs(cameraControl.op, viewState)
+      const id = cameraControl.nodeId
+      if (navigation === 'camera' && id) {
+        // Static parameters change in the document, one undo step a drag; keyframed ones wait,
+        // unkeyed, for their keyframe buttons
+        const store = docStore()
+        let keyed: ReturnType<typeof writeCamera> = { changed: {}, same: [] }
+        if (writesStatic(store.get().doc, id))
+          store.edit(d => {
+            keyed = writeCamera(d, id, viewState, activeCamera)
+          }, cameraHistoryRef.current.tag())
+        // Every parameter keyframed: nothing in the document changes, so no undo step
+        else keyed = writeCamera(store.get().doc, id, viewState, activeCamera)
+        pendingKeys().clear(keyed.same)
+        pendingKeys().set(store.get().doc, keyed.changed)
+        return
+      }
+      const camera = cameraOf(viewState)
+      if (navigation !== 'viewport' || !geographic || !camera) return
+      const v = viewportCamera()
+      if (v.lookThrough) v.setLookThrough(false)
+      v.setViewport(camera)
     },
-    [beginCameraGesture, cameraControl]
+    [navigation, cameraControl.nodeId, geographic, activeCamera]
   )
 
   const finishCameraGesture = useCallback(() => {
@@ -264,7 +363,10 @@ export default function TimelineEditor() {
   const deckProps: DeckProps = {
     ...deckRenderingDefaults,
     ...visualizationDeckProps,
-    controller: !basemapEnabled && cameraControl.enabled,
+    ...(shownCamera && {
+      viewState: { ...visualizationDeckProps?.viewState, ...shownCamera },
+    }),
+    controller: !basemapEnabled && canNavigate,
     // A few pixels of slack so thin arcs and small points can be clicked
     pickingRadius: visualizationDeckProps?.pickingRadius ?? 4,
     getCursor: visualizationDeckProps?.getCursor ?? clickToEdit.getCursor,
@@ -278,14 +380,14 @@ export default function TimelineEditor() {
     },
     onViewStateChange: params => {
       const result = visualizationDeckProps?.onViewStateChange?.(params)
-      if (!basemapEnabled) updateSelectedCamera(result ?? params.viewState)
+      if (!basemapEnabled) navigate(result ?? params.viewState)
       return result
     },
     onInteractionStateChange: interactionState => {
       visualizationDeckProps?.onInteractionStateChange?.(interactionState)
       // Only deck's controller sets these, so they always come from the user
       trackDeckInteraction(interactionState)
-      if (basemapEnabled || !cameraControl.enabled) return
+      if (basemapEnabled || navigation !== 'camera') return
       cameraHistoryRef.current.setInteracting(
         Boolean(
           interactionState.isDragging ||
@@ -327,26 +429,29 @@ export default function TimelineEditor() {
     onLoad: ({ target: map }) => {
       // Redraw react to ensure hooks check for map ref changes
       mapRef.current = map
+      setLoadedMap(map)
       redraw()
     },
     ...basemapProps,
+    // The viewport, or the camera's unkeyed changes
+    ...(shownCamera ?? {}),
     maxPitch: Math.min(basemapProps?.maxPitch ?? 85, 85),
-    interactive: cameraControl.enabled,
-    dragPan: cameraControl.enabled,
-    dragRotate: cameraControl.enabled,
-    scrollZoom: cameraControl.enabled,
-    boxZoom: cameraControl.enabled,
-    doubleClickZoom: cameraControl.enabled,
-    keyboard: cameraControl.enabled,
-    touchZoomRotate: cameraControl.enabled,
-    touchPitch: cameraControl.enabled,
+    interactive: canNavigate,
+    dragPan: canNavigate,
+    dragRotate: canNavigate,
+    scrollZoom: canNavigate,
+    boxZoom: canNavigate,
+    doubleClickZoom: canNavigate,
+    keyboard: canNavigate,
+    touchZoomRotate: canNavigate,
+    touchPitch: canNavigate,
     onMoveStart: event => {
       visualizationOnMoveStart?.(event)
       beginCameraGesture()
     },
     onMove: event => {
       visualizationOnMove?.(event)
-      updateSelectedCamera(event.viewState)
+      navigate(event.viewState)
     },
     onMoveEnd: event => {
       visualizationOnMoveEnd?.(event)
@@ -370,33 +475,16 @@ export default function TimelineEditor() {
     },
   }
 
-  // Apply light and sky settings imperatively to avoid style reloading
+  // Apply light and sky imperatively to avoid style reloading, and again after each style load
   useEffect(() => {
-    const map = mapRef.current
-    if (!map || !map.isStyleLoaded()) return
-
-    // Note: light settings only apply to globe projection
-    if (light) {
-      map.setLight({
-        anchor: light.anchor,
-        position: [1.15, light.azimuthal, light.polar],
-      })
-    }
-
-    if (sky?.enabled) {
-      // Note: skyColor, horizonColor, skyHorizonBlend only apply to mercator projection
-      // Note: atmosphereBlend only applies to globe projection
-      map.setSky({
-        'sky-color': sky.skyColor,
-        'horizon-color': sky.horizonColor,
-        'sky-horizon-blend': sky.skyHorizonBlend,
-        'atmosphere-blend': sky.atmosphereBlend,
-      })
-    } else {
-      // Disable sky - requires MapLibre GL JS 4.6.0+
-      map.setSky(undefined)
-    }
-  }, [light, sky])
+    if (!loadedMap) return
+    // mapProps types these as MapLibre specs, but they hold MaplibreBasemapOp's fields
+    return syncLightAndSky(
+      loadedMap,
+      light as BasemapLight | undefined,
+      sky as BasemapSky | undefined
+    )
+  }, [loadedMap, light, sky])
 
   // Manage custom MapLibre layers
   // biome-ignore lint/correctness/useExhaustiveDependencies: styleVersion re-adds the layers after a style reload
@@ -458,17 +546,16 @@ export default function TimelineEditor() {
   }, [visualization.maplibreLayers, styleVersion])
 
   // Hooks for the Playwright suite in e2e/: the timeline store, and pendingWork(), which
-  // names what is still loading (operators, deck layers, a basemap not yet idle) so a test
+  // names what is still loading (the graph, deck layers, a basemap not yet idle) so a test
   // knows when to take a screenshot and a timed-out test can say why.
   useEffect(() => {
     const pendingWork = () => {
-      const executor = getExecutor()
-      const ids = executor?.getExecutionOrder() ?? []
-      if (!executor || ids.length === 0) return ['graph']
-      const pending = ids.filter(id => {
-        const node = executor.getNode(id)
-        return !node || node.dirty || node.executionState.value.status === 'executing'
-      })
+      // The engine reports 'drawn' once it has drawn the current document and time
+      const { status } = engineState()
+      const pending: string[] =
+        status.kind === 'drawn'
+          ? []
+          : [status.kind === 'failed' ? `graph (failed: ${status.error})` : 'graph']
       if (basemapEnabled && !mapIdleRef.current) pending.push('basemap')
       // @ts-expect-error layerManager is protected but accessible
       const layers = deckRef.current?.layerManager?.getLayers()
@@ -526,7 +613,7 @@ export default function TimelineEditor() {
 
   // Keep the visualization's own onRender, if it set one
   mapProps.onRender = event => {
-    basemapProps.onRender?.(event)
+    ;(basemapProps as MapProps).onRender?.(event)
     mapIdleRef.current = false
   }
 
@@ -578,7 +665,7 @@ export default function TimelineEditor() {
     }
     // During rendering with waitForData, also confirm deck layers have finished loading.
     // mapIdle fires on map tile/style readiness only — it doesn't know about deck layer data.
-    if (isRenderingRef.current && waitForData) {
+    if (isExportRunning() && waitForData) {
       const deck = deckRef.current
       if (
         deck &&
@@ -588,7 +675,7 @@ export default function TimelineEditor() {
         return
       }
     }
-    if (isRenderingRef.current && preview) {
+    if (isExportRunning() && preview) {
       if (frameCapturedRef.current) return
       frameCapturedRef.current = true
       debugRender(
@@ -630,8 +717,7 @@ export default function TimelineEditor() {
 
   const startRender = useCallback(
     async (source: RenderSource = 'menu') => {
-      // Two captures would share one frame-ready callback and the timeline position
-      if (isRenderingRef.current) {
+      if (isExportRunning()) {
         debugRender('Start Render: an export is already running')
         return
       }
@@ -642,7 +728,6 @@ export default function TimelineEditor() {
         return
       }
 
-      resetRenderProgress()
       const result = await startCapture({
         canvas,
         getCanvas: getDeckCanvas,
@@ -679,7 +764,7 @@ export default function TimelineEditor() {
   // agent driving the editor cannot make. Always an opaque MP4, whatever exportAlpha says.
   const exportVideoForAgent = useCallback<VideoExporter>(
     (request, onFrameComplete) => {
-      if (isRenderingRef.current) {
+      if (isExportRunning()) {
         return { status: 'refused', error: 'An export is already running in the editor' }
       }
 
@@ -703,7 +788,6 @@ export default function TimelineEditor() {
       if (!resolved.ok) return { status: 'refused', error: resolved.error }
 
       const { settings } = resolved
-      resetRenderProgress()
       return {
         status: 'started',
         settings,
@@ -742,6 +826,15 @@ export default function TimelineEditor() {
         return
       }
 
+      // A screenshot is the camera's, as an export is: from the viewport, look through it first,
+      // and let the map draw there, without the camera's unkeyed changes
+      const unkeyed = Object.keys(pendingKeys().values).length > 0
+      if (!viewportCamera().lookThrough || unkeyed) {
+        viewportCamera().setLookThrough(true)
+        pendingKeys().clear()
+        await mapIdle(mapRef.current)
+      }
+
       const suggestedName = noodles.projectName ?? 'screenshot'
       await captureScreenshot(
         suggestedName,
@@ -762,14 +855,20 @@ export default function TimelineEditor() {
     try {
       const handle = await window.showDirectoryPicker({ mode: 'readwrite' })
       rendersDirectoryHandleRef.current = handle
-      // Persist the folder name to the OutOp so it survives project reloads
-      activeOutOp?.inputs.rendersDirectory.setValue(handle.name)
+      // Persist the folder name in the document so it survives project reloads
+      noodles.setRenderSettings?.({ ...renderSettings, rendersDirectory: handle.name })
     } catch (e) {
       if ((e as DOMException).name !== 'AbortError') throw e
     }
-  }, [activeOutOp])
+  }, [noodles.setRenderSettings, renderSettings])
 
   const exportSequence = useCallback(async () => {
+    // Checked before the folder picker, so it doesn't open during an export.
+    // startSequenceCapture still claims the session, in case one starts while it is open.
+    if (isExportRunning()) {
+      debugRender('Export Sequence: an export is already running')
+      return
+    }
     const canvas = getDeckCanvas()
     if (!canvas) {
       debugRender('Export Sequence: the canvas is not ready yet')
@@ -803,7 +902,6 @@ export default function TimelineEditor() {
       }
     }
 
-    resetRenderProgress()
     try {
       await startSequenceCapture({
         canvas,
@@ -903,8 +1001,9 @@ export default function TimelineEditor() {
     return (
       <div
         ref={renderSurfaceRef}
+        data-render-surface
         style={{ position: 'relative', width: '100%', height: '100%' }}
-        {...clickToEdit.surfaceHandlers}
+        onPointerMove={trackPointer}
       >
         {content}
       </div>
@@ -954,8 +1053,8 @@ export default function TimelineEditor() {
       >
         <Layout
           top={topBar}
-          left={nodeSidebar}
-          right={propertiesPanel}
+          layers={nodeSidebar}
+          properties={propertiesPanel}
           timeline={heightPx => (
             <TimelinePanel
               height={heightPx}
@@ -968,12 +1067,13 @@ export default function TimelineEditor() {
           flowGraph={flowGraph}
           spreadsheet={<SpreadsheetPane selectedNodeIds={selectedNodeIds ?? []} />}
         >
-          {/* Outside the scaled render surface, so the label keeps its size */}
-          {clickToEdit.label}
-          {cameraControl.reason && (
-            <div className={s.cameraControlStatus} role="status">
-              {cameraControl.reason}
-            </div>
+          {!isRendering && geographic && (
+            <CameraToolbar
+              control={cameraControl}
+              camera={activeCamera}
+              cameraName={cameraNode ? nameOf(cameraNode) : undefined}
+              changes={pendingCamera}
+            />
           )}
           {isFixedMode ? (
             <TransformScale
@@ -993,4 +1093,35 @@ export default function TimelineEditor() {
       </ExportActionsProvider>
     </ReactFlowProvider>
   )
+}
+
+// Resolves once the map has moved and drawn its tiles, or after a few seconds regardless
+function mapIdle(map: MapLibre | null): Promise<void> {
+  return new Promise(resolve => {
+    const done = () => {
+      clearTimeout(timer)
+      resolve()
+    }
+    const timer = setTimeout(done, 3000)
+    // Two frames for React to hand the map its new camera; a map already there and drawn has
+    // no idle left to send
+    requestAnimationFrame(() =>
+      requestAnimationFrame(() => {
+        if (!map || (map.loaded() && !map.isMoving())) done()
+        else map.once('idle', done)
+      })
+    )
+  })
+}
+
+let pointerFrame = 0
+
+// The pointer, for a document that reads it (a Mouse node, MX or MY), in the render surface's
+// own pixels: the surface may be drawn scaled to fit the pane
+function trackPointer(e: ReactPointerEvent<HTMLDivElement>) {
+  const engine = currentEngine()
+  if (!engine?.readsPointer()) return
+  const { x, y } = toRenderSurfacePoint(e.currentTarget, e.clientX, e.clientY)
+  cancelAnimationFrame(pointerFrame)
+  pointerFrame = requestAnimationFrame(() => void engine.setPointer(x, y))
 }

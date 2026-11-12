@@ -17,15 +17,29 @@ The first five have the names and parameters of the in-app assistant's tools (`n
 | Tool | Params | Returns |
 |---|---|---|
 | `list_operators` | `category?` | `[{type, name, category, description}]` |
-| `get_operator_schema` | `type` (`FileOp`, or a display name like `File`) | Inputs with types and defaults, outputs, and the `par.`/`out.` handles to wire them |
+| `get_operator_schema` | `type` (`scatter`, or a display name like `Scatterplot Layer`) | Input and output ports with types, parameters with kinds and defaults, and the port names an edge may use (`in`, `par:radiusScale`) |
 | `get_documentation` | `query?`, `id?`, `section?` | Search results with excerpts and topic ids, or one topic in full. Same ids as in the app |
 | `list_examples` | `category?`, `tag?` | `[{id, name, description, category, tags, path}]` |
 | `get_example` | `id` | The project (large inline data trimmed to a sample), README, and the files beside it |
-| `validate_project` | `path` or `project` | `{summary, valid, errors, warnings, registry}` from [noodles-validate](../noodles-validate/README.md). `summary` starts with `OK` when the file is done |
+| `validate_project` | `path` or `project` | `{summary, valid, errors, warnings, registry}` from [noodles-validate](../noodles-validate/README.md). `summary` starts with `OK` when the file is done, and with `PARTLY CHECKED` for a project outside the examples that is behind the schema |
 
 The server's instructions tell the client the workflow: start from an example, read both operators' schemas before writing an edge, validate after each edit, and stop when `validate_project` returns `"valid": true`.
 
 Relative `path`s resolve against the server's working directory, which for Claude Code is the project root.
+
+## ACP bridge
+
+`noodles-mcp acp` connects the editor's chat panel to an agent that speaks the [Agent Client Protocol](https://agentclientprotocol.com/) (Claude Code through `claude-agent-acp`, Codex through `codex-acp`, Gemini CLI, Goose, OpenCode):
+
+```bash
+node noodles-mcp/bin/noodles-mcp.ts acp -- npx -y @agentclientprotocol/claude-agent-acp
+```
+
+It starts the agent and prints a `ws://127.0.0.1:7341/acp?token=…` URL to paste into Settings → AI Provider → ACP agent. `--help` lists the options (`--port`, `--cwd`, `--allow-origin`, `--token`).
+
+- **Transport.** ACP agents speak JSON-RPC over stdio, and a tab cannot start a process. The bridge passes each message between the agent's stdio and one WebSocket. One tab drives one agent process; a second tab connecting replaces the first.
+- **Tools.** The bridge rewrites `session/new` to set the working directory and to give the agent one MCP server, `noodles-mcp acp-tools`. Its `tools/list` and `tools/call` come back to the bridge over HTTP and go to the tab as `noodles/listTools` and `noodles/callTool`, which run the in-app tool definitions. Whatever the tab asked for in `session/new` is replaced, so a page cannot choose commands for the agent to start.
+- **Security.** The agent can run shell commands, so the socket is guarded. It listens on 127.0.0.1 only, accepts the origins on its allowlist (the hosted app and the Vite dev server, plus `--allow-origin`), and requires the token it printed. The tools endpoint refuses any request with an `Origin` header and needs a second token that only the agent's environment holds.
 
 ## Not here
 

@@ -1,8 +1,8 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://noodles.gl/schema/noodles-project.schema.json",
-  "title": "Noodles.gl project file (version 19)",
-  "description": "A noodles.json file. Covers file shape only; check operator types, inputs and edge handles with noodles-validate.",
+  "title": "Noodles.gl project document (version 1)",
+  "description": "A noodles.json document. Covers file shape only; check operators, parameters and ports with noodles-validate.",
   "type": "object",
   "properties": {
     "$schema": {
@@ -10,10 +10,13 @@
     },
     "version": {
       "type": "number",
-      "const": 19,
-      "description": "Schema version. Older files are migrated when the editor opens them"
+      "const": 1,
+      "description": "Document version"
     },
     "name": {
+      "type": "string"
+    },
+    "description": {
       "type": "string"
     },
     "nodes": {
@@ -23,119 +26,90 @@
         "properties": {
           "id": {
             "type": "string",
-            "pattern": "^(\\/[^/\\s]+)+$",
-            "description": "Absolute operator path, e.g. /earthquake-data or /container/child"
+            "minLength": 1,
+            "description": "Opaque and stable; edges and parent name nodes by id"
           },
-          "type": {
+          "op": {
             "type": "string",
             "minLength": 1,
-            "description": "Operator type, e.g. FileOp, or group"
+            "description": "Operator type, e.g. file, scatter, deck"
           },
-          "position": {
+          "name": {
+            "description": "Unique within its network; paths use it. Defaults to the id",
+            "type": "string",
+            "pattern": "^[^/\\s]+$"
+          },
+          "parent": {
+            "description": "Id of the subnet it is inside; absent at the root",
+            "type": "string"
+          },
+          "x": {
+            "type": "number"
+          },
+          "y": {
+            "type": "number"
+          },
+          "params": {
             "type": "object",
-            "properties": {
-              "x": {
-                "type": "number"
-              },
-              "y": {
-                "type": "number"
-              }
+            "propertyNames": {
+              "type": "string"
             },
-            "required": [
-              "x",
-              "y"
-            ],
-            "additionalProperties": false
+            "additionalProperties": {
+              "$ref": "#/$defs/ParamValue"
+            },
+            "description": "Parameters that differ from the defaults, by name"
           },
-          "data": {
+          "flags": {
             "type": "object",
             "properties": {
-              "inputs": {
-                "description": "Input values that differ from the defaults, by field name",
-                "type": "object",
-                "propertyNames": {
-                  "type": "string"
-                },
-                "additionalProperties": {}
-              },
-              "locked": {
+              "bypass": {
+                "description": "Pass the first table input through",
                 "type": "boolean"
               },
-              "customInputs": {
-                "type": "array",
-                "items": {
-                  "type": "object",
-                  "properties": {
-                    "id": {
-                      "type": "string"
-                    },
-                    "name": {
-                      "type": "string"
-                    },
-                    "type": {
-                      "type": "string",
-                      "description": "Field type, e.g. number or string"
-                    },
-                    "order": {
-                      "type": "number"
-                    },
-                    "options": {
-                      "type": "object",
-                      "propertyNames": {
-                        "type": "string"
-                      },
-                      "additionalProperties": {}
-                    },
-                    "defaultValue": {},
-                    "enableExpression": {
-                      "type": "string"
-                    }
-                  },
-                  "required": [
-                    "id",
-                    "name",
-                    "type",
-                    "order"
-                  ],
-                  "additionalProperties": {}
-                }
-              },
-              "visibleInputs": {
-                "type": "array",
-                "items": {
+              "display": {
+                "description": "Preview the node's rows",
+                "type": "boolean"
+              }
+            },
+            "additionalProperties": false
+          },
+          "promoted": {
+            "description": "A subnet's parameters, each driving a child's parameter",
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string"
+                },
+                "label": {
+                  "type": "string"
+                },
+                "node": {
+                  "type": "string",
+                  "description": "The child's id"
+                },
+                "param": {
                   "type": "string"
                 }
               },
-              "ui": {
-                "type": "object",
-                "properties": {
-                  "numberSteps": {
-                    "type": "object",
-                    "propertyNames": {
-                      "type": "string"
-                    },
-                    "additionalProperties": {
-                      "type": "number"
-                    }
-                  }
-                },
-                "additionalProperties": {}
-              }
-            },
-            "additionalProperties": {}
-          },
-          "parentId": {
-            "type": "string",
-            "pattern": "^(\\/[^/\\s]+)+$",
-            "description": "Absolute operator path, e.g. /earthquake-data or /container/child"
+              "required": [
+                "name",
+                "node",
+                "param"
+              ],
+              "additionalProperties": false
+            }
           }
         },
         "required": [
           "id",
-          "type",
-          "position"
+          "op",
+          "x",
+          "y",
+          "params"
         ],
-        "additionalProperties": {}
+        "additionalProperties": false
       }
     },
     "edges": {
@@ -145,354 +119,193 @@
         "properties": {
           "id": {
             "type": "string",
-            "description": "By convention <source>.<sourceHandle>-><target>.<targetHandle>, e.g. /a.out.data->/b.par.data"
+            "minLength": 1
           },
           "source": {
             "type": "string",
-            "pattern": "^(\\/[^/\\s]+)+$",
-            "description": "Absolute operator path, e.g. /earthquake-data or /container/child"
+            "minLength": 1,
+            "description": "Node id"
+          },
+          "sourcePort": {
+            "type": "string",
+            "minLength": 1,
+            "description": "An output port, e.g. out"
           },
           "target": {
             "type": "string",
-            "pattern": "^(\\/[^/\\s]+)+$",
-            "description": "Absolute operator path, e.g. /earthquake-data or /container/child"
+            "minLength": 1,
+            "description": "Node id"
           },
-          "sourceHandle": {
-            "anyOf": [
-              {
-                "type": "string",
-                "pattern": "^(out|par)\\.",
-                "description": "Field handle: out.<field> for an output, par.<field> for an input"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "targetHandle": {
+          "targetPort": {
             "type": "string",
-            "pattern": "^(out|par)\\.",
-            "description": "Field handle: out.<field> for an output, par.<field> for an input"
+            "minLength": 1,
+            "description": "An input port, e.g. in, or par:<name> to drive a parameter"
           },
-          "type": {
-            "type": "string"
+          "index": {
+            "description": "Order among edges into a multi-input port, such as the deck's layers",
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
           }
         },
         "required": [
           "id",
           "source",
+          "sourcePort",
           "target",
-          "sourceHandle",
-          "targetHandle"
+          "targetPort"
         ],
-        "additionalProperties": {}
+        "additionalProperties": false
       }
-    },
-    "viewport": {
-      "type": "object",
-      "properties": {
-        "x": {
-          "type": "number"
-        },
-        "y": {
-          "type": "number"
-        },
-        "zoom": {
-          "type": "number"
-        }
-      },
-      "required": [
-        "x",
-        "y",
-        "zoom"
-      ],
-      "additionalProperties": false
     },
     "timeline": {
       "type": "object",
       "properties": {
-        "sheetsById": {
-          "type": "object",
-          "properties": {
-            "Noodles": {
-              "type": "object",
-              "properties": {
-                "sequence": {
-                  "description": "Omitted when nothing is animated",
-                  "type": "object",
-                  "properties": {
-                    "length": {
-                      "type": "number",
-                      "exclusiveMinimum": 0,
-                      "description": "Duration in seconds"
-                    },
-                    "subUnitsPerUnit": {
-                      "type": "number",
-                      "exclusiveMinimum": 0,
-                      "description": "Frames per second"
-                    },
-                    "tracksByObject": {
-                      "type": "object",
-                      "propertyNames": {
-                        "type": "string",
-                        "description": "Node id without the leading slash"
-                      },
-                      "additionalProperties": {
-                        "type": "object",
-                        "properties": {
-                          "trackIdByPropPath": {
-                            "type": "object",
-                            "propertyNames": {
-                              "type": "string"
-                            },
-                            "additionalProperties": {
-                              "type": "string"
-                            },
-                            "description": "Field path (e.g. viewState.zoom, or a JSON array of parts) to a trackData key"
-                          },
-                          "trackData": {
-                            "type": "object",
-                            "propertyNames": {
-                              "type": "string"
-                            },
-                            "additionalProperties": {
-                              "type": "object",
-                              "properties": {
-                                "type": {
-                                  "type": "string",
-                                  "description": "The editor writes BasicKeyframedTrack"
-                                },
-                                "__debugName": {
-                                  "type": "string"
-                                },
-                                "keyframes": {
-                                  "type": "array",
-                                  "items": {
-                                    "type": "object",
-                                    "properties": {
-                                      "id": {
-                                        "type": "string"
-                                      },
-                                      "position": {
-                                        "type": "number",
-                                        "minimum": 0,
-                                        "description": "Time in seconds"
-                                      },
-                                      "connectedRight": {
-                                        "type": "boolean",
-                                        "description": "true eases to the next keyframe; false holds this value until the next one"
-                                      },
-                                      "handles": {
-                                        "type": "array",
-                                        "prefixItems": [
-                                          {
-                                            "type": "number",
-                                            "minimum": 0,
-                                            "maximum": 1
-                                          },
-                                          {
-                                            "type": "number"
-                                          },
-                                          {
-                                            "type": "number",
-                                            "minimum": 0,
-                                            "maximum": 1
-                                          },
-                                          {
-                                            "type": "number"
-                                          }
-                                        ],
-                                        "description": "Bezier handles [leftX, leftY, rightX, rightY], x in 0 to 1",
-                                        "minItems": 4,
-                                        "maxItems": 4
-                                      },
-                                      "type": {
-                                        "type": "string"
-                                      },
-                                      "value": {
-                                        "$ref": "#/$defs/KeyframeValue"
-                                      }
-                                    },
-                                    "required": [
-                                      "id",
-                                      "position",
-                                      "connectedRight",
-                                      "handles",
-                                      "value"
-                                    ],
-                                    "additionalProperties": {}
-                                  },
-                                  "description": "Sorted by position"
-                                }
-                              },
-                              "required": [
-                                "type",
-                                "keyframes"
-                              ],
-                              "additionalProperties": {}
-                            }
-                          }
-                        },
-                        "required": [
-                          "trackIdByPropPath",
-                          "trackData"
-                        ],
-                        "additionalProperties": {}
-                      },
-                      "description": "Animated fields, by node"
-                    },
-                    "markers": {
-                      "type": "array",
-                      "items": {
-                        "type": "object",
-                        "properties": {
-                          "id": {
-                            "type": "string"
-                          },
-                          "position": {
-                            "type": "number",
-                            "minimum": 0
-                          },
-                          "connections": {
-                            "type": "array",
-                            "items": {
-                              "type": "object",
-                              "properties": {
-                                "keyframeId": {
-                                  "type": "string"
-                                },
-                                "trackPath": {
-                                  "type": "string",
-                                  "description": "Track field path, e.g. \"maplibre-basemap / viewState / zoom\""
-                                },
-                                "offset": {
-                                  "type": "number"
-                                }
-                              },
-                              "required": [
-                                "keyframeId",
-                                "trackPath",
-                                "offset"
-                              ],
-                              "additionalProperties": {}
-                            }
-                          }
-                        },
-                        "required": [
-                          "id",
-                          "position",
-                          "connections"
-                        ],
-                        "additionalProperties": {}
-                      }
-                    },
-                    "inPoint": {
-                      "description": "Render start in seconds",
-                      "type": "number",
-                      "minimum": 0
-                    },
-                    "outPoint": {
-                      "description": "Render end in seconds",
-                      "type": "number",
-                      "minimum": 0
-                    }
-                  },
-                  "required": [
-                    "length",
-                    "subUnitsPerUnit",
-                    "tracksByObject"
-                  ],
-                  "additionalProperties": {}
-                },
-                "staticOverrides": {
-                  "type": "object",
-                  "properties": {
-                    "byObject": {
-                      "type": "object",
-                      "propertyNames": {
-                        "type": "string"
-                      },
-                      "additionalProperties": {}
-                    }
-                  },
-                  "required": [
-                    "byObject"
-                  ],
-                  "additionalProperties": {}
-                }
-              },
-              "additionalProperties": {}
-            }
-          },
-          "required": [
-            "Noodles"
-          ],
-          "additionalProperties": {}
+        "length": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "Seconds"
         },
-        "definitionVersion": {
-          "type": "string"
+        "fps": {
+          "type": "number",
+          "exclusiveMinimum": 0
         },
-        "revisionHistory": {
+        "tracks": {
           "type": "array",
-          "items": {}
+          "items": {
+            "type": "object",
+            "properties": {
+              "target": {
+                "type": "string",
+                "pattern": "^[^.]+\\..+$",
+                "description": "The parameter it drives: <node id>.<param>, e.g. deck.bearing"
+              },
+              "keyframes": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "time": {
+                      "type": "number",
+                      "minimum": 0,
+                      "description": "Seconds"
+                    },
+                    "value": {
+                      "anyOf": [
+                        {
+                          "type": "number"
+                        },
+                        {
+                          "type": "string"
+                        }
+                      ],
+                      "description": "A number eases; text holds"
+                    },
+                    "interpolation": {
+                      "type": "string",
+                      "enum": [
+                        "bezier",
+                        "linear",
+                        "hold"
+                      ],
+                      "description": "How the segment leaving this keyframe interpolates"
+                    },
+                    "handles": {
+                      "description": "Bezier control points, as CSS cubic-bezier(left, right)",
+                      "type": "object",
+                      "properties": {
+                        "left": {
+                          "type": "array",
+                          "prefixItems": [
+                            {
+                              "type": "number",
+                              "minimum": 0,
+                              "maximum": 1
+                            },
+                            {
+                              "type": "number"
+                            }
+                          ],
+                          "minItems": 2,
+                          "maxItems": 2
+                        },
+                        "right": {
+                          "type": "array",
+                          "prefixItems": [
+                            {
+                              "type": "number",
+                              "minimum": 0,
+                              "maximum": 1
+                            },
+                            {
+                              "type": "number"
+                            }
+                          ],
+                          "minItems": 2,
+                          "maxItems": 2
+                        }
+                      },
+                      "required": [
+                        "left",
+                        "right"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "time",
+                    "value",
+                    "interpolation"
+                  ],
+                  "additionalProperties": false
+                },
+                "description": "Sorted by time"
+              }
+            },
+            "required": [
+              "target",
+              "keyframes"
+            ],
+            "additionalProperties": false
+          }
         }
       },
-      "additionalProperties": {}
+      "required": [
+        "length",
+        "fps",
+        "tracks"
+      ],
+      "additionalProperties": false
     },
-    "editorSettings": {
-      "type": "object",
-      "properties": {
-        "showOverlay": {
-          "type": "boolean"
-        },
-        "showDebugInfo": {
-          "type": "boolean"
-        },
-        "autoLayout": {
-          "type": "object",
-          "properties": {
-            "enabled": {
-              "type": "boolean"
-            }
-          },
-          "additionalProperties": {}
-        },
-        "startNode": {
-          "description": "Examples only: node selected when it opens",
-          "type": "string",
-          "pattern": "^(\\/[^/\\s]+)+$"
-        }
-      },
-      "additionalProperties": {}
+    "credits": {
+      "description": "Attribution for the data it uses",
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
     },
-    "apiKeys": {
-      "description": "Map service keys saved with the project. AI keys are never read from a file",
+    "meta": {
+      "description": "Editor state saved with it, such as the viewport",
       "type": "object",
-      "properties": {
-        "mapbox": {
-          "type": "string"
-        },
-        "googleMaps": {
-          "type": "string"
-        },
-        "cesium": {
-          "type": "string"
-        },
-        "overpass": {
-          "type": "string"
-        }
+      "propertyNames": {
+        "type": "string"
       },
       "additionalProperties": {}
     }
   },
   "required": [
     "version",
+    "name",
     "nodes",
     "edges"
   ],
-  "additionalProperties": {},
+  "additionalProperties": false,
   "$defs": {
-    "KeyframeValue": {
+    "ParamValue": {
       "anyOf": [
         {
           "type": "number"
@@ -502,6 +315,32 @@
         },
         {
           "type": "string"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "expr": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "expr"
+          ],
+          "additionalProperties": false,
+          "description": "An expression: T seconds, F frame, ch('node/param'), math"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "ref": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "ref"
+          ],
+          "additionalProperties": false,
+          "description": "Another node's parameter, e.g. points/radius"
         },
         {
           "type": "array",

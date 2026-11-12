@@ -34,6 +34,7 @@ Nothing downloads and nothing is charged.
 | **Run a model locally** | A one-time download of 0.9–5.6 GB | Privacy, offline work, no account at all |
 | **A free key from Groq, Google AI Studio or Cerebras** | Free, one signup, no card | An alternative if OpenRouter's daily cap is in the way |
 | **Your own API key** | Whatever the provider charges | Best answers, hardest tasks |
+| **An agent on your machine** (Claude Code, Codex, Gemini CLI) | Your existing subscription or key | Using the agent and plan you already have |
 
 All of these live in Settings → **AI Provider** (the gear icon in the chat header). Leave the provider on **Automatic** and the editor uses whichever you have set up, preferring the strongest one.
 
@@ -51,6 +52,24 @@ The download happens once and shows a progress bar. After that the model is cach
 This needs a browser with WebGPU — Chrome or Edge 113+, or Safari 17+. If the option is greyed out, your browser does not offer it.
 
 Local models are small. Expect them to answer questions about your graph and make single-step edits; they are not going to build a visualization from a sentence.
+
+### Using an agent on your machine
+
+Any agent that speaks the [Agent Client Protocol](https://agentclientprotocol.com/) can run the chat: Claude Code, Codex, Gemini CLI, Goose, OpenCode and others. The agent runs on your computer with its own login and model, and the editor's tools are handed to it, so it can read and change your graph the way the built-in assistant does.
+
+A browser tab cannot start a program, so a small bridge does it. From a noodles.gl checkout:
+
+```bash
+node noodles-mcp/bin/noodles-mcp.ts acp -- npx -y @agentclientprotocol/claude-agent-acp
+```
+
+Use `@agentclientprotocol/codex-acp` for Codex, or the command your agent's documentation gives for ACP. The bridge prints a URL. Paste it into Settings → AI Provider → **ACP agent** and press Save.
+
+- The agent works in the folder you started the bridge in, and can read and change files there. It asks before it runs a command; the chat shows its question with the options it offers.
+- Sign in to the agent once in a terminal first (for Claude Code, run `claude` and log in). The chat says so if you have not.
+- The model dropdown shows the models the agent offers.
+- The URL contains a token that changes each time the bridge starts. To keep one URL, start it with `--token <something long>` or set `NOODLES_ACP_TOKEN`.
+- Only the hosted editor and a local dev server may connect. Add another address with `--allow-origin https://your.host`.
 
 ### Using your own API key
 
@@ -109,7 +128,7 @@ The assistant has access to powerful tools to help you:
 **Data & Computation:**
 - Run JavaScript against your live graph to compute a result
 - List, read, and search your project's data files
-- Write a derived dataset to `@/.agent/` and load it with a FileOp
+- Write a derived dataset to `@/.agent/` and load it with a `file` node
 
 **Documentation & Examples:**
 - Search the Noodles.gl documentation
@@ -141,9 +160,9 @@ You can't send another message while a card is waiting. Starting or loading a co
 >
 > **Assistant:** I found the USGS earthquake feed. Creating your visualization now...
 >
-> *[Creates FileOp to load data, adds HeatmapLayer]*
+> *[Adds a `file` node to load the data and a Heatmap Layer]*
 >
-> **Assistant:** Done! I've created a heatmap showing 2,547 earthquakes from the past 7 days. The intensity represents magnitude. You can adjust the radius and intensity in the HeatmapLayer settings.
+> **Assistant:** Done! I've created a heatmap showing 2,547 earthquakes from the past 7 days. The intensity represents magnitude. You can adjust the radius and intensity in the Heatmap Layer's parameters.
 
 **Example 2: Debugging an Error**
 
@@ -153,7 +172,7 @@ You can't send another message while a card is waiting. Starting or loading a co
 >
 > *[Checks console errors]*
 >
-> **Assistant:** I found the issue - your PathLayer has an undefined data input. It looks like your FileOp failed to load because the URL is incorrect. The file should be `@/data.geojson` (relative to your project), not `/data.geojson` (absolute path).
+> **Assistant:** I found the issue: your Path Layer has no rows because the `geojson` node feeding it failed to load. Its URL is incorrect. The file should be `@/data.geojson` (relative to your project), not `/data.geojson` (absolute path).
 >
 > Would you like me to fix the URL?
 
@@ -178,6 +197,7 @@ The second dropdown lists what the current provider offers:
 - **Local model** — the five WebLLM models, with download sizes.
 - **Custom endpoint** — the model you configured. After a successful test, the field suggests the models that endpoint reported.
 - **Chrome built-in** — one model, so there is nothing to choose.
+- **ACP agent** — whatever the agent offers once it connects. Some agents offer no choice and run their own default.
 
 ### Auto-capture screenshots
 

@@ -1,31 +1,40 @@
 import { readdirSync, readFileSync, statSync } from 'node:fs'
 import { join, relative, resolve } from 'node:path'
-import { fileURLToPath } from 'node:url'
 import { validateFile } from './file.ts'
 import { loadRegistry } from './index.ts'
-import type { Registry, ValidationResult } from './types.ts'
+import { EXAMPLES_DIR } from './profile.ts'
+import type { Profile, Registry, ValidationResult } from './types.ts'
 
 export const EXIT_OK = 0
 export const EXIT_INVALID = 1
 export const EXIT_USAGE = 2
 
-const REPO_ROOT = fileURLToPath(new URL('../..', import.meta.url))
-const DEFAULT_PATHS = ['noodles-editor/src/examples'].map(p => join(REPO_ROOT, p))
+const DEFAULT_PATHS = [EXAMPLES_DIR]
+const FLAGS = new Set(['--json', '--strict', '--external', '--examples'])
 const SKIP_DIRS = new Set(['node_modules', '.git', 'dist'])
 // Data files sit next to projects; don't parse big ones to find out they aren't
 const MAX_SNIFF_BYTES = 2 * 1024 * 1024
 
-const USAGE = `Usage: validate-projects [--json] [path ...]
+const USAGE = `Usage: validate-projects [--json] [--strict] [--external | --examples] [path ...]
 
-Checks noodles.json project files against the operator registry: schema
-version, operator types, input names, edge handles, duplicate edges.
+Checks noodles.json documents against the operator catalog: operators,
+parameters, ports, wire types, names, references, loops.
 
-  path     A project file, or a directory to search for them. Defaults to
-           noodles-editor/src/examples.
-  --json   Print results as JSON.
+  path        A project file, or a directory to search for them. Defaults to
+              noodles-editor/src/examples.
+  --json      Print results as JSON.
+  --strict    Exit 1 on warnings as well as errors.
+  --external  Check every file as a project outside the examples: an
+              operator-graph file is a warning and is checked only in part,
+              @/ files must exist in the project's data/ folder, and node
+              names aren't style-checked.
+              This is the default for files outside noodles-editor/src/examples.
+  --examples  Check every file with the rules for the bundled examples, the
+              default for files inside noodles-editor/src/examples.
 
-Exit status: 0 when every file is valid (warnings allowed), 1 when any file
-has errors, 2 for bad arguments or when no project files are found.`
+Exit status: 0 when every file is valid (warnings allowed, unless --strict),
+1 when any file has errors, 2 for bad arguments or when no project files are
+found.`
 
 interface Io {
   cwd: string
@@ -44,12 +53,22 @@ export function run(argv: string[], io: Io, registry: Registry = loadRegistry())
     io.stdout(USAGE)
     return EXIT_OK
   }
-  const unknown = flags.filter(flag => flag !== '--json')
+  const unknown = flags.filter(flag => !FLAGS.has(flag))
   if (unknown.length > 0) {
     io.stderr(`Unknown option ${unknown[0]}.\n\n${USAGE}`)
     return EXIT_USAGE
   }
+  if (flags.includes('--external') && flags.includes('--examples')) {
+    io.stderr(`Pass --external or --examples, not both.\n\n${USAGE}`)
+    return EXIT_USAGE
+  }
   const json = flags.includes('--json')
+  const strict = flags.includes('--strict')
+  const profile: Profile | undefined = flags.includes('--external')
+    ? 'external'
+    : flags.includes('--examples')
+      ? 'examples'
+      : undefined
 
   const roots = paths.length > 0 ? paths.map(p => resolve(io.cwd, p)) : DEFAULT_PATHS
   const files: string[] = []
@@ -73,9 +92,10 @@ export function run(argv: string[], io: Io, registry: Registry = loadRegistry())
 
   const results = files.map(file => ({
     file: relative(io.cwd, file) || file,
-    ...validateFile(file, registry),
+    ...validateFile(file, registry, { profile }),
   }))
   const valid = results.every(r => r.valid)
+  const warned = results.some(r => r.warnings.length > 0)
 
   if (json) {
     io.stdout(
@@ -83,7 +103,7 @@ export function run(argv: string[], io: Io, registry: Registry = loadRegistry())
         {
           valid,
           registry: {
-            projectVersion: registry.projectVersion,
+            documentVersion: registry.documentVersion,
             operators: Object.keys(registry.operators).length,
           },
           files: results,
@@ -93,9 +113,9 @@ export function run(argv: string[], io: Io, registry: Registry = loadRegistry())
       )
     )
   } else {
-    io.stdout(formatResults(results, registry))
+    io.stdout(formatResults(results, registry, strict))
   }
-  return valid ? EXIT_OK : EXIT_INVALID
+  return valid && !(strict && warned) ? EXIT_OK : EXIT_INVALID
 }
 
 // Every noodles.json, plus other .json files shaped like a project (e.g.
@@ -129,7 +149,7 @@ function looksLikeProject(path: string): boolean {
   }
 }
 
-function formatResults(results: FileResult[], registry: Registry): string {
+function formatResults(results: FileResult[], registry: Registry, strict: boolean): string {
   const lines: string[] = []
   for (const result of results) {
     const diagnostics = [...result.errors, ...result.warnings]
@@ -146,13 +166,24 @@ function formatResults(results: FileResult[], registry: Registry): string {
   const failed = results.filter(r => !r.valid).length
   const files = `${results.length} ${results.length === 1 ? 'file' : 'files'}`
   const warned = warnings > 0 ? `, ${plural(warnings, 'warning')}` : ''
-  if (errors === 0) {
+  if (errors === 0 && strict && warnings > 0) {
+    const warnedFiles = results.filter(r => r.warnings.length > 0).length
     lines.push(
-      `OK: ${files} valid against ${Object.keys(registry.operators).length} operators, schema version ${registry.projectVersion}${warned}.`
+      `FAIL: ${plural(warnings, 'warning')} in ${warnedFiles} of ${files}, and --strict fails on warnings.`
+    )
+  } else if (errors === 0) {
+    lines.push(
+      `OK: ${files} valid against ${Object.keys(registry.operators).length} operators, document version ${registry.documentVersion}${warned}.`
     )
   } else {
     lines.push(
       `FAIL: ${plural(errors, 'error')}${warned} in ${failed} of ${files}. Fix the errors and run validate-projects again.`
+    )
+  }
+  const partial = results.filter(r => r.partial).length
+  if (partial > 0) {
+    lines.push(
+      `${partial === 1 ? '1 file is an operator-graph file' : `${partial} files are operator-graph files`}, so only ${partial === 1 ? 'its' : 'their'} JSON, version and data files were checked. Open and save ${partial === 1 ? 'it' : 'each one'} in the editor to write it as a document, then run validate-projects again.`
     )
   }
   return lines.join('\n')

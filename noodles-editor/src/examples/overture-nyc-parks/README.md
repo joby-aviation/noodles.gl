@@ -5,13 +5,13 @@ _Query global map data from Overture Maps using DuckDB_
 ## Overview
 This example demonstrates how to query and visualize parks in New York City using Overture Maps data. Overture Maps provides a global, open-source dataset with consistent schemas for places, buildings, transportation, and more. The data is stored as Parquet files on S3, which can be queried directly using DuckDB's spatial capabilities.
 
-## Key Techniques
-- **Bounding box**: `BoundsOp` defines the geographic area (SW Brooklyn to NE Manhattan)
-- **DuckDB query**: `DuckDbOp` queries Overture's S3 Parquet files with spatial filtering
-- **Direct GeoJSON**: SQL constructs GeoJSON using `JSON()` and `LIST()` functions
-- **Data extraction**: `CodeOp` extracts the GeoJSON object from query results
-- **GeoJSON layer**: `GeoJsonLayerOp` renders parks with green fill and darker borders
-- **Basemap**: `MaplibreBasemapOp` with positron style
+## Nodes
+- **`duckdb-query`** (DuckDB SQL) queries Overture's S3 Parquet files for places with `taxonomy.primary = 'park'` and builds one GeoJSON FeatureCollection in SQL
+- **`extract-geojson`** (Code) returns the `geojson` value from the query's first row, or an empty FeatureCollection
+- **`extract-geojson-rows`** (GeoJSON) turns that FeatureCollection into rows with a `geom` column
+- **`geojson-layer`** (Polygon Layer) fills parks in green (`fillColor: [34, 197, 94]`) with darker borders (`lineColor: [22, 163, 74]`, `lineWidthScale: 2`) at `opacity: 0.6`
+- **`geojson-layer-lines`** (Path Layer) and **`geojson-layer-points`** (Scatterplot Layer) draw any line and point features in the same colors
+- **`deck`** (Deck) holds the Carto Positron basemap and the camera over New York City
 
 ## Data Source
 [Overture Maps](https://overturemaps.org/) provides:
@@ -71,28 +71,23 @@ LIMIT 1000;
 - `LIST()` aggregates features into an array
 - `ST_AsGeoJSON()` converts WKB geometry to GeoJSON
 - `COALESCE()` provides fallback for missing names
-- Mustache templates (`{{...}}`) reference BoundsOp outputs
-- Spatial bbox filtering ensures efficient queries
+- Spatial bbox filtering keeps queries small
 
-## Node Graph Flow
+## Pipeline
 ```
-[BoundsOp] → [DuckDbOp] → [CodeOp] → [GeoJsonLayerOp] → [DeckRendererOp] → [OutOp]
-  Define         Query        Extract      Render Parks        Compose          Display
-  NYC Area       Overture     GeoJSON      (Green Fill)        Layers
-                 S3 Data
-                    ↓
-            [MaplibreBasemapOp]
-                (Basemap)
+duckdb-query → extract-geojson → extract-geojson-rows → geojson-layer        → deck
+                                                      → geojson-layer-lines  → deck
+                                                      → geojson-layer-points → deck
 ```
 
 ## Customization
 
 ### Query Different Features
-Change the `taxonomy.primary` filter:
-- `'restaurant'` - Restaurants
-- `'cafe'` - Cafes
-- `'school'` - Schools
-- `'hospital'` - Hospitals
+Change the `taxonomy.primary` filter in `duckdb-query`:
+- `'restaurant'`: Restaurants
+- `'cafe'`: Cafes
+- `'school'`: Schools
+- `'hospital'`: Hospitals
 
 ### Query Buildings or Roads
 Replace the S3 paths array with different themes. You'll need to list each parquet file explicitly since DuckDB WASM doesn't support glob patterns (`*.parquet`).
@@ -102,25 +97,19 @@ Use AWS CLI to list files:
 aws s3 ls s3://overturemaps-us-west-2/release/2026-10-21.0/theme=buildings/type=building/ --no-sign-request
 ```
 
-**Note:** DuckDB WASM requires explicit file paths in an array - glob patterns like `*.parquet` or `*/*` are not supported.
+**Note:** DuckDB WASM requires explicit file paths in an array; glob patterns like `*.parquet` or `*/*` are not supported.
 
 Overture removes old releases after a few months. If the query fails with "No files found", list the current releases with `aws s3 ls s3://overturemaps-us-west-2/release/ --no-sign-request` and replace the paths with the files from the newest one. File names change with every release.
 
-### Adjust Bounding Box
-Modify `BoundsOp` inputs to query different areas:
-- **San Francisco**: `[-122.5, 37.7]` to `[-122.35, 37.82]`
-- **London**: `[-0.2, 51.45]` to `[0.05, 51.6]`
-- **Tokyo**: `[139.6, 35.6]` to `[139.85, 35.75]`
-
 ### Style Changes
-Modify `GeoJsonLayerOp` inputs:
-- **Fill color**: Change `#22c55e` to any hex color
-- **Opacity**: Adjust `0.6` for transparency (0-1)
-- **Line width**: Change `2` for thicker/thinner borders
+Change the params on `geojson-layer`:
+- **Fill color**: Change `fillColor` (`[34, 197, 94]`, or `#22c55e`)
+- **Opacity**: Adjust `opacity` (`0.6`) for transparency (0 to 1)
+- **Line width**: Change `lineWidthScale` (`2`) for thicker or thinner borders
 
 ## Performance Tips
 - Keep bbox small (< 0.2° × 0.2°) for faster queries
-- Use `LIMIT` to cap results (100-5000 depending on density)
+- Use `LIMIT` to cap results (100 to 5000 depending on density)
 - Filter by specific categories to reduce data
 - Check [Overture releases](https://github.com/OvertureMaps/data/releases) for latest version
 
@@ -136,4 +125,3 @@ This pattern is useful for:
 ## Related Examples
 - **Overpass NYC Parks**: Real-time OSM data via Overpass API
 - **NYC Census**: Demographic data visualization
-- **SF Street Trees**: City-scale point data visualization

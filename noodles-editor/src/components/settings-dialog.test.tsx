@@ -1,23 +1,35 @@
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { getKeysStore, useKeysStore } from '../noodles/keys-store'
 import { getGitSettings } from '../noodles/utils/git-settings'
-import { SettingsDialog } from './settings-dialog'
+import { getLoadedGoogleMapsKey } from '../utils/geocoding'
+import { acpUrlProblem, SettingsDialog } from './settings-dialog'
+
+vi.mock('../utils/geocoding', () => ({ getLoadedGoogleMapsKey: vi.fn(() => null) }))
 
 describe('SettingsDialog API keys', () => {
   beforeEach(() => {
     localStorage.clear()
     useKeysStore.setState({
       browserKeys: {},
-      saveInProject: false,
+      keyOverrides: {},
       projectKeys: undefined,
+      projectId: undefined,
+      projectKeyEdits: 0,
       ignoredProjectKeys: [],
+      rejectedKeys: {},
     })
   })
 
   afterEach(() => {
     cleanup()
+    vi.unstubAllEnvs()
   })
+
+  // The label sits in the group's header
+  function keyGroup(label: string) {
+    return screen.getByText(label).parentElement!.parentElement!
+  }
 
   function openApiKeysTab() {
     render(<SettingsDialog open setOpen={() => {}} />)
@@ -31,8 +43,9 @@ describe('SettingsDialog API keys', () => {
     })
     openApiKeysTab()
 
-    expect(screen.getByText('project-mapbox')).toBeTruthy()
-    expect(screen.queryByText('project-anthropic')).toBeNull()
+    expect(screen.getByDisplayValue('project-mapbox')).toBeTruthy()
+    expect(screen.queryByDisplayValue('project-anthropic')).toBeNull()
+    expect(screen.queryByRole('textbox', { name: /Anthropic.*\(project\)/ })).toBeNull()
   })
 
   it('should say when the project file had an AI key that was ignored', () => {
@@ -41,6 +54,105 @@ describe('SettingsDialog API keys', () => {
 
     expect(screen.getByText(/This project file included an Anthropic key/)).toBeTruthy()
     expect(screen.queryByText(/This project file included an OpenRouter key/)).toBeNull()
+  })
+
+  it('should edit the project key', () => {
+    getKeysStore().setProjectKeys(undefined, 'project-a')
+    openApiKeysTab()
+    fireEvent.change(screen.getByRole('textbox', { name: 'Google Maps API Key (project)' }), {
+      target: { value: 'project-google' },
+    })
+
+    expect(getKeysStore().projectKeys).toEqual({ googleMaps: 'project-google' })
+    expect(getKeysStore().projectKeyEdits).toBe(1)
+  })
+
+  it('should switch between the project key and the browser key', () => {
+    vi.stubEnv('VITE_CESIUM_ACCESS_TOKEN', '')
+    getKeysStore().setProjectKeys({ cesium: 'project-cesium' }, 'project-a')
+    getKeysStore().setBrowserKey('cesium', 'browser-cesium')
+    openApiKeysTab()
+
+    const group = keyGroup('Cesium Ion Access Token')
+    fireEvent.click(within(group).getByRole('button', { name: 'Use' }))
+    expect(getKeysStore().getKey('cesium')).toBe('browser-cesium')
+    expect(within(group).getByText(/Using your browser key for this project/)).toBeTruthy()
+
+    fireEvent.click(within(group).getByRole('button', { name: 'Use' }))
+    expect(getKeysStore().getKey('cesium')).toBe('project-cesium')
+    expect(within(group).queryByText(/Using your browser key/)).toBeNull()
+  })
+
+  it('should ask for a reload when Google Maps loaded with another key', () => {
+    vi.stubEnv('VITE_GOOGLE_MAPS_API_KEY', '')
+    vi.mocked(getLoadedGoogleMapsKey).mockReturnValue('project-google')
+    getKeysStore().setProjectKeys({ googleMaps: 'project-google' }, '/projects/a')
+    getKeysStore().setBrowserKey('googleMaps', 'browser-google')
+    openApiKeysTab()
+
+    const group = keyGroup('Google Maps API Key')
+    expect(within(group).queryByRole('button', { name: 'Reload to apply' })).toBeNull()
+    fireEvent.click(within(group).getByRole('button', { name: 'Use' }))
+    expect(within(group).getByRole('button', { name: 'Reload to apply' })).toBeTruthy()
+    vi.mocked(getLoadedGoogleMapsKey).mockReturnValue(null)
+  })
+
+  it('should ask for a save before a reload when the new key is an unsaved project edit', () => {
+    vi.stubEnv('VITE_GOOGLE_MAPS_API_KEY', '')
+    vi.mocked(getLoadedGoogleMapsKey).mockReturnValue('project-google')
+    getKeysStore().setProjectKeys({ googleMaps: 'project-google' }, '/projects/a')
+    openApiKeysTab()
+
+    const group = keyGroup('Google Maps API Key')
+    fireEvent.change(within(group).getByLabelText('Google Maps API Key (project)'), {
+      target: { value: 'edited-google' },
+    })
+    expect(within(group).queryByRole('button', { name: 'Reload to apply' })).toBeNull()
+    expect(within(group).getByText(/Save the project, then reload/)).toBeTruthy()
+
+    act(() => getKeysStore().markProjectKeysSaved())
+    expect(within(group).getByRole('button', { name: 'Reload to apply' })).toBeTruthy()
+    vi.mocked(getLoadedGoogleMapsKey).mockReturnValue(null)
+  })
+
+  it('should ask for a save before a reload when the project key was cleared', () => {
+    vi.stubEnv('VITE_GOOGLE_MAPS_API_KEY', '')
+    vi.mocked(getLoadedGoogleMapsKey).mockReturnValue('project-google')
+    getKeysStore().setProjectKeys({ googleMaps: 'project-google' }, '/projects/a')
+    getKeysStore().setBrowserKey('googleMaps', 'browser-google')
+    openApiKeysTab()
+
+    const group = keyGroup('Google Maps API Key')
+    act(() => getKeysStore().setProjectKey('googleMaps', undefined))
+    expect(within(group).queryByRole('button', { name: 'Reload to apply' })).toBeNull()
+    expect(within(group).getByText(/Save the project, then reload/)).toBeTruthy()
+    vi.mocked(getLoadedGoogleMapsKey).mockReturnValue(null)
+  })
+
+  it('should not offer a choice without a project key', () => {
+    vi.stubEnv('VITE_CESIUM_ACCESS_TOKEN', 'env-cesium')
+    getKeysStore().setProjectKeys(undefined, 'project-a')
+    getKeysStore().setBrowserKey('cesium', 'browser-cesium')
+    openApiKeysTab()
+
+    const group = keyGroup('Cesium Ion Access Token')
+    expect(within(group).queryByRole('button', { name: 'Use' })).toBeNull()
+  })
+
+  it('should not offer a choice without a project id', () => {
+    vi.stubEnv('VITE_CESIUM_ACCESS_TOKEN', '')
+    getKeysStore().setProjectKeys({ cesium: 'project-cesium' })
+    getKeysStore().setBrowserKey('cesium', 'browser-cesium')
+    openApiKeysTab()
+
+    const group = keyGroup('Cesium Ion Access Token')
+    expect(within(group).queryByRole('button', { name: 'Use' })).toBeNull()
+  })
+
+  it('should not offer to save browser keys in the project file', () => {
+    openApiKeysTab()
+
+    expect(screen.queryByText(/Save browser keys in project file/)).toBeNull()
   })
 
   it('should not mention ignored keys for a project without AI keys', () => {
@@ -81,5 +193,17 @@ describe('SettingsDialog version control', () => {
 
     expect((enable as HTMLInputElement).disabled).toBe(true)
     expect(screen.getByText(/Save the project to a folder/)).toBeTruthy()
+  })
+})
+
+describe('acpUrlProblem', () => {
+  it('accepts what the bridge prints', () => {
+    expect(acpUrlProblem(' ws://127.0.0.1:7341/acp?token=abc ')).toBeNull()
+  })
+
+  it('names what is missing', () => {
+    expect(acpUrlProblem('127.0.0.1:7341')).toMatch(/starting with ws:\/\//)
+    expect(acpUrlProblem('http://127.0.0.1:7341/acp?token=abc')).toMatch(/starts with ws:\/\//)
+    expect(acpUrlProblem('ws://127.0.0.1:7341/acp')).toMatch(/token/)
   })
 })

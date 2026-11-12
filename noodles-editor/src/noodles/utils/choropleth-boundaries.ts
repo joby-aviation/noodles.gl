@@ -1,6 +1,6 @@
 import type { Feature, FeatureCollection } from 'geojson'
-import { createStore } from 'zustand/vanilla'
 import { feature as topoFeature } from 'topojson-client'
+import { createStore } from 'zustand/vanilla'
 
 export type Geography = 'us-states' | 'world-countries' | 'ca-provinces' | 'custom'
 export type GeoKey = 'auto' | 'name' | 'abbrev' | 'fips' | 'iso2' | 'iso3'
@@ -591,4 +591,21 @@ export function joinDataToFeatures(
   })
 
   return { type: 'FeatureCollection', features }
+}
+
+/**
+ * Rows joined onto a geography's boundaries, as the planner's choropleth operators run it in the
+ * engine: the key's kind detected when `geoKey` is auto.
+ */
+export async function choroplethJoin(
+  rows: Record<string, unknown>[],
+  options: { geography: string; joinKey: string; geoKey: string }
+): Promise<FeatureCollection> {
+  const geography = options.geography as Exclude<Geography, 'custom'>
+  const boundaries = await getBoundaries(geography)
+  const geoKey =
+    options.geoKey === 'auto'
+      ? detectGeoKey(rows, options.joinKey, geography)
+      : (options.geoKey as Exclude<GeoKey, 'auto'>)
+  return joinDataToFeatures(boundaries, rows, options.joinKey, geoKey)
 }

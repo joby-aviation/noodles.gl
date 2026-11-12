@@ -1,0 +1,71 @@
+.plan {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  height: 100%;
+  overflow: auto;
+  padding: 8px;
+  color: var(--color-text-secondary, #a0a7b4);
+  font-size: 11px;
+}
+
+.card {
+  padding: 8px 10px;
+  border: 1px solid var(--color-border, #333);
+  border-radius: 6px;
+  background: var(--color-bg-secondary, #1c1f24);
+}
+
+.card h5 {
+  margin: 0 0 6px;
+  color: var(--color-text-primary, #e5e7eb);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.kind {
+  color: var(--color-text-secondary, #8a92a6);
+  font-weight: 400;
+}
+
+.counters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+}
+
+.counters b {
+  color: var(--color-text-primary, #e5e7eb);
+}
+
+.kv {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 2px 12px;
+  margin: 0 0 6px;
+}
+
+.kv dt {
+  color: var(--color-text-secondary, #8a92a6);
+}
+
+.kv dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.code,
+.errors {
+  margin: 0;
+  padding: 6px 8px;
+  overflow-x: auto;
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.3);
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 10.5px;
+  white-space: pre-wrap;
+}
+
+.errors {
+  color: #f59e0b;
+}

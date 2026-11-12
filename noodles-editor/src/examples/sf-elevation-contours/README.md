@@ -3,14 +3,19 @@
 _Adapted from [Kepler.gl examples](https://github.com/keplergl/kepler.gl-data/tree/master/sfcontour)_
 
 ## Overview
-This example displays San Francisco's topography through elevation contour lines - lines connecting points of equal elevation. Closely spaced lines indicate steep hills while widely spaced lines show flatter areas. Each line represents a specific elevation, creating a traditional topographic map that reveals the city's famous hills and valleys.
+This example displays San Francisco's topography through elevation contour lines: lines connecting points of equal elevation. Closely spaced lines indicate steep hills while widely spaced lines show flatter areas. Each line represents a specific elevation, creating a traditional topographic map that reveals the city's famous hills and valleys.
 
-## Key Techniques
-- **Data source**: `FileOp` loads contour line data (GeoJSON LineStrings)
-- **Line layer**: `GeoJsonLayerOp` renders contour lines with `lineWidthScale: 8` and `opacity: 0.38`
-- **Elevation accessor**: `AccessorOp` with expression `d.properties.elevation`
-- **Color mapping**: `MapRangeOp` scales elevation from 0-900 ft to 0-1, then `ColorRampOp` sets the line and fill color
-- **Basemap**: `MaplibreBasemapOp` with dark matter style, centered on San Francisco
+## Nodes
+- **`data-source`** (GeoJSON) loads the contour lines from the kepler.gl data repo
+- **`elevation-range`** (Map Range) scales `elevation` from 0 to 900 into 0 to 1, written as `elevation_range`
+- **`elevation-color`** (Color Ramp) maps `elevation_range` through the `viridis` ramp into `elevation_color`
+- **`geojson-layer-lines`** (Path Layer) draws the contours in `elevation_color` with `widthScale: 8` meters, `widthMinPixels: 0.2` and `opacity: 0.38`
+- **`deck`** (Deck) holds the Carto Dark Matter basemap and the camera
+
+## Pipeline
+```
+data-source → elevation-range → elevation-color → geojson-layer-lines → deck
+```
 
 ## Data Structure
 The GeoJSON file contains contour line features with:

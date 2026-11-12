@@ -5,16 +5,17 @@ _Adapted from [Kepler.gl examples](https://kepler.gl/)_
 ## Overview
 This example displays actual recorded flight trajectories across a global map, colored by each aircraft's country of origin. Static lines show each complete route, animated trails replay the flights over the timeline, and a dot marks each aircraft's current position.
 
-## Key Techniques
-- **Data source**: `FileOp` loads GeoJSON with LineString flight paths
-- **Data transform**: `CodeOp` (`/transform-flights`) splits each feature's coordinates into `path` and `timestamps` arrays
-- **Path layer**: `GeoJsonLayerOp` renders the full flight trajectories
-- **Animated layer**: `TripsLayerOp` replays flights with a trail (`trailLength: 336`)
-- **Current time**: `NumberOp` (`/time`) is keyframed in the timeline and drives the trips layer and `TimeSeriesOp`
-- **Current positions**: `TimeSeriesOp` finds each aircraft's position at the current time for a `ScatterplotLayerOp`
-- **Country accessor**: `AccessorOp` with expression `d.properties.origin_country` extracts country string
-- **Color mapping**: `CategoricalColorRampOp` with `category10` assigns distinct colors to each country
-- **Basemap**: `MaplibreBasemapOp` with dark matter style, showing a global view
+## Nodes
+- **`flights-file`** (GeoJSON) loads the kepler.gl world flights file for the static routes
+- **`flights`** (Code) reads the same file and splits each feature's coordinates into a `path` list and a `timestamps` list, keeping `properties`
+- **`color-index`** and **`route-color-index`** (Attribute Create) write `color_ramp_index` as `(category(origin_country, 8.0) + 0.5) / 10.0`
+- **`color`** and **`route-color`** (Color Ramp) map that index through the `categorical-category10` ramp into `color_ramp`, so each origin country gets its own color
+- **`routes`** (Path Layer) draws each full trajectory from `geom`
+- **`trails`** (Trips Layer) replays flights from `path` and `timestamps` with `trailLength: 336` and `widthScale: 200` meters
+- **`time`** (Number) holds the current time in Unix seconds; it is keyframed on the timeline and drives `trails`' `currentTime` and `heads-now`'s `time`
+- **`heads-now`** (Time Series) interpolates `lng, lat, alt` along each path at that time
+- **`position`** (Attribute Create) writes `[lng, lat, alt]`, and **`heads`** (Scatterplot Layer) draws a dot there
+- **`deck`** (Deck) holds the Carto Dark Matter basemap and a global camera
 
 ## Data Structure
 The GeoJSON file contains flight trajectory features with:
@@ -26,16 +27,15 @@ The GeoJSON file contains flight trajectory features with:
   - `airline`: Airline name
   - `country`: Additional country information
 
-## Node Graph Flow
+## Pipeline
 ```
-Data → GeoJSON Layer → Deck → Out
-     ↘ transform-flights → Trips Layer ↗
-                       ↘ TimeSeries → Scatterplot Layer ↗
-time → Trips Layer, TimeSeries (currentTime)
-origin-country Accessor → CategoricalColorRamp → Layer Colors
+flights-file → route-color-index → route-color → routes → deck
+flights → color-index → color → trails → deck
+                              → heads-now → position → heads → deck
+time → trails (currentTime), heads-now (time)
 ```
 
-The `origin-country` accessor extracts the country string from each flight. This string flows into a `CategoricalColorRampOp`, which assigns a unique color from the `category10` scheme to each distinct country. The color output flows to the `GeoJsonLayerOp` (static paths), `TripsLayerOp` (animated trails), and `ScatterplotLayerOp` (current positions), so all three layers use the same colors.
+All three layers read the `color_ramp` column, so a flight's route, trail and dot share one color.
 
 ## Use Cases
 This pattern is useful for visualizing:

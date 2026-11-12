@@ -6,7 +6,7 @@
 // Pure (string in, task out) so the grader tests can run it in the browser.
 
 import yaml from 'js-yaml'
-import type { ProjectModification } from '../../src/ai-chat/types'
+import type { DocModification } from '../../src/ai-chat/doc-tools'
 import type { Check } from './grade'
 
 // T1 knowledge, T2 single edit, T3 multi-step build, T4 debug
@@ -21,7 +21,7 @@ export interface Task {
   // An example under src/examples/, or 'blank' for /projects/new
   start: string
   budget: { maxTurns?: number; maxWallClockSeconds: number }
-  setup: { modifications: ProjectModification[] }
+  setup: { modifications: DocModification[] }
   // Prompt first, then any scripted follow-ups
   turns: string[]
   grader: { checks: Check[]; rubric?: string }

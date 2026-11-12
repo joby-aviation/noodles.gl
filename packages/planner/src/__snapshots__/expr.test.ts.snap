@@ -1,0 +1,46 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`dual-backend agreement — the core claim > snapshots both emissions side by side 1`] = `
+[
+  {
+    "sql": "(sqrt("pop") * 2.0)",
+    "src": "sqrt(pop) * 2",
+    "wgsl": "(sqrt(a_pop) * 2.0)",
+  },
+  {
+    "sql": "(0.0 + (1.0 - 0.0) * (("speed") - (0.0)) / nullif((100.0) - (0.0), 0))",
+    "src": "fit(speed, 0, 100, 0, 1)",
+    "wgsl": "(0.0 + (1.0 - 0.0) * ((a_speed) - (0.0)) / ((100.0) - (0.0)))",
+  },
+  {
+    "sql": "least(greatest(("x" / $1), 0.0), 1.0)",
+    "src": "clamp(x / {{scale}}, 0, 1)",
+    "wgsl": "clamp((a_x / params.p_scale), 0.0, 1.0)",
+  },
+  {
+    "sql": "(CASE WHEN ("speed" > 10.0) THEN 1.0 ELSE 0.0 END)",
+    "src": "speed > 10 ? 1 : 0",
+    "wgsl": "select(0.0, 1.0, (a_speed > 10.0))",
+  },
+  {
+    "sql": "(("a") + (("b") - ("a")) * (0.5))",
+    "src": "lerp(a, b, 0.5)",
+    "wgsl": "mix(a_a, a_b, 0.5)",
+  },
+  {
+    "sql": "(abs("x") - 7.0 * floor(abs("x") / 7.0))",
+    "src": "abs(x) % 7",
+    "wgsl": "(abs(a_x) - 7.0 * floor(abs(a_x) / 7.0))",
+  },
+  {
+    "sql": "ln(greatest("pop", 1.0))",
+    "src": "ln(max(pop, 1))",
+    "wgsl": "log(max(a_pop, 1.0))",
+  },
+  {
+    "sql": "((-"x") + least("a", "b"))",
+    "src": "-x + min(a, b)",
+    "wgsl": "((-a_x) + min(a_a, a_b))",
+  },
+]
+`;

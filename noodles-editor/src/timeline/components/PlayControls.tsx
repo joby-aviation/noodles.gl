@@ -1,5 +1,6 @@
 // Play controls component - play/pause/loop/speed controls
 
+import { useIsRendering } from '../../render/render-session'
 import { useTimelineStore } from '../timeline-store'
 import s from './TimelinePanel.module.css'
 
@@ -17,6 +18,9 @@ export function PlayControls() {
   const toggleLoopInOut = useTimelineStore(state => state.toggleLoopInOut)
   const goToStart = useTimelineStore(state => state.goToStart)
   const goToEnd = useTimelineStore(state => state.goToEnd)
+  // An export sets the playhead for each frame, so these wait for it, like Space and
+  // the arrow keys do
+  const isRendering = useIsRendering()
 
   // Only show loop in/out button when in/out points are active
   const hasActiveInOut =
@@ -24,20 +28,21 @@ export function PlayControls() {
 
   return (
     <div className={s.timelinePlayControls}>
-      <button type="button" onClick={goToStart} title="Go to start (Home)">
+      <button type="button" onClick={goToStart} disabled={isRendering} title="Go to start (Home)">
         <StartIcon />
       </button>
 
       <button
         type="button"
         onClick={playing ? pause : play}
+        disabled={isRendering}
         className={playing ? s.active : ''}
         title={playing ? 'Pause (Space)' : 'Play (Space)'}
       >
         {playing ? <PauseIcon /> : <PlayIcon />}
       </button>
 
-      <button type="button" onClick={goToEnd} title="Go to end (End)">
+      <button type="button" onClick={goToEnd} disabled={isRendering} title="Go to end (End)">
         <EndIcon />
       </button>
 

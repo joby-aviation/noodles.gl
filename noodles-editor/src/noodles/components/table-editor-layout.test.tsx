@@ -1,7 +1,6 @@
 import 'primereact/resources/themes/viva-dark/theme.css'
 import { cleanup, fireEvent, render } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { TableEditorOp } from '../operators'
 import type { TableSchema } from '../table-schema'
 import { TableEditor } from './table-editor'
 
@@ -19,7 +18,6 @@ describe('TableEditor layout', () => {
 
     const { getByText } = render(
       <TableEditor
-        op={new TableEditorOp('/test-table')}
         data={[{ name: 'Opa Locka Airport', notes: '', address: '4201 NW 42nd Ave' }]}
         schema={schema}
         onDataChange={vi.fn()}
@@ -32,7 +30,7 @@ describe('TableEditor layout', () => {
     const table = cell.closest('table')
     expect(row).not.toBeNull()
     expect(table).not.toBeNull()
-    const emptyCell = row?.cells[2].querySelector('button')
+    const emptyCell = row?.cells[2]
     expect(emptyCell).not.toBeNull()
 
     const rowRect = row?.getBoundingClientRect()
@@ -42,7 +40,7 @@ describe('TableEditor layout', () => {
       tableCell => tableCell.getBoundingClientRect().width
     )
 
-    fireEvent.click(emptyCell as HTMLElement)
+    fireEvent.doubleClick(emptyCell as HTMLElement)
 
     expect(row?.getBoundingClientRect().height).toBe(rowRect?.height)
     expect(table?.getBoundingClientRect().width).toBe(tableRect?.width)
@@ -59,7 +57,6 @@ describe('TableEditor layout', () => {
     const { container, getByText } = render(
       <div style={{ width: 160 }}>
         <TableEditor
-          op={new TableEditorOp('/test-table')}
           data={[{ vector: [1, 2, 3] }]}
           schema={schema}
           onDataChange={vi.fn()}
@@ -73,7 +70,7 @@ describe('TableEditor layout', () => {
     expect(row).not.toBeNull()
     const rowHeight = row?.getBoundingClientRect().height
 
-    fireEvent.click(displayValue)
+    fireEvent.doubleClick(displayValue)
 
     const inputs = container.querySelectorAll('input.p-inputtext')
     expect(inputs).toHaveLength(3)
@@ -100,7 +97,6 @@ describe('TableEditor layout', () => {
     const { container, getByText } = render(
       <div style={{ width: 860 }}>
         <TableEditor
-          op={new TableEditorOp('/test-table')}
           data={[{ label: 'Cape Town', count: 42, position: [18.4241, -33.9249], enabled: true }]}
           schema={schema}
           onDataChange={vi.fn()}
@@ -114,7 +110,7 @@ describe('TableEditor layout', () => {
     expect(row).not.toBeNull()
     const rowRect = row?.getBoundingClientRect()
 
-    fireEvent.click(displayValue)
+    fireEvent.doubleClick(displayValue)
 
     const input = container.querySelector('input.p-inputtext')
     expect(input).not.toBeNull()
