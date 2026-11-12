@@ -1,7 +1,7 @@
 # Operator Reference
 
 <!-- gen:begin coverage -->
-136 operators in 10 categories. 7 of 136 have written Remarks.
+136 operators in 10 categories. 8 of 136 have written Remarks.
 <!-- gen:end coverage -->
 
 One page per operator. The ports and parameters tables are generated from the operator catalog; Remarks and Examples are written by hand.
@@ -38,7 +38,7 @@ One page per operator. The ports and parameters tables are generated from the op
 - [Centroid](./operators/centroid.md): Each feature as a point at its center of mass, keeping its properties.
 - [Choropleth Join](./operators/choropleth-join.md): Rows joined onto boundaries by a key: US states, world countries or Canadian provinces.
 - [Clip](./operators/clip.md): Each feature cut by a mask (the union of its features): the part inside, as turf.intersect and a clip do, or the part outside, as turf.difference does.
-- [Cluster](./operators/cluster.md): Points labeled with a `cluster` number by k-means (turf.clustersKmeans) or by density (turf.clustersDbscan, with `dbscan` noise/core/edge).
+- [Cluster](./operators/cluster.md): Points labeled with a `cluster` number by k-means (turf.clustersKmeans) or by density (turf.clustersDbscan, with `dbscan` noise/core/edge), or grouped into map clusters for a zoom level (Supercluster, one point per cluster with `point_count` and `expansion_zoom`).
 - [Convex Hull](./operators/convex-hull.md): One polygon enclosing every feature, as turf.convex.
 - [Dissolve](./operators/dissolve.md): Polygons merged: all of them, or those sharing a value of a column (turf.dissolve, turf.union).
 - [Explode](./operators/explode.md): Each multi-part feature as one row per part (turf.flatten), or every feature as one point row per vertex (turf.explode).
