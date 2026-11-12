@@ -24,7 +24,7 @@ import {
   writesStatic,
 } from './editor/camera-control'
 import { CameraToolbar } from './editor/camera-toolbar'
-import { currentEngine } from './editor/doc-engine'
+import { currentEngine, engineState, whenShown } from './editor/doc-engine'
 import { useDocNoodles } from './editor/doc-noodles'
 import { docStore, useEditor } from './editor/doc-store'
 import { pendingKeys, usePendingKeys } from './editor/pending-keys'
@@ -151,6 +151,8 @@ function evaluateMapLibreLayerCode(
 
 export default function TimelineEditor() {
   const mapRef = useRef<MapLibre | null>(null)
+  // False from each map render until MapLibre's next idle event (tiles drawn, no fades)
+  const mapIdleRef = useRef(false)
   const deckRef = useRef<Deck>(null)
   const renderSurfaceRef = useRef<HTMLDivElement>(null)
   // Session-only handle set by selectRendersDirectory; takes priority over project subdir
@@ -543,6 +545,36 @@ export default function TimelineEditor() {
     customLayersRef.current = desiredLayerIds
   }, [visualization.maplibreLayers, styleVersion])
 
+  // Hooks for the Playwright suite in e2e/: the timeline store, and pendingWork(), which
+  // names what is still loading (the graph, deck layers, a basemap not yet idle) so a test
+  // knows when to take a screenshot and a timed-out test can say why.
+  useEffect(() => {
+    const pendingWork = async () => {
+      // 'drawn' means the engine has handed the view the store's document and time, but
+      // queries and host operators it set off can still be running. whenShown also waits for
+      // those and for the view to commit the result; a short timeout keeps each poll short.
+      const shown = await whenShown(1000)
+      const { status } = engineState()
+      const pending: string[] =
+        shown && status.kind === 'drawn'
+          ? []
+          : [status.kind === 'failed' ? `graph (failed: ${status.error})` : 'graph']
+      if (basemapEnabled && !mapIdleRef.current) pending.push('basemap')
+      // @ts-expect-error layerManager is protected but accessible
+      const layers = deckRef.current?.layerManager?.getLayers()
+      if (!layers) pending.push('deck')
+      for (const layer of layers ?? []) {
+        if (!layer.isLoaded) pending.push(`layer ${layer.id}`)
+      }
+      return pending
+    }
+    const w = window as Window & { __noodlesTest?: unknown }
+    w.__noodlesTest = { getTimelineStore, pendingWork }
+    return () => {
+      delete w.__noodlesTest
+    }
+  }, [basemapEnabled])
+
   // Clean up custom layers on unmount
   useEffect(() => {
     return () => {
@@ -581,6 +613,12 @@ export default function TimelineEditor() {
 
   // The AI tools read the canvas, deck and frame stats through window globals
   useEffect(() => exposeCanvasToTools(deckRef, frames), [frames])
+
+  // Keep the visualization's own onRender, if it set one
+  mapProps.onRender = event => {
+    ;(basemapProps as MapProps).onRender?.(event)
+    mapIdleRef.current = false
+  }
 
   // Preview exports capture on MapLibre's 'render' event instead of waiting for 'idle'.
   // A render event can fire before the frame has settled, so preview can drop or repeat
@@ -622,6 +660,7 @@ export default function TimelineEditor() {
   // it is a fallback in case the render event above misses a frame.
   mapProps.onIdle = ({ target: map }) => {
     mapRef.current = map
+    mapIdleRef.current = true
     // Wait for map tiles to load before capturing.
     if (!isMapReady(map)) {
       debugRender('map waiting')
