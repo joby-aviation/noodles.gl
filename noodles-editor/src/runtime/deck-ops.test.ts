@@ -156,6 +156,21 @@ describe('globe-view', () => {
   })
 })
 
+describe('views', () => {
+  it.each(['map-view', 'globe-view', 'orbit-view', 'orthographic-view', 'first-person-view'])(
+    '%s hands deck its clear color as [r, g, b, a] in 0 to 255',
+    type => {
+      const view = DECK_OP_INDEX.get(type)?.build(
+        { clear: true, clearColor: '#2997ffff', viewState: {} },
+        'view',
+        env
+      ) as { clear: boolean; clearColor: unknown }
+      expect(view.clear).toBe(true)
+      expect(view.clearColor).toEqual([0x29, 0x97, 0xff, 0xff])
+    }
+  )
+})
+
 describe('switch-value', () => {
   it('chooses the value at its index, clamped, and blends a fractional one when asked', () => {
     const near = { longitude: 0, latitude: 0, zoom: 10 }

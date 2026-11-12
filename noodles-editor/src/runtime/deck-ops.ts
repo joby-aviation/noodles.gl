@@ -184,7 +184,11 @@ const viewOp = (
     outputs: [{ name: 'view', type: 'value', shape: 'view' }],
     params: [...viewBase(noodles), ...params, field(noodles, 'viewState', viewState, true)],
   },
-  build: build ?? ((p, id) => ({ type: deckType, id, ...p })),
+  // deck clears a view only to an [r, g, b, a] clearColor, not to the param's hex string
+  build: (p, id, env) => {
+    const props = { ...p, clearColor: rgba(p.clearColor) ?? p.clearColor }
+    return build ? build(props, id, env) : { type: deckType, id, ...props }
+  },
 })
 
 const widgetOp = (
