@@ -1,6 +1,5 @@
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { TableEditorOp } from '../operators'
 import type { TableSchema } from '../table-schema'
 import { TableEditor } from './table-editor'
 
@@ -15,13 +14,7 @@ describe('TableEditor row virtualization in Chromium', () => {
 
     render(
       <div style={{ width: 600, height: 300 }}>
-        <TableEditor
-          op={new TableEditorOp('/real-virtual-table')}
-          data={data}
-          schema={schema}
-          onDataChange={vi.fn()}
-          onSchemaChange={vi.fn()}
-        />
+        <TableEditor data={data} schema={schema} onDataChange={vi.fn()} onSchemaChange={vi.fn()} />
       </div>
     )
 
@@ -70,13 +63,7 @@ describe('TableEditor row virtualization in Chromium', () => {
 
     render(
       <div style={{ width: 600, height: 300 }}>
-        <TableEditor
-          op={new TableEditorOp('/clipped-virtual-table')}
-          data={data}
-          schema={schema}
-          onDataChange={vi.fn()}
-          onSchemaChange={vi.fn()}
-        />
+        <TableEditor data={data} schema={schema} onDataChange={vi.fn()} onSchemaChange={vi.fn()} />
       </div>
     )
 

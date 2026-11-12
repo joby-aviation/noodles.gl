@@ -4,12 +4,10 @@ import { debugAiChat } from '../utils/debug'
 import { getCodeIndex } from './runtime-code-index'
 import { getDocsIndex } from './runtime-docs-loader'
 import { getExamplesIndex } from './runtime-examples-loader'
-import { getOperatorRegistry } from './runtime-operator-registry'
-import type { CodeIndex, DocsIndex, ExamplesIndex, LoadProgress, OperatorRegistry } from './types'
+import type { CodeIndex, DocsIndex, ExamplesIndex, LoadProgress } from './types'
 
 export class ContextLoader {
   private codeIndex: CodeIndex | null = null
-  private operatorRegistry: OperatorRegistry | null = null
   private docsIndex: DocsIndex | null = null
   private examples: ExamplesIndex | null = null
 
@@ -22,7 +20,7 @@ export class ContextLoader {
       onProgress?.({
         stage: 'code',
         loaded: 1,
-        total: 5,
+        total: 4,
         bytesLoaded: 0,
         bytesTotal: 0,
       })
@@ -30,23 +28,11 @@ export class ContextLoader {
       this.codeIndex = getCodeIndex()
       debugAiChat('Code index loaded')
 
-      // Phase 2: Load operator registry
-      onProgress?.({
-        stage: 'operators',
-        loaded: 2,
-        total: 5,
-        bytesLoaded: 0,
-        bytesTotal: 0,
-      })
-
-      this.operatorRegistry = getOperatorRegistry()
-      debugAiChat('Operator registry loaded')
-
-      // Phase 3: Load docs index
+      // Phase 2: Load docs index
       onProgress?.({
         stage: 'docs',
-        loaded: 3,
-        total: 5,
+        loaded: 2,
+        total: 4,
         bytesLoaded: 0,
         bytesTotal: 0,
       })
@@ -54,11 +40,11 @@ export class ContextLoader {
       this.docsIndex = getDocsIndex()
       debugAiChat('Docs index loaded')
 
-      // Phase 4: Load examples (lightweight - full projects loaded on-demand)
+      // Phase 3: Load examples (lightweight - full projects loaded on-demand)
       onProgress?.({
         stage: 'examples',
-        loaded: 4,
-        total: 5,
+        loaded: 3,
+        total: 4,
         bytesLoaded: 0,
         bytesTotal: 0,
       })
@@ -69,8 +55,8 @@ export class ContextLoader {
       // Complete
       onProgress?.({
         stage: 'complete',
-        loaded: 5,
-        total: 5,
+        loaded: 4,
+        total: 4,
         bytesLoaded: 0,
         bytesTotal: 0,
       })
@@ -85,10 +71,6 @@ export class ContextLoader {
   // Getters for loaded data
   getCodeIndex(): CodeIndex | null {
     return this.codeIndex
-  }
-
-  getOperatorRegistry(): OperatorRegistry | null {
-    return this.operatorRegistry
   }
 
   getDocsIndex(): DocsIndex | null {

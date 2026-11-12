@@ -144,31 +144,25 @@ describe('applyStyleOverrides', () => {
     expect(labelLayer?.layout?.['text-size']).toBe(21) // 14 * 1.5
   })
 
-  it('skips label size scale for non-numeric text-size', () => {
-    const styleWithExpression: MaplibreStyle = {
+  it('scales a zoom ramp of label sizes stop by stop, and leaves data expressions', () => {
+    const style = (size: unknown): MaplibreStyle => ({
       version: 8,
-      layers: [
-        {
-          id: 'place-label',
-          type: 'symbol',
-          layout: { 'text-size': ['interpolate', ['linear'], ['zoom'], 10, 12, 16, 24] },
-          paint: {},
-        },
-      ],
-    }
+      layers: [{ id: 'place-label', type: 'symbol', layout: { 'text-size': size }, paint: {} }],
+    })
     const overrides = { layers: [], global: { labelSizeScale: 2 } }
-    const result = applyStyleOverrides(styleWithExpression, overrides)
-    const labelLayer = result.layers.find(l => l.id === 'place-label')
-    // Non-numeric text-size (expression) should not be scaled
-    expect(labelLayer?.layout?.['text-size']).toEqual([
+    const size = (s: MaplibreStyle) =>
+      applyStyleOverrides(s, overrides).layers[0].layout?.['text-size']
+    expect(size(style(['interpolate', ['linear'], ['zoom'], 10, 12, 16, 24]))).toEqual([
       'interpolate',
       ['linear'],
       ['zoom'],
       10,
-      12,
-      16,
       24,
+      16,
+      48,
     ])
+    const byData = ['get', 'size']
+    expect(size(style(byData))).toEqual(byData)
   })
 
   it('does not modify original style object', () => {

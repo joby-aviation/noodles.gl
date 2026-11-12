@@ -10,37 +10,38 @@ Get driving, traffic-aware driving, or transit directions between points.
 
 <!-- gen:begin syntax -->
 ```json
-{
-  "id": "/directions",
-  "type": "DirectionsOp",
-  "position": { "x": 0, "y": 0 },
-  "data": { "inputs": {} }
-}
+{ "id": "n1", "op": "DirectionsOp", "name": "directions", "x": 0, "y": 0, "params": {} }
 ```
 
-Expressions and code read its fields as `op('/directions').par.origin` (an input) and `op('/directions').out.route` (an output). Edges name the same fields as handles: `par.origin`, `out.route`.
+One out of it starts at `"sourcePort": "route"`.
 <!-- gen:end syntax -->
 
 ## Inputs
 
 <!-- gen:begin inputs -->
-| Name | Type | Default |
-|------|------|---------|
-| `origin` | `Point2DField` | `{"lng":0,"lat":0}` |
-| `destination` | `Point2DField` | `{"lng":0,"lat":0}` |
-| `mode` | `StringLiteralField` | `"transit"` |
-| `departureMode` | `StringLiteralField` | `"now"` |
-| `departureTime` | `DateField` |  |
-| `trafficModel` | `StringLiteralField` | `"best-guess"` |
-| `avoidTolls` | `BooleanField` | `false` |
+This operator has no input ports.
 <!-- gen:end inputs -->
+
+## Parameters
+
+<!-- gen:begin params -->
+| Parameter | Kind | Default | Choices |
+|-----------|------|---------|---------|
+| `origin` | `field` | `{"lng":0,"lat":0}` |  |
+| `destination` | `field` | `{"lng":0,"lat":0}` |  |
+| `mode` | `field` | `"transit"` |  |
+| `departureMode` | `field` | `"now"` |  |
+| `departureTime` | `field` |  |  |
+| `trafficModel` | `field` | `"best-guess"` |  |
+| `avoidTolls` | `field` | `false` |  |
+<!-- gen:end params -->
 
 ## Outputs
 
 <!-- gen:begin outputs -->
-| Name | Type |
+| Port | Type |
 |------|------|
-| `route` | `CompoundPropsField` |
+| `route` | `value` |
 <!-- gen:end outputs -->
 
 <!-- Add hand-written "## Remarks" and "## Examples" sections here. See the operator reference index for what goes in them. -->
@@ -48,8 +49,9 @@ Expressions and code read its fields as `op('/directions').par.origin` (an input
 ## Details
 
 <!-- gen:begin details -->
-- **Category:** [Data](../operators.md#data)
-- **Type name:** `DirectionsOp`
+- **Category:** [Host operators](../operators.md#host)
+- **Operator:** `DirectionsOp`
+- **Runs:** on the page, not in the engine: it cannot be compiled to SQL or an expression
 <!-- gen:end details -->
 
 <!-- gen:begin history -->

@@ -1,0 +1,82 @@
+{
+  "version": 1,
+  "name": "Hex cells with holes",
+  "description": "Polygons in the row model: one row per vertex, grouped into cells by an id and into rings by another. The SQL draws pointy-top hexagons over lower Manhattan and Brooklyn; ring 0 is each cell's outline and ring 1, a hole, exists only where the cell's value is above 0.6. The deck adapter triangulates with earcut and hands SolidPolygonLayer the indices, so deck does no tessellation. The range filter removes whole cells in SQL, because every vertex of a cell carries the cell's value.",
+  "credits": [],
+  "nodes": [
+    {
+      "id": "cells",
+      "op": "sql",
+      "x": 0,
+      "y": 120,
+      "params": {
+        "query": "WITH cells AS (\n  SELECT c,\n    -74.06 + (c % 12) * 0.02285 + ((c // 12) % 2) * 0.011425 AS cx,\n    40.64 + (c // 12) * 0.015 AS cy,\n    0.5 + 0.5 * sin(c * 0.7) * cos(c * 0.31) AS value\n  FROM range(0, 96) t(c)\n)\nSELECT c AS cell, ring, k, value,\n  cx + 0.01 * (CASE ring WHEN 0 THEN 1.0 ELSE 0.45 END) * cos(radians(60 * k + 30)) / cos(radians(cy)) AS lng,\n  cy + 0.01 * (CASE ring WHEN 0 THEN 1.0 ELSE 0.45 END) * sin(radians(60 * k + 30)) AS lat\nFROM cells, range(0, 2) r(ring), range(0, 6) v(k)\nWHERE ring = 0 OR value > 0.6"
+      }
+    },
+    {
+      "id": "busy",
+      "op": "range",
+      "x": 260,
+      "y": 120,
+      "params": {
+        "column": "value",
+        "min": 0.15,
+        "max": 1
+      }
+    },
+    {
+      "id": "hexes",
+      "op": "polygon",
+      "x": 520,
+      "y": 120,
+      "params": {
+        "position": "[lng, lat]",
+        "pathId": "cell",
+        "ringId": "ring",
+        "order": "k",
+        "color": "ramp(value)",
+        "ramp": "viridis",
+        "stroked": true,
+        "lineColor": [20, 22, 30],
+        "lineWidthMinPixels": 1,
+        "opacity": 0.85
+      }
+    },
+    {
+      "id": "map",
+      "op": "deck",
+      "x": 780,
+      "y": 120,
+      "params": {
+        "basemap": "dark-matter",
+        "longitude": -73.93,
+        "latitude": 40.695,
+        "zoom": 10.9
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "source": "cells",
+      "sourcePort": "out",
+      "target": "busy",
+      "targetPort": "in"
+    },
+    {
+      "id": "e2",
+      "source": "busy",
+      "sourcePort": "out",
+      "target": "hexes",
+      "targetPort": "in"
+    },
+    {
+      "id": "e3",
+      "source": "hexes",
+      "sourcePort": "out",
+      "target": "map",
+      "targetPort": "layers",
+      "index": 0
+    }
+  ]
+}

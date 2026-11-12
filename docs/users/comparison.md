@@ -32,17 +32,17 @@ Noodles.gl gives you AE-style keyframing (bezier curves, timeline scrubbing, eas
 | Keyframe timeline | Full, professional | Full, with bezier curves |
 | Data-driven | Static import per revision | Live reactive pipeline |
 | Map projections | Via plugin | Globe, Mercator, Orthographic |
-| 40+ geo layer types | Limited set | Arc, hex, heatmap, trips, etc. |
+| 30+ geo layer types | Limited set | Arc, hex, heatmap, trips, etc. |
 | Update when data changes | Re-do manually | Automatic propagation |
 | Runs in browser | No | Yes, no install |
 
 ### vs. D3.js / Observable
 
-D3 gives you complete control, but every visualization is code from scratch. There's no built-in timeline, no GPU-rendered layers, and no visual editor for iteration. Noodles includes D3 as a utility inside CodeOp nodes — you get the library's power without maintaining a custom rendering stack.
+D3 gives you complete control, but every visualization is code from scratch. There's no built-in timeline, no GPU-rendered layers, and no visual editor for iteration. Noodles includes D3 inside Code nodes, so you get the library's power without maintaining a custom rendering stack.
 
 | | D3.js | Noodles.gl |
 |---|---|---|
-| Custom visualization | Unlimited (code) | 40+ layers + CodeOp for custom |
+| Custom visualization | Unlimited (code) | 30+ layer types, plus Code nodes and SQL |
 | Visual editor | No | Full node graph + timeline |
 | GPU rendering | No (SVG/Canvas) | WebGL via Deck.gl |
 | Large datasets (1M+ rows) | Difficult | Handled natively |
@@ -55,9 +55,9 @@ Desktop GIS tools are unbeatable for spatial analysis — hundreds of algorithms
 
 | | QGIS / GeoLibre | Noodles.gl |
 |---|---|---|
-| Spatial analysis algorithms | Hundreds | Common ops as nodes, plus CodeOp + DuckDB |
+| Spatial analysis algorithms | Hundreds | Common ops as nodes, plus Code nodes and DuckDB SQL |
 | Format support | 30+ | GeoJSON, CSV, Shapefile, GeoParquet, PMTiles, SQL |
-| Geometry editing | Full | Basic (GeoEditor) |
+| Geometry editing | Full | Basic (Draw tool) |
 | Animation / timeline | Trips layer playback (GeoLibre) | Full timeline, any parameter |
 | Video export | Basic (limited) | Full MP4, any resolution |
 | Data-driven styling | Static rules | Reactive, animated |
@@ -72,7 +72,7 @@ Template-based visualization tools are easy to use but constrained. You get pre-
 | Time to first visualization | Minutes | Minutes from a template or with the AI assistant; longer if you start from a blank graph |
 | Customization ceiling | Low (templates) | Unlimited (composable graph) |
 | Map animations | Preset transitions | Any parameter, any curve |
-| Custom data transforms | No | CodeOp, DuckDB, expressions |
+| Custom data transforms | No | Code nodes, DuckDB SQL, expressions |
 | Self-hosted | No | Yes (static files) |
 | Export video | Limited | Full MP4 |
 

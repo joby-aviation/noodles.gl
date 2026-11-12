@@ -1,7 +1,6 @@
 import * as turf from '@turf/turf'
 import { describe, expect, it } from 'vitest'
 
-import { LineInterpolationOp } from '../noodles/operators'
 import { interpolateGeoJsonLines, type LineInterpolationMethod } from './geojson-line-interpolation'
 
 const routeCoordinates = [
@@ -183,26 +182,5 @@ describe('interpolateGeoJsonLines', () => {
     )
     expect(interiorVertex?.[2]).toBe(200)
     expect(result.geometry.coordinates.at(-1)?.[2]).toBe(300)
-  })
-})
-
-describe('LineInterpolationOp', () => {
-  it('exposes line interpolation controls and executes GeoJSON input', () => {
-    const op = new LineInterpolationOp('/line-interpolation-0')
-    const feature = turf.lineString(routeCoordinates.slice(0, 3))
-
-    expect(op.inputs.method.value).toBe('catmull-rom')
-    expect(op.inputs.turnRadiusMeters.value).toBe(250)
-
-    const result = op.execute({
-      feature,
-      method: 'turn-radius',
-      samplesPerSegment: 12,
-      alpha: 0.5,
-      tension: 0,
-      turnRadiusMeters: 100,
-    } as never) as { feature: GeoJSON.Feature<GeoJSON.LineString> }
-
-    expect(result.feature.geometry.coordinates.length).toBeGreaterThan(3)
   })
 })

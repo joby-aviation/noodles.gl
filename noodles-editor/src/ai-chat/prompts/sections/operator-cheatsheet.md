@@ -1,33 +1,19 @@
-# Operator and layer cheat-sheet: which node or layer type to use
+# Operator cheat-sheet
 
-Read this to choose which layer or node type to use for a job — points, routes, arcs, paths, polygons, density, text — or to recall an operator's input names and handles.
+Operator types as `apply_modifications` names them. `get_operator_schema` gives any one's ports and parameters.
 
-A shortlist of the operators that cover most requests. It is not the full registry — call `list_operators` for that, or `get_operator_schema` for one operator's exact inputs and outputs. Handle names come straight from those: every field in `inputs` is `par.{fieldName}` and every field in `outputs` is `out.{fieldName}`.
+| Kind | Operators |
+| --- | --- |
+| Data | `file` (csv, json, parquet), `geojson`, `sql`, `generate` (N numbered rows) |
+| Tables | `filter`, `range`, `sort`, `limit`, `join`, `union`, `aggregate`, `unnest`, `grid`, `time-series` |
+| Rows | `attribute` (one column from an expression), `wrangle` (several, as code), `position`, `map-range`, `distance`, `region`, `geo-distance` |
+| Color | `color-ramp` (a column to a ramp color), `color` (a shared constant) |
+| Layers | `scatter`, `arc`, `path`, `trips`, `polygon`, `column`, `text`, `heatmap`, `hexagon`, `grid-layer`, `mesh`, `scenegraph` |
+| Numbers | `number`, `time` (the clock), `math`, `expression`, `extent` (min and max of a column) |
+| Output | `deck` (layers, basemap, camera, export settings), `switch` (one of several layers) |
 
-## By role
+Ports: tables leave by `out` and enter by `in` (`sql` takes `in0`…`in2`, `join` takes `left` and `right`). Layers leave by `out` and enter `deck` by `layers`. Number nodes leave by `out` and drive a parameter by `par:<param>`.
 
-- **Data in**: `FileOp` (JSON, CSV, GeoJSON), `JSONOp` (inline literal), `DuckDbOp` (SQL), `NetworkOp` (HTTP), `GeocoderOp` (address → coordinates), `DirectionsOp` (routing).
-- **Transform**: `CodeOp` (multi-line JS — the default choice), `ExpressionOp` (one-liner), `AccessorOp` (per-row accessor for a layer), `MapRangeOp`, `FilterOp`, `SortOp`, `SliceOp`, `MergeOp`, `ConcatOp`.
-- **Layers**: `ScatterplotLayerOp`, `ArcLayerOp`, `GreatCircleLayerOp`, `PathLayerOp`, `TripsLayerOp`, `GeoJsonLayerOp`, `PolygonLayerOp`, `HexagonLayerOp`, `H3HexagonLayerOp`, `HeatmapLayerOp`, `ColumnLayerOp`, `IconLayerOp`, `TextLayerOp`.
-- **Colour**: `ColorOp` (one colour), `ColorRampOp` (continuous scale), `CategoricalColorRampOp` (per-category), `HSLOp`.
-- **Out**: `MaplibreBasemapOp`, `DeckRendererOp`, `OutOp`.
+Layer channels are expressions over columns: `scatter` takes `position`, `color`, `radius`; `arc` takes `source`, `target`, `sourceColor`, `targetColor`, `width`; `path` and `trips` take `position` plus `pathId` and `order` columns (and `timestamp` for trips); `polygon` takes `position`, `pathId`, `ringId`, `order`. Style parameters (`radiusScale`, `opacity`, `fillColor`, `blend`) are plain values.
 
-## Inputs worth knowing
-
-- `ColorOp`: `color` — a hex string such as `"#ff0000"`.
-- `NumberOp`: `value`.
-- `StringOp`: `value`.
-- `AccessorOp`: `expression` — a JS string evaluated per row, with `d` as the row and `data` as the whole array. Example: `[d.longitude, d.latitude]`.
-- `CodeOp`: `code` — multi-line JS ending in a `return`. Globals: `d3`, `turf`, `deck`, `Plot`, `Temporal`, `utils`.
-- `FileOp`: `url` (use the `@/` prefix for the project's data directory) and `format`.
-- `DuckDbOp`: `sql`.
-- Layers, directly settable: `opacity`, `visible`, `pickable`, `radiusScale`, `lineWidthScale`, `stroked`, `filled`.
-- Layers, normally edge-fed: everything starting with `get` — `getPosition`, `getFillColor`, `getRadius`, `getWeight`, `getPath`, `getSourcePosition`, `getTargetPosition`.
-
-## Paths
-
-Operator IDs are Unix-style paths. `/loader` is at the root, `/analysis/filter` is inside the `analysis` container. In expressions and SQL references, `./sibling` resolves within the current container and `../other` goes up one level.
-
-## Utility functions
-
-`CodeOp`, `ExpressionOp`, and `AccessorOp` all expose a `utils` object: `utils.getArc()` for 3D arc paths, `utils.hexToColor()` and `utils.colorToHex()` for colour conversion, `utils.interpolate([inMin, inMax], [outMin, outMax])` for range mapping, `utils.mulberry32(seed)` for deterministic randomness, plus distance constants and basemap style URLs. Search the source with `search_code` for the full set.
+Noodles operators the planner does not replace (`CodeOp`, `BitmapLayerOp`, `Tile3DLayerOp`, views, widgets, effects) run as host operators under their own type names, with their own inputs as params.

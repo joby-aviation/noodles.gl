@@ -1,8 +1,7 @@
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
-import { Subject } from 'rxjs'
+import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import type { NodeRows } from '../../../editor/node-rows'
 
-// Mock store
 const storeState = {
   pinnedSpreadsheetNodeId: null as string | null,
 }
@@ -10,19 +9,18 @@ const mockSetPinnedNodeId = vi.fn((id: string | null) => {
   storeState.pinnedSpreadsheetNodeId = id
 })
 
-vi.mock('../../store', () => ({
+vi.mock('../../../editor/ui-store', () => ({
   useUIStore: (
     selector: (
-      s: typeof storeState & {
-        setPinnedSpreadsheetNodeId: typeof mockSetPinnedNodeId
-      }
+      s: typeof storeState & { setPinnedSpreadsheetNodeId: typeof mockSetPinnedNodeId }
     ) => unknown
-  ) =>
-    selector({
-      ...storeState,
-      setPinnedSpreadsheetNodeId: mockSetPinnedNodeId,
-    }),
-  getOp: vi.fn(),
+  ) => selector({ ...storeState, setPinnedSpreadsheetNodeId: mockSetPinnedNodeId }),
+}))
+
+let rows: NodeRows = {}
+const useNodeRows = vi.fn((_id: string | null) => rows)
+vi.mock('../../../editor/node-rows', () => ({
+  useNodeRows: (id: string | null) => useNodeRows(id),
 }))
 
 vi.mock('./spreadsheet-pane.module.css', () => ({
@@ -30,133 +28,63 @@ vi.mock('./spreadsheet-pane.module.css', () => ({
 }))
 
 vi.mock('./spreadsheet-viewer', () => ({
-  SpreadsheetViewer: ({ operatorId }: { operatorId: string }) => (
-    <div data-testid="spreadsheet-viewer">{operatorId}</div>
+  SpreadsheetViewer: ({ operatorId, data }: { operatorId: string; data: unknown }) => (
+    <div data-testid="spreadsheet-viewer">
+      {operatorId}:{Array.isArray(data) ? data.length : 0}
+    </div>
   ),
 }))
 
-import { getOp } from '../../store'
-// Import after mocks
 import { SpreadsheetPane } from './spreadsheet-pane'
-
-const mockGetOp = vi.mocked(getOp)
 
 describe('SpreadsheetPane', () => {
   beforeEach(() => {
     storeState.pinnedSpreadsheetNodeId = null
-    mockGetOp.mockReset()
+    rows = {}
+    useNodeRows.mockClear()
     mockSetPinnedNodeId.mockClear()
   })
 
   afterEach(() => cleanup())
 
-  it('shows empty state when no node is selected', () => {
-    render(<SpreadsheetPane selectedNodeIds={[]} />)
+  it('shows empty state when no node or several are selected', () => {
+    render(<SpreadsheetPane selectedNodeIds={['/a', '/b']} />)
     expect(screen.getByText('Select a node to view its data')).toBeTruthy()
+    expect(useNodeRows).toHaveBeenLastCalledWith(null)
   })
 
-  it('shows empty state when multiple nodes are selected', () => {
-    render(<SpreadsheetPane selectedNodeIds={['/op-1', '/op-2']} />)
-    expect(screen.getByText('Select a node to view its data')).toBeTruthy()
+  it("shows the node's rows, by name, with how many there are in all", () => {
+    rows = { name: 'quakes', data: [{ a: 1 }, { a: 2 }], total: 900 }
+    render(<SpreadsheetPane selectedNodeIds={['n1']} />)
+    expect(useNodeRows).toHaveBeenLastCalledWith('n1')
+    expect(screen.getByTestId('spreadsheet-viewer').textContent).toBe('n1:2')
+    expect(screen.getByText('quakes · first 2 of 900')).toBeTruthy()
   })
 
-  it('shows operator not found error for missing operator', () => {
-    mockGetOp.mockReturnValue(undefined)
-    render(<SpreadsheetPane selectedNodeIds={['/missing']} />)
-    expect(screen.getByText('Operator not found')).toBeTruthy()
-  })
-
-  it('shows no outputs error for operator with no outputs', () => {
-    mockGetOp.mockReturnValue({ outputs: {} } as ReturnType<typeof getOp>)
-    render(<SpreadsheetPane selectedNodeIds={['/op-no-outputs']} />)
+  it('shows why a node has no rows', () => {
+    rows = { name: 'dots', error: 'No outputs available' }
+    render(<SpreadsheetPane selectedNodeIds={['n1']} />)
     expect(screen.getByText('No outputs available')).toBeTruthy()
   })
 
-  it('renders SpreadsheetViewer when operator has outputs', () => {
-    const subject = new Subject<unknown>()
-    mockGetOp.mockReturnValue({
-      outputs: { result: subject },
-    } as unknown as ReturnType<typeof getOp>)
-
-    render(<SpreadsheetPane selectedNodeIds={['/op-1']} />)
-    expect(screen.getByTestId('spreadsheet-viewer')).toBeTruthy()
-  })
-
-  it('subscribes to the first output field and receives data', () => {
-    const subject = new Subject<unknown>()
-    const subscribeSpy = vi.spyOn(subject, 'subscribe')
-    mockGetOp.mockReturnValue({
-      outputs: { result: subject },
-    } as unknown as ReturnType<typeof getOp>)
-
-    render(<SpreadsheetPane selectedNodeIds={['/op-1']} />)
-    expect(subscribeSpy).toHaveBeenCalledOnce()
-  })
-
-  it('unsubscribes when unmounted (Layout hides the pane by unmounting it)', () => {
-    const subject = new Subject<unknown>()
-    const unsubSpy = vi.fn()
-    vi.spyOn(subject, 'subscribe').mockReturnValue({
-      unsubscribe: unsubSpy,
-    } as unknown as ReturnType<Subject<unknown>['subscribe']>)
-    mockGetOp.mockReturnValue({
-      outputs: { result: subject },
-    } as unknown as ReturnType<typeof getOp>)
-
-    const { unmount } = render(<SpreadsheetPane selectedNodeIds={['/op-1']} />)
-    unmount()
-    expect(unsubSpy).toHaveBeenCalledOnce()
-  })
-
-  it('clears pinned node when pinned operator is deleted', () => {
-    storeState.pinnedSpreadsheetNodeId = '/deleted-op'
-    mockGetOp.mockReturnValue(undefined)
-
+  it('clears a pinned node that was deleted', () => {
+    storeState.pinnedSpreadsheetNodeId = '/gone'
+    rows = { error: 'Node not found' }
     render(<SpreadsheetPane selectedNodeIds={[]} />)
     expect(mockSetPinnedNodeId).toHaveBeenCalledWith(null)
   })
 
-  it('displays operator name in header when node is targeted', () => {
-    const subject = new Subject<unknown>()
-    mockGetOp.mockReturnValue({
-      outputs: { result: subject },
-    } as unknown as ReturnType<typeof getOp>)
-
-    render(<SpreadsheetPane selectedNodeIds={['/my-operator']} />)
-    // operatorName span in header (may also appear in mocked viewer, use getAllByText)
-    const matches = screen.getAllByText('/my-operator')
-    expect(matches.length).toBeGreaterThan(0)
-  })
-
   describe('pin/unpin', () => {
-    it('shows pin button when a node is targeted', () => {
-      const subject = new Subject<unknown>()
-      mockGetOp.mockReturnValue({
-        outputs: { result: subject },
-      } as unknown as ReturnType<typeof getOp>)
-
-      render(<SpreadsheetPane selectedNodeIds={['/op-1']} />)
-      expect(screen.getByTitle('Pin current operator')).toBeTruthy()
-    })
-
-    it('pins when clicking the pin button', () => {
-      const subject = new Subject<unknown>()
-      mockGetOp.mockReturnValue({
-        outputs: { result: subject },
-      } as unknown as ReturnType<typeof getOp>)
-
-      render(<SpreadsheetPane selectedNodeIds={['/op-1']} />)
+    it('pins the targeted node', () => {
+      rows = { name: 'quakes', data: [] }
+      render(<SpreadsheetPane selectedNodeIds={['n1']} />)
       fireEvent.click(screen.getByTitle('Pin current operator'))
-      expect(mockSetPinnedNodeId).toHaveBeenCalledWith('/op-1')
+      expect(mockSetPinnedNodeId).toHaveBeenCalledWith('n1')
     })
 
-    it('unpins when clicking Unpin on a pinned node', () => {
-      storeState.pinnedSpreadsheetNodeId = '/op-1'
-      const subject = new Subject<unknown>()
-      mockGetOp.mockReturnValue({
-        outputs: { result: subject },
-      } as unknown as ReturnType<typeof getOp>)
-
+    it('unpins a pinned node', () => {
+      storeState.pinnedSpreadsheetNodeId = 'n1'
+      rows = { name: 'quakes', data: [] }
       render(<SpreadsheetPane selectedNodeIds={[]} />)
       fireEvent.click(screen.getByTitle('Unpin'))
       expect(mockSetPinnedNodeId).toHaveBeenCalledWith(null)

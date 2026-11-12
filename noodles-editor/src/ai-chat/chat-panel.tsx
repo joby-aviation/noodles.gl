@@ -1,22 +1,17 @@
 // ChatPanel - Main UI component for Claude AI integration
 
-import { useReactFlow } from '@xyflow/react'
 import { type FC, useEffect, useRef, useState } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import {
-  type ModificationResult,
-  type ProjectModification,
-  useProjectModifications,
-} from '../noodles/hooks/use-project-modifications'
+import { useStore } from 'zustand'
+import { type DocMark, docStore, useEditor } from '../editor/doc-store'
+import { useUIStore } from '../editor/ui-store'
 import type { CustomEndpointConfig, ProviderPreference } from '../noodles/keys-store'
 import { useKeysStore } from '../noodles/keys-store'
-import { useUIStore } from '../noodles/store'
 import { useOpenRouterConnect } from '../noodles/use-openrouter-connect'
-import { recordGraphMutation } from '../noodles/utils/graph-history'
 import { analytics } from '../utils/analytics'
 import { debugAiChat } from '../utils/debug'
-import { AcpSession, type ModelChoice, type PermissionRequest } from './agent/acp/session'
+import { AcpSession, type ModelChoice } from './agent/acp/session'
 import { getAgentModelStore, useAgentModelStore } from './agent/model-store'
 import { createProvider, resolveProviderModel } from './agent/provider-factory'
 import {
@@ -58,48 +53,24 @@ import {
   onDeviceNoticeDismissed,
   SLOW_REPLY_MS,
 } from './on-device-notice'
-import type { Message, NoodlesProject } from './types'
+import { createTurnStore, type PermissionPrompt } from './turn-state'
+import type { Message } from './types'
 
 interface ChatPanelProps {
-  project: NoodlesProject
-  // Changes whenever another project replaces the graph. A proposal planned
-  // against the old graph must not be applied to the new one.
-  projectKey?: number
   onClose: () => void
   isVisible: boolean
   initialMessage?: string
 }
 
-export const ChatPanel: FC<ChatPanelProps> = ({
-  project,
-  projectKey,
-  onClose,
-  isVisible,
-  initialMessage,
-}) => {
-  // Get ReactFlow state for the modification hook
-  const { getNodes, getEdges, setNodes, setEdges } = useReactFlow()
-
-  // Use project modifications hook with ReactFlow state
-  const { applyModifications } = useProjectModifications({
-    getNodes,
-    getEdges,
-    setNodes,
-    setEdges,
-  })
+export const ChatPanel: FC<ChatPanelProps> = ({ onClose, isVisible, initialMessage }) => {
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState('')
-  const [loading, setLoading] = useState(false)
   const [contextLoading, setContextLoading] = useState(true)
   const [session, setSession] = useState<ChatSession | null>(null)
   const [mcpTools, setMcpTools] = useState<MCPTools | null>(null)
   const [currentConversationId, setCurrentConversationId] = useState<string | null>(null)
   const [showHistory, setShowHistory] = useState(false)
   const [contextProgress, setContextProgress] = useState<string>('')
-  // Text of the turn in flight, so the reply appears as it is generated rather
-  // than all at once when the whole multi-step run finishes
-  const [streamingText, setStreamingText] = useState('')
-  const [activeTools, setActiveTools] = useState<string[]>([])
   const [lastUsage, setLastUsage] = useState<AgentUsage | null>(null)
   // Whether the running model takes images. The Capture button is hidden when it
   // does not, since the screenshot would be dropped before it was sent.
@@ -121,15 +92,16 @@ export const ChatPanel: FC<ChatPanelProps> = ({
   // A provider that would not start. Distinct from a failed message: nothing can
   // be sent at all, so it replaces the panel rather than appearing in it.
   const [providerError, setProviderError] = useState<string | null>(null)
-  // An edit the assistant proposed, waiting on Accept or Reject. Sending is blocked
-  // until it is resolved: the next run would be planned against a graph the user
-  // has not decided on, and its own proposal would have nowhere to go.
-  const [pendingProposal, setPendingProposal] = useState<ModificationProposal | null>(null)
-  // An ACP agent asking before it runs a tool. The turn waits on the answer.
-  const [permission, setPermission] = useState<{
-    request: PermissionRequest
-    settle: (optionId: string | null) => void
-  } | null>(null)
+  // The turn in flight, a run still stopping, or a proposal waiting on Accept or
+  // Reject. See TurnState for what each phase allows.
+  const [turns] = useState(createTurnStore)
+  const turn = useStore(turns.store, state => state.turn)
+  const loading = turn.phase === 'sending'
+  const stopping = turn.phase === 'stopping'
+  const streamingText = turn.phase === 'sending' ? turn.streamingText : ''
+  const activeTools = turn.phase === 'sending' ? turn.activeTools : []
+  const permission = turn.phase === 'sending' ? turn.permission : null
+  const pendingProposal = turn.phase === 'proposal' ? turn.proposal : null
   // What a connected ACP agent calls itself and the models it offers. Both come
   // from the agent, so neither is known until it connects.
   const [acpAgent, setAcpAgent] = useState<{
@@ -139,11 +111,11 @@ export const ChatPanel: FC<ChatPanelProps> = ({
   } | null>(null)
   // Bumped by Retry, which reconnects to a bridge that was not running yet
   const [retryKey, setRetryKey] = useState(0)
-  const abortRef = useRef<AbortController | null>(null)
-  // Bumped when the conversation or the project changes. A run that finishes
-  // after that belongs to neither, so its reply and proposal are dropped.
-  const generationRef = useRef(0)
-  const projectKeyRef = useRef(projectKey)
+  // Another project replacing the document is told apart by its load count
+  const loadId = useEditor(st => st.loadId)
+  const loadIdRef = useRef(loadId)
+  // Where the reply running now started, so leaving its conversation can undo its edits
+  const runStart = useRef<{ mark: DocMark; loadId: number } | null>(null)
 
   // Get API keys directly from store (reactive)
   const apiKey = useKeysStore(state => state.getKey('anthropic'))
@@ -242,7 +214,7 @@ export const ChatPanel: FC<ChatPanelProps> = ({
     if (!cloudProvider) return openProviderSettings()
     // Stop the slow reply rather than leave it running; the old session keeps
     // its provider until the reply settles (AgentSession.dispose)
-    abortRef.current?.abort()
+    turns.stop()
     setPreference(cloudProvider)
   }
 
@@ -360,12 +332,14 @@ export const ChatPanel: FC<ChatPanelProps> = ({
               new Promise(resolve => {
                 const settle = (optionId: string | null) => {
                   signal.removeEventListener('abort', dismiss)
-                  setPermission(null)
+                  turns.clearPermission(prompt)
                   resolve(optionId)
                 }
                 const dismiss = () => settle(null)
+                const prompt: PermissionPrompt = { request, settle }
+                // No turn of this conversation asked: an abandoned one winding down
+                if (signal.aborted || !turns.requestPermission(prompt)) return resolve(null)
                 signal.addEventListener('abort', dismiss, { once: true })
-                setPermission({ request, settle })
               }),
             onModelsChange: (models, current) =>
               setAcpAgent(agent => (agent ? { ...agent, models, current } : agent)),
@@ -441,7 +415,7 @@ export const ChatPanel: FC<ChatPanelProps> = ({
       cancelled = true
       built?.dispose()
       setAcpAgent(null)
-      setPermission(null)
+      turns.clearPermission()
     }
   }, [
     providerId,
@@ -455,31 +429,22 @@ export const ChatPanel: FC<ChatPanelProps> = ({
     retryKey,
   ])
 
-  // Update MCPTools with current project whenever it changes
+  // Another project replaced the document: stop the run planning against the old one and drop
+  // its proposal, which belongs to that document. The load cleared the history its mark points
+  // into, so there is nothing to undo.
   useEffect(() => {
-    if (mcpTools && project) {
-      mcpTools.setProject(project)
-    }
-  }, [mcpTools, project])
-
-  // Another project replaced the graph: stop the run planning against the old
-  // one and drop its proposal
-  useEffect(() => {
-    if (projectKeyRef.current === projectKey) return
-    projectKeyRef.current = projectKey
-    generationRef.current += 1
-    abortRef.current?.abort()
-    if (pendingProposal) {
-      setPendingProposal(null)
+    if (loadIdRef.current === loadId) return
+    loadIdRef.current = loadId
+    if (turns.abandon()) {
       setMessages(prev => [
         ...prev,
         {
           role: 'assistant',
-          content: 'Another project was opened, so the proposed graph update was not applied.',
+          content: 'Another project was opened, so the proposed graph update was dropped.',
         },
       ])
     }
-  }, [projectKey, pendingProposal])
+  }, [loadId, turns])
 
   // Handle initial message from quick start modal
   useEffect(() => {
@@ -514,7 +479,10 @@ export const ChatPanel: FC<ChatPanelProps> = ({
   }, [])
 
   const handleSend = async () => {
-    if (!input.trim() || !session || !project || pendingProposal) return
+    if (!input.trim() || !session) return
+    // Refused while a turn runs or stops, or a proposal waits
+    const run = turns.begin()
+    if (!run) return
 
     const userMessage: Message = {
       role: 'user',
@@ -523,33 +491,30 @@ export const ChatPanel: FC<ChatPanelProps> = ({
 
     setMessages(prev => [...prev, userMessage])
     setInput('')
-    setLoading(true)
-    setStreamingText('')
-    setActiveTools([])
 
     // Consumed now rather than when the reply finishes, so a capture taken while
     // it streams stays attached to the next message
     const screenshot = pendingScreenshot
     setPendingScreenshot(null)
 
-    const controller = new AbortController()
-    abortRef.current = controller
-    const generation = generationRef.current
-
+    let proposal: ModificationProposal | null = null
+    // Where the run's edits start: Reject comes back here, Accept folds them into one undo step
+    const runMark = docStore().mark()
+    runStart.current = { mark: runMark, loadId: docStore().get().loadId }
     try {
       const response = await session.send({
         message: input,
         screenshot: screenshot?.data,
         screenshotFormat: screenshot?.format,
         conversationHistory: messages,
-        signal: controller.signal,
+        signal: run.signal,
         onEvent: event => {
-          if (event.type === 'text_delta') setStreamingText(prev => prev + event.text)
-          if (event.type === 'tool_call') setActiveTools(prev => [...prev, event.name])
+          if (event.type === 'text_delta') turns.appendText(run.runId, event.text)
+          if (event.type === 'tool_call') turns.addTool(run.runId, event.name)
           if (event.type === 'usage') setLastUsage(event.usage)
         },
       })
-      if (generation !== generationRef.current) return
+      if (!turns.isCurrent(run.runId)) return
 
       // An aborted run still returns whatever it had produced, which is worth
       // keeping — the user stopped it, they did not undo it
@@ -567,19 +532,24 @@ export const ChatPanel: FC<ChatPanelProps> = ({
 
       setMessages(prev => [...prev, assistantMessage])
 
-      // apply_modifications validated these against the project; they land only
-      // once the user accepts them
-      if (response.projectModifications && response.projectModifications.length > 0) {
-        debugAiChat('Proposing project modifications:', response.projectModifications)
-        setPendingProposal(createProposal(response.projectModifications))
-        analytics.track('ai_modification_proposed', {
-          provider: providerId,
-          modificationCount: response.projectModifications.length,
-        })
+      // The run's edits are on the document already, so the assistant could read what they
+      // did; they stay only once the user accepts them
+      const after = docStore().get().doc
+      if (after !== runMark.doc) {
+        const made = createProposal(runMark, after)
+        if (made.lines.length > 0) {
+          proposal = made
+          analytics.track('ai_modification_proposed', {
+            provider: providerId,
+            modificationCount: made.lines.length,
+          })
+        } else {
+          docStore().squash(runMark)
+        }
       }
     } catch (error) {
       debugAiChat('Error sending message:', error)
-      if (generation !== generationRef.current) return
+      if (!turns.isCurrent(run.runId)) return
 
       // Check error type and provide helpful messages
       const errorStr = error instanceof Error ? error.message : String(error)
@@ -627,59 +597,52 @@ export const ChatPanel: FC<ChatPanelProps> = ({
         ])
       }
     } finally {
-      setLoading(false)
-      setStreamingText('')
-      setActiveTools([])
-      abortRef.current = null
+      turns.finish(run.runId, proposal)
+    }
+  }
+
+  // The edits of a proposal still waiting, which leaving its conversation undoes
+  // Leaving a conversation undoes the edits that belong to it: a proposal still waiting, or
+  // what a reply still running has done so far (the run is aborted, and makes no more). After
+  // another project opened there is nothing of it to undo.
+  const revertPending = () => {
+    const turn = turns.store.getState().turn
+    if (turn.phase === 'proposal') docStore().revert(turn.proposal.mark)
+    const start = runStart.current
+    if (turn.phase === 'sending' && start && start.loadId === docStore().get().loadId) {
+      docStore().revert(start.mark)
     }
   }
 
   const handleStop = () => {
-    abortRef.current?.abort()
+    turns.stop()
   }
 
   const acceptProposal = () => {
-    if (!pendingProposal) return
-    const { modifications } = pendingProposal
-    setPendingProposal(null)
-
-    // One undo entry for the whole batch, even when it fails partway
-    let result: ModificationResult = { success: false, error: 'not applied' }
-    recordGraphMutation('Apply assistant proposal', () => {
-      result = applyModifications(modifications as ProjectModification[])
-    })
+    const proposal = turns.takeProposal()
+    if (!proposal) return
+    // One undo entry for the whole run
+    docStore().squash(proposal.mark)
     analytics.track('ai_modification_proposal_resolved', {
       provider: providerId,
-      outcome: result.success ? 'accepted' : 'failed',
-      modificationCount: modifications.length,
+      outcome: 'accepted',
+      modificationCount: proposal.lines.length,
     })
-
-    if (!result.success) {
-      // Surface the failure to the user and, through the history, to the model
-      const errorMessage = `Failed to apply modifications: ${result.error}`
-      debugAiChat(errorMessage)
-      setMessages(prev => [...prev, { role: 'assistant', content: errorMessage }])
-    } else if (result.warnings && result.warnings.length > 0) {
-      debugAiChat('Modification warnings:', result.warnings)
-      const warningMessage = `⚠️ Modifications applied with warnings:\n${result.warnings.map(w => `• ${w}`).join('\n')}`
-      setMessages(prev => [...prev, { role: 'assistant', content: warningMessage }])
-    }
   }
 
   // Recorded in the conversation so the next turn knows the edit did not land
   const rejectProposal = () => {
-    if (!pendingProposal) return
+    const proposal = turns.takeProposal()
+    if (!proposal) return
     analytics.track('ai_modification_proposal_resolved', {
       provider: providerId,
       outcome: 'rejected',
-      modificationCount: pendingProposal.modifications.length,
+      modificationCount: proposal.lines.length,
     })
-    setPendingProposal(null)
-    // Only the proposed batch is known not to have landed: a run_code call in the
-    // same run may already have changed field values
+    docStore().revert(proposal.mark)
     setMessages(prev => [
       ...prev,
-      { role: 'assistant', content: 'Proposal rejected. Its changes were not applied.' },
+      { role: 'assistant', content: 'Proposal rejected. Its changes were undone.' },
     ])
   }
 
@@ -714,19 +677,19 @@ export const ChatPanel: FC<ChatPanelProps> = ({
     }
 
     // Start fresh. A pending proposal, and the reply of a run still in flight,
-    // belong to the conversation they came from.
-    generationRef.current += 1
-    abortRef.current?.abort()
+    // belong to the conversation they came from. An undecided proposal is not
+    // accepted by leaving its conversation: its edits are undone.
+    revertPending()
+    turns.abandon()
     session?.reset?.()
     setMessages([])
-    setPendingProposal(null)
     setCurrentConversationId(null)
     setShowHistory(false)
   }
 
   const handleClose = () => {
     // Closing with a turn in flight should not leave it billing in the background
-    abortRef.current?.abort()
+    turns.stop()
 
     // Auto-save current conversation if it has messages and hasn't been saved yet
     if (messages.length > 0 && !currentConversationId) {
@@ -754,11 +717,10 @@ export const ChatPanel: FC<ChatPanelProps> = ({
 
     const conversation = loadConversation(id)
     if (conversation) {
-      generationRef.current += 1
-      abortRef.current?.abort()
+      revertPending()
+      turns.abandon()
       session?.reset?.()
       setMessages(conversation.messages)
-      setPendingProposal(null)
       setCurrentConversationId(id)
       setShowHistory(false)
     } else {
@@ -1112,7 +1074,7 @@ export const ChatPanel: FC<ChatPanelProps> = ({
         {pendingProposal && (
           <section className={styles.proposalCard} aria-label="Proposed graph update">
             <div className={styles.proposalTitle}>Review graph update</div>
-            <p>These changes are not applied yet.</p>
+            <p>The map shows these changes. Accept keeps them; Reject undoes them.</p>
             <ul className={styles.proposalDiff}>
               {pendingProposal.lines.map((line, idx) => (
                 <li key={`${idx}-${line.text}`}>
@@ -1165,8 +1127,9 @@ export const ChatPanel: FC<ChatPanelProps> = ({
           <button
             type="button"
             onClick={handleSend}
-            disabled={!input.trim() || pendingProposal !== null}
+            disabled={!input.trim() || pendingProposal !== null || stopping}
             className={styles.chatSendBtn}
+            title={stopping ? 'Waiting for the previous reply to stop' : undefined}
           >
             Send
           </button>

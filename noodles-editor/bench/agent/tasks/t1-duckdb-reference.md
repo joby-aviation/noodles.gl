@@ -1,6 +1,6 @@
 ---
 id: t1-duckdb-reference
-taskVersion: 1
+taskVersion: 2
 family: knowledge
 tier: T1
 tags: [knowledge, duckdb, references]
@@ -10,9 +10,9 @@ budget:
   maxWallClockSeconds: 180
 grader:
   checks:
-    # Mustache reference to another operator's field
+    # ch() reading the Number node's parameter, by name or path
     - type: answerMatches
-      patterns: ['\{\{\s*[./\w-]+\.(par|out)\.\w+\s*\}\}']
+      patterns: ['ch\(\s*[''"][./\w-]*threshold/value[''"]\s*\)']
 ---
 
-In a DuckDbOp SQL query, how do I use the value of a NumberOp at /threshold? Show the query syntax.
+In a SQL node's query, how do I use the value of a Number node named threshold? Show the query syntax.

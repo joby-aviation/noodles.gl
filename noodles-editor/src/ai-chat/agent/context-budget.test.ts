@@ -7,13 +7,14 @@
 // BASELINE within TOLERANCE, so it only fails when the prompt or schemas grow for real.
 
 import { describe, expect, it } from 'vitest'
+import { DocStore } from '../../editor/doc-store'
 import { estimateTokens } from '../conversation-compaction'
 import { MCPTools } from '../mcp-tools'
 import { getSystemPrompt } from '../system-prompt'
-import type { NoodlesProject, ToolResult } from '../types'
+import type { ToolResult } from '../types'
 import { preamble } from './providers/json-tools'
 import { capToolResult, resultBudgetChars } from './result-budget'
-import { sampleProject } from './sample-project'
+import { sampleDoc } from './sample-project'
 import { ToolRouter } from './tool-router'
 
 interface Target {
@@ -38,11 +39,11 @@ const TARGETS: Target[] = [
 // Measured token counts. When the test fails, it prints the new values; copy them
 // here, and say in the PR what moved them.
 const BASELINE: Record<string, Record<Measured, number>> = {
-  'webllm 4k (today)': { system: 2157, tools: 555, headroom: 616, headroomAfterInspect: 393 },
-  'chrome 6k (fallback)': { system: 2157, tools: 555, headroom: 2432, headroomAfterInspect: 2022 },
-  'webllm 16k': { system: 2157, tools: 555, headroom: 12904, headroomAfterInspect: 11781 },
-  'webllm 32k': { system: 2157, tools: 555, headroom: 29288, headroomAfterInspect: 26422 },
-  'anthropic 200k': { system: 2157, tools: 573, headroom: 189078, headroomAfterInspect: 186212 },
+  'webllm 4k (today)': { system: 1716, tools: 643, headroom: 969, headroomAfterInspect: 727 },
+  'chrome 6k (fallback)': { system: 1716, tools: 643, headroom: 2785, headroomAfterInspect: 2317 },
+  'webllm 16k': { system: 1716, tools: 643, headroom: 13257, headroomAfterInspect: 12449 },
+  'webllm 32k': { system: 1716, tools: 643, headroom: 29641, headroomAfterInspect: 27069 },
+  'anthropic 200k': { system: 1716, tools: 661, headroom: 189431, headroomAfterInspect: 186859 },
 }
 
 // About one default tool's schema. An operator name or a small doc edit in an
@@ -85,8 +86,10 @@ function budgetFor(target: Target, listNodes: ToolResult) {
 
 describe('context budget', () => {
   it('reports first-turn headroom per provider window', async () => {
-    const tools = new MCPTools()
-    tools.setProject(sampleProject() as unknown as NoodlesProject)
+    const tools = new MCPTools(undefined, {
+      store: new DocStore(sampleDoc()),
+      engine: () => undefined,
+    })
     const listNodes = await tools.listNodes()
     const rows = TARGETS.map(target => budgetFor(target, listNodes))
 

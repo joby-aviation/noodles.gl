@@ -1,6 +1,6 @@
 import { assert, type Deck } from '@deck.gl/core'
 import maplibregl from 'maplibre-gl'
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useRef } from 'react'
 import { checkFileSystemSupport } from '../noodles/utils/filesystem'
 import { getTimelineStore, useTimelineStore } from '../timeline/timeline-store'
 import { analytics } from '../utils/analytics'
@@ -16,6 +16,7 @@ import {
   guardFrameStep,
 } from './frame-guard'
 import { type RenderErrorCategory, type RenderSource, trackRender } from './render-analytics'
+import { beginRender, useIsRendering } from './render-session'
 import { ALPHA_VIDEO_CODECS } from './video-export'
 
 export const rafDriver = {
@@ -78,12 +79,15 @@ export const useRenderer = ({
   bitrate = 10_000_000, // 10mbps
   bitrateMode,
   redraw,
+  settle,
 }: {
   projectName?: string
   fps?: number
   bitrate?: number
   bitrateMode: 'variable' | 'constant'
   redraw: () => void
+  /** Resolves once the visualization at a time is drawn; see `Visualization.settle`. */
+  settle?: (time: number) => Promise<void>
 }) => {
   // Get sequence length from the appropriate timeline system
   const sequenceLength = useSequenceLength()
@@ -139,6 +143,10 @@ export const useRenderer = ({
     }): Promise<CaptureResult> => {
       assert(canvas, 'canvas is required')
 
+      // Two captures would share one frame-ready callback and the timeline position
+      const release = beginRender('video', source)
+      if (!release) return { status: 'error', error: new Error('An export is already running') }
+
       let i = startFrame
       const fps = captureFps
 
@@ -155,8 +163,6 @@ export const useRenderer = ({
         tracker.failed(category, error, i - startFrame)
         return { status: 'error', error }
       }
-
-      setIsRendering(true)
 
       // The first encoder error, reported when the export finishes. The encoder
       // reports errors through a callback, so they would otherwise only be logged.
@@ -405,6 +411,7 @@ export const useRenderer = ({
         // at a different position when render started.
         const warmupSimTime = startFrame / fps
         setPosition(warmupSimTime)
+        await settle?.(warmupSimTime)
         redraw()
 
         const warmupResult = await guardFrameStep(
@@ -430,6 +437,7 @@ export const useRenderer = ({
           if (captureMode === 'preview') maplibregl.setNow(simTime * 1000)
 
           setPosition(simTime)
+          await settle?.(simTime)
           redraw()
 
           currentFrame.current = i
@@ -553,10 +561,20 @@ export const useRenderer = ({
           await mapContainer?.cancel().catch(() => {})
         }
         mapFrames?.stop()
-        setIsRendering(false)
+        release()
       }
     },
-    [projectName, sequenceLength, fps, bitrate, bitrateMode, canvasFrameReady, redraw, setPosition]
+    [
+      projectName,
+      sequenceLength,
+      fps,
+      bitrate,
+      bitrateMode,
+      canvasFrameReady,
+      redraw,
+      setPosition,
+      settle,
+    ]
   )
 
   // Image sequence export — same frame loop as video capture, writes one PNG or EXR per frame.
@@ -592,7 +610,8 @@ export const useRenderer = ({
       assert(canvas, 'canvas is required')
       assert(directoryHandle, 'directoryHandle is required')
 
-      setIsRendering(true)
+      const release = beginRender('sequence', 'menu')
+      if (!release) throw new Error('An export is already running')
 
       const totalFrames = endFrame - startFrame + 1
       const padLength = Math.max(4, String(endFrame).length)
@@ -665,6 +684,7 @@ export const useRenderer = ({
           const frameIterationStart = performance.now()
           const simTime = i / fps
           setPosition(simTime)
+          await settle?.(simTime)
           redraw()
 
           currentFrame.current = i
@@ -782,13 +802,13 @@ export const useRenderer = ({
         if (deck) {
           deck.setProps({ onAfterRender: originalOnAfterRender ?? (() => {}) })
         }
-        setIsRendering(false)
+        release()
       }
     },
-    [projectName, sequenceLength, fps, redraw, canvasFrameReady, captureFrame, setPosition]
+    [projectName, sequenceLength, fps, redraw, canvasFrameReady, captureFrame, setPosition, settle]
   )
 
-  const [isRendering, setIsRendering] = useState(false)
+  const isRendering = useIsRendering()
 
   return {
     startCapture,

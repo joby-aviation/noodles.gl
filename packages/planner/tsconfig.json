@@ -1,0 +1,28 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "NodeNext",
+    // `bundler` is wrong for a published package: it lets an import omit the `.js`
+    // extension, which then fails at runtime in Node. `nodenext` enforces the extension
+    // the emitted JS actually needs.
+    "moduleResolution": "nodenext",
+    // No DOM and no @webgpu/types. This is the guard that keeps the planner headless: an
+    // accidental `GPUDevice` or `document` reference fails to compile here rather than
+    // becoming a dependency a consumer has to satisfy.
+    "lib": ["ES2022"],
+    "types": [],
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "isolatedModules": true,
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+    "outDir": "dist",
+    "rootDir": "src"
+  },
+  "include": ["src"],
+  "exclude": ["src/**/*.test.ts", "src/**/*.bench.ts"]
+}

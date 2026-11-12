@@ -6,7 +6,7 @@
   z-index: var(--z-index-docked);
 }
 
-/* Behind the node graph (which gets z-index: 1 in layout.module.css) */
+/* Behind the node graph, whose pane is docked at --z-index-docked */
 .underlay {
   position: fixed;
   display: flex;

@@ -10,32 +10,33 @@ Get the location of a query string.
 
 <!-- gen:begin syntax -->
 ```json
-{
-  "id": "/geocoder",
-  "type": "GeocoderOp",
-  "position": { "x": 0, "y": 0 },
-  "data": { "inputs": {} }
-}
+{ "id": "n1", "op": "GeocoderOp", "name": "geocoder", "x": 0, "y": 0, "params": {} }
 ```
 
-Expressions and code read its fields as `op('/geocoder').par.query` (an input) and `op('/geocoder').out.location` (an output). Edges name the same fields as handles: `par.query`, `out.location`.
+One out of it starts at `"sourcePort": "location"`.
 <!-- gen:end syntax -->
 
 ## Inputs
 
 <!-- gen:begin inputs -->
-| Name | Type | Default |
-|------|------|---------|
-| `query` | `StringField` | `""` |
+This operator has no input ports.
 <!-- gen:end inputs -->
+
+## Parameters
+
+<!-- gen:begin params -->
+| Parameter | Kind | Default | Choices |
+|-----------|------|---------|---------|
+| `query` | `field` | `""` |  |
+<!-- gen:end params -->
 
 ## Outputs
 
 <!-- gen:begin outputs -->
-| Name | Type |
+| Port | Type |
 |------|------|
-| `location` | `Point2DField` |
-| `results` | `DataField` |
+| `location` | `value` |
+| `results` | `table` |
 <!-- gen:end outputs -->
 
 <!-- Add hand-written "## Remarks" and "## Examples" sections here. See the operator reference index for what goes in them. -->
@@ -43,8 +44,9 @@ Expressions and code read its fields as `op('/geocoder').par.query` (an input) a
 ## Details
 
 <!-- gen:begin details -->
-- **Category:** [Data](../operators.md#data)
-- **Type name:** `GeocoderOp`
+- **Category:** [Host operators](../operators.md#host)
+- **Operator:** `GeocoderOp`
+- **Runs:** on the page, not in the engine: it cannot be compiled to SQL or an expression
 <!-- gen:end details -->
 
 <!-- gen:begin history -->

@@ -1,11 +1,8 @@
-import { useReactFlow } from '@xyflow/react'
 import { useCallback } from 'react'
+import { besideNetwork, commitBuilt } from '../../../editor/doc-builder'
+import { docStore } from '../../../editor/doc-store'
+import { pointDoc } from '../../../editor/tool-docs'
 import { analytics } from '../../../utils/analytics'
-import type { OpType } from '../../operators'
-import { useNestingStore } from '../../store'
-import type { NodeJSON } from '../../transform-graph'
-import { nodeId } from '../../utils/id-utils'
-import { resolveNodeOverlaps } from '../../utils/node-layout'
 import { GeocodingDialog } from '../geocoding-dialog'
 
 interface PointWizardToolProps {
@@ -14,41 +11,19 @@ interface PointWizardToolProps {
   reactFlowRef: React.RefObject<HTMLDivElement>
 }
 
-export function PointWizardTool({ open, onOpenChange, reactFlowRef }: PointWizardToolProps) {
-  const { addNodes, screenToFlowPosition, getNodes } = useReactFlow()
-  const currentContainerId = useNestingStore(state => state.currentContainerId)
-
+export function PointWizardTool({ open, onOpenChange }: PointWizardToolProps) {
   const handleLocationSelected = useCallback(
     ({ longitude, latitude }: { longitude: number; latitude: number }) => {
-      // Position node at center of viewport
-      const pane = reactFlowRef.current?.getBoundingClientRect()
-      if (!pane) return
-
-      const position = screenToFlowPosition({
-        x: pane.left + pane.width / 2,
-        y: pane.top + pane.height / 2,
-      })
-
-      // Create PointOp node
-      const pointId = nodeId('point', currentContainerId || '/')
-      const node: NodeJSON<OpType> = {
-        id: pointId,
-        type: 'PointOp',
-        data: {
-          inputs: {
-            coordinates: [longitude, latitude],
-          },
-        },
-        position,
-      }
-
-      addNodes(resolveNodeOverlaps([node], getNodes()))
-
+      const { doc, network } = docStore().get()
+      commitBuilt(
+        docStore(),
+        pointDoc({ doc, network, basePosition: besideNetwork(doc, network) }, longitude, latitude)
+      )
       analytics.track('point_created', {
         source: 'tools_shelf',
       })
     },
-    [addNodes, screenToFlowPosition, getNodes, reactFlowRef, currentContainerId]
+    []
   )
 
   return (

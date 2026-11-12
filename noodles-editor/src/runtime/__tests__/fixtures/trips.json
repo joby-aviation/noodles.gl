@@ -1,0 +1,258 @@
+{
+  "version": 1,
+  "name": "Taxi trips and demand grid",
+  "description": "The shape of a trip-demand map: one trips file unnested to vertices forks two ways \u2014 animated trails, and a SQL grid aggregate drawn as columns. The Time node drives the trails' current time as a deck prop, so playing runs no queries. Un-bypass 'recent' to make the grid count only the last ten minutes: the same clock then flows through SQL instead.",
+  "credits": [
+    "Trips: deck.gl example data (NYC TLC taxi trips), github.com/visgl/deck.gl-data (MIT)"
+  ],
+  "nodes": [
+    {
+      "id": "trips",
+      "op": "file",
+      "x": 0,
+      "y": 120,
+      "params": {
+        "url": "https://raw.githubusercontent.com/visgl/deck.gl-data/master/examples/trips/trips-v7.json",
+        "format": "json"
+      }
+    },
+    {
+      "id": "verts",
+      "op": "unnest",
+      "x": 260,
+      "y": 120,
+      "params": {
+        "lists": "path, timestamps",
+        "split": "path: lng lat",
+        "rename": "timestamps: t",
+        "rowId": "trip",
+        "index": "k"
+      }
+    },
+    {
+      "id": "clock",
+      "op": "time",
+      "x": 260,
+      "y": -60,
+      "params": {
+        "speed": 60,
+        "offset": 0
+      }
+    },
+    {
+      "id": "trails",
+      "op": "trips",
+      "x": 780,
+      "y": 0,
+      "params": {
+        "position": "[lng, lat]",
+        "timestamp": "t",
+        "pathId": "trip",
+        "order": "k",
+        "color": "vendor > 0.5 ? [0.09, 0.72, 0.9] : [0.99, 0.5, 0.36]",
+        "trailLength": 180,
+        "widthMinPixels": 2
+      }
+    },
+    {
+      "id": "recent",
+      "op": "expression",
+      "x": 520,
+      "y": 260,
+      "params": {
+        "a": 0,
+        "b": 0,
+        "expression": "ch('clock/out') - 600.0"
+      },
+      "flags": {}
+    },
+    {
+      "id": "window",
+      "op": "range",
+      "x": 520,
+      "y": 380,
+      "params": {
+        "column": "t",
+        "min": {
+          "ref": "recent/out"
+        },
+        "max": {
+          "ref": "clock/out"
+        }
+      },
+      "flags": {
+        "bypass": true
+      }
+    },
+    {
+      "id": "grid",
+      "op": "grid",
+      "x": 780,
+      "y": 380,
+      "params": {
+        "x": "lng",
+        "y": "lat",
+        "cell": 0.003,
+        "weight": "1.0"
+      }
+    },
+    {
+      "id": "columns",
+      "op": "column",
+      "x": 1040,
+      "y": 380,
+      "params": {
+        "position": "P",
+        "elevation": "n",
+        "color": "ramp(clamp(n / 400.0, 0.0, 1.0))",
+        "ramp": "magma",
+        "radius": 110,
+        "elevationScale": 1.5,
+        "opacity": 0.75
+      }
+    },
+    {
+      "id": "map",
+      "op": "deck",
+      "x": 1300,
+      "y": 120,
+      "params": {
+        "basemap": "dark-matter",
+        "longitude": -74.0,
+        "latitude": 40.72,
+        "zoom": 11.6,
+        "pitch": 50,
+        "bearing": -10,
+        "follow": true
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "source": "trips",
+      "sourcePort": "out",
+      "target": "verts",
+      "targetPort": "in"
+    },
+    {
+      "id": "e2",
+      "source": "verts",
+      "sourcePort": "out",
+      "target": "trails",
+      "targetPort": "in"
+    },
+    {
+      "id": "e3",
+      "source": "clock",
+      "sourcePort": "out",
+      "target": "trails",
+      "targetPort": "par:currentTime"
+    },
+    {
+      "id": "e4",
+      "source": "verts",
+      "sourcePort": "out",
+      "target": "window",
+      "targetPort": "in"
+    },
+    {
+      "id": "e5",
+      "source": "window",
+      "sourcePort": "out",
+      "target": "grid",
+      "targetPort": "in"
+    },
+    {
+      "id": "e6",
+      "source": "grid",
+      "sourcePort": "out",
+      "target": "columns",
+      "targetPort": "in"
+    },
+    {
+      "id": "e7",
+      "source": "columns",
+      "sourcePort": "out",
+      "target": "map",
+      "targetPort": "layers",
+      "index": 0
+    },
+    {
+      "id": "e8",
+      "source": "trails",
+      "sourcePort": "out",
+      "target": "map",
+      "targetPort": "layers",
+      "index": 1
+    }
+  ],
+  "timeline": {
+    "length": 41,
+    "fps": 30,
+    "tracks": [
+      {
+        "target": "map.bearing",
+        "keyframes": [
+          {
+            "id": "k1",
+            "time": 0,
+            "value": -10,
+            "interpolation": "bezier",
+            "handles": {
+              "left": [0.42, 0],
+              "right": [0.58, 1]
+            }
+          },
+          {
+            "id": "k2",
+            "time": 20,
+            "value": 25,
+            "interpolation": "bezier",
+            "handles": {
+              "left": [0.42, 0],
+              "right": [0.58, 1]
+            }
+          },
+          {
+            "id": "k3",
+            "time": 41,
+            "value": -10,
+            "interpolation": "linear"
+          }
+        ]
+      },
+      {
+        "target": "map.zoom",
+        "keyframes": [
+          {
+            "id": "k4",
+            "time": 0,
+            "value": 11.6,
+            "interpolation": "bezier",
+            "handles": {
+              "left": [0.42, 0],
+              "right": [0.58, 1]
+            }
+          },
+          {
+            "id": "k5",
+            "time": 20,
+            "value": 12.4,
+            "interpolation": "bezier",
+            "handles": {
+              "left": [0.42, 0],
+              "right": [0.58, 1]
+            }
+          },
+          {
+            "id": "k6",
+            "time": 41,
+            "value": 11.6,
+            "interpolation": "linear"
+          }
+        ]
+      }
+    ]
+  }
+}

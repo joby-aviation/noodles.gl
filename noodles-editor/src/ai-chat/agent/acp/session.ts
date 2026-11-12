@@ -117,6 +117,17 @@ interface Turn {
   signal: AbortSignal
 }
 
+// Where the session is, one phase at a time. send claims the turn before its
+// first await, so a second send in the same tick is refused even while the
+// first is still starting a new agent session. stale means the panel started a
+// new conversation (reset) and the next send needs a new agent session; it is
+// cleared only once that session has started, so a failed start is retried.
+type Phase =
+  | { status: 'ready'; stale: boolean }
+  | { status: 'starting-session'; turn: Turn; stale: boolean }
+  | { status: 'prompting'; turn: Turn; stale: boolean }
+  | { status: 'closed'; reason: string }
+
 export class AcpSession implements ChatSession {
   readonly agentName: string
   readonly supportsImages: boolean
@@ -130,13 +141,12 @@ export class AcpSession implements ChatSession {
   private router = new ToolRouter(CONTEXT_WINDOW)
   private sessionId = ''
   private modelSource: ModelSource = { kind: 'none' }
-  private turn: Turn | null = null
+  private phase: Phase = { status: 'ready', stale: false }
   // Prompt turns sent to this ACP session, and the panel's history length the
   // agent has seen. A message the panel added since (a rejected proposal, an
   // error) is passed along with the next prompt.
   private turns = 0
   private seen = 0
-  private stale = false
 
   private constructor(
     connection: AcpConnection,
@@ -150,6 +160,11 @@ export class AcpSession implements ChatSession {
     this.supportsImages = init.agentCapabilities?.promptCapabilities?.image === true
   }
 
+  // Only a turn whose prompt is with the agent gets its text and tool calls
+  private get turn(): Turn | null {
+    return this.phase.status === 'prompting' ? this.phase.turn : null
+  }
+
   static async connect(options: AcpSessionOptions): Promise<AcpSession> {
     // Requests can arrive before the constructor has run (an agent may list
     // tools as soon as a session exists), so they wait on it
@@ -158,6 +173,7 @@ export class AcpSession implements ChatSession {
       resolveSession = resolve
     })
     let disconnected = false
+    let created: AcpSession | undefined
 
     const connection = await AcpConnection.open(options.url, {
       onRequest: async (method, params) => (await ready).handleRequest(method, params),
@@ -166,6 +182,7 @@ export class AcpSession implements ChatSession {
       },
       onClose: reason => {
         disconnected = true
+        created?.close(reason)
         options.onDisconnect(reason)
       },
     })
@@ -186,6 +203,7 @@ export class AcpSession implements ChatSession {
       }
 
       const session = new AcpSession(connection, options, init)
+      created = session
       resolveSession(session)
       await session.startSession(init)
       if (disconnected) throw new Error('The ACP bridge closed the connection')
@@ -212,25 +230,25 @@ export class AcpSession implements ChatSession {
   }
 
   reset() {
-    this.stale = true
+    if (this.phase.status !== 'closed') this.phase.stale = true
   }
 
   dispose() {
+    this.close('This chat session was closed.')
     this.connection.close()
   }
 
+  private close(reason: string) {
+    if (this.phase.status !== 'closed') this.phase = { status: 'closed', reason }
+  }
+
   async send(params: SendParams): Promise<ClaudeResponse> {
-    if (this.turn) throw new Error('A reply is already in progress')
-    if (this.stale) {
-      this.stale = false
-      await this.startSession()
-    }
+    const phase = this.phase
+    if (phase.status === 'closed') throw new Error(phase.reason)
+    if (phase.status !== 'ready') throw new Error('A reply is already in progress')
 
     const history = params.conversationHistory ?? []
     const signal = params.signal ?? new AbortController().signal
-    // Stopped while a new session was starting: nothing was sent, so there is
-    // nothing to cancel either
-    if (signal.aborted) return { message: '' }
     const turn: Turn = {
       text: '',
       toolCalls: [],
@@ -239,9 +257,30 @@ export class AcpSession implements ChatSession {
       signal,
     }
 
+    if (phase.stale) {
+      const starting: Phase = { status: 'starting-session', turn, stale: false }
+      this.phase = starting
+      try {
+        await this.startSession()
+      } catch (error) {
+        // Still on the old agent session, so the next send tries again
+        if (this.phase === starting) this.phase = { status: 'ready', stale: true }
+        throw error
+      }
+      if (this.phase.status === 'closed') throw new Error(this.phase.reason)
+      // Stopped while the new session was starting: nothing was sent, so there
+      // is nothing to cancel either
+      if (signal.aborted) {
+        this.phase = { status: 'ready', stale: starting.stale }
+        return { message: '' }
+      }
+      this.phase = { status: 'prompting', turn, stale: starting.stale }
+    } else {
+      this.phase = { status: 'prompting', turn, stale: false }
+    }
+
     // Edits the last turn queued have landed or never will
     this.tools.clearQueuedModifications()
-    this.turn = turn
 
     const cancel = () => this.connection.notify('session/cancel', { sessionId: this.sessionId })
     signal.addEventListener('abort', cancel, { once: true })
@@ -265,6 +304,7 @@ export class AcpSession implements ChatSession {
       // text and tool calls would land in whatever turn came next. Closing the
       // socket makes the bridge kill it.
       if (result === null) {
+        this.close(`${this.agentName} was shut down after it ignored Stop.`)
         this.connection.close()
         this.options.onDisconnect(
           `${this.agentName} did not stop within ${CANCEL_GRACE_MS / 1000} seconds of Stop, so it was shut down. Retry to start it again.`
@@ -288,7 +328,9 @@ export class AcpSession implements ChatSession {
       }
     } finally {
       signal.removeEventListener('abort', cancel)
-      this.turn = null
+      if (this.phase.status === 'prompting') {
+        this.phase = { status: 'ready', stale: this.phase.stale }
+      }
     }
   }
 
@@ -479,7 +521,7 @@ export class AcpSession implements ChatSession {
         if (name === FIND_TOOLS_NAME) {
           result = this.router.findTools(input)
         } else if (definition) {
-          result = await definition.execute(this.tools, input, () => this.tools.getProject())
+          result = await definition.execute(this.tools, input)
         } else {
           result = { success: false, error: `Unknown tool: ${name}` }
         }

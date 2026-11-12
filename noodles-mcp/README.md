@@ -17,11 +17,11 @@ The first five have the names and parameters of the in-app assistant's tools (`n
 | Tool | Params | Returns |
 |---|---|---|
 | `list_operators` | `category?` | `[{type, name, category, description}]` |
-| `get_operator_schema` | `type` (`FileOp`, or a display name like `File`) | Inputs with types and defaults, outputs, and the `par.`/`out.` handles to wire them |
+| `get_operator_schema` | `type` (`scatter`, or a display name like `Scatterplot Layer`) | Input and output ports with types, parameters with kinds and defaults, and the port names an edge may use (`in`, `par:radiusScale`) |
 | `get_documentation` | `query?`, `id?`, `section?` | Search results with excerpts and topic ids, or one topic in full. Same ids as in the app |
 | `list_examples` | `category?`, `tag?` | `[{id, name, description, category, tags, path}]` |
 | `get_example` | `id` | The project (large inline data trimmed to a sample), README, and the files beside it |
-| `validate_project` | `path` or `project` | `{summary, valid, errors, warnings, registry}` from [noodles-validate](../noodles-validate/README.md). `summary` starts with `OK` when the file is done |
+| `validate_project` | `path` or `project` | `{summary, valid, errors, warnings, registry}` from [noodles-validate](../noodles-validate/README.md). `summary` starts with `OK` when the file is done, and with `PARTLY CHECKED` for a project outside the examples that is behind the schema |
 
 The server's instructions tell the client the workflow: start from an example, read both operators' schemas before writing an edge, validate after each edit, and stop when `validate_project` returns `"valid": true`.
 

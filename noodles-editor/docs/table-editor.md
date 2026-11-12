@@ -111,14 +111,11 @@ tables.
 
 ### Undo and Redo
 
-Committed data edits to the same table within 1.5 seconds share one graph-history entry. This
-includes an active cell edit flushed immediately before adding or deleting a row. Schema saves
-remain one atomic entry with their data remapping. While a cell editor is still focused,
-Cmd/Ctrl+Z uses the browser's native input undo; after the edit commits, it reaches graph history.
-
-Table history stores only the changed contiguous row slice instead of serializing every operator
-and every row for each edit. Undo and redo apply those row patches in order, so insertions,
-deletions, range pastes, and grouped edits remain reversible.
+Committed data edits to the same table within 1.5 seconds share one undo step. This includes an
+active cell edit flushed immediately before adding or deleting a row. A schema save is one step
+of its own, with its data remapping. While a cell editor is focused, Cmd/Ctrl+Z is the
+browser's own undo for its text; Edit > Undo, or Cmd/Ctrl+Z on the network, undoes committed
+edits.
 
 ### Spreadsheet Clipboard
 

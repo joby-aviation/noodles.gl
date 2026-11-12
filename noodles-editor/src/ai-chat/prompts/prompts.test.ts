@@ -26,11 +26,11 @@ describe('core prompt', () => {
     expect(core.length).toBeLessThanOrEqual(CORE_MAX_CHARS)
   })
 
-  it('keeps the handle-format rules, the most common failure mode', () => {
-    expect(core).toContain('out.{fieldName}')
-    expect(core).toContain('par.{fieldName}')
-    expect(core).toContain('**NEVER use**: `in.{fieldName}`, `input.{fieldName}`')
-    expect(core).toContain('"sourceHandle": "out.data"')
+  it('keeps the port and expression rules, the most common failure modes', () => {
+    expect(core).toContain('`sourcePort`')
+    expect(core).toContain('`targetPort`')
+    expect(core).toContain('`par:<param>`')
+    expect(core).toContain('There are no JS accessors')
   })
 
   it('names the always-on tools so the model does not hunt for them', () => {
@@ -76,11 +76,11 @@ describe('prompt sections', () => {
   it('covers each workflow the core prompt promises', () => {
     // core.md tells the model these walkthroughs exist; a missing one is a
     // promise the docs cannot keep
-    expect(basicPlotting).toContain('AccessorOp')
+    expect(basicPlotting).toContain('attribute')
     expect(updatingVisualizations).toContain('get_node_info')
     expect(debugging).toContain('get_console_errors')
-    expect(dataAndSql).toContain('DuckDbOp')
+    expect(dataAndSql).toContain('{{input0}}')
     expect(timelineAnimation).toContain('set_keyframe')
-    expect(operatorCheatsheet).toContain('ScatterplotLayerOp')
+    expect(operatorCheatsheet).toContain('`scatter`')
   })
 })
