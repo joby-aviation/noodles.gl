@@ -6,7 +6,7 @@
       "id": "deck",
       "op": "deck",
       "name": "deck",
-      "x": 1136,
+      "x": 1430,
       "y": 19,
       "params": {
         "mapStyle": "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json",
@@ -46,13 +46,13 @@
       "id": "cities-layer",
       "op": "scatter",
       "name": "cities-layer",
-      "x": 882,
+      "x": 1176,
       "y": 0,
       "params": {
         "opacity": 1,
         "blend": "normal",
         "position": "city_position",
-        "color": "(color) / 255.0",
+        "color": "city_color",
         "radius": "city_radius",
         "radiusScale": 1,
         "radiusUnits": "meters"
@@ -62,7 +62,7 @@
       "id": "labels-layer",
       "op": "text",
       "name": "labels-layer",
-      "x": 882,
+      "x": 1176,
       "y": 110,
       "params": {
         "opacity": 1,
@@ -112,10 +112,21 @@
       }
     },
     {
+      "id": "city-color",
+      "op": "attribute",
+      "name": "city-color",
+      "x": 588,
+      "y": 0,
+      "params": {
+        "name": "city_color",
+        "expression": "hex_color(color)"
+      }
+    },
+    {
       "id": "city-radius",
       "op": "attribute",
       "name": "city-radius",
-      "x": 588,
+      "x": 882,
       "y": 0,
       "params": {
         "name": "city_radius",
@@ -148,8 +159,15 @@
       "targetPort": "in"
     },
     {
-      "id": "city-position.out->city-radius.in",
+      "id": "city-position.out->city-color.in",
       "source": "city-position",
+      "sourcePort": "out",
+      "target": "city-color",
+      "targetPort": "in"
+    },
+    {
+      "id": "city-color.out->city-radius.in",
+      "source": "city-color",
       "sourcePort": "out",
       "target": "city-radius",
       "targetPort": "in"

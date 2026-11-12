@@ -779,6 +779,43 @@ function resolveNoodlesPath(path: string, from: string): string {
 const handleField = (handle: string | null | undefined) =>
   (handle ?? '').replace(/^(par|out)\./, '')
 
+const HEX_COLOR = /^#([0-9a-f]{3}|[0-9a-f]{6}|[0-9a-f]{8})$/i
+
+/**
+ * Columns of a source's own rows that hold hex color strings (`#ff5733`): a Table Editor's color
+ * columns, and any column whose first value is one. An accessor reading one bare (`d.color`)
+ * looks numeric, so a color channel learns here to parse it.
+ */
+function hexColumns(source: NoodlesNode | undefined): Set<string> {
+  const found = new Set<string>()
+  const inputs = source?.data?.inputs ?? {}
+  let rows: unknown = []
+  if (source?.type === 'TableEditorOp') {
+    const columns = (inputs.schema as { columns?: { name: string; type: string }[] } | undefined)
+      ?.columns
+    for (const c of columns ?? []) if (c.type === 'color') found.add(c.name)
+    rows = inputs.data
+  } else if (source?.type === 'JSONOp') {
+    const text = Array.isArray(inputs.text) ? inputs.text.join('\n') : String(inputs.text ?? '')
+    try {
+      rows = JSON.parse(text)
+    } catch {
+      return found
+    }
+  }
+  if (!Array.isArray(rows)) return found
+  const seen = new Set<string>()
+  for (const row of rows) {
+    if (!row || typeof row !== 'object') continue
+    for (const [k, value] of Object.entries(row as Record<string, unknown>)) {
+      if (seen.has(k) || value === null || value === undefined) continue
+      seen.add(k)
+      if (typeof value === 'string' && HEX_COLOR.test(value)) found.add(k)
+    }
+  }
+  return found
+}
+
 /** `#rrggbb` or `#rrggbbaa` -> [r, g, b] and alpha 0–255. */
 function parseHex(value: unknown): { rgb: [number, number, number]; alpha: number } | undefined {
   if (typeof value !== 'string') return undefined
@@ -2540,10 +2577,15 @@ export function toEditorDoc(original: NoodlesProject): Migrated {
   // Accessors for colors return 0–255 arrays or hex strings in Noodles, and 0–1 in the planner.
   const colorChannel = (v: Value) => {
     if (v.kind !== 'row') return v
-    const writer = [...chains.values()]
-      .flatMap(c => [...c.values()])
-      .find(r => r.attribute === v.expr)
-    if (writer?.stringValued) {
+    const found = [...chains.entries()]
+      .flatMap(([src, c]) => [...c.values()].map(r => ({ src, writer: r })))
+      .find(f => f.writer.attribute === v.expr)
+    const writer = found?.writer
+    // `d.color` reads like a number, but a column of hex strings is text
+    const readsHex =
+      writer?.node.op === 'attribute' &&
+      hexColumns(byId.get(found?.src ?? '')).has(String(writer.node.params.expression))
+    if (writer && (writer.stringValued || readsHex)) {
       if (!writer.color) {
         writer.node.params.expression = `hex_color(${writer.node.params.expression})`
         writer.color = true
