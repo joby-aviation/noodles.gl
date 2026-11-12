@@ -90,7 +90,85 @@ describe('row layers', () => {
     const textAttr =
       labels.plan.plan.layer?.bindings.find(b => b.channel === 'text')?.attribute ?? ''
     expect(labels.data?.strings.get(textAttr)).toContain('New York City')
-    expect(layers['/cities-layer'].data?.rows).toBe(5)
+    const cities = layers['/cities-layer']
+    expect(cities.data?.rows).toBe(5)
+    // `d.color` reads the table's hex strings, which the dots are colored by
+    const color = cities.data?.attributes.get(
+      cities.plan.plan.layer?.bindings.find(b => b.channel === 'color')?.attribute ?? ''
+    )
+    expect(color?.width).toBe(3)
+    expect([...(color?.data.slice(0, 6) ?? [])].map(v => Math.round(v * 255))).toEqual([
+      0xff, 0x57, 0x33, 0x33, 0xff, 0x57,
+    ])
+  })
+
+  it('colors by a JSON column of hex strings an accessor reads bare', async () => {
+    const rows = [
+      { lng: 1, lat: 2, color: '#ff0000' },
+      { lng: 3, lat: 4, color: '#00f' },
+    ]
+    const project: NoodlesProject = {
+      version: CONVERTED_SCHEMA,
+      nodes: [
+        op('/rows', 'JSONOp', { text: [JSON.stringify(rows)] }),
+        op('/where', 'AccessorOp', { expression: '[d.lng, d.lat]' }),
+        op('/tint', 'AccessorOp', { expression: 'd.color' }),
+        op('/dots', 'ScatterplotLayerOp'),
+        op('/deck', 'DeckRendererOp'),
+      ],
+      edges: [
+        wire('/rows', 'data', '/dots', 'data'),
+        wire('/where', 'accessor', '/dots', 'getPosition'),
+        wire('/tint', 'accessor', '/dots', 'getFillColor'),
+        wire('/dots', 'layer', '/deck', 'layers'),
+      ],
+    }
+    const { layers } = await run(project)
+    const dots = layers['/dots']
+    const color = dots.data?.attributes.get(
+      dots.plan.plan.layer?.bindings.find(b => b.channel === 'color')?.attribute ?? ''
+    )
+    expect([...(color?.data.slice(0, 6) ?? [])].map(v => Math.round(v * 255))).toEqual([
+      255, 0, 0, 0, 0, 255,
+    ])
+  })
+
+  it('reads hex strings through a Filter, and once for fill and outline sharing an accessor', async () => {
+    const rows = [
+      { lng: 1, lat: 2, color: '#ff0000', keep: 1 },
+      { lng: 3, lat: 4, color: '#0000ff', keep: 1 },
+      { lng: 5, lat: 6, color: '#00ff00', keep: 0 },
+    ]
+    const project: NoodlesProject = {
+      version: CONVERTED_SCHEMA,
+      nodes: [
+        op('/rows', 'JSONOp', { text: [JSON.stringify(rows)] }),
+        op('/kept', 'FilterOp', { columnName: 'keep', condition: 'equals', value: '1' }),
+        op('/where', 'AccessorOp', { expression: '[d.lng, d.lat]' }),
+        op('/tint', 'AccessorOp', { expression: 'd.color' }),
+        op('/dots', 'ScatterplotLayerOp', { stroked: true, getLineWidth: 2 }),
+        op('/deck', 'DeckRendererOp'),
+      ],
+      edges: [
+        wire('/rows', 'data', '/kept', 'data'),
+        wire('/kept', 'data', '/dots', 'data'),
+        wire('/where', 'accessor', '/dots', 'getPosition'),
+        wire('/tint', 'accessor', '/dots', 'getFillColor'),
+        wire('/tint', 'accessor', '/dots', 'getLineColor'),
+        wire('/dots', 'layer', '/deck', 'layers'),
+      ],
+    }
+    const { layers } = await run(project)
+    const dots = layers['/dots']
+    const channel = (name: string) =>
+      [
+        ...(dots.data?.attributes
+          .get(dots.plan.plan.layer?.bindings.find(b => b.channel === name)?.attribute ?? '')
+          ?.data.slice(0, 6) ?? []),
+      ].map(v => Math.round(v * 255))
+    expect(dots.data?.rows).toBe(2)
+    expect(channel('color')).toEqual([255, 0, 0, 0, 0, 255])
+    expect(channel('lineColor')).toEqual([255, 0, 0, 0, 0, 255])
   })
 
   it('draws lines, great circles, columns, grid cells, point clouds and icons from rows', async () => {
