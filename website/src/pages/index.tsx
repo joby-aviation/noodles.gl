@@ -93,14 +93,14 @@ const showcaseItems = [
 		example: "world-flights",
 	},
 	{
-		media: "/img/example-chargemap.png",
+		media: "/img/example-uk-commute.png",
 		type: "image" as const,
-		title: "EV Charging Network",
+		title: "UK Commute Patterns",
 		description:
-			"Live DuckDB query drives a heatmap that updates as filters change",
+			"An arc from each home to its workplace, blended so busy routes glow",
 		tag: "Data-driven",
 		wide: false,
-		example: "chargers",
+		example: "uk-commute",
 	},
 	{
 		media: "/img/example-california-earthquakes.png",
