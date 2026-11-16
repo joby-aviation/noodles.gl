@@ -52,12 +52,12 @@
           255,
           255
         ],
-        "orientation": "",
+        "orientation": "[0, 0, 90]",
         "scale": "",
         "translation": "",
         "scenegraph": "https://raw.githubusercontent.com/visgl/deck.gl-data/master/examples/scenegraph-layer/airplane.glb",
         "sizeScale": 1,
-        "sizeMinPixels": 10,
+        "sizeMinPixels": 0,
         "sizeMaxPixels": 100
       }
     },
@@ -74,15 +74,38 @@
       }
     },
     {
+      "id": "spin",
+      "op": "number",
+      "name": "spin",
+      "x": -224,
+      "y": 300,
+      "params": {
+        "value": 210
+      }
+    },
+    {
+      "id": "view",
+      "op": "CodeOp",
+      "name": "view",
+      "x": 0,
+      "y": 300,
+      "params": {
+        "code": [
+          "// The camera, turned by spin (keyframed on the timeline)",
+          "return { target: [0, 0, 0], zoom: 4, rotationX: 25, rotationOrbit: d }"
+        ]
+      }
+    },
+    {
       "id": "model-note",
       "op": "comment",
       "name": "model-note",
       "x": 224,
       "y": 0,
       "params": {
-        "text": "This draws a 3D airplane model on a plain background, with no map. Put a link to another .glb model in Model URL (glTF) on scene to swap it.",
+        "text": "This draws a 3D airplane model on a plain background, with no map. The model is Y-up, so scene rolls it 90° to sit level. Put a link to another .glb model in Model URL (glTF) on scene to swap it.",
         "width": 220,
-        "height": 136
+        "height": 156
       }
     },
     {
@@ -92,9 +115,9 @@
       "x": 722,
       "y": 159,
       "params": {
-        "text": "Try next:\n- Click camera and change Clear Color to set the background.\n- Click scene and change Color to tint the model.\n- Press Export and pick Image (PNG) to save it.",
+        "text": "Try next:\n- Press play: spin turns the camera a full circle, then holds.\n- Drag spin's keyframes on the timeline to change the timing.\n- Click camera and change Clear Color to set the background.\n- Press Export and pick Video to save the animation.",
         "width": 340,
-        "height": 116
+        "height": 136
       }
     }
   ],
@@ -121,6 +144,63 @@
       "sourcePort": "out",
       "target": "scene",
       "targetPort": "in"
+    },
+    {
+      "id": "spin.out->view.par:data",
+      "source": "spin",
+      "sourcePort": "out",
+      "target": "view",
+      "targetPort": "par:data"
+    },
+    {
+      "id": "view.data->camera.par:viewState",
+      "source": "view",
+      "sourcePort": "data",
+      "target": "camera",
+      "targetPort": "par:viewState"
     }
-  ]
+  ],
+  "timeline": {
+    "length": 4,
+    "fps": 30,
+    "tracks": [
+      {
+        "target": "spin.value",
+        "keyframes": [
+          {
+            "id": "spin-start",
+            "time": 0.6,
+            "value": 210,
+            "interpolation": "bezier",
+            "handles": {
+              "left": [
+                0.8,
+                0
+              ],
+              "right": [
+                0.2,
+                1
+              ]
+            }
+          },
+          {
+            "id": "spin-end",
+            "time": 1.9,
+            "value": 570,
+            "interpolation": "hold",
+            "handles": {
+              "left": [
+                0.42,
+                0
+              ],
+              "right": [
+                0.58,
+                1
+              ]
+            }
+          }
+        ]
+      }
+    ]
+  }
 }
