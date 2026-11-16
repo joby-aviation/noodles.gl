@@ -166,11 +166,15 @@ export default function TimelineEditor() {
   const [_, setRand] = useState(0)
   const lastRedrawTime = useRef(0)
   const frameCapturedRef = useRef(false)
+  // Starts a deck draw pass for a scene without a basemap (set by useDeckDrawLoop below)
+  const startDeckPassRef = useRef<() => void>(() => {})
   const redraw = useCallback(() => {
     lastRedrawTime.current = performance.now()
     frameCapturedRef.current = false
     mapRef.current?.redraw()
     deckRef.current?.redraw()
+    // No React re-render during an export (below), so ask the draw loop for this frame's pass
+    if (isExportRunning()) startDeckPassRef.current()
     // Only trigger React re-renders outside of the render loop — during export this
     // runs every frame and causes CSSStyleRule/DOM churn from React re-renders.
     if (!isExportRunning()) setRand(Math.random())
@@ -658,7 +662,7 @@ export default function TimelineEditor() {
   }
 
   const pureDeckInstance = !basemapEnabled ? deckRef.current : null
-  useDeckDrawLoop({
+  startDeckPassRef.current = useDeckDrawLoop({
     deck: pureDeckInstance,
     isRendering,
     captureFrame,

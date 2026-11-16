@@ -113,6 +113,55 @@ describe('useDeckDrawLoop', () => {
     expect(captureFrame).not.toHaveBeenCalled()
   })
 
+  // During an export the editor doesn't re-render for every frame, so a frame that changes no
+  // props (frame 0 after the warmup, a held keyframe) gets no new pass from a render. The
+  // exporter asks for one through the returned function, or the export waits forever.
+  it('captures again when asked for a pass without new props', async () => {
+    const deck = fakeDeck()
+    const captureFrame = vi.fn()
+    const { result } = renderLoop(deck, captureFrame)
+    drawFrame(deck)
+    await vi.advanceTimersByTimeAsync(rendererConfig.captureDelay)
+    expect(captureFrame).toHaveBeenCalledTimes(1)
+
+    result.current()
+    drawFrame(deck)
+    await vi.advanceTimersByTimeAsync(rendererConfig.captureDelay)
+    expect(captureFrame).toHaveBeenCalledTimes(2)
+  })
+
+  it('a pass asked for while one waits replaces it and captures once', async () => {
+    const deck = fakeDeck()
+    const captureFrame = vi.fn()
+    const { result } = renderLoop(deck, captureFrame)
+    drawFrame(deck)
+    await vi.advanceTimersByTimeAsync(rendererConfig.captureDelay / 2)
+    result.current()
+    await vi.advanceTimersByTimeAsync(rendererConfig.captureDelay)
+    expect(captureFrame).not.toHaveBeenCalled()
+
+    drawFrame(deck)
+    await vi.advanceTimersByTimeAsync(rendererConfig.captureDelay)
+    expect(captureFrame).toHaveBeenCalledTimes(1)
+    deck.redraw.mockClear()
+    await vi.advanceTimersByTimeAsync(1000)
+    expect(deck.redraw).not.toHaveBeenCalled()
+  })
+
+  it('ignores a pass asked for when no export is running', async () => {
+    const deck = fakeDeck()
+    const captureFrame = vi.fn()
+    const { result, rerender } = renderLoop(deck, captureFrame)
+    rerender({ props: {}, isRendering: false })
+    result.current()
+
+    deck.redraw.mockClear()
+    drawFrame(deck)
+    await vi.advanceTimersByTimeAsync(1000)
+    expect(deck.redraw).not.toHaveBeenCalled()
+    expect(captureFrame).not.toHaveBeenCalled()
+  })
+
   it('stops redrawing when the export ends before the frame is drawn', async () => {
     const deck = fakeDeck()
     const captureFrame = vi.fn()
