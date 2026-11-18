@@ -149,7 +149,8 @@ export class HostRunner {
           if (edges.length === 0) {
             // A keyframed parameter is its track's value at the playhead.
             const key = `${node.id}.${name}`
-            return keyed.has(key) ? inputs.slots.get(key) : node.params[name]
+            const value = keyed.has(key) ? inputs.slots.get(key) : node.params[name]
+            return withTrackedParts(value, key, keyed, inputs.slots)
           }
           const values = await Promise.all(edges.map(edgeValue))
           return field instanceof ListField ? values : values[0]
@@ -245,7 +246,8 @@ export class HostRunner {
         }
         if (edges.length === 0) {
           const key = `${node.id}.${p.name}`
-          return keyed.has(key) ? inputs.slots.get(key) : plain(p.name)
+          const value = keyed.has(key) ? inputs.slots.get(key) : plain(p.name)
+          return withTrackedParts(value, key, keyed, inputs.slots)
         }
         const values = edges.map(edgeValue)
         return deck.lists?.includes(p.name) ? values : values[0]
@@ -343,6 +345,34 @@ function order(nodes: DocNode[], edges: DocEdge[]): DocNode[] {
     out.push(n)
   }
   for (const n of nodes) visit(n)
+  return out
+}
+
+/**
+ * An object parameter with its keyframed parts (`camera.viewState.rotationOrbit`) set to their
+ * values at the playhead. The value itself is not changed: it may be the document's.
+ */
+export function withTrackedParts(
+  value: unknown,
+  key: string,
+  keyed: ReadonlySet<string>,
+  slots: ReadonlyMap<string, unknown>
+): unknown {
+  const prefix = `${key}.`
+  const parts = [...keyed].filter(k => k.startsWith(prefix) && slots.has(k))
+  if (parts.length === 0) return value
+  const isObject = (v: unknown): v is Record<string, unknown> =>
+    !!v && typeof v === 'object' && !Array.isArray(v)
+  const out: Record<string, unknown> = isObject(value) ? structuredClone(value) : {}
+  for (const k of parts) {
+    const path = k.slice(prefix.length).split('.')
+    let at = out
+    for (const step of path.slice(0, -1)) {
+      if (!isObject(at[step])) at[step] = {}
+      at = at[step] as Record<string, unknown>
+    }
+    at[path[path.length - 1]] = slots.get(k)
+  }
   return out
 }
 

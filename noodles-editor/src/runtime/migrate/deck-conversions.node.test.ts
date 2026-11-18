@@ -1,7 +1,7 @@
 // Views, widgets, extensions, tile layers and values: what a deck draws without rows.
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
-import { lowerDocument } from '@noodles.gl/planner'
+import { lowerDocument, parameterValues } from '@noodles.gl/planner'
 import { beforeAll, describe, expect, it } from 'vitest'
 import { registerDeckOperators } from '../deck-ops'
 import { VALUE_OPS } from '../value-ops'
@@ -99,6 +99,40 @@ describe('deck operators', () => {
     })
     expect(doc.nodes.some(n => n.id === '/ramp')).toBe(false)
     expect(lowerDocument(doc).errors).toEqual([])
+  })
+
+  // #893: a view's camera keyframed part by part, as the orbit camera's turn
+  it("keyframes a view's camera part, which the planner evaluates at the playhead", () => {
+    const project = example('orbit')
+    const kf = (id: string, position: number, value: number) => ({
+      id,
+      position,
+      connectedRight: true,
+      handles: [0.5, 1, 0.5, 0] as [number, number, number, number],
+      value,
+      type: 'linear',
+    })
+    const sheet = (project.timeline as { sheetsById: { Noodles: Record<string, unknown> } })
+      .sheetsById.Noodles
+    sheet.sequence = {
+      length: 1,
+      subUnitsPerUnit: 30,
+      tracksByObject: {
+        camera: {
+          trackIdByPropPath: { '["viewState","rotationOrbit"]': 'a' },
+          trackData: {
+            a: { type: 'BasicKeyframedTrack', keyframes: [kf('a0', 0, 0), kf('a1', 1, 180)] },
+          },
+        },
+      },
+    }
+    const { doc, warnings } = toEditorDoc(project)
+    expect(warnings.filter(w => w.startsWith('timeline'))).toEqual([])
+    expect(doc.timeline?.tracks.map(t => t.target)).toEqual(['/camera.viewState.rotationOrbit'])
+    const lowered = lowerDocument(doc)
+    expect(lowered.errors).toEqual([])
+    const { slots } = parameterValues(lowered, { T: 1, F: 30 })
+    expect(slots.get('/camera.viewState.rotationOrbit')).toBe(180)
   })
 })
 

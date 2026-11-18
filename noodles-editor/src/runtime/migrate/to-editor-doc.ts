@@ -660,6 +660,18 @@ const DECK_VALUE_PORTS = ['views', 'effects', 'widgets', 'viewState', 'maplibreL
 /** Inputs every layer has that the planner handles itself, or that change nothing drawn. */
 const LAYER_IGNORED = new Set(['data', 'parameters', 'extensions', 'updateTriggers'])
 
+// Names CodeOp had in scope that the engine worker's code has not (see `freeExports` in
+// noodles/operators.ts and JS_SCOPE in runtime/worker/js-scope.ts). `\w+Op` is an operator class.
+const HOST_GLOBALS = /\b(?:deck|Plot|Temporal|[A-Z]\w*Op)\b/
+
+// A layer's `parameters` the planner has no param for: depth testing off, so the layer draws
+// over 3D geometry (#311). Planner layers set only the blend preset.
+const depthOff = (v: unknown): boolean =>
+  !!v &&
+  typeof v === 'object' &&
+  ((v as Record<string, unknown>).depthTest === false ||
+    (v as Record<string, unknown>).depthWriteEnabled === false)
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -1528,6 +1540,9 @@ export function toEditorDoc(original: NoodlesProject): Migrated {
     const code = Array.isArray(i.code) ? i.code.join('\n') : String(i.code ?? '')
     if (/\bop\(|\bsequenceTime\b|\bframe\b|\btotalFrames\b|\bsequence\b|\bthis\b/.test(code))
       return false
+    // CodeOp's globals the engine worker doesn't have (`freeExports` less `utils`, `d3` and
+    // `turf`): deck.gl, Plot, the Temporal polyfill and the operator classes
+    if (HOST_GLOBALS.test(code)) return false
     const feeds = incoming(n.id, 'data')
     if (feeds.length > 1) return false
     const feed = feeds[0]
@@ -2738,6 +2753,13 @@ export function toEditorDoc(original: NoodlesProject): Migrated {
       const carried = CARRIED[layer.type]?.some(([input]) => input === k)
       if (!mapped.includes(k) && !carried && !LAYER_IGNORED.has(k))
         warnings.push(`${layer.id}: dropped '${k}'`)
+    }
+    const depth = layer.data?.inputs?.parameters
+    if (depthOff(depth)) {
+      const off = ['depthTest', 'depthWriteEnabled'].filter(
+        k => (depth as Record<string, unknown>)[k] === false
+      )
+      warnings.push(`${layer.id}: dropped 'parameters' (${off.join(', ')} off)`)
     }
   }
 
@@ -4474,6 +4496,8 @@ function trackTarget(path: string, nodes: DocNode[]): string | undefined {
   // A TableEditor cell, `data.<row>.<column>`, is a cell of the table's rows
   const cell = /^data\.(\d+)\.(.+)$/.exec(field)
   if (node.op === 'table' && cell) return `${id}.rows.${cell[1]}.${cell[2]}`
+  // A deck view's camera part (`viewState.rotationOrbit`), which the view reads at the playhead
+  if (/-view$/.test(node.op) && /^viewState\.\w+$/.test(field)) return `${id}.${field}`
   return field in node.params ? `${id}.${field}` : undefined
 }
 

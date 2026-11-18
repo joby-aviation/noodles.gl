@@ -239,6 +239,28 @@ describe('row layers', () => {
   })
 })
 
+// #891: planner layers have no depth settings yet, so turning depth testing off is reported
+describe('layer parameters', () => {
+  it('warns when a layer turned depth testing off, and not for the defaults', () => {
+    const off = layer(
+      'ScatterplotLayerOp',
+      POINTS,
+      { getPosition: '[d.lng, d.lat]' },
+      { parameters: { depthTest: false, depthWriteEnabled: false } }
+    )
+    expect(toEditorDoc(off).warnings).toContain(
+      "/layer: dropped 'parameters' (depthTest, depthWriteEnabled off)"
+    )
+    const defaults = layer(
+      'ScatterplotLayerOp',
+      POINTS,
+      { getPosition: '[d.lng, d.lat]' },
+      { parameters: { depthTest: true, depthWriteEnabled: true } }
+    )
+    expect(toEditorDoc(defaults).warnings.filter(w => w.includes('parameters'))).toEqual([])
+  })
+})
+
 describe('cell layers', () => {
   it('draws each row’s cell as a polygon, for every grid', async () => {
     const { lonLatToCell, u64ToHex } = await import('a5-js')

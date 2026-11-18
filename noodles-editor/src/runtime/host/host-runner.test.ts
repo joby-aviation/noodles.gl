@@ -5,7 +5,7 @@ import { opView } from '../../editor/op-view'
 import { getKeysStore, useKeysStore } from '../../noodles/keys-store'
 import { setOpResolver } from '../../noodles/op-resolver'
 import { isHostOperator, registerHostOperators } from './host-ops'
-import { HostRunner } from './host-runner'
+import { HostRunner, withTrackedParts } from './host-runner'
 
 const doc = (opacity: number, wired = false): EditorDoc => ({
   version: 1,
@@ -101,6 +101,50 @@ describe('HostRunner', () => {
     }
     await runner.run(keyed, inputs({ '/bitmap.opacity': 0.5 }))
     expect(runner.output('/bitmap', 'layer')).toMatchObject({ opacity: 0.5 })
+  })
+
+  // #893: a view's camera keyframed part by part
+  it("sets a keyframed part of a deck operator's object parameter at the playhead", async () => {
+    const viewState = { target: [0, 0, 0], zoom: 4, rotationX: 25 }
+    const orbit: EditorDoc = {
+      version: 1,
+      name: 'orbit',
+      nodes: [{ id: '/camera', op: 'orbit-view', x: 0, y: 0, params: { viewState } }],
+      edges: [],
+      timeline: {
+        length: 1,
+        fps: 30,
+        tracks: [
+          {
+            target: '/camera.viewState.rotationOrbit',
+            keyframes: [
+              { id: 'a', time: 0, value: 0, interpolation: 'linear' },
+              { id: 'b', time: 1, value: 180, interpolation: 'linear' },
+            ],
+          },
+        ],
+      },
+    }
+    const runner = new HostRunner()
+    await runner.run(orbit, inputs({ '/camera.viewState.rotationOrbit': 90 }))
+    expect(runner.output('/camera', 'view')).toMatchObject({
+      viewState: { zoom: 4, rotationX: 25, rotationOrbit: 90 },
+    })
+    // The document's own value is left alone
+    expect(viewState).not.toHaveProperty('rotationOrbit')
+    await runner.run(orbit, inputs({ '/camera.viewState.rotationOrbit': 180 }))
+    expect(runner.output('/camera', 'view')).toMatchObject({ viewState: { rotationOrbit: 180 } })
+  })
+
+  it('sets nested keyframed parts, and leaves a value without any as it is', () => {
+    const value = { a: 1 }
+    const keyed = new Set(['/n.p.b.c', '/n.p.d', '/n.other'])
+    const slots = new Map<string, unknown>([
+      ['/n.p.b.c', 2],
+      ['/n.p.d', 3],
+    ])
+    expect(withTrackedParts(value, '/n.p', keyed, slots)).toEqual({ a: 1, b: { c: 2 }, d: 3 })
+    expect(withTrackedParts(value, '/n.q', keyed, slots)).toBe(value)
   })
 
   it("resolves op() in a CodeOp's code against the document", async () => {
