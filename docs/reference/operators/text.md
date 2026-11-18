@@ -13,7 +13,7 @@ A label per row from a string column.
 { "id": "n1", "op": "text", "name": "text", "x": 0, "y": 0, "params": {} }
 ```
 
-An edge into it ends at `"targetPort": "in"`; one out of it starts at `"sourcePort": "out"`; a parameter is set in `params` (leave out the ones at their default), driven by an edge to `par:size`, or read elsewhere as `ch('text/size')`.
+An edge into it ends at `"targetPort": "in"`; one out of it starts at `"sourcePort": "out"`; a parameter is set in `params` (leave out the ones at their default), driven by an edge to `par:maxRows`, or read elsewhere as `ch('text/maxRows')`.
 <!-- gen:end syntax -->
 
 ## Inputs
@@ -39,6 +39,7 @@ An edge into it ends at `"targetPort": "in"`; one out of it starts at `"sourcePo
 | `offsetBy` | `expr` | `""` |  |
 | `anchorBy` | `column` | `""` |  |
 | `baselineBy` | `column` | `""` |  |
+| `maxRows` | `int` | `0` |  |
 | `ramp` | `menu` | `"viridis"` | 37 choices |
 | `size` | `float` | `12` |  |
 | `sizeUnits` | `menu` | `"pixels"` | `pixels`, `meters`, `common` |
