@@ -1436,7 +1436,11 @@ export function toEditorDoc(original: NoodlesProject): Migrated {
     for (const k of Object.keys(DEFAULTS.OutOp)) deckParams[k] = o[k] as ParamValue
   }
   for (const k of Object.keys(deckOp.data?.inputs ?? {}))
-    warnings.push(`${deckOp.id}: dropped '${k}'`)
+    warnings.push(
+      k === 'layerFilter'
+        ? `${deckOp.id}: dropped 'layerFilter'; set Views on a Layer Props node to draw a layer in some views`
+        : `${deckOp.id}: dropped '${k}'`
+    )
   nodes.push({
     id: deckOp.id,
     op: 'deck',

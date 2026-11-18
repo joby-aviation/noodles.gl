@@ -135,7 +135,7 @@ One page per operator. The ports and parameters tables are generated from the op
 - [Fullscreen Widget](./operators/fullscreen-widget.md): Enter/exit fullscreen widget.
 - [Globe View](./operators/globe-view.md): A deck.gl globe view.
 - [Hue / Saturation](./operators/hue-saturation.md): Adjust hue and saturation of a layer.
-- [Layer Props](./operators/layer-props.md): Props added to a layer: operation "mask" for a mask layer, beforeId to draw under a MapLibre layer, or any others as JSON.
+- [Layer Props](./operators/layer-props.md): Props added to a layer: operation "mask" for a mask layer, beforeId to draw under a MapLibre layer, views to draw only in some views, or any others as JSON.
 - [Legend Widget](./operators/legend-widget.md): Display a color scale legend overlay on the visualization.
 - [Map Style](./operators/map-style.md): A basemap style with your changes: layers hidden or recolored, from the style editor.
 - [Map View](./operators/map-view.md): A deck.gl map view.

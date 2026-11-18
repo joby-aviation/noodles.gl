@@ -168,6 +168,91 @@ describe('Layer Props', () => {
   })
 })
 
+// #886: which views a layer draws in, as deck's layerFilter
+describe('Layer Props views', () => {
+  const views = (only: string) =>
+    doc(
+      [
+        node('rows', 'sql', { query: ROWS }),
+        node('position', 'attribute', { name: 'position', expression: '[lng, lat]' }),
+        node('red', 'scatter', { position: 'position' }),
+        node('blue', 'scatter', { position: 'position' }),
+        node('props', 'layer-props', { views: only }),
+        { ...node('left', 'map-view', { width: '50%' }), name: 'left map' },
+        node('right', 'map-view', { x: 960, width: '50%' }),
+        node('map', 'deck', { basemap: 'none' }),
+      ],
+      [
+        edge('rows', 'out', 'position', 'in'),
+        edge('position', 'out', 'red', 'in'),
+        edge('position', 'out', 'blue', 'in'),
+        edge('red', 'out', 'props', 'par:layer'),
+        edge('props', 'layer', 'map', 'layers', 0),
+        edge('blue', 'out', 'map', 'layers', 1),
+        edge('left', 'view', 'map', 'views', 0),
+        edge('right', 'view', 'map', 'views', 1),
+      ]
+    )
+
+  it('draws a layer only in the views its Layer Props names, by id or name', async () => {
+    const engine = open()
+    for (const only of ['left', 'left map', ' left , nowhere ']) {
+      await engine.setDoc(views(only), 0)
+      await engine.settle()
+      const { layers, layerFilter } = engine.vis().deckProps
+      expect(layerFilter, only).toBeDefined()
+      const [red, blue] = layers
+      const draws = (layer: (typeof layers)[0], view: string) =>
+        layerFilter?.({ layer, viewport: { id: view } })
+      expect(draws(red, 'left'), only).toBe(true)
+      expect(draws(red, 'right'), only).toBe(false)
+      // A layer no Layer Props limits draws everywhere
+      expect(draws(blue, 'right'), only).toBe(true)
+    }
+    // The same function while the lists don't change, so deck doesn't redraw for it
+    expect(engine.vis().deckProps.layerFilter).toBe(engine.vis().deckProps.layerFilter)
+  })
+
+  // A basemap's overlay merges props: a filter left out would keep restricting
+  it('sets layerFilter to null when no Layer Props names views, and after Views is cleared', async () => {
+    const engine = open()
+    await engine.setDoc(views('left'), 0)
+    await engine.settle()
+    expect(engine.vis().deckProps.layerFilter).toBeTypeOf('function')
+    await engine.setDoc(views(''), 0)
+    await engine.settle()
+    expect(engine.vis().deckProps).toHaveProperty('layerFilter', null)
+  })
+
+  it('takes views only from Layer Props the deck draws', async () => {
+    const engine = open()
+    const base = views('')
+    // `blue` also feeds a Layer Props wired nowhere, which keeps blue's id
+    const unused: EditorDoc = {
+      ...base,
+      nodes: [...base.nodes, node('stray', 'layer-props', { views: 'left' })],
+      edges: [...base.edges, edge('blue', 'out', 'stray', 'par:layer')],
+    }
+    await engine.setDoc(unused, 0)
+    await engine.settle()
+    expect(engine.vis().deckProps.layerFilter).toBeNull()
+  })
+
+  it("resolves a name against the deck's own views, not another node of that name", async () => {
+    const engine = open()
+    const base = views('left map')
+    // A node elsewhere (a subnet's, say) that shares the view's name, listed first
+    const shadowed: EditorDoc = {
+      ...base,
+      nodes: [{ ...node('elsewhere', 'comment', { text: '' }), name: 'left map' }, ...base.nodes],
+    }
+    await engine.setDoc(shadowed, 0)
+    await engine.settle()
+    const { layers, layerFilter } = engine.vis().deckProps
+    expect(layerFilter?.({ layer: layers[0], viewport: { id: 'left' } })).toBe(true)
+  })
+})
+
 describe('Merge', () => {
   it('merges view states, later ones winning', async () => {
     const engine = open()

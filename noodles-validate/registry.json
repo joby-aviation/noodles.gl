@@ -3541,7 +3541,7 @@
       "name": "Layer Props",
       "type": "layer-props",
       "category": "output",
-      "description": "Props added to a layer: operation \"mask\" for a mask layer, beforeId to draw under a MapLibre layer, or any others as JSON.",
+      "description": "Props added to a layer: operation \"mask\" for a mask layer, beforeId to draw under a MapLibre layer, views to draw only in some views, or any others as JSON.",
       "inputs": {},
       "outputs": {
         "layer": {
@@ -3565,6 +3565,10 @@
           ]
         },
         "beforeId": {
+          "kind": "string",
+          "default": ""
+        },
+        "views": {
           "kind": "string",
           "default": ""
         },

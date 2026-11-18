@@ -134,6 +134,16 @@ describe('deck operators', () => {
     const { slots } = parameterValues(lowered, { T: 1, F: 30 })
     expect(slots.get('/camera.viewState.rotationOrbit')).toBe(180)
   })
+
+  // #886: deck's layerFilter is a function; Layer Props' views say the same as data
+  it('points a dropped layerFilter at Layer Props views', () => {
+    const project = deck([], [])
+    const renderer = project.nodes.find(n => n.id === '/deck')
+    if (renderer?.data) renderer.data.inputs = { layerFilter: '({ viewport }) => true' }
+    expect(toEditorDoc(project).warnings).toContain(
+      "/deck: dropped 'layerFilter'; set Views on a Layer Props node to draw a layer in some views"
+    )
+  })
 })
 
 describe('values', () => {
