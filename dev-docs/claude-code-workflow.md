@@ -60,7 +60,7 @@ every `@/` file must exist in the project's `data/` folder, and `generic-node-na
 
 #### WebMCP
 
-With `?externalControl=true`, the app registers its full AI tool surface (~27 tools) on `navigator.modelContext` (the W3C WebMCP API, polyfilled via `@mcp-b/global`). External MCP clients reach those tools through the `@mcp-b/webmcp-local-relay` stdio bridge — no proxy code to run:
+With `?externalControl=true`, the app registers its AI tool surface (~27 tools) on `navigator.modelContext` (the W3C WebMCP API, polyfilled via `@mcp-b/global`). External MCP clients reach those tools through the `@mcp-b/webmcp-local-relay` stdio bridge — no proxy code to run:
 
 ```bash
 # 1. Start the app with external control enabled
@@ -79,6 +79,8 @@ claude mcp add webmcp -- npx -y @mcp-b/webmcp-local-relay@4
   }
 }
 ```
+
+On `localhost` every tool is registered. On any other host only the read-only ones are (the `readOnlyHint` annotation in `ai-chat/tool-definitions.ts`), unless the page also has `?agentAccess=read-write`. The relay embed the page loads on localhost is served from `noodles-editor/public/webmcp/` (a pinned copy; see its README).
 
 Tool names match the in-app chat (snake_case): `get_current_project`, `list_nodes`, `get_node_info`, `get_node_output`, `apply_modifications`, `run_code`, `list_files`, `read_file`, `write_file`, `grep_files`, `capture_visualization`, `get_timeline`, `set_keyframe`, `get_operator_schema`, `search_code`, and more. `apply_modifications` mutates the live editor graph, so changes appear immediately in the browser.
 

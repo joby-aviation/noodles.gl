@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { toolDefinitions } from '../ai-chat/tool-definitions'
-import { initWebMCP } from './register'
+import { allowsWrites, initWebMCP } from './register'
 
 // The polyfill import is a side effect only — the tests install their own fake
 vi.mock('@mcp-b/global', () => ({}))
@@ -99,6 +99,30 @@ describe('initWebMCP', () => {
     for (const call of registerTool.mock.calls) {
       expect(call[1]?.signal).toBeInstanceOf(AbortSignal)
     }
+  })
+
+  // #756: a deployed editor offers only reads unless the page opts in
+  it('registers only read-only tools without write access', async () => {
+    controller = new AbortController()
+    await initWebMCP(controller.signal, { allowWrites: false })
+    const readOnly = toolDefinitions.filter(d => d.annotations.readOnlyHint)
+    expect([...registered.keys()].sort()).toEqual(readOnly.map(d => d.name).sort())
+    for (const name of ['apply_modifications', 'set_keyframe', 'delete_keyframe', 'run_code'])
+      expect(registered.has(name), name).toBe(false)
+    expect(registered.has('list_nodes')).toBe(true)
+  })
+
+  it('allows writes on localhost, or with ?agentAccess=read-write', () => {
+    expect(allowsWrites({ hostname: 'localhost', search: '' })).toBe(true)
+    expect(allowsWrites({ hostname: '127.0.0.1', search: '?externalControl=true' })).toBe(true)
+    expect(allowsWrites({ hostname: 'noodles.gl', search: '?externalControl=true' })).toBe(false)
+    expect(
+      allowsWrites({
+        hostname: 'noodles.gl',
+        search: '?externalControl=true&agentAccess=read-write',
+      })
+    ).toBe(true)
+    expect(allowsWrites({ hostname: 'noodles.gl', search: '?agentAccess=read' })).toBe(false)
   })
 
   it('registers the external-only export tools the chat never sees', async () => {

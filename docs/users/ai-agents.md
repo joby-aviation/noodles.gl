@@ -147,6 +147,7 @@ Exporting needs WebCodecs, so use Chrome or Edge. Example projects live in memor
 - **Keep the tab visible.** A hidden tab stops drawing, so screenshots fail until you bring the browser back to the front.
 - **Use one tab.** With several Noodles tabs open, the relay adds a tab id to each tool name.
 - **Local only.** The relay connects to editors on `localhost`. `?safeMode=true` removes the tool that runs code.
+- **Read-only elsewhere.** On any host but `localhost`, `?externalControl=true` offers only the tools that read the project, take screenshots and check exports. Add `&agentAccess=read-write` to let an agent change the project there too.
 
 ## Write project files
 
