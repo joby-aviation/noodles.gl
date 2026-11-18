@@ -43,6 +43,15 @@ An edge into it ends at `"targetPort": "layers"`; a parameter is set in `params`
 | `mapStyle` | `url` | `""` |  |
 | `styleOverrides` | `text` | `""` |  |
 | `projection` | `menu` | `"mercator"` | `mercator`, `globe` |
+| `sky` | `toggle` | `false` |  |
+| `skyColor` | `color` | `[136,198,252]` |  |
+| `horizonColor` | `color` | `[255,255,255]` |  |
+| `skyHorizonBlend` | `float` | `0.8` |  |
+| `atmosphereBlend` | `float` | `0.5` |  |
+| `light` | `toggle` | `false` |  |
+| `lightAnchor` | `menu` | `"viewport"` | `viewport`, `map` |
+| `lightAzimuthal` | `float` | `210` |  |
+| `lightPolar` | `float` | `30` |  |
 | `display` | `menu` | `"fixed"` | `fixed`, `responsive` |
 | `width` | `int` | `1920` |  |
 | `height` | `int` | `1080` |  |
