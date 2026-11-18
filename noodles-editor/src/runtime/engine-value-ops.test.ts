@@ -213,11 +213,43 @@ describe('Layer Props views', () => {
     expect(engine.vis().deckProps.layerFilter).toBe(engine.vis().deckProps.layerFilter)
   })
 
-  it('sets no layerFilter when no Layer Props names views', async () => {
+  // A basemap's overlay merges props: a filter left out would keep restricting
+  it('sets layerFilter to null when no Layer Props names views, and after Views is cleared', async () => {
     const engine = open()
+    await engine.setDoc(views('left'), 0)
+    await engine.settle()
+    expect(engine.vis().deckProps.layerFilter).toBeTypeOf('function')
     await engine.setDoc(views(''), 0)
     await engine.settle()
-    expect(engine.vis().deckProps.layerFilter).toBeUndefined()
+    expect(engine.vis().deckProps).toHaveProperty('layerFilter', null)
+  })
+
+  it('takes views only from Layer Props the deck draws', async () => {
+    const engine = open()
+    const base = views('')
+    // `blue` also feeds a Layer Props wired nowhere, which keeps blue's id
+    const unused: EditorDoc = {
+      ...base,
+      nodes: [...base.nodes, node('stray', 'layer-props', { views: 'left' })],
+      edges: [...base.edges, edge('blue', 'out', 'stray', 'par:layer')],
+    }
+    await engine.setDoc(unused, 0)
+    await engine.settle()
+    expect(engine.vis().deckProps.layerFilter).toBeNull()
+  })
+
+  it("resolves a name against the deck's own views, not another node of that name", async () => {
+    const engine = open()
+    const base = views('left map')
+    // A node elsewhere (a subnet's, say) that shares the view's name, listed first
+    const shadowed: EditorDoc = {
+      ...base,
+      nodes: [{ ...node('elsewhere', 'comment', { text: '' }), name: 'left map' }, ...base.nodes],
+    }
+    await engine.setDoc(shadowed, 0)
+    await engine.settle()
+    const { layers, layerFilter } = engine.vis().deckProps
+    expect(layerFilter?.({ layer: layers[0], viewport: { id: 'left' } })).toBe(true)
   })
 })
 

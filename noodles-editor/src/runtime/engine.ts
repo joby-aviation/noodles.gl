@@ -55,8 +55,11 @@ export interface EngineVis {
     views?: unknown[]
     widgets?: unknown[]
     effects?: unknown[]
-    /** Which views each layer draws in, from Layer Props' `views` */
-    layerFilter?: (context: { layer: Layer; viewport: { id: string } }) => boolean
+    /**
+     * Which views each layer draws in, from Layer Props' `views`. Always set, null for none: a
+     * basemap's overlay merges props, so a filter left out would stay.
+     */
+    layerFilter: ((context: { layer: Layer; viewport: { id: string } }) => boolean) | null
   }
   mapProps?: Record<string, unknown>
   maplibreLayers?: unknown[]
@@ -406,13 +409,13 @@ export class Engine {
     const views = hostValues('views').map(v => host?.view(v))
     const widgets = hostValues('widgets').map(w => host?.widget(w as { type: string }))
     const effects = hostValues('effects')
-    const layerFilter = views.length ? this.layerFilter() : undefined
+    const layerFilter = views.length ? this.layerFilter(deck?.id) : null
     return {
       deckProps: {
         layers: this.withMaskLayers(layers),
         viewState: view,
         ...(views.length ? { views } : {}),
-        ...(layerFilter ? { layerFilter } : {}),
+        layerFilter,
         ...(widgets.length ? { widgets } : {}),
         ...(effects.length ? { effects } : {}),
       },
@@ -456,27 +459,37 @@ export class Engine {
    * lookup in sets made once; the same function while the lists don't change, so deck doesn't
    * redraw for a new one.
    */
-  private layerFilter(): EngineVis['deckProps']['layerFilter'] {
+  private layerFilter(deckId: string | undefined): EngineVis['deckProps']['layerFilter'] {
     const doc = this.doc
-    if (!doc) return undefined
+    if (!doc || !deckId) return null
+    const into = (port: string) =>
+      doc.edges.filter(e => e.target === deckId && e.targetPort === port)
+    // A name means one of the deck's own views: names are unique only within a network, so
+    // a node elsewhere may share it. The first of the deck's views wins.
+    const views = into('views').flatMap(e => doc.nodes.filter(n => n.id === e.source))
+    const viewId = (n: string) =>
+      (views.find(v => v.id === n) ?? views.find(v => v.name === n))?.id ?? n
     const viewIds = (names: string) =>
       names
         .split(',')
         .map(n => n.trim())
         .filter(Boolean)
-        .map(n => (doc.nodes.find(v => v.id === n) ?? doc.nodes.find(v => v.name === n))?.id ?? n)
+        .map(viewId)
+    // Only Layer Props the deck draws: one wired nowhere keeps the layer's id, and would
+    // otherwise restrict the same layer wired to the deck directly
     const only: [string, string[]][] = []
-    for (const node of doc.nodes) {
-      if (node.op !== 'layer-props' || typeof node.params.views !== 'string') continue
+    for (const e of into('layers')) {
+      const node = doc.nodes.find(n => n.id === e.source)
+      if (node?.op !== 'layer-props' || typeof node.params.views !== 'string') continue
       const ids = viewIds(node.params.views)
       if (ids.length === 0) continue
-      const out = this.options.host?.runner.output(node.id, 'layer')
+      const out = this.options.host?.runner.output(node.id, e.sourcePort)
       for (const l of Array.isArray(out) ? out : [out]) {
         const id = l && typeof l === 'object' ? (l as { id?: unknown }).id : undefined
         if (typeof id === 'string') only.push([id, ids])
       }
     }
-    if (only.length === 0) return undefined
+    if (only.length === 0) return null
     const key = JSON.stringify(only)
     if (this.filterFor?.key !== key) {
       const allowed = new Map(only.map(([id, ids]) => [id, new Set(ids)]))
