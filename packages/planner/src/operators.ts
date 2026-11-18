@@ -223,6 +223,14 @@ const blendParam: ParamDef = {
   options: [{ value: 'normal', label: 'Normal' }, { value: 'additive', label: 'Additive' }, { value: 'subtractive', label: 'Subtractive' }],
 };
 /**
+ * Depth testing: off, a layer draws over 3D geometry in front of it (labels and points over
+ * extruded columns or buildings); depth writes off, layers drawn later aren't hidden behind it.
+ */
+const depthParams: ParamDef[] = [
+  { name: 'depthTest', label: 'Depth test', kind: 'toggle', default: true, folder: 'Style', help: 'Off draws the layer over 3D geometry in front of it.' },
+  { name: 'depthWrite', label: 'Depth write', kind: 'toggle', default: true, folder: 'Style', help: 'Off keeps layers drawn later from being hidden behind this one.' },
+];
+/**
  * deck layer extensions (a brightness filter, a clip box) a host application builds and wires
  * in as values; the planner never reads them, and the application attaches them to the layer.
  */
@@ -268,6 +276,12 @@ const COLUMN_STAT = /\bcol(min|max)\(\s*([A-Za-z_][A-Za-z0-9_]*)\s*\)/g;
  * column gets one stats node, computed in SQL as an Extent node's is, and the calls become
  * the parameters it publishes; a change to the data requeries it, a slider does not.
  */
+/** The depth toggles as layer props, only when off: a layer at the defaults keeps its props as they were. */
+const depthProps = (ctx: LowerCtx): Record<string, LayerPropValue> => ({
+  ...(ctx.bool('depthTest') ? {} : { depthTest: false }),
+  ...(ctx.bool('depthWrite') ? {} : { depthWrite: false }),
+});
+
 function lowerLayer(
   ctx: LowerCtx,
   kind: LayerKind,
@@ -304,7 +318,7 @@ function lowerLayer(
     nodes.push({ id: wid, type: 'wrangle', input: base, body: lines.join('\n'), ramp: ctx.str('ramp') as RampName });
     input = wid;
   }
-  nodes.push({ id: ctx.id, type: 'layer', kind, input, channels: bound, props: { ...props, blend: ctx.str('blend') }, ...extra });
+  nodes.push({ id: ctx.id, type: 'layer', kind, input, channels: bound, props: { ...props, blend: ctx.str('blend'), ...depthProps(ctx) }, ...extra });
   return { nodes, outputs: { out: ctx.id } };
 }
 
@@ -342,6 +356,7 @@ function modelLayer(kind: 'mesh' | 'scenegraph', label: string, urlParam: string
       rampParam,
       opacity,
       blendParam,
+      ...depthParams,
       extensionsParam,
     ],
     lower: (ctx) => lowerLayer(ctx, kind,
@@ -391,6 +406,7 @@ function binLayer(
       rampParam,
       opacity,
       blendParam,
+      ...depthParams,
       extensionsParam,
     ],
     lower: (ctx) => lowerLayer(ctx, kind,
@@ -1096,6 +1112,7 @@ export const OPERATORS: OpDef[] = [
       { name: 'antialiasing', label: 'Antialiasing', kind: 'toggle', default: true, folder: 'Style' },
       opacity,
       blendParam,
+      ...depthParams,
       extensionsParam,
     ],
     lower: (ctx) => lowerLayer(ctx, 'scatter',
@@ -1133,6 +1150,7 @@ export const OPERATORS: OpDef[] = [
       { name: 'widthMaxPixels', label: 'Max width (px)', kind: 'float', default: 0, min: 0, max: 200, step: 1, bind: 'prop', folder: 'Style', help: '0 for no limit.' },
       opacity,
       blendParam,
+      ...depthParams,
       extensionsParam,
     ],
     lower: (ctx) => lowerLayer(ctx, 'arc',
@@ -1169,6 +1187,7 @@ export const OPERATORS: OpDef[] = [
       { name: 'wrapLongitude', label: 'Wrap longitude', kind: 'toggle', default: false, folder: 'Style', help: 'Split a path where it crosses the antimeridian.' },
       opacity,
       blendParam,
+      ...depthParams,
       extensionsParam,
     ],
     lower: (ctx) => lowerLayer(ctx, 'path',
@@ -1205,6 +1224,7 @@ export const OPERATORS: OpDef[] = [
       { name: 'billboard', label: 'Face the camera', kind: 'toggle', default: false, folder: 'Style' },
       opacity,
       blendParam,
+      ...depthParams,
       extensionsParam,
     ],
     lower: (ctx) => lowerLayer(ctx, 'trips',
@@ -1250,6 +1270,7 @@ export const OPERATORS: OpDef[] = [
       { name: 'lineWidthUnits', label: 'Outline units', kind: 'menu', default: 'meters', options: [{ value: 'meters', label: 'Meters' }, { value: 'pixels', label: 'Pixels' }], folder: 'Style' },
       opacity,
       blendParam,
+      ...depthParams,
       extensionsParam,
     ],
     lower: (ctx) => lowerLayer(ctx, 'column',
@@ -1293,6 +1314,7 @@ export const OPERATORS: OpDef[] = [
       { name: 'elevationScale', label: 'Elevation scale', kind: 'float', default: 1, min: 0, max: 10000, step: 1, bind: 'prop', folder: 'Style', port: true },
       opacity,
       blendParam,
+      ...depthParams,
       extensionsParam,
     ],
     lower: (ctx) => lowerLayer(ctx, 'polygon',
@@ -1358,6 +1380,7 @@ export const OPERATORS: OpDef[] = [
       { name: 'backgroundBorderRadius', label: 'Corner radius (px)', kind: 'float', default: 0, min: 0, max: 50, step: 1, bind: 'prop', folder: 'Background' },
       opacity,
       blendParam,
+      ...depthParams,
       extensionsParam,
     ],
     lower(ctx) {
@@ -1406,6 +1429,7 @@ export const OPERATORS: OpDef[] = [
       { name: 'lineColor', label: 'Line color', kind: 'color', default: [255, 255, 255], folder: 'Style' },
       opacity,
       blendParam,
+      ...depthParams,
       extensionsParam,
     ],
     lower: (ctx) => lowerLayer(ctx, 'line',
@@ -1432,6 +1456,7 @@ export const OPERATORS: OpDef[] = [
       { name: 'pointColor', label: 'Point color', kind: 'color', default: [0, 0, 0], folder: 'Style' },
       opacity,
       blendParam,
+      ...depthParams,
       extensionsParam,
     ],
     lower: (ctx) => lowerLayer(ctx, 'point-cloud',
@@ -1463,6 +1488,7 @@ export const OPERATORS: OpDef[] = [
       { name: 'offsetY', label: 'Offset Y (px)', kind: 'float', default: 0, min: -128, max: 128, step: 1, bind: 'prop', folder: 'Style' },
       opacity,
       blendParam,
+      ...depthParams,
       extensionsParam,
     ],
     lower(ctx) {
@@ -1507,6 +1533,7 @@ export const OPERATORS: OpDef[] = [
       { name: 'lineWidthUnits', label: 'Outline units', kind: 'menu', default: 'meters', options: [{ value: 'meters', label: 'Meters' }, { value: 'pixels', label: 'Pixels' }], folder: 'Style' },
       opacity,
       blendParam,
+      ...depthParams,
       extensionsParam,
     ],
     lower: (ctx) => lowerLayer(ctx, 'column',
@@ -1535,6 +1562,7 @@ export const OPERATORS: OpDef[] = [
       colorRangeParam,
       opacity,
       blendParam,
+      ...depthParams,
       extensionsParam,
     ],
     lower: (ctx) => lowerLayer(ctx, 'screen-grid',
@@ -1557,6 +1585,7 @@ export const OPERATORS: OpDef[] = [
       { name: 'zOffset', label: 'Z offset', kind: 'float', default: 0.005, min: 0, max: 1, step: 0.001, bind: 'prop', folder: 'Style' },
       opacity,
       blendParam,
+      ...depthParams,
       extensionsParam,
     ],
     lower: (ctx) => lowerLayer(ctx, 'contour',
@@ -1580,6 +1609,7 @@ export const OPERATORS: OpDef[] = [
       rampParam,
       opacity,
       blendParam,
+      ...depthParams,
       extensionsParam,
     ],
     lower: (ctx) => lowerLayer(ctx, 'heatmap',

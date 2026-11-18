@@ -393,7 +393,7 @@ function buildLayers(input: ProgramLayerInput, binary: Binary, pickable = false)
         id: `${input.id}:outline`,
         opacity: num(p.opacity, 1),
         pickable,
-        parameters: BLEND_PARAMETERS[String(p.blend)] ?? {},
+        parameters: layerParameters(p),
         data: binary.outline as never,
         _pathType: 'loop',
         widthUnits: p.lineWidthUnits === 'meters' ? 'meters' : 'pixels',
@@ -413,6 +413,20 @@ function buildLayers(input: ProgramLayerInput, binary: Binary, pickable = false)
     )
   }
   return layers
+}
+
+/**
+ * luma.gl parameters for a layer's `blend` preset and depth toggles. deck turns WebGL's depth
+ * test on by its legacy name (`depthTest: true`), which luma 9's `depthCompare` alone doesn't
+ * undo on WebGL, so depth test off sets both: `depthTest: false` for WebGL, as #311's layers did,
+ * and `depthCompare: 'always'` for WebGPU.
+ */
+function layerParameters(p: Record<string, unknown>): Record<string, unknown> {
+  return {
+    ...(BLEND_PARAMETERS[String(p.blend)] ?? {}),
+    ...(p.depthTest === false ? { depthTest: false, depthCompare: 'always' } : {}),
+    ...(p.depthWrite === false ? { depthWriteEnabled: false, depthMask: false } : {}),
+  }
 }
 
 /** luma.gl blend parameters for a layer's `blend` prop, matching Noodles' Blending presets. */
@@ -603,7 +617,7 @@ function buildLayer(
   const p = input.props
   const has = (deckName: string) => deckName in binary.attributes
   const opacity = num(p.opacity, 1)
-  const parameters = BLEND_PARAMETERS[String(p.blend)] ?? {}
+  const parameters = layerParameters(p)
   // The kind is part of the id: deck keeps a layer's state by id, so a node whose layer kind
   // changes (scatter to column, say) must start fresh rather than inherit the old layer's state.
   const common = { id: `${input.id}:${input.kind}`, opacity, pickable, parameters }

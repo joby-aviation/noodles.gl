@@ -37,6 +37,8 @@ An edge into it ends at `"targetPort": "in"`; one out of it starts at `"sourcePo
 | `zOffset` | `float` | `0.005` |  |
 | `opacity` | `float` | `1` |  |
 | `blend` | `menu` | `"normal"` | `normal`, `additive`, `subtractive` |
+| `depthTest` | `toggle` | `true` |  |
+| `depthWrite` | `toggle` | `true` |  |
 | `extensions` | `field` | `[]` |  |
 <!-- gen:end params -->
 

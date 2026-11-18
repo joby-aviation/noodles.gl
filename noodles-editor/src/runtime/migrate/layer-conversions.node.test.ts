@@ -239,25 +239,28 @@ describe('row layers', () => {
   })
 })
 
-// #891: planner layers have no depth settings yet, so turning depth testing off is reported
+// #891: a layer's depthTest / depthWriteEnabled as the planner layer's depth toggles
 describe('layer parameters', () => {
-  it('warns when a layer turned depth testing off, and not for the defaults', () => {
-    const off = layer(
-      'ScatterplotLayerOp',
-      POINTS,
-      { getPosition: '[d.lng, d.lat]' },
-      { parameters: { depthTest: false, depthWriteEnabled: false } }
+  const converted = (parameters: Record<string, boolean>) => {
+    const { doc, warnings } = toEditorDoc(
+      layer('ScatterplotLayerOp', POINTS, { getPosition: '[d.lng, d.lat]' }, { parameters })
     )
-    expect(toEditorDoc(off).warnings).toContain(
-      "/layer: dropped 'parameters' (depthTest, depthWriteEnabled off)"
+    return { params: doc.nodes.find(n => n.id === '/layer')?.params ?? {}, warnings }
+  }
+
+  it('carries depth testing and depth writes turned off', () => {
+    const off = converted({ depthTest: false, depthWriteEnabled: false })
+    expect(off.params).toMatchObject({ depthTest: false, depthWrite: false })
+    expect(off.warnings.filter(w => w.includes('parameters'))).toEqual([])
+    expect(converted({ depthTest: false, depthWriteEnabled: true }).params).not.toHaveProperty(
+      'depthWrite'
     )
-    const defaults = layer(
-      'ScatterplotLayerOp',
-      POINTS,
-      { getPosition: '[d.lng, d.lat]' },
-      { parameters: { depthTest: true, depthWriteEnabled: true } }
-    )
-    expect(toEditorDoc(defaults).warnings.filter(w => w.includes('parameters'))).toEqual([])
+  })
+
+  it('leaves the defaults out', () => {
+    const { params } = converted({ depthTest: true, depthWriteEnabled: true })
+    expect(params).not.toHaveProperty('depthTest')
+    expect(params).not.toHaveProperty('depthWrite')
   })
 })
 

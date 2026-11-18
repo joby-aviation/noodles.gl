@@ -122,6 +122,72 @@ describe('DeckLayerBuilder', () => {
   })
 })
 
+// #891: what the depth toggles draw. Two overlapping dots at different depths: with depth
+// testing on, the nearer one shows where they overlap whichever is drawn first.
+describe('DeckLayerBuilder depth toggles', () => {
+  const dot = (id: string, z: number, fillColor: number[], props: Record<string, unknown> = {}) =>
+    new DeckLayerBuilder()
+      .build([
+        {
+          id,
+          kind: 'scatter',
+          // Color and radius per row, as the planned scatter test above draws them
+          data: {
+            rows: 1,
+            attributes: new Map([
+              ['P', { data: new Float32Array([0, 0, z]), width: 3 }],
+              ['C', { data: new Float32Array(fillColor.map(c => c / 255)), width: 3 }],
+              ['R', { data: new Float32Array([40]), width: 1 }],
+            ]),
+            strings: new Map(),
+            evalMs: 0,
+            code: '',
+          },
+          bindings: [
+            { channel: 'position', attribute: 'P' },
+            { channel: 'color', attribute: 'C' },
+            { channel: 'radius', attribute: 'R' },
+          ],
+          props: { radiusScale: 1, ...props } as never,
+        },
+      ])
+      .get(id) ?? []
+  const RED = [255, 0, 0, 255]
+  const BLUE = [0, 0, 255, 255]
+  // Both behind the target, inside the view's near and far planes (a dot at z = 10 is in front of
+  // the near plane and never draws)
+  const red = (props?: Record<string, unknown>) => dot('red', -1, [255, 0, 0], props)
+  const blue = (props?: Record<string, unknown>) => dot('blue', -5, [0, 0, 255], props)
+  const center = async (layers: Layer[]) => {
+    const pixel = await draw(layers)
+    const c = pixel(50, 50)
+    deck?.finalize()
+    canvas?.remove()
+    deck = null
+    return c
+  }
+
+  it('hides the farther layer whichever is drawn first, and the toggles undo that', async () => {
+    // A single dot in the plane draws at all
+    expect(await center(red()), 'red alone').toEqual(RED)
+    expect(await center(blue()), 'blue alone').toEqual(BLUE)
+    const near = await center([...red(), ...blue()])
+    expect(await center([...blue(), ...red()])).toEqual(near)
+    expect([RED, BLUE]).toContainEqual(near)
+    const redIsNear = near[0] === 255
+    // The farther one drawn second, without depth testing, draws over the nearer one
+    const farOver = redIsNear
+      ? [...red(), ...blue({ depthTest: false })]
+      : [...blue(), ...red({ depthTest: false })]
+    expect(await center(farOver)).toEqual(redIsNear ? BLUE : RED)
+    // The nearer one drawn first, writing no depth, doesn't hide the farther one drawn after it
+    const nearNoWrite = redIsNear
+      ? [...red({ depthWrite: false }), ...blue()]
+      : [...blue({ depthWrite: false }), ...red()]
+    expect(await center(nearNoWrite)).toEqual(redIsNear ? BLUE : RED)
+  })
+})
+
 describe('DeckLayerBuilder aggregation layers', () => {
   it('bins binary positions and weights into hexagons', async () => {
     const n = 50
@@ -359,6 +425,21 @@ describe('DeckLayerBuilder style props', () => {
         .get('it') ?? []
     return layers.map(l => l.props as unknown as Record<string, unknown>)
   }
+
+  // #891: WebGL's legacy names, which undo deck's own depthTest: true, and luma 9's for WebGPU
+  it('turns the depth toggles into luma parameters, with the blend preset', () => {
+    expect(build('scatter', {})[0].parameters).toEqual({})
+    expect(build('scatter', { depthTest: false, depthWrite: false })[0].parameters).toEqual({
+      depthTest: false,
+      depthCompare: 'always',
+      depthWriteEnabled: false,
+      depthMask: false,
+    })
+    expect(build('scatter', { blend: 'additive', depthTest: false })[0].parameters).toMatchObject({
+      blend: true,
+      depthCompare: 'always',
+    })
+  })
 
   it('passes outlines, facing and antialiasing to a scatterplot', () => {
     const [p] = build('scatter', {
