@@ -49,7 +49,7 @@ If you know deck.gl and MapLibre, the [deck.gl and MapLibre Guide](./deckgl-mapl
 - **Extensions**: Brightness / Contrast, Hue / Saturation, Vibrance, Clip, Mask, Mask 3D, Path Style, Fill Style, Collision Filter, Brushing and Terrain, wired into a layer's Extensions
 - **Fit Bounds** (`fit-bounds`): The camera that fits a table's rows on screen. Wire rows into its Data, and its `viewState` or `bounds` into the deck or a View State. Position is a position or geometry column, or an expression such as `[lng, lat]`; left empty, Noodles looks for the rows' geometry, `position`, or longitude and latitude columns
 - **Merge** (`merge`): One object from several, later ones winning, such as view states
-- **Layer Props** (`layer-props`): Props added to a layer, such as operation `mask` for a mask layer or `beforeId` to draw under a MapLibre layer
+- **Layer Props** (`layer-props`): Props added to a layer, such as operation `mask` for a mask layer, `beforeId` to draw under a MapLibre layer, or `views` to draw it only in the named views (a minimap or a split view)
 
 ## Numbers
 

@@ -468,13 +468,17 @@ export const DECK_OPS: DeckOp[] = [
       label: 'Layer Props',
       category: 'output',
       description:
-        'Props added to a layer: operation "mask" for a mask layer, beforeId to draw under a MapLibre layer, or any others as JSON.',
+        'Props added to a layer: operation "mask" for a mask layer, beforeId to draw under a MapLibre layer, views to draw only in some views, or any others as JSON.',
       inputs: [],
       outputs: [{ name: 'layer', type: 'layer' }],
       params: [
         wired('layer', 'layer'),
         menu('operation', '', ['', 'draw', 'mask', 'terrain']),
         text('beforeId', ''),
+        {
+          ...text('views', ''),
+          help: 'The views this layer draws in, by name, separated by commas. Empty draws in all.',
+        },
         {
           name: 'additionalProps',
           label: 'Additional props',
