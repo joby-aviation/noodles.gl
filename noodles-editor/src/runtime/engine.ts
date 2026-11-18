@@ -406,7 +406,7 @@ export class Engine {
     const effects = hostValues('effects')
     return {
       deckProps: {
-        layers,
+        layers: this.withMaskLayers(layers),
         viewState: view,
         ...(views.length ? { views } : {}),
         ...(widgets.length ? { widgets } : {}),
@@ -442,6 +442,46 @@ export class Engine {
     }
     const { extensions, props } = built
     return layers.map(l => l.clone({ ...props, extensions } as never))
+  }
+
+  /**
+   * A Mask Extension's `maskId` naming a node (as a user types it, and older projects saved it)
+   * as the id of the layer that node draws: planner layers are `<node>:<kind>`, and Layer Props
+   * may set its own. An id a drawn layer already has is kept.
+   */
+  private withMaskLayers(layers: Layer[]): Layer[] {
+    const drawn = new Set(layers.map(l => l.id))
+    return layers.map(l => {
+      const maskId = (l.props as { maskId?: unknown }).maskId
+      if (typeof maskId !== 'string' || !maskId || drawn.has(maskId)) return l
+      const id = this.drawnLayerIds(maskId).find(i => drawn.has(i))
+      return id ? (l.clone({ maskId: id } as never) as Layer) : l
+    })
+  }
+
+  /** The ids of the layers a node draws: its own, and those of Layer Props nodes wrapping it. */
+  private drawnLayerIds(name: string): string[] {
+    const doc = this.doc
+    const node = doc?.nodes.find(n => n.id === name) ?? doc?.nodes.find(n => n.name === name)
+    if (!node || !doc) return []
+    const ids: string[] = []
+    const seen = new Set<string>()
+    const visit = (nodeId: string) => {
+      if (seen.has(nodeId)) return
+      seen.add(nodeId)
+      for (const l of this.built.get(this.lowered?.outputs[nodeId]?.out ?? nodeId) ?? [])
+        ids.push(l.id)
+      const out = this.options.host?.runner.output(nodeId, 'layer')
+      for (const l of Array.isArray(out) ? out : [out]) {
+        const id = l && typeof l === 'object' ? (l as { id?: unknown }).id : undefined
+        if (typeof id === 'string') ids.push(id)
+      }
+      for (const e of doc.edges) {
+        if (e.source === nodeId && e.targetPort === 'par:layer') visit(e.target)
+      }
+    }
+    visit(node.id)
+    return ids
   }
 
   private asLayer(item: unknown): Layer[] {
@@ -687,8 +727,13 @@ export class Engine {
       planner: (nodeId, port) => {
         if (!afterPlanner) return PENDING
         const ir = this.lowered?.outputs[nodeId]?.[port] ?? nodeId
-        const layer = this.built.get(ir)?.[0]
-        if (layer) return layer
+        // Every deck layer the node draws (a stroked polygon's fill and outline), with the
+        // extensions wired to it, as the deck would draw it; one layer as itself
+        const built = this.built.get(ir)
+        if (built?.length) {
+          const layers = this.withExtensions(nodeId, built)
+          return layers.length === 1 ? layers[0] : layers
+        }
         // Features (a GeoJSON file's, a geometry node's) reach a host operator as a
         // FeatureCollection, as Noodles' GeoJSON values were; any other relation as rows
         const rel = this.runtime.program()?.relations.find(r => r.id === ir)
