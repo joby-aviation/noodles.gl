@@ -154,8 +154,10 @@ describe('DeckLayerBuilder depth toggles', () => {
       .get(id) ?? []
   const RED = [255, 0, 0, 255]
   const BLUE = [0, 0, 255, 255]
-  const red = (props?: Record<string, unknown>) => dot('red', 10, [255, 0, 0], props)
-  const blue = (props?: Record<string, unknown>) => dot('blue', -10, [0, 0, 255], props)
+  // Both behind the target, inside the view's near and far planes (a dot at z = 10 is in front of
+  // the near plane and never draws)
+  const red = (props?: Record<string, unknown>) => dot('red', -1, [255, 0, 0], props)
+  const blue = (props?: Record<string, unknown>) => dot('blue', -5, [0, 0, 255], props)
   const center = async (layers: Layer[]) => {
     const pixel = await draw(layers)
     const c = pixel(50, 50)
@@ -167,7 +169,8 @@ describe('DeckLayerBuilder depth toggles', () => {
 
   it('hides the farther layer whichever is drawn first, and the toggles undo that', async () => {
     // A single dot in the plane draws at all
-    expect(await center(dot('flat', 0, [255, 0, 0])), 'a dot at z = 0').toEqual(RED)
+    expect(await center(red()), 'red alone').toEqual(RED)
+    expect(await center(blue()), 'blue alone').toEqual(BLUE)
     const near = await center([...red(), ...blue()])
     expect(await center([...blue(), ...red()])).toEqual(near)
     expect([RED, BLUE]).toContainEqual(near)
