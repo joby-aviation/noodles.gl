@@ -2,7 +2,7 @@
 import { Deck, type Layer, MapView, OrthographicView } from '@deck.gl/core'
 import { type EditorDoc, lowerDocument, parameterValues } from '@noodles.gl/planner'
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
-import { DeckLayerBuilder } from './deck-layers'
+import { DeckLayerBuilder, drawnRows } from './deck-layers'
 import { DuckDbEngine } from './duckdb'
 import { ProgramRuntime } from './program-runtime'
 
@@ -425,10 +425,10 @@ describe('DeckLayerBuilder style props', () => {
   })
 
   // #888: rows past 5,000 used to be dropped, while the node said all of them drew
-  it('draws every label and icon row', () => {
+  it('draws every label and icon row, or the first Max rows', () => {
     const n = 6000
     const positions = new Float32Array(n * 2)
-    for (const kind of ['text', 'icon']) {
+    const drawn = (kind: string, props: Record<string, unknown>) => {
       const [layer] =
         new DeckLayerBuilder()
           .build([
@@ -443,13 +443,21 @@ describe('DeckLayerBuilder style props', () => {
                 { channel: 'position', attribute: 'P' },
                 { channel: kind, attribute: 'T' },
               ],
-              props: {} as never,
+              props: props as never,
             },
           ])
           .get(kind) ?? []
-      const data = layer?.props.data as { length: number } | undefined
-      expect(data?.length, kind).toBe(n)
+      return (layer?.props.data as { length: number } | undefined)?.length
     }
+    for (const kind of ['text', 'icon']) {
+      expect(drawn(kind, {}), kind).toBe(n)
+      expect(drawn(kind, { maxRows: 0 }), kind).toBe(n)
+      expect(drawn(kind, { maxRows: 2000 }), kind).toBe(2000)
+      expect(drawn(kind, { maxRows: 9000 }), kind).toBe(n)
+    }
+    // What the node's card counts
+    expect(drawnRows('text', n, { maxRows: 2000 })).toBe(2000)
+    expect(drawnRows('scatter', n, { maxRows: 2000 })).toBe(n)
   })
 
   it('wraps and pads text, and caps an icon', () => {

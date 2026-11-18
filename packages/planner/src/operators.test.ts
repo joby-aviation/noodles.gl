@@ -117,19 +117,27 @@ describe('Max rows', () => {
       { id: 'e2', source: 'labels', sourcePort: 'out', target: 'map', targetPort: 'layers' },
     ],
   })
-  const limits = (doc: EditorDoc) => lowerDocument(doc).graph.nodes.filter((n) => n.type === 'limit')
+  const maxRowsOf = (doc: EditorDoc, clock = { T: 0, F: 0 }) => {
+    const lowered = lowerDocument(doc)
+    expect(lowered.errors).toEqual([])
+    const layer = lowered.graph.nodes.find((n): n is LayerNode => n.type === 'layer')!
+    const name = String(layer.props?.maxRows).replace(/^\{\{|\}\}$/g, '')
+    return { lowered, value: parameterValues(lowered, clock).values[name] }
+  }
 
-  it('adds no limit by default', () => {
-    expect(limits(textDoc())).toEqual([])
+  // A prop, not a limit in the query: a relation in front of the layer would force CPU-only
+  // attributes into SQL, and the playhead can move it without a requery
+  it('binds Max rows as a layer prop, with no limit node', () => {
+    const { lowered, value } = maxRowsOf(textDoc({ maxRows: 100 }))
+    expect(lowered.graph.nodes.some((n) => n.type === 'limit')).toBe(false)
+    expect(value).toBe(100)
+    expect(maxRowsOf(textDoc()).value).toBe(0)
   })
 
-  it('limits the rows a text layer reads', () => {
-    const lowered = lowerDocument(textDoc({ maxRows: 100 }))
-    expect(lowered.errors).toEqual([])
-    const [limit] = lowered.graph.nodes.filter((n) => n.type === 'limit')
-    expect(limit).toMatchObject({ count: 100, input: 'src' })
-    const layer = lowered.graph.nodes.find((n): n is LayerNode => n.type === 'layer')!
-    expect(layer.input === limit.id || lowered.graph.nodes.some((n) => 'input' in n && n.input === limit.id)).toBe(true)
+  it('moves an animated Max rows with the clock', () => {
+    const doc = textDoc({ maxRows: { expr: '1000 + F' } })
+    expect(maxRowsOf(doc, { T: 0, F: 0 }).value).toBe(1000)
+    expect(maxRowsOf(doc, { T: 1, F: 30 }).value).toBe(1030)
   })
 
   it('gives Text and Icon a Max rows parameter', () => {

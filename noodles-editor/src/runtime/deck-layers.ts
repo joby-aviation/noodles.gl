@@ -301,12 +301,12 @@ function toBinary(input: ProgramLayerInput): Binary {
     case 'text':
     case 'icon': {
       // Text and icons have no binary path worth taking at label counts: deck lays out glyphs
-      // and icons per row on the CPU regardless. Every row draws; Max rows limits them in the
-      // query, so the node's count is what draws.
+      // and icons per row on the CPU regardless. Every row draws, or the first Max rows: a prop,
+      // so it can move with the playhead without a requery.
       const p = attr(input, 'position')
       const stringName = input.bindings.find(b => b.channel === input.kind)?.attribute
       const strings = stringName ? (d.strings.get(stringName) ?? []) : []
-      const count = n
+      const count = drawnRows(input.kind, n, input.props)
       const color = colors(attr(input, 'color'), n)
       const size = scalar('size')
       const angle = scalar('angle')
@@ -368,6 +368,13 @@ const rgb = (
  */
 export function programLayers(input: ProgramLayerInput): Layer[] {
   return buildLayers(input, toBinary(input))
+}
+
+/** The rows a layer draws: all of them, or a Text or Icon layer's first Max rows (#888). */
+export function drawnRows(kind: string, rows: number, props: Record<string, unknown>): number {
+  if (kind !== 'text' && kind !== 'icon') return rows
+  const limit = Math.floor(num(props.maxRows as ResolvedProp, 0))
+  return limit > 0 ? Math.min(rows, limit) : rows
 }
 
 /** A layer kind's deck layers: one, or for a stroked polygon a fill and its ring outlines. */
