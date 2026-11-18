@@ -568,6 +568,42 @@
   word-break: break-word;
 }
 
+/* A changed code parameter as a line diff (#303) */
+.codeDiff {
+  max-height: 240px;
+  margin: 4px 0;
+  overflow: auto;
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.3);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+}
+
+.codeDiffParam {
+  padding: 4px 8px 2px;
+  opacity: 0.7;
+}
+
+.codeDiffLine {
+  margin: 0;
+  padding: 0 8px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.codeDiffAdd {
+  background: rgba(46, 160, 67, 0.25);
+}
+
+.codeDiffDel {
+  background: rgba(248, 81, 73, 0.25);
+}
+
+.codeDiffSkip {
+  opacity: 0.6;
+  font-style: italic;
+}
+
 .proposalActions {
   display: flex;
   gap: 8px;

@@ -58,4 +58,42 @@ describe('describeChanges', () => {
   it('says nothing when nothing changed', () => {
     expect(describeChanges(before, structuredClone(before))).toEqual([])
   })
+
+  // #303: what an assistant changed in code, line by line
+  it('shows a changed code parameter as a line diff, not only its new value', () => {
+    const code = (text: string): EditorDoc['nodes'][0] => ({
+      id: 'c',
+      op: 'code',
+      name: 'filter',
+      x: 0,
+      y: 0,
+      params: { code: text },
+    })
+    const lines = describeChanges(
+      doc([code('const out = []\nfor (const r of d) out.push(r)\nreturn out')]),
+      doc([code('const out = []\nfor (const r of d) if (r.v > 2) out.push(r)\nreturn out')])
+    )
+    expect(lines).toHaveLength(1)
+    expect(lines[0].diffs).toEqual([
+      {
+        param: 'code',
+        lines: [
+          { kind: 'same', text: 'const out = []' },
+          { kind: 'del', text: 'for (const r of d) out.push(r)' },
+          { kind: 'add', text: 'for (const r of d) if (r.v > 2) out.push(r)' },
+          { kind: 'same', text: 'return out' },
+        ],
+      },
+    ])
+    // The diff takes the place of the full new value
+    expect(lines[0].detail).toBeUndefined()
+  })
+
+  it('keeps one-line values as values', () => {
+    const lines = describeChanges(
+      doc([{ id: 'c', op: 'sql', name: 'q', x: 0, y: 0, params: { query: 'SELECT 1' } }]),
+      doc([{ id: 'c', op: 'sql', name: 'q', x: 0, y: 0, params: { query: 'SELECT 2' } }])
+    )
+    expect(lines[0]).toEqual({ text: 'Set query = "SELECT 2" on q' })
+  })
 })
