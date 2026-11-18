@@ -171,6 +171,24 @@ export function validConnection(
   )
 }
 
+const runnable = new WeakMap<EditorDoc, EditorDoc>()
+
+/**
+ * The document as the engine runs it: wires whose ports don't match are left out, so their
+ * targets run as if unwired rather than reading a value of the wrong kind. The document keeps
+ * them, drawn broken, for the user to fix. The same document gives the same copy.
+ */
+export function runnableDoc(doc: EditorDoc): EditorDoc {
+  const known = runnable.get(doc)
+  if (known) return known
+  const edges = doc.edges.filter(
+    e => !connectionProblem(doc, e.source, e.sourcePort, e.target, e.targetPort)
+  )
+  const run = edges.length === doc.edges.length ? doc : { ...doc, edges }
+  runnable.set(doc, run)
+  return run
+}
+
 /** The first problem with a wire into this node, to show on it. */
 export function wireProblem(doc: EditorDoc, nodeId: string): string | undefined {
   for (const e of doc.edges) {

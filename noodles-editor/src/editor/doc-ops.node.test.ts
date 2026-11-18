@@ -14,6 +14,7 @@ import {
   removeEdges,
   removeNodes,
   renameNode,
+  runnableDoc,
   setKey,
   setParam,
   validConnection,
@@ -150,6 +151,26 @@ describe('document operations', () => {
       expect(lowerDocument(d).errors).toEqual([])
       // A loop is still refused
       expect(connectAnyway(d, 'dots', 'out', 'src', 'in0')).toBeUndefined()
+    })
+
+    it('runs a node with a mismatched wire as if that wire were not there', () => {
+      const d = doc()
+      // A number into the SQL node's optional table input: its query reads no input
+      expect(connectAnyway(d, 'k', 'out', 'src', 'in0')).toBeDefined()
+      expect(wireProblem(d, 'src')).toMatch(/takes a table, but k's out gives a number/)
+      const run = runnableDoc(d)
+      expect(run.edges.map(e => e.source)).not.toContain('k')
+      expect(d.edges.map(e => e.source)).toContain('k')
+      // The SQL node still lowers to its own query, and the scatter still draws from it
+      expect(lowerDocument(d).errors.map(e => e.nodeId)).toContain('src')
+      const lowered = lowerDocument(run)
+      expect(lowered.errors).toEqual([])
+      expect(lowered.outputs.src?.out).toBeDefined()
+      expect(lowered.outputs.dots).toBeDefined()
+      // The same document gives the same copy, and one with nothing broken is itself
+      expect(runnableDoc(d)).toBe(run)
+      const clean = doc()
+      expect(runnableDoc(clean)).toBe(clean)
     })
   })
 

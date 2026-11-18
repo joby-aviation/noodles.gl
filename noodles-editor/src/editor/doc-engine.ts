@@ -25,6 +25,7 @@ import { HostRunner } from '../runtime/host/host-runner'
 import type { RuntimeCounters } from '../runtime/program-runtime'
 import type { ProgramView } from '../runtime/worker/protocol'
 import { RuntimeProxy } from '../runtime/worker/runtime-proxy'
+import { runnableDoc } from './doc-ops'
 import type { DocStore } from './doc-store'
 import { opView } from './op-view'
 
@@ -345,7 +346,9 @@ export function bindEngine(
         resolvers.clear()
       }
       const opening = projectChanged ? e.openProject() : undefined
-      await (docChanged || projectChanged ? e.setDoc(s.doc, s.time) : e.setTime(s.time))
+      await (docChanged || projectChanged
+        ? e.setDoc(runnableDoc(s.doc), s.time)
+        : e.setTime(s.time))
       await opening
       publish({ vis: e.vis(), errors: errorsOf(e), status: { kind: 'drawn', loadId: s.loadId } })
     } catch (error) {
