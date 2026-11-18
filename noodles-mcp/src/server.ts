@@ -16,6 +16,7 @@ import {
 import { z } from 'zod'
 import { type DocTopic, loadDocs, type Section, searchDocs } from './docs.ts'
 import { getExample, listExamples } from './examples.ts'
+import { runRender } from './render.ts'
 
 const SECTIONS = ['users', 'developers', 'ai-assistant', 'examples'] as const
 
@@ -219,6 +220,57 @@ export function createServer({ repoRoot, cwd }: Context): McpServer {
         result = validateProject(project, registry)
       }
       return ok({ summary: summarize(result, registry), ...result, registry: about(registry) })
+    }
+  )
+
+  server.registerTool(
+    'render_project',
+    {
+      description:
+        "Render a project to a video file with no editor open: starts the editor's dev server and a headless Chromium, opens the project from its folder, and runs the same export as the Export button. Takes minutes for a long timeline; sends progress notifications when the client asks for them. Settings left out come from the project's render settings on its Deck node. Needs the checkout's npm dependencies installed (the editor and Playwright's Chromium).",
+      inputSchema: {
+        project: z
+          .string()
+          .describe(
+            'The project folder or its noodles.json, absolute or relative to the working directory'
+          ),
+        out: z.string().describe('Where to write the video, such as renders/title.mp4'),
+        startTime: z.number().min(0).optional().describe('First second of the timeline'),
+        endTime: z.number().min(0).optional().describe('Last second'),
+        fps: z.number().positive().optional(),
+        width: z.number().int().positive().optional(),
+        height: z.number().int().positive().optional(),
+        codec: z.enum(['avc', 'hevc', 'vp9', 'av1']).optional(),
+        url: z
+          .string()
+          .optional()
+          .describe(
+            'A running editor to use, such as http://localhost:5173, instead of starting one'
+          ),
+        timeoutSeconds: z
+          .number()
+          .positive()
+          .optional()
+          .describe('Give up after this long (default 1800)'),
+      },
+      annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: false },
+    },
+    async (params, extra) => {
+      const token = extra._meta?.progressToken
+      const outcome = await runRender(repoRoot, cwd, params, progress => {
+        if (token === undefined) return
+        void extra.sendNotification({
+          method: 'notifications/progress',
+          params: {
+            progressToken: token,
+            progress: progress.frame,
+            total: progress.totalFrames,
+            message: `${progress.state} frame ${progress.frame}/${progress.totalFrames}`,
+          },
+        })
+      })
+      if (!outcome.ok) return fail(`${outcome.error}\n\n${outcome.log.slice(-10).join('\n')}`)
+      return ok({ file: outcome.file, log: outcome.log.slice(-5) })
     }
   )
 
