@@ -263,6 +263,14 @@
             "subtractive"
           ]
         },
+        "depthTest": {
+          "kind": "toggle",
+          "default": true
+        },
+        "depthWrite": {
+          "kind": "toggle",
+          "default": true
+        },
         "extensions": {
           "kind": "field",
           "default": [],
@@ -1334,6 +1342,14 @@
             "subtractive"
           ]
         },
+        "depthTest": {
+          "kind": "toggle",
+          "default": true
+        },
+        "depthWrite": {
+          "kind": "toggle",
+          "default": true
+        },
         "extensions": {
           "kind": "field",
           "default": [],
@@ -1449,6 +1465,14 @@
             "additive",
             "subtractive"
           ]
+        },
+        "depthTest": {
+          "kind": "toggle",
+          "default": true
+        },
+        "depthWrite": {
+          "kind": "toggle",
+          "default": true
         },
         "extensions": {
           "kind": "field",
@@ -2681,6 +2705,14 @@
             "subtractive"
           ]
         },
+        "depthTest": {
+          "kind": "toggle",
+          "default": true
+        },
+        "depthWrite": {
+          "kind": "toggle",
+          "default": true
+        },
         "extensions": {
           "kind": "field",
           "default": [],
@@ -2867,6 +2899,14 @@
             "subtractive"
           ]
         },
+        "depthTest": {
+          "kind": "toggle",
+          "default": true
+        },
+        "depthWrite": {
+          "kind": "toggle",
+          "default": true
+        },
         "extensions": {
           "kind": "field",
           "default": [],
@@ -2988,6 +3028,14 @@
             "additive",
             "subtractive"
           ]
+        },
+        "depthTest": {
+          "kind": "toggle",
+          "default": true
+        },
+        "depthWrite": {
+          "kind": "toggle",
+          "default": true
         },
         "extensions": {
           "kind": "field",
@@ -3175,6 +3223,14 @@
             "subtractive"
           ]
         },
+        "depthTest": {
+          "kind": "toggle",
+          "default": true
+        },
+        "depthWrite": {
+          "kind": "toggle",
+          "default": true
+        },
         "extensions": {
           "kind": "field",
           "default": [],
@@ -3352,6 +3408,14 @@
             "additive",
             "subtractive"
           ]
+        },
+        "depthTest": {
+          "kind": "toggle",
+          "default": true
+        },
+        "depthWrite": {
+          "kind": "toggle",
+          "default": true
         },
         "extensions": {
           "kind": "field",
@@ -3803,6 +3867,14 @@
             "additive",
             "subtractive"
           ]
+        },
+        "depthTest": {
+          "kind": "toggle",
+          "default": true
+        },
+        "depthWrite": {
+          "kind": "toggle",
+          "default": true
         },
         "extensions": {
           "kind": "field",
@@ -4256,6 +4328,14 @@
             "additive",
             "subtractive"
           ]
+        },
+        "depthTest": {
+          "kind": "toggle",
+          "default": true
+        },
+        "depthWrite": {
+          "kind": "toggle",
+          "default": true
         },
         "extensions": {
           "kind": "field",
@@ -4748,6 +4828,14 @@
             "subtractive"
           ]
         },
+        "depthTest": {
+          "kind": "toggle",
+          "default": true
+        },
+        "depthWrite": {
+          "kind": "toggle",
+          "default": true
+        },
         "extensions": {
           "kind": "field",
           "default": [],
@@ -4987,6 +5075,14 @@
             "subtractive"
           ]
         },
+        "depthTest": {
+          "kind": "toggle",
+          "default": true
+        },
+        "depthWrite": {
+          "kind": "toggle",
+          "default": true
+        },
         "extensions": {
           "kind": "field",
           "default": [],
@@ -5161,6 +5257,14 @@
             "additive",
             "subtractive"
           ]
+        },
+        "depthTest": {
+          "kind": "toggle",
+          "default": true
+        },
+        "depthWrite": {
+          "kind": "toggle",
+          "default": true
         },
         "extensions": {
           "kind": "field",
@@ -5609,6 +5713,14 @@
             "subtractive"
           ]
         },
+        "depthTest": {
+          "kind": "toggle",
+          "default": true
+        },
+        "depthWrite": {
+          "kind": "toggle",
+          "default": true
+        },
         "extensions": {
           "kind": "field",
           "default": [],
@@ -5732,6 +5844,14 @@
             "subtractive"
           ]
         },
+        "depthTest": {
+          "kind": "toggle",
+          "default": true
+        },
+        "depthWrite": {
+          "kind": "toggle",
+          "default": true
+        },
         "extensions": {
           "kind": "field",
           "default": [],
@@ -5808,6 +5928,14 @@
             "additive",
             "subtractive"
           ]
+        },
+        "depthTest": {
+          "kind": "toggle",
+          "default": true
+        },
+        "depthWrite": {
+          "kind": "toggle",
+          "default": true
         },
         "extensions": {
           "kind": "field",
@@ -6510,6 +6638,14 @@
             "subtractive"
           ]
         },
+        "depthTest": {
+          "kind": "toggle",
+          "default": true
+        },
+        "depthWrite": {
+          "kind": "toggle",
+          "default": true
+        },
         "extensions": {
           "kind": "field",
           "default": [],
@@ -6982,6 +7118,14 @@
             "additive",
             "subtractive"
           ]
+        },
+        "depthTest": {
+          "kind": "toggle",
+          "default": true
+        },
+        "depthWrite": {
+          "kind": "toggle",
+          "default": true
         },
         "extensions": {
           "kind": "field",
