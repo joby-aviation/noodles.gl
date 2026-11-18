@@ -31,13 +31,14 @@ import {
   addNode,
   type Clip,
   collapseToSubnet,
-  connect,
+  connectAnyway,
+  connectionProblem,
+  connectionRefusal,
   copyNodes,
   insertOnEdge,
   pasteNodes,
   removeEdges,
   removeNodes,
-  validConnection,
 } from './doc-ops'
 import { docStore, useEditor } from './doc-store'
 import { AddNodeMenu, ContextMenu, type MenuItem } from './menus'
@@ -87,6 +88,9 @@ function takeSlot(c: Connection): number | undefined {
     ? pending.index
     : undefined
 }
+
+// A wire whose ports don't match (#143)
+const BROKEN_WIRE = '#e5484d'
 
 const PORT_COLOR: Record<string, string> = {
   table: '#22c55e',
@@ -254,13 +258,18 @@ export function DocNetwork({ children }: { children?: ReactNode }) {
         const type =
           OPERATOR_INDEX.get(src?.op ?? '')?.outputs.find(p => p.name === e.sourcePort)?.type ??
           'value'
+        // A wire whose ports don't match reads nothing: drawn broken, the reason on hover
+        const problem = connectionProblem(doc, e.source, e.sourcePort, e.target, e.targetPort)
         return {
           id: e.id,
           source: e.source,
           target: e.target,
           sourceHandle: e.sourcePort,
           targetHandle: e.targetPort,
-          style: { stroke: PORT_COLOR[type], strokeWidth: 1.6, opacity: 0.85 },
+          style: problem
+            ? { stroke: BROKEN_WIRE, strokeWidth: 1.6, strokeDasharray: '6 4', opacity: 0.95 }
+            : { stroke: PORT_COLOR[type], strokeWidth: 1.6, opacity: 0.85 },
+          ...(problem ? { ariaLabel: problem, data: { problem } } : {}),
           ...(e.index !== undefined
             ? {
                 type: 'multi',
@@ -354,9 +363,11 @@ export function DocNetwork({ children }: { children?: ReactNode }) {
     }
   }, [])
 
+  // A wire whose ports don't match still connects, drawn as broken with the reason on its
+  // target (#143); only one that can't exist (into itself, a loop) is refused
   const isValidConnection = useCallback(
     (c: Connection | Edge) =>
-      validConnection(
+      !connectionRefusal(
         docStore().get().doc,
         c.source,
         c.sourceHandle ?? 'out',
@@ -369,7 +380,7 @@ export function DocNetwork({ children }: { children?: ReactNode }) {
   const onConnect = useCallback((c: Connection) => {
     const at = takeSlot(c)
     docStore().edit(d => {
-      connect(d, c.source, c.sourceHandle ?? 'out', c.target, c.targetHandle ?? 'in', at)
+      connectAnyway(d, c.source, c.sourceHandle ?? 'out', c.target, c.targetHandle ?? 'in', at)
     })
   }, [])
 
@@ -385,12 +396,12 @@ export function DocNetwork({ children }: { children?: ReactNode }) {
         old.targetHandle === c.targetHandle
       if (!same) {
         if (
-          !validConnection(d, c.source, c.sourceHandle ?? 'out', c.target, c.targetHandle ?? 'in')
+          connectionRefusal(d, c.source, c.sourceHandle ?? 'out', c.target, c.targetHandle ?? 'in')
         )
           return
         removeEdges(d, [old.id])
       }
-      connect(d, c.source, c.sourceHandle ?? 'out', c.target, c.targetHandle ?? 'in', at)
+      connectAnyway(d, c.source, c.sourceHandle ?? 'out', c.target, c.targetHandle ?? 'in', at)
     })
   }, [])
 

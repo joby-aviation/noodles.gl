@@ -20,7 +20,7 @@ import ns from '../noodles/noodles.module.css'
 import { cameraInput } from './camera-control'
 import { type EngineState, useEngineState } from './doc-engine'
 import s from './doc-network.module.css'
-import { isListParam, setParam } from './doc-ops'
+import { isListParam, setParam, wireProblem } from './doc-ops'
 import { docStore, useEditor } from './doc-store'
 import { colorToFieldHex, fieldHexToColor } from './field-adapter'
 import { useNodeLinkTarget } from './link-drag'
@@ -245,7 +245,10 @@ export function DocNodeComponent({ id, selected }: NodeProps) {
     )
   }
   const status = nodeStatus(id, engine)
-  const error = status.error
+  // A wire in whose ports don't match reads nothing; the planner doesn't say so (#143). It
+  // comes first: it is often why the node has nothing to run on
+  const wire = wireProblem({ version: 1, name: '', nodes: nodeOps, edges }, id)
+  const error = wire && status.error ? `${wire}. ${status.error}` : (wire ?? status.error)
   // How the planner stored and ran a node is for debug mode; what it drew is in the info card
   const badges = debug ? status.badges : []
   const cameraFrom = cameraInput({ nodes: nodeOps, edges }, id)
