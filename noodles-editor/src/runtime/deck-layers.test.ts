@@ -424,6 +424,33 @@ describe('DeckLayerBuilder style props', () => {
     })
   })
 
+  // #888: rows past 5,000 used to be dropped, while the node said all of them drew
+  it('draws every label and icon row', () => {
+    const n = 6000
+    const positions = new Float32Array(n * 2)
+    for (const kind of ['text', 'icon']) {
+      const [layer] =
+        new DeckLayerBuilder()
+          .build([
+            {
+              id: kind,
+              kind: kind as never,
+              data: {
+                ...rows(n, [['P', positions, 2]]),
+                strings: new Map([['T', Array.from({ length: n }, () => 'x')]]),
+              },
+              bindings: [
+                { channel: 'position', attribute: 'P' },
+                { channel: kind, attribute: 'T' },
+              ],
+              props: {} as never,
+            },
+          ])
+          .get(kind) ?? []
+      expect((layer?.props.data as { length: number }).length, kind).toBe(n)
+    }
+  })
+
   it('wraps and pads text, and caps an icon', () => {
     const texts = (kind: string, props: Record<string, unknown>) =>
       new DeckLayerBuilder()

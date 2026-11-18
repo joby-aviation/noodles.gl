@@ -102,6 +102,43 @@ describe('layer style parameters', () => {
   })
 })
 
+// #888: Text and Icon draw every row unless Max rows limits them, in the query
+describe('Max rows', () => {
+  const textDoc = (params: Record<string, unknown> = {}): EditorDoc => ({
+    version: 1,
+    name: 'labels',
+    nodes: [
+      { id: 'src', op: 'sql', x: 0, y: 0, params: { query: "SELECT 1.0 AS x, 2.0 AS y, 'a' AS name" } },
+      { id: 'labels', op: 'text', x: 0, y: 0, params: { position: '[x, y]', ...params } as EditorDoc['nodes'][0]['params'] },
+      { id: 'map', op: 'deck', x: 0, y: 0, params: {} },
+    ],
+    edges: [
+      { id: 'e1', source: 'src', sourcePort: 'out', target: 'labels', targetPort: 'in' },
+      { id: 'e2', source: 'labels', sourcePort: 'out', target: 'map', targetPort: 'layers' },
+    ],
+  })
+  const limits = (doc: EditorDoc) => lowerDocument(doc).graph.nodes.filter((n) => n.type === 'limit')
+
+  it('adds no limit by default', () => {
+    expect(limits(textDoc())).toEqual([])
+  })
+
+  it('limits the rows a text layer reads', () => {
+    const lowered = lowerDocument(textDoc({ maxRows: 100 }))
+    expect(lowered.errors).toEqual([])
+    const [limit] = lowered.graph.nodes.filter((n) => n.type === 'limit')
+    expect(limit).toMatchObject({ count: 100, input: 'src' })
+    const layer = lowered.graph.nodes.find((n): n is LayerNode => n.type === 'layer')!
+    expect(layer.input === limit.id || lowered.graph.nodes.some((n) => 'input' in n && n.input === limit.id)).toBe(true)
+  })
+
+  it('gives Text and Icon a Max rows parameter', () => {
+    for (const type of ['text', 'icon']) {
+      expect(OPERATOR_INDEX.get(type)!.params.find((p) => p.name === 'maxRows')).toMatchObject({ default: 0 })
+    }
+  })
+})
+
 describe('deck', () => {
   it('uses a map style URL over the basemap menu when one is set', () => {
     const deckOf = (params: Record<string, string>) => {

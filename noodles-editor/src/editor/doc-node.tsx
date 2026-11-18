@@ -132,8 +132,14 @@ export function nodeStatus(id: string, engine: EngineState): { badges: Badge[]; 
   return { badges, error }
 }
 
+/**
+ * Labels past which a Text layer's info card warns (#888). Far more than a map can show at
+ * once; it catches a label per vertex or per row of a large table by accident.
+ */
+export const MANY_LABELS = 50_000
+
 /** What the info card says about a node: what it is, what it made, what went wrong. */
-function infoLines(id: string, engine: EngineState): string[] {
+export function infoLines(id: string, engine: EngineState): string[] {
   const lines: string[] = []
   const layer = engine.layers.find(l => l.id === id)
   if (layer) {
@@ -141,6 +147,11 @@ function infoLines(id: string, engine: EngineState): string[] {
       `${layer.rows.toLocaleString()} drawn${layer.paths ? ` in ${layer.paths.toLocaleString()} paths` : ''}`
     )
     lines.push(`query ${layer.queryMs.toFixed(1)} ms · cpu pass ${layer.evalMs.toFixed(1)} ms`)
+    if (layer.kind === 'text' && layer.rows > MANY_LABELS) {
+      lines.push(
+        `Over ${MANY_LABELS.toLocaleString()} labels: deck lays each out on the CPU. Set Max rows or filter the rows if it's slow.`
+      )
+    }
   }
   const irIds = engine.lowered?.irNodes[id] ?? []
   const out = engine.lowered?.outputs[id]?.out ?? irIds[irIds.length - 1]

@@ -301,11 +301,12 @@ function toBinary(input: ProgramLayerInput): Binary {
     case 'text':
     case 'icon': {
       // Text and icons have no binary path worth taking at label counts: deck lays out glyphs
-      // and icons per row on the CPU regardless. Capped, because thousands are unreadable.
+      // and icons per row on the CPU regardless. Every row draws; Max rows limits them in the
+      // query, so the node's count is what draws.
       const p = attr(input, 'position')
       const stringName = input.bindings.find(b => b.channel === input.kind)?.attribute
       const strings = stringName ? (d.strings.get(stringName) ?? []) : []
-      const count = Math.min(n, 5000)
+      const count = n
       const color = colors(attr(input, 'color'), n)
       const size = scalar('size')
       const angle = scalar('angle')
