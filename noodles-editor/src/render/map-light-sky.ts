@@ -21,6 +21,10 @@ export interface BasemapSky {
 
 type LightSkyMap = Pick<MapLibre, 'setLight' | 'setSky' | 'on' | 'off'>
 
+/**
+ * Sets the map's light and sky. With no sky configured the map's own (the style's `sky`) is
+ * left alone; a sky configured and disabled turns it off.
+ */
 export function applyLightAndSky(
   map: LightSkyMap,
   light: BasemapLight | undefined,
@@ -45,7 +49,7 @@ export function applyLightAndSky(
         'sky-horizon-blend': sky.skyHorizonBlend,
         'atmosphere-blend': sky.atmosphereBlend,
       })
-    } else {
+    } else if (sky) {
       // Disable sky - requires MapLibre GL JS 4.6.0+. The types leave out undefined
       map.setSky(undefined as unknown as SkySpecification)
     }
@@ -65,5 +69,14 @@ export function syncLightAndSky(
   map.on('style.load', apply)
   return () => {
     map.off('style.load', apply)
+    // A sky this set goes with it, so one no longer configured doesn't stay on the map. The
+    // next sync sets it again if it is still configured.
+    if (sky?.enabled) {
+      try {
+        map.setSky(undefined as unknown as SkySpecification)
+      } catch (e) {
+        debugRender('Sky waits for the style to load: %o', e)
+      }
+    }
   }
 }

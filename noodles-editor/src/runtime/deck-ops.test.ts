@@ -169,6 +169,20 @@ describe('views', () => {
       expect(view.clearColor).toEqual([0x29, 0x97, 0xff, 0xff])
     }
   )
+
+  // #892: deck reads an alpha of 0 as opaque
+  it('leaves a transparent clear color to deck, which clears to transparent without one', () => {
+    const build = (clearColor: string) =>
+      DECK_OP_INDEX.get('orbit-view')?.build(
+        { clear: true, clearColor, viewState: {} },
+        'view',
+        env
+      ) as Record<string, unknown>
+    expect(build('#00000000')).not.toHaveProperty('clearColor')
+    expect(build('#ff000000')).not.toHaveProperty('clearColor')
+    expect(build('#00000001').clearColor).toEqual([0, 0, 0, 1])
+    expect(build('#ff000080').clearColor).toEqual([255, 0, 0, 128])
+  })
 })
 
 describe('switch-value', () => {
