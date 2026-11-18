@@ -149,7 +149,8 @@ export class HostRunner {
           if (edges.length === 0) {
             // A keyframed parameter is its track's value at the playhead.
             const key = `${node.id}.${name}`
-            return keyed.has(key) ? inputs.slots.get(key) : node.params[name]
+            const value = keyed.has(key) ? inputs.slots.get(key) : node.params[name]
+            return withTrackedParts(value, key, keyed, inputs.slots)
           }
           const values = await Promise.all(edges.map(edgeValue))
           return field instanceof ListField ? values : values[0]
@@ -245,7 +246,8 @@ export class HostRunner {
         }
         if (edges.length === 0) {
           const key = `${node.id}.${p.name}`
-          return keyed.has(key) ? inputs.slots.get(key) : plain(p.name)
+          const value = keyed.has(key) ? inputs.slots.get(key) : plain(p.name)
+          return withTrackedParts(value, key, keyed, inputs.slots)
         }
         const values = edges.map(edgeValue)
         return deck.lists?.includes(p.name) ? values : values[0]
@@ -343,6 +345,41 @@ function order(nodes: DocNode[], edges: DocEdge[]): DocNode[] {
     out.push(n)
   }
   for (const n of nodes) visit(n)
+  return out
+}
+
+/**
+ * An object parameter with its keyframed parts (`camera.viewState.rotationOrbit`) set to their
+ * values at the playhead. The value itself is not changed: it may be the document's.
+ */
+export function withTrackedParts(
+  value: unknown,
+  key: string,
+  keyed: ReadonlySet<string>,
+  slots: ReadonlyMap<string, unknown>
+): unknown {
+  const prefix = `${key}.`
+  const parts = [...keyed].filter(k => k.startsWith(prefix) && slots.has(k))
+  if (parts.length === 0) return value
+  type Container = Record<string, unknown> | unknown[]
+  const isContainer = (v: unknown): v is Container => !!v && typeof v === 'object'
+  // A track names a part of the value, never what objects inherit: `__proto__` would write
+  // to every object on the page
+  const unsafe = (step: string) =>
+    step === '__proto__' || step === 'constructor' || step === 'prototype'
+  const out = (isContainer(value) ? structuredClone(value) : {}) as Container
+  for (const k of parts) {
+    const path = k.slice(prefix.length).split('.')
+    if (path.some(unsafe)) continue
+    let at = out as Record<string, unknown>
+    for (const [i, step] of path.slice(0, -1).entries()) {
+      const own = Object.hasOwn(at, step) ? at[step] : undefined
+      // An array (a camera's `target`) stays one, so its other components are kept
+      if (!isContainer(own)) at[step] = /^\d+$/.test(path[i + 1]) ? [] : {}
+      at = at[step] as Record<string, unknown>
+    }
+    at[path[path.length - 1]] = slots.get(k)
+  }
   return out
 }
 

@@ -5,7 +5,7 @@ import { opView } from '../../editor/op-view'
 import { getKeysStore, useKeysStore } from '../../noodles/keys-store'
 import { setOpResolver } from '../../noodles/op-resolver'
 import { isHostOperator, registerHostOperators } from './host-ops'
-import { HostRunner } from './host-runner'
+import { HostRunner, withTrackedParts } from './host-runner'
 
 const doc = (opacity: number, wired = false): EditorDoc => ({
   version: 1,
@@ -101,6 +101,83 @@ describe('HostRunner', () => {
     }
     await runner.run(keyed, inputs({ '/bitmap.opacity': 0.5 }))
     expect(runner.output('/bitmap', 'layer')).toMatchObject({ opacity: 0.5 })
+  })
+
+  // #893: a view's camera keyframed part by part
+  it("sets a keyframed part of a deck operator's object parameter at the playhead", async () => {
+    const viewState = { target: [0, 0, 0], zoom: 4, rotationX: 25 }
+    const orbit: EditorDoc = {
+      version: 1,
+      name: 'orbit',
+      nodes: [{ id: '/camera', op: 'orbit-view', x: 0, y: 0, params: { viewState } }],
+      edges: [],
+      timeline: {
+        length: 1,
+        fps: 30,
+        tracks: [
+          {
+            target: '/camera.viewState.rotationOrbit',
+            keyframes: [
+              { id: 'a', time: 0, value: 0, interpolation: 'linear' },
+              { id: 'b', time: 1, value: 180, interpolation: 'linear' },
+            ],
+          },
+        ],
+      },
+    }
+    const runner = new HostRunner()
+    await runner.run(orbit, inputs({ '/camera.viewState.rotationOrbit': 90 }))
+    expect(runner.output('/camera', 'view')).toMatchObject({
+      viewState: { zoom: 4, rotationX: 25, rotationOrbit: 90 },
+    })
+    // The document's own value is left alone
+    expect(viewState).not.toHaveProperty('rotationOrbit')
+    await runner.run(orbit, inputs({ '/camera.viewState.rotationOrbit': 180 }))
+    expect(runner.output('/camera', 'view')).toMatchObject({ viewState: { rotationOrbit: 180 } })
+  })
+
+  it('sets nested keyframed parts, and leaves a value without any as it is', () => {
+    const value = { a: 1 }
+    const keyed = new Set(['/n.p.b.c', '/n.p.d', '/n.other'])
+    const slots = new Map<string, unknown>([
+      ['/n.p.b.c', 2],
+      ['/n.p.d', 3],
+    ])
+    expect(withTrackedParts(value, '/n.p', keyed, slots)).toEqual({ a: 1, b: { c: 2 }, d: 3 })
+    expect(withTrackedParts(value, '/n.q', keyed, slots)).toBe(value)
+  })
+
+  it("keeps an array a keyframed component is part of, as a camera's target", () => {
+    const viewState = { target: [1, 2, 3], zoom: 4 }
+    const keyed = new Set(['/c.viewState.target.0', '/c.viewState.offset.1'])
+    const slots = new Map<string, unknown>([
+      ['/c.viewState.target.0', 9],
+      ['/c.viewState.offset.1', 5],
+    ])
+    expect(withTrackedParts(viewState, '/c.viewState', keyed, slots)).toEqual({
+      target: [9, 2, 3],
+      zoom: 4,
+      offset: [undefined, 5],
+    })
+    expect(viewState.target).toEqual([1, 2, 3])
+  })
+
+  it('never writes through an inherited property', () => {
+    const keyed = new Set([
+      '/c.viewState.__proto__.polluted',
+      '/c.viewState.constructor.prototype.polluted',
+      '/c.viewState.toString.polluted',
+    ])
+    const slots = new Map<string, unknown>([...keyed].map(k => [k, 1]))
+    const out = withTrackedParts({ zoom: 1 }, '/c.viewState', keyed, slots) as Record<
+      string,
+      unknown
+    >
+    expect(({} as Record<string, unknown>).polluted).toBeUndefined()
+    expect(Object.prototype.toString).not.toHaveProperty('polluted')
+    // An own part named like an inherited one is the value's own
+    expect(Object.hasOwn(out, 'toString')).toBe(true)
+    expect(out.zoom).toBe(1)
   })
 
   it("resolves op() in a CodeOp's code against the document", async () => {

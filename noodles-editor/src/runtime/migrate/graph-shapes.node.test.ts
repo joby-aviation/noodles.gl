@@ -282,6 +282,26 @@ describe('what code reads', () => {
     )
   })
 
+  // #885: the engine worker's code has only utils, d3 and turf in scope
+  it("keeps code on the host when it reads CodeOp's other globals", () => {
+    const converted = (code: string) => {
+      const d = dots('/code')
+      const { doc } = toEditorDoc(project([op('/code', 'CodeOp', { code }), ...d.nodes], d.edges))
+      return node(doc, '/code')?.op
+    }
+    expect(converted('return [{ lng: 0, lat: 0, cs: deck.COORDINATE_SYSTEM.LNGLAT }]')).toBe(
+      'CodeOp'
+    )
+    expect(converted('Plot.plot({ marks: [] }); return [{ lng: 0, lat: 0 }]')).toBe('CodeOp')
+    expect(
+      converted('return [{ lng: 0, lat: 0, t: Temporal.Now.instant().epochMilliseconds }]')
+    ).toBe('CodeOp')
+    expect(converted('return [{ lng: 0, lat: 0, name: ScatterplotLayerOp.displayName }]')).toBe(
+      'CodeOp'
+    )
+    expect(converted('return [{ lng: 0, lat: 0 }]')).toBe('code')
+  })
+
   it('names an attribute for a numbered accessor by its whole name', () => {
     const { doc } = toEditorDoc(
       project(
