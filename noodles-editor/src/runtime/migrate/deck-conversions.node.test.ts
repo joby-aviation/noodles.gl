@@ -146,6 +146,119 @@ describe('deck operators', () => {
   })
 })
 
+// #884: MaplibreBasemap's sky and light as the deck's
+describe('basemap sky and light', () => {
+  const converted = (inputs: Record<string, unknown>) => {
+    const { doc, warnings } = toEditorDoc({
+      version: CONVERTED_SCHEMA,
+      nodes: [
+        op('/basemap', 'MaplibreBasemapOp', inputs),
+        op('/deck', 'DeckRendererOp'),
+        op('/out', 'OutOp'),
+      ],
+      edges: [
+        wire('/basemap', 'maplibre', '/deck', 'basemap'),
+        wire('/deck', 'vis', '/out', 'vis'),
+      ],
+    })
+    return { params: doc.nodes.find(n => n.op === 'deck')?.params ?? {}, warnings }
+  }
+
+  it('carries an enabled sky, without a warning', () => {
+    const { params, warnings } = converted({
+      sky: {
+        enabled: true,
+        skyColor: '#ff0000',
+        horizonColor: '#00ff00ff',
+        skyHorizonBlend: 0.4,
+        atmosphereBlend: 0.9,
+      },
+    })
+    expect(params).toMatchObject({
+      sky: true,
+      skyColor: [255, 0, 0],
+      horizonColor: [0, 255, 0],
+      skyHorizonBlend: 0.4,
+      atmosphereBlend: 0.9,
+    })
+    expect(warnings.filter(w => w.includes('sky') || w.includes('light'))).toEqual([])
+  })
+
+  it('leaves a disabled sky and the default light out', () => {
+    const { params } = converted({
+      sky: { enabled: false },
+      light: { anchor: 'viewport', azimuthal: 210, polar: 30 },
+    })
+    expect(params).not.toHaveProperty('sky')
+    expect(params).not.toHaveProperty('light')
+  })
+
+  // #900 review: a keyframed sky or light number is the deck's
+  it('moves sky and light keyframes to the deck, turning Custom light on', () => {
+    const kf = (id: string, position: number, value: number) => ({
+      id,
+      position,
+      connectedRight: true,
+      handles: [0.5, 1, 0.5, 0] as [number, number, number, number],
+      value,
+      type: 'linear',
+    })
+    const { doc, warnings } = toEditorDoc({
+      version: CONVERTED_SCHEMA,
+      nodes: [
+        op('/basemap', 'MaplibreBasemapOp', { sky: { enabled: true } }),
+        op('/deck', 'DeckRendererOp'),
+        op('/out', 'OutOp'),
+      ],
+      edges: [
+        wire('/basemap', 'maplibre', '/deck', 'basemap'),
+        wire('/deck', 'vis', '/out', 'vis'),
+      ],
+      timeline: {
+        sheetsById: {
+          Noodles: {
+            sequence: {
+              length: 2,
+              subUnitsPerUnit: 30,
+              tracksByObject: {
+                basemap: {
+                  trackIdByPropPath: {
+                    '["light","azimuthal"]': 'a',
+                    '["sky","skyHorizonBlend"]': 'b',
+                  },
+                  trackData: {
+                    a: {
+                      type: 'BasicKeyframedTrack',
+                      keyframes: [kf('a0', 0, 0), kf('a1', 2, 180)],
+                    },
+                    b: { type: 'BasicKeyframedTrack', keyframes: [kf('b0', 0, 0), kf('b1', 2, 1)] },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    } as NoodlesProject)
+    expect(warnings.filter(w => w.startsWith('timeline'))).toEqual([])
+    const deckNode = doc.nodes.find(n => n.op === 'deck')
+    expect(doc.timeline?.tracks.map(t => t.target).sort()).toEqual(
+      [`${deckNode?.id}.lightAzimuthal`, `${deckNode?.id}.skyHorizonBlend`].sort()
+    )
+    expect(deckNode?.params).toMatchObject({ light: true, lightAnchor: 'viewport', lightPolar: 30 })
+  })
+
+  it('turns Custom light on for a changed light', () => {
+    const { params } = converted({ light: { anchor: 'map', azimuthal: 90, polar: 60 } })
+    expect(params).toMatchObject({
+      light: true,
+      lightAnchor: 'map',
+      lightAzimuthal: 90,
+      lightPolar: 60,
+    })
+  })
+})
+
 describe('values', () => {
   it('are computed from literal inputs and written into what reads them', () => {
     const { doc } = toEditorDoc(

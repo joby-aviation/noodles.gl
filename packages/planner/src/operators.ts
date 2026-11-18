@@ -1621,6 +1621,17 @@ export const OPERATORS: OpDef[] = [
       { name: 'mapStyle', label: 'Map style URL', kind: 'url', default: '', help: 'A MapLibre style URL, or style JSON. Overrides Basemap when set; a style wired in (a Map Style node, a Code node returning style JSON) overrides both.', port: true, portType: 'value', portShape: 'mapStyle' },
       { name: 'styleOverrides', label: 'Style changes', kind: 'text', default: '', help: 'Changes made in the style editor (layers hidden or recolored), as JSON, applied to the style above. A wired style ignores them.' },
       { name: 'projection', label: 'Projection', kind: 'menu', default: 'mercator', options: [{ value: 'mercator', label: 'Mercator' }, { value: 'globe', label: 'Globe' }] },
+      // MapLibre's sky and light, set on the map. Read by the editor, never lowered. Off leaves
+      // the style's own, so a style that brings a sky keeps it.
+      { name: 'sky', label: 'Sky', kind: 'toggle', default: false, folder: 'Sky', help: 'Sets the sky and horizon over a pitched map. Off keeps the style\'s own.' },
+      { name: 'skyColor', label: 'Sky color', kind: 'color', default: [136, 198, 252], folder: 'Sky' },
+      { name: 'horizonColor', label: 'Horizon color', kind: 'color', default: [255, 255, 255], folder: 'Sky' },
+      { name: 'skyHorizonBlend', label: 'Sky to horizon blend', kind: 'float', default: 0.8, min: 0, max: 1, step: 0.01, folder: 'Sky', help: 'Mercator projection.' },
+      { name: 'atmosphereBlend', label: 'Atmosphere blend', kind: 'float', default: 0.5, min: 0, max: 1, step: 0.01, folder: 'Sky', help: 'Globe projection.' },
+      { name: 'light', label: 'Custom light', kind: 'toggle', default: false, folder: 'Light', help: 'Sets the direction of the light on 3D map features. Off keeps the style\'s own.' },
+      { name: 'lightAnchor', label: 'Anchor', kind: 'menu', default: 'viewport', options: [{ value: 'viewport', label: 'Viewport' }, { value: 'map', label: 'Map' }], folder: 'Light' },
+      { name: 'lightAzimuthal', label: 'Azimuthal angle', kind: 'float', default: 210, min: 0, max: 360, step: 1, folder: 'Light' },
+      { name: 'lightPolar', label: 'Polar angle', kind: 'float', default: 30, min: 0, max: 90, step: 1, folder: 'Light' },
       // Video export. Read by the renderer, never lowered.
       { name: 'display', label: 'Display', kind: 'menu', default: 'fixed', options: [{ value: 'fixed', label: 'Fixed size' }, { value: 'responsive', label: 'Responsive' }], folder: 'Export' },
       { name: 'width', label: 'Width', kind: 'int', default: 1920, min: 1, max: 8192, step: 1, folder: 'Export' },

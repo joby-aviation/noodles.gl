@@ -1599,6 +1599,54 @@
             "globe"
           ]
         },
+        "sky": {
+          "kind": "toggle",
+          "default": false
+        },
+        "skyColor": {
+          "kind": "color",
+          "default": [
+            136,
+            198,
+            252
+          ]
+        },
+        "horizonColor": {
+          "kind": "color",
+          "default": [
+            255,
+            255,
+            255
+          ]
+        },
+        "skyHorizonBlend": {
+          "kind": "float",
+          "default": 0.8
+        },
+        "atmosphereBlend": {
+          "kind": "float",
+          "default": 0.5
+        },
+        "light": {
+          "kind": "toggle",
+          "default": false
+        },
+        "lightAnchor": {
+          "kind": "menu",
+          "default": "viewport",
+          "options": [
+            "viewport",
+            "map"
+          ]
+        },
+        "lightAzimuthal": {
+          "kind": "float",
+          "default": 210
+        },
+        "lightPolar": {
+          "kind": "float",
+          "default": 30
+        },
         "display": {
           "kind": "menu",
           "default": "fixed",

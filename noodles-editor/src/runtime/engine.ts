@@ -25,6 +25,7 @@ import {
   type SqlEngine,
   targetCaps,
 } from '@noodles.gl/planner'
+import type { BasemapLight, BasemapSky } from '../render/map-light-sky'
 import { getRenderSurfaceSize } from '../render/render-surface-size'
 import { DeckLayerBuilder } from './deck-layers'
 import { asCamera } from './deck-ops'
@@ -420,7 +421,12 @@ export class Engine {
         ...(effects.length ? { effects } : {}),
       },
       mapProps: mapStyle
-        ? { mapStyle, projection: String(deck?.params.projection ?? 'mercator'), ...view }
+        ? {
+            mapStyle,
+            projection: String(deck?.params.projection ?? 'mercator'),
+            ...view,
+            ...(deck ? this.lightAndSky(deck) : {}),
+          }
         : undefined,
       maplibreLayers: hostValues('maplibreLayers'),
     }
@@ -631,6 +637,19 @@ export class Engine {
 
   private revokeAssetUrls(): void {
     for (const name of [...this.assetUrls.keys()]) this.forgetAsset(name)
+  }
+
+  private lastLightSky?: { key: string; value: ReturnType<typeof lightAndSky> }
+
+  /**
+   * The same objects while the deck's sky and light don't change: the editor reapplies them to
+   * the map when they change identity, and vis() runs on every frame of playback.
+   */
+  private lightAndSky(deck: DocNode): ReturnType<typeof lightAndSky> {
+    const value = lightAndSky(deck, this.slots)
+    const key = JSON.stringify(value)
+    if (this.lastLightSky?.key !== key) this.lastLightSky = { key, value }
+    return this.lastLightSky.value
   }
 
   private deckNode(): DocNode | undefined {
@@ -1039,4 +1058,50 @@ function assetObjectUrl(name: string, bytes: Uint8Array): string {
     type: ASSET_TYPES[ext] ?? 'application/octet-stream',
   })
   return `${URL.createObjectURL(blob)}#${encodeURIComponent(name.split('/').pop() ?? name)}`
+}
+
+/** A color param (an [r, g, b] list, or a CSS color) as the CSS color MapLibre takes. */
+function cssColor(v: unknown, fallback: string): string {
+  if (Array.isArray(v) && v.length >= 3) return `rgb(${v[0]}, ${v[1]}, ${v[2]})`
+  return typeof v === 'string' && v ? v : fallback
+}
+
+/**
+ * The deck's Sky and Light as the map's: only those switched on, so a style's own sky and
+ * light stay when they are off (#884).
+ */
+export function lightAndSky(
+  deck: DocNode,
+  slots?: ReadonlyMap<string, unknown>
+): { sky?: BasemapSky; light?: BasemapLight } {
+  const defaults = OPERATOR_INDEX.get('deck')?.params ?? []
+  // A param's value at the playhead (a keyframe, an expression), else its literal or default
+  const param = (name: string) =>
+    slots?.get(`${deck.id}.${name}`) ??
+    deck.params[name] ??
+    defaults.find(p => p.name === name)?.default
+  const on = (name: string) => param(name) === true || param(name) === 1
+  const number = (name: string) => Number(param(name))
+  return {
+    ...(on('sky')
+      ? {
+          sky: {
+            enabled: true,
+            skyColor: cssColor(param('skyColor'), '#88c6fc'),
+            horizonColor: cssColor(param('horizonColor'), '#ffffff'),
+            skyHorizonBlend: number('skyHorizonBlend'),
+            atmosphereBlend: number('atmosphereBlend'),
+          },
+        }
+      : {}),
+    ...(on('light')
+      ? {
+          light: {
+            anchor: param('lightAnchor') === 'map' ? 'map' : 'viewport',
+            azimuthal: number('lightAzimuthal'),
+            polar: number('lightPolar'),
+          },
+        }
+      : {}),
+  }
 }
