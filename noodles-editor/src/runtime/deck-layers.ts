@@ -408,14 +408,16 @@ function buildLayers(input: ProgramLayerInput, binary: Binary, pickable = false)
 }
 
 /**
- * luma.gl parameters for a layer's `blend` preset and depth toggles. Depth test off is
- * `depthCompare: 'always'`, luma 9's form of WebGL's `depthTest: false`.
+ * luma.gl parameters for a layer's `blend` preset and depth toggles. deck turns WebGL's depth
+ * test on by its legacy name (`depthTest: true`), which luma 9's `depthCompare` alone doesn't
+ * undo on WebGL, so depth test off sets both: `depthTest: false` for WebGL, as #311's layers did,
+ * and `depthCompare: 'always'` for WebGPU.
  */
 function layerParameters(p: Record<string, unknown>): Record<string, unknown> {
   return {
     ...(BLEND_PARAMETERS[String(p.blend)] ?? {}),
-    ...(p.depthTest === false ? { depthCompare: 'always' } : {}),
-    ...(p.depthWrite === false ? { depthWriteEnabled: false } : {}),
+    ...(p.depthTest === false ? { depthTest: false, depthCompare: 'always' } : {}),
+    ...(p.depthWrite === false ? { depthWriteEnabled: false, depthMask: false } : {}),
   }
 }
 

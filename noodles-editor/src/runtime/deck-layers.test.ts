@@ -423,12 +423,14 @@ describe('DeckLayerBuilder style props', () => {
     return layers.map(l => l.props as unknown as Record<string, unknown>)
   }
 
-  // #891: luma 9 has no depthTest parameter; 'always' passes every fragment's depth test
+  // #891: WebGL's legacy names, which undo deck's own depthTest: true, and luma 9's for WebGPU
   it('turns the depth toggles into luma parameters, with the blend preset', () => {
     expect(build('scatter', {})[0].parameters).toEqual({})
     expect(build('scatter', { depthTest: false, depthWrite: false })[0].parameters).toEqual({
+      depthTest: false,
       depthCompare: 'always',
       depthWriteEnabled: false,
+      depthMask: false,
     })
     expect(build('scatter', { blend: 'additive', depthTest: false })[0].parameters).toMatchObject({
       blend: true,
