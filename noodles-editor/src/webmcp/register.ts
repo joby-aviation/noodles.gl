@@ -18,7 +18,21 @@ import { debugWebMCP } from '../utils/debug'
 // when HMR remounts the provider before the previous AbortSignal fires
 let active = false
 
-export async function initWebMCP(signal: AbortSignal): Promise<void> {
+/**
+ * Whether external clients may change the project, not only read it: on localhost, or when the
+ * page opts in with `?agentAccess=read-write` (#756). Elsewhere `?externalControl=true` offers
+ * only the read-only tools, so a link to a deployed editor can't hand a page's project to an
+ * agent to edit.
+ */
+export function allowsWrites(location: Pick<Location, 'hostname' | 'search'> = window.location) {
+  const local = ['localhost', '127.0.0.1', '[::1]'].includes(location.hostname)
+  return local || new URLSearchParams(location.search).get('agentAccess') === 'read-write'
+}
+
+export async function initWebMCP(
+  signal: AbortSignal,
+  { allowWrites = allowsWrites() }: { allowWrites?: boolean } = {}
+): Promise<void> {
   if (active) {
     debugWebMCP('already initialized, skipping')
     return
@@ -52,7 +66,10 @@ export async function initWebMCP(signal: AbortSignal): Promise<void> {
     // Skips tools this session does not offer — run_code is absent in safe mode,
     // which external clients have to respect for the same reason the chat does.
     // Includes the external-only tools (export_video) the chat never sees.
-    const definitions = availableToolDefinitions({ includeExternal: true })
+    // Without write access, only the tools that change nothing (readOnlyHint)
+    const definitions = availableToolDefinitions({ includeExternal: true }).filter(
+      d => allowWrites || d.annotations.readOnlyHint
+    )
 
     for (const definition of definitions) {
       navigator.modelContext.registerTool(
@@ -68,7 +85,11 @@ export async function initWebMCP(signal: AbortSignal): Promise<void> {
       )
     }
 
-    debugWebMCP('registered %d tools on navigator.modelContext', definitions.length)
+    debugWebMCP(
+      'registered %d tools on navigator.modelContext%s',
+      definitions.length,
+      allowWrites ? '' : ' (read-only; add ?agentAccess=read-write to allow changes)'
+    )
   } catch (error) {
     active = false
     throw error

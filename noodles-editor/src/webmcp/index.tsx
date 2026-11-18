@@ -7,12 +7,10 @@ import { initWebMCP } from './register'
 
 // The npx local relay (@mcp-b/webmcp-local-relay) only discovers tabs that load
 // its embed script; the WebMCP extension and native Chrome paths need nothing.
-// Pinned CDN build, injected on localhost only. The pinned version must match the relay major the
-// docs tell users to run (the discovery handshake changes between majors).
-// To self-host instead, copy embed.js/widget.js/widget.html from the package
-// tarball into public/webmcp/.
-const RELAY_EMBED_URL =
-  'https://cdn.jsdelivr.net/npm/@mcp-b/webmcp-local-relay@4.0.0/dist/browser/embed.js'
+// Served from public/webmcp/ (see its README): a pinned copy, which also works offline. The
+// embed loads widget.html next to itself. Injected on localhost only. The relay major must
+// match the one the docs tell users to run (the discovery handshake changes between majors).
+const RELAY_EMBED_URL = `${import.meta.env.BASE_URL}webmcp/embed.js`
 
 function loadRelayEmbed() {
   const isLocalhost =
