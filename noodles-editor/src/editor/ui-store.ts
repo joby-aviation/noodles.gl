@@ -69,6 +69,12 @@ interface UIStoreState {
   // A parameter port or a node being dragged to link a parameter (param-links.ts)
   linkDrag: LinkDrag | null
   setLinkDrag: (drag: LinkDrag | null) => void
+  // The Import data dialog, which the menu bar and the next-step bar open
+  dataImporterOpen: boolean
+  setDataImporterOpen: (open: boolean) => void
+  // A control the next-step bar points at, pulsing until it is cleared (#787)
+  highlightedControl: 'export' | null
+  setHighlightedControl: (control: 'export' | null) => void
 }
 
 // docked: map in its own area of the workspace
@@ -123,6 +129,10 @@ export const useUIStore = create<UIStoreState>(set => ({
   setPulsingNodeId: id => set({ pulsingNodeId: id }),
   linkDrag: null,
   setLinkDrag: drag => set({ linkDrag: drag }),
+  dataImporterOpen: false,
+  setDataImporterOpen: open => set({ dataImporterOpen: open }),
+  highlightedControl: null,
+  setHighlightedControl: control => set({ highlightedControl: control }),
 }))
 
 export const getUIStore = () => useUIStore.getState()

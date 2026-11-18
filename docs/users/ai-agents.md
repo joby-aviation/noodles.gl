@@ -149,6 +149,31 @@ Exporting needs WebCodecs, so use Chrome or Edge. Example projects live in memor
 - **Local only.** The relay connects to editors on `localhost`. `?safeMode=true` removes the tool that runs code.
 - **Read-only elsewhere.** On any host but `localhost`, `?externalControl=true` offers only the tools that read the project, take screenshots and check exports. Add `&agentAccess=read-write` to let an agent change the project there too.
 
+## Render without an editor
+
+To get a video from a project with no editor open, such as a title card, a batch of renders, or a check that an animation looks right, render it from the command line. From the repo root:
+
+```bash
+npm run render -- path/to/project --out renders/title.mp4
+npm run render -- path/to/project --out a.mp4 --start 0 --end 7.5 --fps 30 --width 1920 --height 1080
+```
+
+It starts the editor's dev server, opens the project in a headless Chromium (from the repo's Playwright), runs the same export as the Export button, and writes the file. Settings you leave out come from the project's render settings on its Deck node. Progress prints as `running frame N/M` lines; `--json` prints one JSON status per line instead. Pass `--url http://localhost:5173` to use an editor you already have running. The command exits 1 with the reason when the export fails.
+
+The `noodles` MCP server offers the same as `render_project`, with progress notifications as it goes, so an agent that writes a project with that server can render it without a browser.
+
+The project is a folder with a `noodles.json`, its data files in `data/` (or beside it, as in the examples). It opens in memory, so nothing in the folder changes.
+
+Rendering runs WebGL in the headless browser. On a Mac it asks for the GPU (Metal); where there is none, Chromium draws with SwiftShader in software, which works but is much slower.
+
+### Which route
+
+- **No editor open:** `npm run render`, or `render_project` from the `noodles` server.
+- **An editor open with `?externalControl=true`:** `export_video` over WebMCP. The tab has to stay visible, since a hidden tab stops drawing.
+- **Your own script driving the editor (Playwright, Puppeteer):** read `window.__noodles.exportStatus()`, or listen for the `noodles:export` event on `window`. Both carry `{ state, frame, totalFrames, error }` for every video export, the Export button's too, so a script doesn't have to read the page's text. A page opened with `?headless=true` also has `window.__noodles.openProject()` and `renderVideo()`, which the render command uses.
+
+An export that stops making progress ends with an error naming the step: a frame that doesn't finish drawing within 2 minutes (waiting for its layers' data counts), or a drawn frame that can't be read from the canvas.
+
 ## Write project files
 
 A project is a `noodles.json` file: a list of nodes, the edges between them, and the timeline. A coding agent can write one directly. Two tools in the repo keep it from guessing.
@@ -263,5 +288,6 @@ For an agent working on your own code, such as an app that embeds a Noodles visu
 
 - **Trying Noodles for the first time:** the in-app assistant, or the quick start prompt if you already use a coding agent.
 - **Changing a map and exporting video:** drive a running editor.
+- **A video from a project file, no editor open:** render it from the command line.
 - **Generating many projects, or keeping them in git:** write project files and validate them.
 - **Both:** connect both servers. The agent writes the file with the `noodles` server, you open it, and the agent fine-tunes it live. With both connected, tools with the same name are told apart by server, such as `noodles` and `webmcp` versions of `get_operator_schema`.

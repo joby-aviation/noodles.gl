@@ -43,6 +43,7 @@ import {
 import { docStore, useEditor } from './doc-store'
 import { AddNodeMenu, ContextMenu, type MenuItem } from './menus'
 import { MultiPortEdge } from './multi-port-handle'
+import { NextStepBar } from './next-step-bar'
 import { outputKey } from './param-links'
 import { getUIStore, useUIStore } from './ui-store'
 
@@ -598,6 +599,7 @@ export function DocNetwork({ children }: { children?: ReactNode }) {
           <CanvasQuickstartButton />
         </Controls>
         <CanvasQuickstart />
+        <NextStepBar over="graph" />
         {/* A load frames the graph once its nodes are measured; an empty one has nothing to fit */}
         <ProjectLoadView loadId={loadId} fitView={doc.nodes.length > 0} />
         <MapPickFocus />

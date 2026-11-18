@@ -41,7 +41,7 @@ before(async () => {
 after(() => client.close())
 
 describe('noodles-mcp', () => {
-  it('serves the docs tools under the in-app names, plus validate_project', async () => {
+  it('serves the docs tools under the in-app names, plus validate_project and render_project', async () => {
     const { tools } = await client.listTools()
     assert.deepEqual(tools.map(t => t.name).sort(), [
       'get_documentation',
@@ -49,9 +49,14 @@ describe('noodles-mcp', () => {
       'get_operator_schema',
       'list_examples',
       'list_operators',
+      'render_project',
       'validate_project',
     ])
-    assert.ok(tools.every(t => t.annotations?.readOnlyHint))
+    // Every tool reads, except render_project, which writes the video it was asked for
+    assert.deepEqual(
+      tools.filter(t => !t.annotations?.readOnlyHint).map(t => t.name),
+      ['render_project']
+    )
   })
 
   it('tells the client when to stop', () => {

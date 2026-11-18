@@ -105,7 +105,8 @@ export function TopMenuBar({
   const [, navigate] = useLocation()
   const [recentProjects, setRecentProjects] = useState<string[]>([])
   const [showPointWizard, setShowPointWizard] = useState(false)
-  const [showDataImporter, setShowDataImporter] = useState(false)
+  const showDataImporter = useUIStore(st => st.dataImporterOpen)
+  const setShowDataImporter = useUIStore(st => st.setDataImporterOpen)
   const [activeRecipe, setActiveRecipe] = useState<GeoRecipe | null>(null)
   // Recipes opened from the Draw tool arrive with the drawing already wired in
   const recipeRequest = useMapToolStore(state => state.recipeRequest)

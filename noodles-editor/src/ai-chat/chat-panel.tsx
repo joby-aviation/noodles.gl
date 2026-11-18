@@ -45,6 +45,7 @@ import { AssistantOnboarding } from './components/assistant-onboarding'
 import { loadConversation, saveConversation } from './conversation-history'
 import { ConversationHistoryPanel } from './conversation-history-panel'
 import { globalContextManager } from './global-context-manager'
+import type { DiffLine } from './line-diff'
 import { MCPTools } from './mcp-tools'
 import { createProposal, type ModificationProposal } from './modification-proposal'
 import {
@@ -1078,10 +1079,13 @@ export const ChatPanel: FC<ChatPanelProps> = ({ onClose, isVisible, initialMessa
             <ul className={styles.proposalDiff}>
               {pendingProposal.lines.map((line, idx) => (
                 <li key={`${idx}-${line.text}`}>
-                  {line.detail ? (
-                    <details>
+                  {line.detail || line.diffs ? (
+                    <details open={!!line.diffs}>
                       <summary>{line.text}</summary>
-                      <pre className={styles.proposalDetail}>{line.detail}</pre>
+                      {line.diffs?.map(({ param, lines }) => (
+                        <ProposalDiff key={param} param={param} lines={lines} />
+                      ))}
+                      {line.detail && <pre className={styles.proposalDetail}>{line.detail}</pre>}
                     </details>
                   ) : (
                     line.text
@@ -1154,6 +1158,30 @@ const PROVIDER_LABELS: Record<ProviderId, string> = {
   webllm: 'The local model',
   chrome: 'Chrome’s built-in model',
   acp: 'The ACP agent',
+}
+
+// A changed code parameter in the review card: removed lines, added lines, and a few kept
+// around them (#303)
+function ProposalDiff({ param, lines }: { param: string; lines: DiffLine[] }) {
+  const mark = { add: '+ ', del: '- ', same: '  ' } as const
+  const cls = { add: styles.codeDiffAdd, del: styles.codeDiffDel, same: '' } as const
+  return (
+    <section className={styles.codeDiff} aria-label={`Changes to ${param}`}>
+      <div className={styles.codeDiffParam}>{param}</div>
+      {lines.map((line, i) =>
+        line.kind === 'skip' ? (
+          <pre key={i} className={`${styles.codeDiffLine} ${styles.codeDiffSkip}`}>
+            {`  … ${line.count} unchanged line${line.count === 1 ? '' : 's'}`}
+          </pre>
+        ) : (
+          <pre key={i} className={`${styles.codeDiffLine} ${cls[line.kind]}`}>
+            {mark[line.kind]}
+            {line.text}
+          </pre>
+        )
+      )}
+    </section>
+  )
 }
 
 function cloudLabelFor(

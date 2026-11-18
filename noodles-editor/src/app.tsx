@@ -6,6 +6,7 @@ import { type ModalView, QuickStartModal } from './components/quick-start-modal'
 import { StaleChunkPrompt } from './components/stale-chunk-prompt'
 import { useUIStore } from './editor/ui-store'
 import { agentBench, externalControl } from './noodles/globals'
+import { installHeadlessApi } from './render/headless-api'
 import TimelineEditor from './timeline-editor'
 import { analytics } from './utils/analytics'
 import { debugApp } from './utils/debug'
@@ -14,6 +15,9 @@ import { lazyWithReload } from './utils/stale-chunk'
 const WebMCPProvider = lazyWithReload(() =>
   import('./webmcp').then(m => ({ default: m.WebMCPProvider }))
 )
+
+// window.__noodles: export status for scripts, and opening and rendering for ?headless=true
+installHeadlessApi()
 
 // The DEV check is repeated inline so the production build drops the import
 if (import.meta.env.DEV && agentBench) {
