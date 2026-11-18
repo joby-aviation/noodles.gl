@@ -6,6 +6,9 @@ import { registerDeckOperators } from '../runtime/deck-ops'
 import {
   addNode,
   connect,
+  connectAnyway,
+  connectionProblem,
+  connectionRefusal,
   copyNodes,
   pasteNodes,
   removeEdges,
@@ -14,6 +17,7 @@ import {
   setKey,
   setParam,
   validConnection,
+  wireProblem,
 } from './doc-ops'
 import { DocStore } from './doc-store'
 import { driveWith } from './drivers'
@@ -110,6 +114,43 @@ describe('document operations', () => {
     const d = doc()
     expect(validConnection(d, 'dots', 'out', 'src', 'in0')).toBe(false)
     expect(validConnection(d, 'k', 'out', 'dots', 'par:radiusScale')).toBe(true)
+  })
+
+  // #143: a wire whose ports don't match connects in the graph, and says why it reads nothing
+  describe('wires whose ports do not match', () => {
+    it('names what each side carries', () => {
+      const d = doc()
+      // A layer into a SQL node's table input
+      expect(connectionProblem(d, 'dots', 'out', 'src', 'in0')).toBe(
+        "src's in0 takes a table, but dots's out gives a layer"
+      )
+      expect(connectionProblem(d, 'k', 'out', 'dots', 'par:radiusScale')).toBeUndefined()
+      expect(connectionRefusal(d, 'dots', 'out', 'src', 'in0')).toBe('The wire would make a loop')
+    })
+
+    it('refuses only a wire that cannot exist', () => {
+      const d = doc()
+      expect(connectionRefusal(d, 'dots', 'out', 'dots', 'in')).toMatch(/itself/)
+      expect(connectionRefusal(d, 'src', 'nope', 'dots', 'in')).toMatch(/no output nope/)
+      expect(connectionRefusal(d, 'src', 'out', 'dots', 'nope')).toMatch(/no input nope/)
+      expect(connectionRefusal(d, 'k', 'out', 'map', 'layers')).toBeUndefined()
+    })
+
+    it('connects in the graph and shows the problem on the target, while tools still refuse', () => {
+      const d = doc()
+      // A number into the deck's layers
+      expect(validConnection(d, 'k', 'out', 'map', 'layers')).toBe(false)
+      expect(connect(d, 'k', 'out', 'map', 'layers')).toBeUndefined()
+      expect(connectAnyway(d, 'k', 'out', 'map', 'layers')).toMatchObject({ source: 'k' })
+      expect(wireProblem(d, 'map')).toMatch(
+        /map's layers takes a layer, but k's out gives a number/
+      )
+      expect(wireProblem(d, 'dots')).toBeUndefined()
+      // The planner reads nothing through it, and the rest still draws
+      expect(lowerDocument(d).errors).toEqual([])
+      // A loop is still refused
+      expect(connectAnyway(d, 'dots', 'out', 'src', 'in0')).toBeUndefined()
+    })
   })
 
   it('names new nodes uniquely, without the Op suffix', () => {

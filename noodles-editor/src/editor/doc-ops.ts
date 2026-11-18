@@ -98,22 +98,22 @@ export function isMulti(doc: EditorDoc, nodeId: string, port: string): boolean {
   return !!(node && OPERATOR_INDEX.get(node.op)?.inputs.find(p => p.name === port)?.multi)
 }
 
-export function validConnection(
+/**
+ * Why a wire from source to target can't exist: a node into itself, a port that isn't there,
+ * or a cycle. Undefined when it can, even with ports that don't match (connectionProblem).
+ */
+export function connectionRefusal(
   doc: EditorDoc,
   source: string,
   sourcePort: string,
   target: string,
   targetPort: string
-): boolean {
-  if (source === target) return false
-  const from = portType(doc, source, sourcePort, 'out')
-  const to = portType(doc, target, targetPort, 'in')
-  if (!from || !to || !canConnect(from as PortType, to)) return false
-  // A camera into a camera, a map style into a map style: a View State never feeds a map style,
-  // and a value of one shape is never a layer
-  const shape = portShape(doc, source, sourcePort, 'out')
-  if (!shapesFit(shape, portShape(doc, target, targetPort, 'in')) || (shape && to === 'layer'))
-    return false
+): string | undefined {
+  if (source === target) return 'A node cannot feed itself'
+  if (!portType(doc, source, sourcePort, 'out'))
+    return `${nameOfNode(doc, source)} has no output ${sourcePort}`
+  if (!portType(doc, target, targetPort, 'in'))
+    return `${nameOfNode(doc, target)} has no input ${targetPort}`
   // No cycles.
   const downstream = new Set<string>([target])
   let grew = true
@@ -126,8 +126,66 @@ export function validConnection(
       }
     }
   }
-  return !downstream.has(source)
+  return downstream.has(source) ? 'The wire would make a loop' : undefined
 }
+
+/**
+ * What is wrong with a wire that can exist: its ports carry different kinds of value, so its
+ * target reads nothing through it. The graph still takes the wire, and shows this on it and
+ * on its target (#143).
+ */
+export function connectionProblem(
+  doc: EditorDoc,
+  source: string,
+  sourcePort: string,
+  target: string,
+  targetPort: string
+): string | undefined {
+  const from = portType(doc, source, sourcePort, 'out')
+  const to = portType(doc, target, targetPort, 'in')
+  if (!from || !to) return undefined
+  const into = `${nameOfNode(doc, target)}'s ${portName(targetPort)}`
+  const outOf = `${nameOfNode(doc, source)}'s ${portName(sourcePort)}`
+  if (!canConnect(from as PortType, to))
+    return `${into} takes ${kindOf(to)}, but ${outOf} gives ${kindOf(from)}`
+  // A camera into a camera, a map style into a map style: a View State never feeds a map style,
+  // and a value of one shape is never a layer
+  const shape = portShape(doc, source, sourcePort, 'out')
+  const wants = portShape(doc, target, targetPort, 'in')
+  if (!shapesFit(shape, wants) || (shape && to === 'layer'))
+    return `${into} takes ${wants ? `a ${wants}` : kindOf(to)}, but ${outOf} gives a ${shape}`
+  return undefined
+}
+
+/** Whether the wire can exist and its ports match: what tools and the parameter pane connect. */
+export function validConnection(
+  doc: EditorDoc,
+  source: string,
+  sourcePort: string,
+  target: string,
+  targetPort: string
+): boolean {
+  return (
+    !connectionRefusal(doc, source, sourcePort, target, targetPort) &&
+    !connectionProblem(doc, source, sourcePort, target, targetPort)
+  )
+}
+
+/** The first problem with a wire into this node, to show on it. */
+export function wireProblem(doc: EditorDoc, nodeId: string): string | undefined {
+  for (const e of doc.edges) {
+    if (e.target !== nodeId) continue
+    const problem = connectionProblem(doc, e.source, e.sourcePort, e.target, e.targetPort)
+    if (problem) return problem
+  }
+  return undefined
+}
+
+const nameOfNode = (doc: Pick<EditorDoc, 'nodes'>, id: string) =>
+  doc.nodes.find(n => n.id === id)?.name ?? id
+const portName = (port: string) => (port.startsWith('par:') ? port.slice(4) : port)
+const kindOf = (type: string) =>
+  type === 'param' ? 'a number' : type === 'value' ? 'a value' : `a ${type}`
 
 /** Wire an output to an input: it replaces a single input's wire, and joins a multi one. */
 export function connect(
@@ -141,6 +199,34 @@ export function connect(
   at?: number
 ): DocEdge | undefined {
   if (!validConnection(doc, source, sourcePort, target, targetPort)) return undefined
+  return addWire(doc, source, sourcePort, target, targetPort, at)
+}
+
+/**
+ * Connect as a user drags a wire in the graph: one whose ports don't match connects too, and
+ * shows on the wire and its target why it reads nothing (#143). Only a wire that can't exist
+ * (a node into itself, a missing port, a loop) is refused.
+ */
+export function connectAnyway(
+  doc: EditorDoc,
+  source: string,
+  sourcePort: string,
+  target: string,
+  targetPort: string,
+  at?: number
+): DocEdge | undefined {
+  if (connectionRefusal(doc, source, sourcePort, target, targetPort)) return undefined
+  return addWire(doc, source, sourcePort, target, targetPort, at)
+}
+
+function addWire(
+  doc: EditorDoc,
+  source: string,
+  sourcePort: string,
+  target: string,
+  targetPort: string,
+  at?: number
+): DocEdge | undefined {
   const multi = isMulti(doc, target, targetPort)
   if (!multi)
     doc.edges = doc.edges.filter(e => !(e.target === target && e.targetPort === targetPort))
