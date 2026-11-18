@@ -57,6 +57,12 @@ describe('nextStep', () => {
   it('goes past coloring when there is no layer to color', () => {
     expect(nextStep(doc([DATA, DECK]))?.id).toBe('animate-camera')
   })
+
+  it('goes past coloring for layers that color by a range, not a column', () => {
+    const heat = node('heat', 'heatmap', { position: '[lng, lat]' })
+    expect(nextStep(doc([DATA, heat, DECK]))?.id).toBe('animate-camera')
+    expect(layerToColor(doc([DATA, heat, node('dots', 'scatter')]))).toBe('dots')
+  })
 })
 
 describe('the steps the bar takes', () => {
@@ -66,12 +72,33 @@ describe('the steps the bar takes', () => {
 
   it('keyframes a quarter turn of the camera over the timeline', () => {
     const d = doc([DATA, DECK])
-    expect(addCameraMove(d)).toBe(true)
+    expect(addCameraMove(d)).toEqual({ ok: true })
     const track = d.timeline?.tracks.find(t => t.target === 'deck.bearing')
     expect(track?.keyframes.map(k => [k.time, k.value])).toEqual([
       [0, 10],
       [d.timeline?.length ?? 0, 100],
     ])
-    expect(addCameraMove(doc([DATA]))).toBe(false)
+    expect(addCameraMove(doc([DATA]))).toEqual({ ok: false, reason: 'No camera to move.' })
+  })
+
+  it('keys the View State wired into the deck, the camera the map shows', () => {
+    const view = node('view', 'view-state', { bearing: 30 })
+    const d = {
+      ...doc([DATA, DECK, view]),
+      edges: [
+        { id: 'e', source: 'view', sourcePort: 'out', target: 'deck', targetPort: 'viewState' },
+      ],
+    }
+    expect(addCameraMove(d)).toEqual({ ok: true })
+    expect(d.timeline?.tracks.map(t => t.target)).toEqual(['view.bearing'])
+    expect(d.timeline?.tracks[0].keyframes.map(k => k.value)).toEqual([30, 120])
+  })
+
+  it('keys nothing on a camera an expression drives, and says why', () => {
+    const d = doc([DATA, node('deck', 'deck', { bearing: { expr: 'T * 10' } })])
+    const result = addCameraMove(d)
+    expect(result.ok).toBe(false)
+    expect(!result.ok && result.reason).toMatch(/Expressions or references drive .*bearing/)
+    expect(d.timeline?.tracks ?? []).toEqual([])
   })
 })

@@ -1,4 +1,4 @@
-/* The next-step bar on the graph canvas (#787) */
+/* The next-step bar on the graph canvas, or over the map (#787) */
 .bar {
   display: flex;
   align-items: center;
@@ -28,4 +28,13 @@
 
 .action:hover {
   background: rgb(76, 168, 255);
+}
+
+/* Over the map, when the workspace doesn't show the graph */
+.overMap {
+  position: absolute;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 5;
 }

@@ -588,7 +588,7 @@ export function DocNetwork({ children }: { children?: ReactNode }) {
           <CanvasQuickstartButton />
         </Controls>
         <CanvasQuickstart />
-        <NextStepBar />
+        <NextStepBar over="graph" />
         {/* A load frames the graph once its nodes are measured; an empty one has nothing to fit */}
         <ProjectLoadView loadId={loadId} fitView={doc.nodes.length > 0} />
         <MapPickFocus />
