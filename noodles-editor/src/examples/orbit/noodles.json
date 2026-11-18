@@ -101,7 +101,7 @@
       "op": "comment",
       "name": "model-note",
       "x": 224,
-      "y": 0,
+      "y": -20,
       "params": {
         "text": "This draws a 3D airplane model on a plain background, with no map. The model is Y-up, so scene rolls it 90° to sit level. Put a link to another .glb model in Model URL (glTF) on scene to swap it.",
         "width": 220,
