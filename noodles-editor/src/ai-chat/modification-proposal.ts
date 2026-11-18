@@ -6,12 +6,16 @@
 
 import type { DocNode, EditorDoc } from '@noodles.gl/planner'
 import type { DocMark } from '../editor/doc-store'
+import { asText, type DiffLine, lineDiff } from './line-diff'
 
 export interface ProposalLine {
   // One line for the review card, with every value cut to a short preview
   text: string
   // The values the preview cut short, in full, for an expandable view
   detail?: string
+  // A changed parameter that is lines of text (code, SQL, an expression) as a line diff, in
+  // place of its full new value (#303)
+  diffs?: { param: string; lines: DiffLine[] }[]
 }
 
 export interface ModificationProposal {
@@ -54,7 +58,16 @@ export function describeChanges(before: EditorDoc, after: EditorDoc): ProposalLi
     for (const k of new Set([...Object.keys(old.params), ...Object.keys(n.params)])) {
       if (JSON.stringify(old.params[k]) !== JSON.stringify(n.params[k])) changed[k] = n.params[k]
     }
-    const values = describeParams(changed)
+    // Code and other text as a line diff; the rest as values
+    const diffs: NonNullable<ProposalLine['diffs']> = []
+    for (const k of Object.keys(changed)) {
+      const was = asText(old.params[k])
+      const now = asText(changed[k])
+      if (was === undefined || now === undefined || !`${was}${now}`.includes('\n')) continue
+      const lines = lineDiff(was, now)
+      if (lines) diffs.push({ param: k, lines })
+    }
+    const values = describeParams(changed, new Set(diffs.map(d => d.param)))
     const moved = old.x !== n.x || old.y !== n.y
     const renamed = old.name !== n.name
     const parts = [
@@ -70,7 +83,8 @@ export function describeChanges(before: EditorDoc, after: EditorDoc): ProposalLi
         : moved && !values && !renamed
           ? `Move ${nameOf(n)} to (${Math.round(n.x)}, ${Math.round(n.y)})`
           : `Update ${nameOf(n)}: ${parts.join('; ')}`
-    lines.push(withDetail(text, values?.detail))
+    const line = withDetail(text, values?.detail)
+    lines.push(diffs.length > 0 ? { ...line, diffs } : line)
   }
   const edgeKey = (e: EditorDoc['edges'][number]) =>
     `${e.source}.${e.sourcePort}->${e.target}.${e.targetPort}`
@@ -97,8 +111,9 @@ export function describeChanges(before: EditorDoc, after: EditorDoc): ProposalLi
   return lines
 }
 
-// "radius = 4000, color = [255,0,0]", plus the full values of any cut short
-function describeParams(params: Record<string, unknown>) {
+// "radius = 4000, color = [255,0,0]", plus the full values of any cut short. Those in
+// `diffed` show as a diff instead of their full value.
+function describeParams(params: Record<string, unknown>, diffed = new Set<string>()) {
   const entries = Object.entries(params)
   if (entries.length === 0) return null
   const details: string[] = []
@@ -107,6 +122,7 @@ function describeParams(params: Record<string, unknown>) {
       if (value === undefined) return `${name} reset`
       const oneLine = formatValue(value)
       if (oneLine.length <= PREVIEW_CHARS) return `${name} = ${oneLine}`
+      if (diffed.has(name)) return `${name} = ${oneLine.slice(0, PREVIEW_CHARS - 1)}…`
       details.push(`${name}:\n${typeof value === 'string' ? value : formatValue(value, 2)}`)
       return `${name} = ${oneLine.slice(0, PREVIEW_CHARS - 1)}…`
     })
