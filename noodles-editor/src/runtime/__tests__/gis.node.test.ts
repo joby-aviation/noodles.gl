@@ -494,6 +494,16 @@ describe('turf in the engine', () => {
     expect(dbscan.every(r => r.dbscan === 'core' || r.dbscan === 'edge')).toBe(true)
   })
 
+  it('groups points into map clusters for a zoom level', async () => {
+    const params = { method: 'supercluster', radius: 40, maxZoom: 16, minPoints: 3 }
+    const clusters = await first('cluster', { ...params, zoom: 3 }, { in: blobs })
+    expect(clusters.map(r => r.point_count)).toEqual([4, 4])
+    expect(clusters.every(r => r.cluster === true && Number(r.expansion_zoom) > 3)).toBe(true)
+
+    const points = await first('cluster', { ...params, zoom: 17 }, { in: blobs })
+    expect(points).toHaveLength(8)
+  })
+
   it('interpolates a grid, draws isolines through it, and triangulates points', async () => {
     const samples = fc(
       point(0, 0, { value: 0 }),

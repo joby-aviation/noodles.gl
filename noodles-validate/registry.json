@@ -941,7 +941,7 @@
       "name": "Cluster",
       "type": "cluster",
       "category": "geometry",
-      "description": "Points labeled with a `cluster` number by k-means (turf.clustersKmeans) or by density (turf.clustersDbscan, with `dbscan` noise/core/edge). Runs turf in the engine.",
+      "description": "Points labeled with a `cluster` number by k-means (turf.clustersKmeans) or by density (turf.clustersDbscan, with `dbscan` noise/core/edge), or grouped into map clusters for a zoom level (Supercluster, one point per cluster with `point_count` and `expansion_zoom`). Runs in the engine.",
       "inputs": {
         "in": {
           "type": "table"
@@ -958,7 +958,8 @@
           "default": "kmeans",
           "options": [
             "kmeans",
-            "dbscan"
+            "dbscan",
+            "supercluster"
           ]
         },
         "clusters": {
@@ -980,6 +981,18 @@
             "feet",
             "degrees"
           ]
+        },
+        "zoom": {
+          "kind": "float",
+          "default": 0
+        },
+        "radius": {
+          "kind": "int",
+          "default": 40
+        },
+        "maxZoom": {
+          "kind": "int",
+          "default": 16
         },
         "minPoints": {
           "kind": "int",

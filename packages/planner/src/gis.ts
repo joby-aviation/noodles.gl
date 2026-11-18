@@ -572,17 +572,24 @@ export const GIS_OPERATORS: OpDef[] = [
   },
   {
     type: 'cluster', label: 'Cluster', category: 'geometry',
-    description: 'Points labeled with a `cluster` number by k-means (turf.clustersKmeans) or by density (turf.clustersDbscan, with `dbscan` noise/core/edge). Runs turf in the engine.',
+    description: 'Points labeled with a `cluster` number by k-means (turf.clustersKmeans) or by density (turf.clustersDbscan, with `dbscan` noise/core/edge), or grouped into map clusters for a zoom level (Supercluster, one point per cluster with `point_count` and `expansion_zoom`). Runs in the engine.',
     inputs: [features()], outputs: [out()],
     params: [
-      { name: 'method', label: 'Method', kind: 'menu', default: 'kmeans', options: [{ value: 'kmeans', label: 'K-means' }, { value: 'dbscan', label: 'DBSCAN' }] },
+      { name: 'method', label: 'Method', kind: 'menu', default: 'kmeans', options: [{ value: 'kmeans', label: 'K-means' }, { value: 'dbscan', label: 'DBSCAN' }, { value: 'supercluster', label: 'Map clusters by zoom' }] },
       { name: 'clusters', label: 'Clusters', kind: 'int', default: 5, min: 1, max: 100, step: 1, when: { param: 'method', is: ['kmeans'] } },
       { name: 'maxDistance', label: 'Max distance', kind: 'float', default: 1, min: 0, max: 1000, step: 0.1, when: { param: 'method', is: ['dbscan'] } },
       { ...units(), when: { param: 'method', is: ['dbscan'] } },
-      { name: 'minPoints', label: 'Min points', kind: 'int', default: 3, min: 1, max: 100, step: 1, when: { param: 'method', is: ['dbscan'] } },
+      { name: 'zoom', label: 'Zoom', kind: 'float', default: 0, min: 0, max: 24, step: 0.1, when: { param: 'method', is: ['supercluster'] } },
+      { name: 'radius', label: 'Radius (px)', kind: 'int', default: 40, min: 1, max: 200, step: 1, when: { param: 'method', is: ['supercluster'] } },
+      { name: 'maxZoom', label: 'Max zoom', kind: 'int', default: 16, min: 0, max: 24, step: 1, when: { param: 'method', is: ['supercluster'] } },
+      { name: 'minPoints', label: 'Min points', kind: 'int', default: 3, min: 1, max: 100, step: 1, when: { param: 'method', is: ['dbscan', 'supercluster'] } },
     ],
     lower(ctx) {
       const points = "d.features.filter(f => f.geometry && f.geometry.type === 'Point')";
+      if (ctx.str('method') === 'supercluster') {
+        const options = { zoom: ctx.num('zoom'), radius: ctx.num('radius'), maxZoom: Math.round(ctx.num('maxZoom')), minPoints: Math.round(ctx.num('minPoints')) };
+        return turfTable(ctx, `return utils.supercluster(turf.featureCollection(${points}), ${JSON.stringify(options)})`);
+      }
       if (ctx.str('method') === 'dbscan') {
         return turfTable(ctx, `return turf.clustersDbscan(turf.featureCollection(${points}), ${ctx.num('maxDistance')}, { units: ${JSON.stringify(ctx.str('units'))}, minPoints: ${Math.round(ctx.num('minPoints'))} })`);
       }
