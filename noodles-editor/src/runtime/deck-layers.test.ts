@@ -122,6 +122,49 @@ describe('DeckLayerBuilder', () => {
   })
 })
 
+// #891: what the depth toggles draw. A red dot in front, drawn first, and a blue dot behind
+// it, drawn second: depth testing hides the blue one where they overlap.
+describe('DeckLayerBuilder depth toggles', () => {
+  const dot = (id: string, z: number, fillColor: number[], props: Record<string, unknown> = {}) =>
+    new DeckLayerBuilder()
+      .build([
+        {
+          id,
+          kind: 'scatter',
+          data: {
+            rows: 1,
+            attributes: new Map([['P', { data: new Float32Array([0, 0, z]), width: 3 }]]),
+            strings: new Map(),
+            evalMs: 0,
+            code: '',
+          },
+          bindings: [{ channel: 'position', attribute: 'P' }],
+          props: { radiusScale: 20, fillColor, ...props } as never,
+        },
+      ])
+      .get(id) ?? []
+  const RED = [255, 0, 0, 255]
+  const BLUE = [0, 0, 255, 255]
+  // OrthographicView looks down the z axis from above: a larger z is nearer
+  const front = (props?: Record<string, unknown>) => dot('front', 10, [255, 0, 0], props)
+  const back = (props?: Record<string, unknown>) => dot('back', -10, [0, 0, 255], props)
+
+  it('hides a layer behind another with depth testing on', async () => {
+    const pixel = await draw([...front(), ...back()])
+    expect(pixel(50, 50)).toEqual(RED)
+  })
+
+  it('draws a layer over the one in front of it with depth testing off', async () => {
+    const pixel = await draw([...front(), ...back({ depthTest: false })])
+    expect(pixel(50, 50)).toEqual(BLUE)
+  })
+
+  it('lets a later layer show through one that writes no depth', async () => {
+    const pixel = await draw([...front({ depthWrite: false }), ...back()])
+    expect(pixel(50, 50)).toEqual(BLUE)
+  })
+})
+
 describe('DeckLayerBuilder aggregation layers', () => {
   it('bins binary positions and weights into hexagons', async () => {
     const n = 50
