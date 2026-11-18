@@ -191,6 +191,8 @@ When a CSV or JSON table is imported, the editor looks for coordinate columns so
 | `webllm_model_selected` | `model` (a public WebLLM model id), `source` (`assistant_onboarding`, absent from Settings) | assistant-onboarding.tsx, settings-dialog.tsx |
 | `key_prompt_answered` | `key` (`mapbox`, `googleMaps`, `cesium`), `kind` (`choose`, `overridden`, `rejected`), `source` (`project`, `browser`, `env`) | key-prompts.tsx |
 | `key_prompt_dismissed` | `key`, `kind` (as above, or `reload` for the reload notice left after a choice) | key-prompts.tsx |
+| `next_step_shown` | `step` (`load-data`, `color-by-column`, `animate-camera`, `export-video`) | next-step-bar.tsx |
+| `next_step_clicked` | `step` (as above) | next-step-bar.tsx |
 
 The website's "Use with your AI agent" section sends `agent_prompt_copied` too, with `agent` and `location: 'landing'`, through the site's own PostHog and GA tags (`website/src/components/AgentQuickStart`). Before October 2026 both sent `claude_code_prompt_copied`. The prompt text itself is never sent.
 

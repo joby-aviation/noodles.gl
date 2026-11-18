@@ -27,6 +27,7 @@ import { CameraToolbar } from './editor/camera-toolbar'
 import { currentEngine } from './editor/doc-engine'
 import { useDocNoodles } from './editor/doc-noodles'
 import { docStore, useEditor } from './editor/doc-store'
+import { NextStepBar } from './editor/next-step-bar'
 import { pendingKeys, usePendingKeys } from './editor/pending-keys'
 import { useUIStore } from './editor/ui-store'
 import {
@@ -1035,6 +1036,7 @@ export default function TimelineEditor() {
           flowGraph={flowGraph}
           spreadsheet={<SpreadsheetPane selectedNodeIds={selectedNodeIds ?? []} />}
         >
+          {!isRendering && <NextStepBar over="map" />}
           {!isRendering && geographic && (
             <CameraToolbar
               control={cameraControl}
