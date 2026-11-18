@@ -1329,6 +1329,7 @@ export const OPERATORS: OpDef[] = [
       channel('offsetBy', 'Offset', '', 'Per-row [x, y] offset in pixels. Empty: every label is at Offset X and Y.'),
       { name: 'anchorBy', label: 'Anchor', kind: 'column', default: '', of: 'in', columnType: 'str', folder: 'Channels', help: 'Per-row start, middle or end. Empty: every label uses Anchor.' },
       { name: 'baselineBy', label: 'Baseline', kind: 'column', default: '', of: 'in', columnType: 'str', folder: 'Channels', help: 'Per-row top, center or bottom. Empty: every label uses Baseline.' },
+      { name: 'maxRows', label: 'Max rows', kind: 'int', default: 0, min: 0, max: 10000000, step: 1000, bind: 'prop', folder: 'Style', help: 'Draw at most this many rows; 0 draws them all.' },
       rampParam,
       { name: 'size', label: 'Size (px)', kind: 'float', default: 12, min: 4, max: 64, step: 1, bind: 'prop', folder: 'Style', port: true },
       { name: 'sizeUnits', label: 'Size units', kind: 'menu', default: 'pixels', options: [{ value: 'pixels', label: 'Pixels' }, { value: 'meters', label: 'Meters' }, { value: 'common', label: 'Common' }], folder: 'Style' },
@@ -1378,6 +1379,7 @@ export const OPERATORS: OpDef[] = [
           lineHeight: ctx.bind('lineHeight'), wordBreak: ctx.str('wordBreak'), maxWidth: ctx.bind('maxWidth'),
           backgroundPadding: ctx.bind('backgroundPadding'), backgroundBorderRadius: ctx.bind('backgroundBorderRadius'),
           borderColor: ctx.bindColor('borderColor'), borderWidth: ctx.bind('borderWidth'),
+          maxRows: ctx.bind('maxRows'),
         });
       const layer = r.nodes[r.nodes.length - 1] as LayerNode;
       const anchor = ctx.str('anchorBy');
@@ -1446,6 +1448,7 @@ export const OPERATORS: OpDef[] = [
       channel('color', 'Color', '', 'Per-row tint in 0–1, for mask icons. Empty uses Icon color.'),
       channel('size', 'Size', '', 'Per-row size, times Size scale.'),
       channel('angle', 'Angle', '', 'Per-row rotation in degrees.'),
+      { name: 'maxRows', label: 'Max rows', kind: 'int', default: 0, min: 0, max: 10000000, step: 1000, bind: 'prop', folder: 'Style', help: 'Draw at most this many rows; 0 draws them all.' },
       rampParam,
       { name: 'iconAtlas', label: 'Atlas', kind: 'url', default: '', folder: 'Icons' },
       { name: 'iconMapping', label: 'Mapping', kind: 'text', default: '{}', folder: 'Icons', help: 'JSON: { name: { x, y, width, height, mask } }, or a URL to one.' },
@@ -1472,6 +1475,7 @@ export const OPERATORS: OpDef[] = [
           sizeMinPixels: ctx.bind('sizeMinPixels'), sizeMaxPixels: ctx.bind('sizeMaxPixels'), sizeBasis: ctx.str('sizeBasis'),
           billboard: ctx.bool('billboard'), color: ctx.bindColor('iconColor'),
           offsetX: ctx.bind('offsetX'), offsetY: ctx.bind('offsetY'), opacity: ctx.bind('opacity'),
+          maxRows: ctx.bind('maxRows'),
         });
       const layer = r.nodes[r.nodes.length - 1] as LayerNode;
       layer.channels = { ...layer.channels, icon };

@@ -18,6 +18,7 @@ import {
 } from '../noodles/utils/instantiate-vis'
 import { onKeyChange } from '../noodles/utils/key-dependencies'
 import { subscribeToRenderSurfaceSize } from '../render/render-surface-size'
+import { drawnRows } from '../runtime/deck-layers'
 import { Engine, type EngineVis } from '../runtime/engine'
 import { registerHostOperators } from '../runtime/host/host-ops'
 import { HostRunner } from '../runtime/host/host-runner'
@@ -173,7 +174,7 @@ function detailsOf(
     layers: e.runtime.layers().map(l => ({
       id: l.id,
       kind: l.plan.kind,
-      rows: l.data?.rows ?? 0,
+      rows: drawnRows(l.plan.kind, l.data?.rows ?? 0, l.props),
       paths: l.data?.starts?.length,
       queryMs: l.queryMs,
       evalMs: l.evalMs,

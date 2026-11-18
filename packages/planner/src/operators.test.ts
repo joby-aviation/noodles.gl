@@ -102,6 +102,51 @@ describe('layer style parameters', () => {
   })
 })
 
+// #888: Text and Icon draw every row unless Max rows limits them, in the query
+describe('Max rows', () => {
+  const textDoc = (params: Record<string, unknown> = {}): EditorDoc => ({
+    version: 1,
+    name: 'labels',
+    nodes: [
+      { id: 'src', op: 'sql', x: 0, y: 0, params: { query: "SELECT 1.0 AS x, 2.0 AS y, 'a' AS name" } },
+      { id: 'labels', op: 'text', x: 0, y: 0, params: { position: '[x, y]', ...params } as EditorDoc['nodes'][0]['params'] },
+      { id: 'map', op: 'deck', x: 0, y: 0, params: {} },
+    ],
+    edges: [
+      { id: 'e1', source: 'src', sourcePort: 'out', target: 'labels', targetPort: 'in' },
+      { id: 'e2', source: 'labels', sourcePort: 'out', target: 'map', targetPort: 'layers' },
+    ],
+  })
+  const maxRowsOf = (doc: EditorDoc, clock = { T: 0, F: 0 }) => {
+    const lowered = lowerDocument(doc)
+    expect(lowered.errors).toEqual([])
+    const layer = lowered.graph.nodes.find((n): n is LayerNode => n.type === 'layer')!
+    const name = String(layer.props?.maxRows).replace(/^\{\{|\}\}$/g, '')
+    return { lowered, value: parameterValues(lowered, clock).values[name] }
+  }
+
+  // A prop, not a limit in the query: a relation in front of the layer would force CPU-only
+  // attributes into SQL, and the playhead can move it without a requery
+  it('binds Max rows as a layer prop, with no limit node', () => {
+    const { lowered, value } = maxRowsOf(textDoc({ maxRows: 100 }))
+    expect(lowered.graph.nodes.some((n) => n.type === 'limit')).toBe(false)
+    expect(value).toBe(100)
+    expect(maxRowsOf(textDoc()).value).toBe(0)
+  })
+
+  it('moves an animated Max rows with the clock', () => {
+    const doc = textDoc({ maxRows: { expr: '1000 + F' } })
+    expect(maxRowsOf(doc, { T: 0, F: 0 }).value).toBe(1000)
+    expect(maxRowsOf(doc, { T: 1, F: 30 }).value).toBe(1030)
+  })
+
+  it('gives Text and Icon a Max rows parameter', () => {
+    for (const type of ['text', 'icon']) {
+      expect(OPERATOR_INDEX.get(type)!.params.find((p) => p.name === 'maxRows')).toMatchObject({ default: 0 })
+    }
+  })
+})
+
 describe('deck', () => {
   it('uses a map style URL over the basemap menu when one is set', () => {
     const deckOf = (params: Record<string, string>) => {

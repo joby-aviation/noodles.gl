@@ -13,7 +13,7 @@ An icon per row from an atlas image: a string column names each row’s icon in 
 { "id": "n1", "op": "icon", "name": "icon", "x": 0, "y": 0, "params": {} }
 ```
 
-An edge into it ends at `"targetPort": "in"`; one out of it starts at `"sourcePort": "out"`; a parameter is set in `params` (leave out the ones at their default), driven by an edge to `par:sizeScale`, or read elsewhere as `ch('icon/sizeScale')`.
+An edge into it ends at `"targetPort": "in"`; one out of it starts at `"sourcePort": "out"`; a parameter is set in `params` (leave out the ones at their default), driven by an edge to `par:maxRows`, or read elsewhere as `ch('icon/maxRows')`.
 <!-- gen:end syntax -->
 
 ## Inputs
@@ -34,6 +34,7 @@ An edge into it ends at `"targetPort": "in"`; one out of it starts at `"sourcePo
 | `color` | `expr` | `""` |  |
 | `size` | `expr` | `""` |  |
 | `angle` | `expr` | `""` |  |
+| `maxRows` | `int` | `0` |  |
 | `ramp` | `menu` | `"viridis"` | 37 choices |
 | `iconAtlas` | `url` | `""` |  |
 | `iconMapping` | `text` | `"{}"` |  |

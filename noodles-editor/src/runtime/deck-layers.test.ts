@@ -2,7 +2,7 @@
 import { Deck, type Layer, MapView, OrthographicView } from '@deck.gl/core'
 import { type EditorDoc, lowerDocument, parameterValues } from '@noodles.gl/planner'
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
-import { DeckLayerBuilder } from './deck-layers'
+import { DeckLayerBuilder, drawnRows } from './deck-layers'
 import { DuckDbEngine } from './duckdb'
 import { ProgramRuntime } from './program-runtime'
 
@@ -422,6 +422,42 @@ describe('DeckLayerBuilder style props', () => {
       getLineColor: [0, 0, 0, 255],
       wireframe: true,
     })
+  })
+
+  // #888: rows past 5,000 used to be dropped, while the node said all of them drew
+  it('draws every label and icon row, or the first Max rows', () => {
+    const n = 6000
+    const positions = new Float32Array(n * 2)
+    const drawn = (kind: string, props: Record<string, unknown>) => {
+      const [layer] =
+        new DeckLayerBuilder()
+          .build([
+            {
+              id: kind,
+              kind: kind as never,
+              data: {
+                ...rows(n, [['P', positions, 2]]),
+                strings: new Map([['T', Array.from({ length: n }, () => 'x')]]),
+              },
+              bindings: [
+                { channel: 'position', attribute: 'P' },
+                { channel: kind, attribute: 'T' },
+              ],
+              props: props as never,
+            },
+          ])
+          .get(kind) ?? []
+      return (layer?.props.data as { length: number } | undefined)?.length
+    }
+    for (const kind of ['text', 'icon']) {
+      expect(drawn(kind, {}), kind).toBe(n)
+      expect(drawn(kind, { maxRows: 0 }), kind).toBe(n)
+      expect(drawn(kind, { maxRows: 2000 }), kind).toBe(2000)
+      expect(drawn(kind, { maxRows: 9000 }), kind).toBe(n)
+    }
+    // What the node's card counts
+    expect(drawnRows('text', n, { maxRows: 2000 })).toBe(2000)
+    expect(drawnRows('scatter', n, { maxRows: 2000 })).toBe(n)
   })
 
   it('wraps and pads text, and caps an icon', () => {

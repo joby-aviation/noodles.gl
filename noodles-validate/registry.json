@@ -3240,6 +3240,10 @@
           "kind": "expr",
           "default": ""
         },
+        "maxRows": {
+          "kind": "int",
+          "default": 0
+        },
         "ramp": {
           "kind": "menu",
           "default": "viridis",
@@ -6318,6 +6322,10 @@
         "baselineBy": {
           "kind": "column",
           "default": ""
+        },
+        "maxRows": {
+          "kind": "int",
+          "default": 0
         },
         "ramp": {
           "kind": "menu",
