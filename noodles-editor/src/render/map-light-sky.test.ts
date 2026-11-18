@@ -80,6 +80,25 @@ describe('syncLightAndSky', () => {
     expect(map.setSky).toHaveBeenCalledWith(undefined)
   })
 
+  // #884: the deck configures no sky, and a style may bring its own
+  it("leaves the style's own sky alone when no sky is configured", () => {
+    const map = fakeMap()
+    syncLightAndSky(map, undefined, undefined)
+    map.loadStyle()
+    expect(map.setSky).not.toHaveBeenCalled()
+    expect(map.setLight).not.toHaveBeenCalled()
+  })
+
+  it('takes away a sky it set when it stops', () => {
+    const map = fakeMap()
+    syncLightAndSky(map, light, sky)()
+    expect(map.setSky).toHaveBeenLastCalledWith(undefined)
+
+    const none = fakeMap()
+    syncLightAndSky(none, undefined, undefined)()
+    expect(none.setSky).not.toHaveBeenCalled()
+  })
+
   it('stops reapplying after cleanup', () => {
     const map = fakeMap()
     const stop = syncLightAndSky(map, light, sky)
