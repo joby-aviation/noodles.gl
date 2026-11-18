@@ -406,7 +406,7 @@ export class Engine {
     const effects = hostValues('effects')
     return {
       deckProps: {
-        layers,
+        layers: this.withMaskLayers(layers),
         viewState: view,
         ...(views.length ? { views } : {}),
         ...(widgets.length ? { widgets } : {}),
@@ -441,33 +441,47 @@ export class Engine {
       this.extended.set(nodeId, built)
     }
     const { extensions, props } = built
-    const resolved = this.withMaskLayer(props)
-    return layers.map(l => l.clone({ ...resolved, extensions } as never))
+    return layers.map(l => l.clone({ ...props, extensions } as never))
   }
 
   /**
    * A Mask Extension's `maskId` naming a node (as a user types it, and older projects saved it)
-   * as the deck id of the layer that node draws: planner layers are `<node>:<kind>`. A Layer
-   * Props node names the layer wired into it. Any other id is deck's own and kept.
+   * as the id of the layer that node draws: planner layers are `<node>:<kind>`, and Layer Props
+   * may set its own. An id a drawn layer already has is kept.
    */
-  private withMaskLayer(props: Record<string, unknown>): Record<string, unknown> {
-    const maskId = props.maskId
-    if (typeof maskId !== 'string' || !maskId) return props
+  private withMaskLayers(layers: Layer[]): Layer[] {
+    const drawn = new Set(layers.map(l => l.id))
+    return layers.map(l => {
+      const maskId = (l.props as { maskId?: unknown }).maskId
+      if (typeof maskId !== 'string' || !maskId || drawn.has(maskId)) return l
+      const id = this.drawnLayerIds(maskId).find(i => drawn.has(i))
+      return id ? (l.clone({ maskId: id } as never) as Layer) : l
+    })
+  }
+
+  /** The ids of the layers a node draws: its own, and those of Layer Props nodes wrapping it. */
+  private drawnLayerIds(name: string): string[] {
     const doc = this.doc
-    const byName = doc?.nodes.find(n => n.id === maskId) ?? doc?.nodes.find(n => n.name === maskId)
-    let nodeId = byName?.id
-    let port = 'out'
-    // Through Layer Props (operation "mask") to the layer it wraps
-    for (let i = 0; nodeId && i < 8; i++) {
-      const node = doc?.nodes.find(n => n.id === nodeId)
-      if (node?.op !== 'layer-props') break
-      const e = doc?.edges.find(e => e.target === nodeId && e.targetPort === 'par:layer')
-      nodeId = e?.source
-      port = e?.sourcePort ?? 'out'
+    const node = doc?.nodes.find(n => n.id === name) ?? doc?.nodes.find(n => n.name === name)
+    if (!node || !doc) return []
+    const ids: string[] = []
+    const seen = new Set<string>()
+    const visit = (nodeId: string) => {
+      if (seen.has(nodeId)) return
+      seen.add(nodeId)
+      for (const l of this.built.get(this.lowered?.outputs[nodeId]?.out ?? nodeId) ?? [])
+        ids.push(l.id)
+      const out = this.options.host?.runner.output(nodeId, 'layer')
+      for (const l of Array.isArray(out) ? out : [out]) {
+        const id = l && typeof l === 'object' ? (l as { id?: unknown }).id : undefined
+        if (typeof id === 'string') ids.push(id)
+      }
+      for (const e of doc.edges) {
+        if (e.source === nodeId && e.targetPort === 'par:layer') visit(e.target)
+      }
     }
-    if (!nodeId) return props
-    const layer = this.built.get(this.lowered?.outputs[nodeId]?.[port] ?? nodeId)?.[0]
-    return layer ? { ...props, maskId: layer.id } : props
+    visit(node.id)
+    return ids
   }
 
   private asLayer(item: unknown): Layer[] {

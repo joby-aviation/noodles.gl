@@ -103,6 +103,41 @@ describe('HostRunner', () => {
     expect(runner.output('/bitmap', 'layer')).toMatchObject({ opacity: 0.5 })
   })
 
+  // #895 review: JSON text drops functions, so a callback-only change looked like no change
+  it('rebuilds Layer Props when only a wired callback changes', async () => {
+    const wired = (code: string): EditorDoc => ({
+      ...doc(1),
+      nodes: [
+        ...doc(1).nodes,
+        { id: '/extra', op: 'CodeOp', x: 0, y: 0, params: { code } },
+        { id: '/props', op: 'layer-props', x: 0, y: 0, params: {} },
+      ],
+      edges: [
+        {
+          id: 'e1',
+          source: '/bitmap',
+          sourcePort: 'layer',
+          target: '/props',
+          targetPort: 'par:layer',
+        },
+        {
+          id: 'e2',
+          source: '/extra',
+          sourcePort: 'data',
+          target: '/props',
+          targetPort: 'par:additionalProps',
+        },
+      ],
+    })
+    const runner = new HostRunner()
+    await runner.run(wired('return { onHover: () => 1 }'), inputs())
+    const first = runner.output('/props', 'layer') as { onHover: () => number }
+    expect(first.onHover()).toBe(1)
+    await runner.run(wired('return { onHover: () => 2 }'), inputs())
+    const second = runner.output('/props', 'layer') as { onHover: () => number }
+    expect(second.onHover()).toBe(2)
+  })
+
   it("resolves op() in a CodeOp's code against the document", async () => {
     const code: EditorDoc = {
       ...doc(1),

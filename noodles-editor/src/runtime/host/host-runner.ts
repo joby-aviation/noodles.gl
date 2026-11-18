@@ -367,9 +367,50 @@ function sameValues(a: unknown[], b: unknown[]): boolean {
       !Array.isArray(x) &&
       !Array.isArray(y)
     ) {
-      if (JSON.stringify(x) === JSON.stringify(y)) continue
+      if (
+        isPlain(x) && isPlain(y)
+          ? sameData(x, y, new Set())
+          : JSON.stringify(x) === JSON.stringify(y)
+      )
+        continue
     }
     return false
   }
   return true
+}
+
+const isPlain = (v: unknown): v is Record<string, unknown> =>
+  !!v &&
+  typeof v === 'object' &&
+  (Object.getPrototypeOf(v) === Object.prototype || Object.getPrototypeOf(v) === null)
+
+// Plain data compared by value, as JSON text would, except that a function is itself: props
+// wired into Layer Props (an onHover) change when only a callback does. A cycle reads as changed.
+function sameData(x: unknown, y: unknown, seen: Set<unknown>): boolean {
+  if (x === y) return true
+  if (typeof x === 'function' || typeof y === 'function') return false
+  if (!x || !y || typeof x !== 'object' || typeof y !== 'object') return Object.is(x, y)
+  // Objects on the path to here: a cycle. A value shared by two branches is compared twice.
+  if (seen.has(x)) return false
+  seen.add(x)
+  const same = sameContents(x, y, seen)
+  seen.delete(x)
+  return same
+}
+
+function sameContents(x: object, y: object, seen: Set<unknown>): boolean {
+  if (Array.isArray(x) || Array.isArray(y)) {
+    return (
+      Array.isArray(x) &&
+      Array.isArray(y) &&
+      x.length === y.length &&
+      x.every((v, i) => sameData(v, y[i], seen))
+    )
+  }
+  if (!isPlain(x) || !isPlain(y)) return JSON.stringify(x) === JSON.stringify(y)
+  const keys = Object.keys(x)
+  return (
+    keys.length === Object.keys(y).length &&
+    keys.every(k => Object.hasOwn(y, k) && sameData(x[k], y[k], seen))
+  )
 }

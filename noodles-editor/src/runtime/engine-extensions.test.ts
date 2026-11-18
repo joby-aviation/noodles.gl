@@ -196,6 +196,23 @@ describe('Engine extensions', () => {
     expect(mask.id).toBe('zone:scatter')
     expect(dots.props.maskId).toBe(mask.id)
 
+    // A mask Layer Props gave its own id keeps it: that is the drawn id
+    await engine.setDoc(
+      {
+        ...masked,
+        nodes: masked.nodes.map(n =>
+          n.id === 'zone-mask'
+            ? { ...n, params: { operation: 'mask', additionalProps: '{"id": "zone"}' } }
+            : n
+        ),
+      },
+      0
+    )
+    await engine.settle()
+    const [own, ownDots] = engine.vis().deckProps.layers as DeckLayer[]
+    expect(own.id).toBe('zone')
+    expect(ownDots.props.maskId).toBe('zone')
+
     // Through the Layer Props node, and a deck id typed as it is, alike
     for (const typed of ['zone-mask', 'zone:scatter']) {
       await engine.setDoc(
