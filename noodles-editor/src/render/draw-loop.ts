@@ -1,5 +1,5 @@
 import type { Deck, DeckProps } from '@deck.gl/core'
-import { useEffect } from 'react'
+import { useCallback, useEffect, useRef } from 'react'
 import { debugRender } from '../utils/debug'
 import { workerSetInterval, workerSetTimeout } from '../utils/worker-timer'
 
@@ -61,9 +61,16 @@ export function useDeckDrawLoop({
   captureFrame,
   rendererConfig,
   props = {},
-}: UseDeckDrawLoopProps) {
+}: UseDeckDrawLoopProps): () => void {
+  // Starts a pass with the latest props. The exporter calls it for every frame (through
+  // redraw), because during an export the editor only re-renders when the engine publishes,
+  // so a frame that changes nothing (frame 0 after the warmup, a held keyframe) would
+  // otherwise never get a pass and the export would wait on it forever.
+  const startPassRef = useRef<() => void>(() => {})
+
   useEffect(() => {
     if (!isRendering || !deck) {
+      startPassRef.current = () => {}
       return
     }
 
@@ -71,78 +78,94 @@ export function useDeckDrawLoop({
     const frameDelay = captureMode === 'preview' ? PREVIEW_FRAME_DELAY : captureDelay
 
     // The editor re-renders several times a frame during an export (each time the engine
-    // publishes), and each render starts a pass with the new props. The cleanup ends this
-    // pass's timers, or its redraw loop would run forever once the next pass replaced its
-    // onAfterRender, repainting nonstop and holding up every frame read behind the GPU.
-    let ended = false
-    const timers: (() => void)[] = []
-    const end = () => {
-      ended = true
-      for (const cancel of timers) cancel()
-    }
+    // publishes), and each render or redraw starts a pass with the new props. Only one pass
+    // runs at a time: starting one ends the last one's timers, or its redraw loop would run
+    // forever once the next pass replaced its onAfterRender, repainting nonstop and holding
+    // up every frame read behind the GPU.
+    let endCurrent = () => {}
 
-    async function drawPass() {
-      try {
-        let resolvePass: (value?: unknown) => void
-        // biome-ignore lint/suspicious/noExplicitAny: Promise.reject accepts any error type
-        let rejectPass: (reason?: any) => void
-        const passPromise = new Promise((res, rej) => {
-          resolvePass = res
-          rejectPass = rej
-        })
+    function drawPass() {
+      endCurrent()
+      let ended = false
+      const timers: (() => void)[] = []
+      endCurrent = () => {
+        ended = true
+        for (const cancel of timers) cancel()
+      }
+      run().catch(() => {})
 
-        // Timeout after 30 seconds to prevent infinite waiting
-        const cancelTimeout = workerSetTimeout(() => {
-          if (waitForData && !isDeckReady(deck)) {
-            const unloadedLayers =
-              deck?.props.layers.filter(
-                layer => layer && !Array.isArray(layer) && !layer.isLoaded
-              ) || []
-            const layerInfo = unloadedLayers.map(l => `${l.id} (${l.constructor.name})`).join(', ')
-            rejectPass(new Error(`Render timeout: layers did not load after 30s: ${layerInfo}`))
-          }
-        }, 30000)
-        timers.push(cancelTimeout)
-
-        deck?.setProps({
-          ...props,
-          onAfterRender: context => {
-            props.onAfterRender?.(context)
-            if (ended) return
-            if (waitForData && !isDeckReady(deck)) {
-              debugRender('deck waiting for layers to load')
-              return // layers aren't loaded
-            }
-            // Use worker timer so the delay fires even when the tab is hidden.
-            timers.push(
-              workerSetTimeout(() => {
-                cancelTimeout()
-                resolvePass()
-              }, frameDelay)
-            )
-          },
-        })
-        // Pump Deck.gl's render directly via worker timer so onAfterRender fires even when
-        // the tab is switched. Deck.gl's internal RAF loop is throttled to ~1fps by Chrome
-        // when a tab is hidden, so we can't rely on it to drive rendering during export.
-        const cancelRedrawLoop = workerSetInterval(() => deck?.redraw('force'), 16)
-        timers.push(cancelRedrawLoop)
+      async function run() {
         try {
-          await passPromise
-        } finally {
-          cancelTimeout()
-          cancelRedrawLoop()
+          let resolvePass: (value?: unknown) => void
+          // biome-ignore lint/suspicious/noExplicitAny: Promise.reject accepts any error type
+          let rejectPass: (reason?: any) => void
+          const passPromise = new Promise((res, rej) => {
+            resolvePass = res
+            rejectPass = rej
+          })
+
+          // Timeout after 30 seconds to prevent infinite waiting
+          const cancelTimeout = workerSetTimeout(() => {
+            if (waitForData && !isDeckReady(deck)) {
+              const unloadedLayers =
+                deck?.props.layers.filter(
+                  layer => layer && !Array.isArray(layer) && !layer.isLoaded
+                ) || []
+              const layerInfo = unloadedLayers
+                .map(l => `${l.id} (${l.constructor.name})`)
+                .join(', ')
+              rejectPass(new Error(`Render timeout: layers did not load after 30s: ${layerInfo}`))
+            }
+          }, 30000)
+          timers.push(cancelTimeout)
+
+          deck?.setProps({
+            ...props,
+            onAfterRender: context => {
+              props.onAfterRender?.(context)
+              if (ended) return
+              if (waitForData && !isDeckReady(deck)) {
+                debugRender('deck waiting for layers to load')
+                return // layers aren't loaded
+              }
+              // Use worker timer so the delay fires even when the tab is hidden.
+              timers.push(
+                workerSetTimeout(() => {
+                  cancelTimeout()
+                  resolvePass()
+                }, frameDelay)
+              )
+            },
+          })
+          // Pump Deck.gl's render directly via worker timer so onAfterRender fires even when
+          // the tab is switched. Deck.gl's internal RAF loop is throttled to ~1fps by Chrome
+          // when a tab is hidden, so we can't rely on it to drive rendering during export.
+          const cancelRedrawLoop = workerSetInterval(() => deck?.redraw('force'), 16)
+          timers.push(cancelRedrawLoop)
+          try {
+            await passPromise
+          } finally {
+            cancelTimeout()
+            cancelRedrawLoop()
+          }
+          if (!ended) captureFrame?.()
+        } catch (e) {
+          if (ended) return
+          const error = e instanceof Error ? e : new Error(String(e))
+          console.error('[Noodles] Draw loop error:', error)
+          debugRender('[useDeckDrawLoop] Error during drawing:', error)
+          captureFrame?.({ error })
         }
-        captureFrame?.()
-      } catch (e) {
-        const error = e instanceof Error ? e : new Error(String(e))
-        console.error('[Noodles] Draw loop error:', error)
-        debugRender('[useDeckDrawLoop] Error during drawing:', error)
-        captureFrame?.({ error })
       }
     }
 
+    startPassRef.current = drawPass
     drawPass()
-    return end
+    return () => {
+      startPassRef.current = () => {}
+      endCurrent()
+    }
   }, [deck, isRendering, captureFrame, props, rendererConfig])
+
+  return useCallback(() => startPassRef.current(), [])
 }
