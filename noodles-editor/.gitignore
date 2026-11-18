@@ -29,3 +29,7 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 .yarn/
+
+# Playwright test artifacts (but keep baseline snapshots for CI comparison)
+playwright-report/
+test-results/

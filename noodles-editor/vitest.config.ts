@@ -25,7 +25,14 @@ export default defineConfig({
         extends: true,
         test: {
           name: 'browser',
-          exclude: [...configDefaults.exclude, 'scripts/**', 'bench/**', '**/*.node.test.ts'],
+          // e2e/ is the Playwright suite (playwright.config.ts), not Vitest
+          exclude: [
+            ...configDefaults.exclude,
+            'scripts/**',
+            'bench/**',
+            'e2e/**',
+            '**/*.node.test.ts',
+          ],
           setupFiles: ['src/setupTests.ts'],
           browser: {
             provider: playwright({
