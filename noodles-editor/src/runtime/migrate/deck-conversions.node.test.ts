@@ -146,6 +146,64 @@ describe('deck operators', () => {
   })
 })
 
+// #884: MaplibreBasemap's sky and light as the deck's
+describe('basemap sky and light', () => {
+  const converted = (inputs: Record<string, unknown>) => {
+    const { doc, warnings } = toEditorDoc({
+      version: CONVERTED_SCHEMA,
+      nodes: [
+        op('/basemap', 'MaplibreBasemapOp', inputs),
+        op('/deck', 'DeckRendererOp'),
+        op('/out', 'OutOp'),
+      ],
+      edges: [
+        wire('/basemap', 'maplibre', '/deck', 'basemap'),
+        wire('/deck', 'vis', '/out', 'vis'),
+      ],
+    })
+    return { params: doc.nodes.find(n => n.op === 'deck')?.params ?? {}, warnings }
+  }
+
+  it('carries an enabled sky, without a warning', () => {
+    const { params, warnings } = converted({
+      sky: {
+        enabled: true,
+        skyColor: '#ff0000',
+        horizonColor: '#00ff00ff',
+        skyHorizonBlend: 0.4,
+        atmosphereBlend: 0.9,
+      },
+    })
+    expect(params).toMatchObject({
+      sky: true,
+      skyColor: [255, 0, 0],
+      horizonColor: [0, 255, 0],
+      skyHorizonBlend: 0.4,
+      atmosphereBlend: 0.9,
+    })
+    expect(warnings.filter(w => w.includes('sky') || w.includes('light'))).toEqual([])
+  })
+
+  it('leaves a disabled sky and the default light out', () => {
+    const { params } = converted({
+      sky: { enabled: false },
+      light: { anchor: 'viewport', azimuthal: 210, polar: 30 },
+    })
+    expect(params).not.toHaveProperty('sky')
+    expect(params).not.toHaveProperty('light')
+  })
+
+  it('turns Custom light on for a changed light', () => {
+    const { params } = converted({ light: { anchor: 'map', azimuthal: 90, polar: 60 } })
+    expect(params).toMatchObject({
+      light: true,
+      lightAnchor: 'map',
+      lightAzimuthal: 90,
+      lightPolar: 60,
+    })
+  })
+})
+
 describe('values', () => {
   it('are computed from literal inputs and written into what reads them', () => {
     const { doc } = toEditorDoc(

@@ -672,6 +672,50 @@ const depthOff = (v: unknown): boolean =>
   ((v as Record<string, unknown>).depthTest === false ||
     (v as Record<string, unknown>).depthWriteEnabled === false)
 
+// MaplibreBasemap's sky and light (#281) as the deck's. A sky converts when it was enabled. The
+// light was always applied, but its defaults are MapLibre's own, so only a changed one turns
+// Custom light on.
+const BASEMAP_LIGHT = { anchor: 'viewport', azimuthal: 210, polar: 30 }
+const rgbOf = (hex: unknown, fallback: number[]): number[] => {
+  // A color the timeline overrode is { r, g, b } in 0 to 1
+  if (hex && typeof hex === 'object' && 'r' in hex) {
+    const c = hex as Record<string, unknown>
+    return [c.r, c.g, c.b].map(v => Math.round(num(v, 0) * 255))
+  }
+  const m = typeof hex === 'string' ? /^#?([0-9a-f]{6})/i.exec(hex) : null
+  if (!m) return fallback
+  const n = Number.parseInt(m[1], 16)
+  return [(n >> 16) & 255, (n >> 8) & 255, n & 255]
+}
+function basemapLightSky(sky: unknown, light: unknown): Record<string, ParamValue> {
+  const out: Record<string, ParamValue> = {}
+  const s = sky && typeof sky === 'object' ? (sky as Record<string, unknown>) : {}
+  if (s.enabled === true) {
+    out.sky = true
+    out.skyColor = rgbOf(s.skyColor, [136, 198, 252])
+    out.horizonColor = rgbOf(s.horizonColor, [255, 255, 255])
+    out.skyHorizonBlend = num(s.skyHorizonBlend, 0.8)
+    out.atmosphereBlend = num(s.atmosphereBlend, 0.5)
+  }
+  const l = light && typeof light === 'object' ? (light as Record<string, unknown>) : {}
+  const anchor = l.anchor === 'map' ? 'map' : 'viewport'
+  const azimuthal = num(l.azimuthal, BASEMAP_LIGHT.azimuthal)
+  const polar = num(l.polar, BASEMAP_LIGHT.polar)
+  if (
+    anchor !== BASEMAP_LIGHT.anchor ||
+    azimuthal !== BASEMAP_LIGHT.azimuthal ||
+    polar !== BASEMAP_LIGHT.polar
+  ) {
+    Object.assign(out, {
+      light: true,
+      lightAnchor: anchor,
+      lightAzimuthal: azimuthal,
+      lightPolar: polar,
+    })
+  }
+  return out
+}
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -1424,8 +1468,9 @@ export function toEditorDoc(original: NoodlesProject): Migrated {
     deckParams.projection = String(b.projection)
     for (const k of ['longitude', 'latitude', 'zoom', 'pitch', 'bearing'])
       deckParams[k] = num(view[k], 0)
+    Object.assign(deckParams, basemapLightSky(b.sky, b.light))
     for (const k of Object.keys(basemap.data?.inputs ?? {})) {
-      if (!['mapStyle', 'projection', 'viewState'].includes(k))
+      if (!['mapStyle', 'projection', 'viewState', 'sky', 'light'].includes(k))
         warnings.push(`${basemap.id}: dropped '${k}'`)
     }
   } else {
