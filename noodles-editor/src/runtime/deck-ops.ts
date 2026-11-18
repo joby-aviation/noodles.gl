@@ -114,6 +114,8 @@ function jsonObject(value: unknown): Record<string, unknown> {
 // A built deck layer is cloned with the props; a layer description (`{ type, ...props }`) a
 // host operator made takes them as more props
 function withLayerProps(layer: unknown, props: Record<string, unknown>): unknown {
+  // A node that draws more than one deck layer (a stroked polygon's fill and outline)
+  if (Array.isArray(layer)) return layer.map(l => withLayerProps(l, props))
   if (!layer || typeof layer !== 'object') return layer
   const clone = (layer as { clone?: (p: Record<string, unknown>) => unknown }).clone
   if (typeof clone === 'function') return clone.call(layer, props)
@@ -474,7 +476,9 @@ export const DECK_OPS: DeckOp[] = [
           kind: 'code',
           language: 'js',
           default: '{}',
-          help: 'A JSON object of deck props.',
+          help: 'A JSON object of deck props, or a wired object (functions such as onHover).',
+          port: true,
+          portType: 'value',
         },
       ],
     },

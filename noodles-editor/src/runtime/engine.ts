@@ -441,7 +441,33 @@ export class Engine {
       this.extended.set(nodeId, built)
     }
     const { extensions, props } = built
-    return layers.map(l => l.clone({ ...props, extensions } as never))
+    const resolved = this.withMaskLayer(props)
+    return layers.map(l => l.clone({ ...resolved, extensions } as never))
+  }
+
+  /**
+   * A Mask Extension's `maskId` naming a node (as a user types it, and older projects saved it)
+   * as the deck id of the layer that node draws: planner layers are `<node>:<kind>`. A Layer
+   * Props node names the layer wired into it. Any other id is deck's own and kept.
+   */
+  private withMaskLayer(props: Record<string, unknown>): Record<string, unknown> {
+    const maskId = props.maskId
+    if (typeof maskId !== 'string' || !maskId) return props
+    const doc = this.doc
+    const byName = doc?.nodes.find(n => n.id === maskId) ?? doc?.nodes.find(n => n.name === maskId)
+    let nodeId = byName?.id
+    let port = 'out'
+    // Through Layer Props (operation "mask") to the layer it wraps
+    for (let i = 0; nodeId && i < 8; i++) {
+      const node = doc?.nodes.find(n => n.id === nodeId)
+      if (node?.op !== 'layer-props') break
+      const e = doc?.edges.find(e => e.target === nodeId && e.targetPort === 'par:layer')
+      nodeId = e?.source
+      port = e?.sourcePort ?? 'out'
+    }
+    if (!nodeId) return props
+    const layer = this.built.get(this.lowered?.outputs[nodeId]?.[port] ?? nodeId)?.[0]
+    return layer ? { ...props, maskId: layer.id } : props
   }
 
   private asLayer(item: unknown): Layer[] {
@@ -687,8 +713,13 @@ export class Engine {
       planner: (nodeId, port) => {
         if (!afterPlanner) return PENDING
         const ir = this.lowered?.outputs[nodeId]?.[port] ?? nodeId
-        const layer = this.built.get(ir)?.[0]
-        if (layer) return layer
+        // Every deck layer the node draws (a stroked polygon's fill and outline), with the
+        // extensions wired to it, as the deck would draw it; one layer as itself
+        const built = this.built.get(ir)
+        if (built?.length) {
+          const layers = this.withExtensions(nodeId, built)
+          return layers.length === 1 ? layers[0] : layers
+        }
         // Features (a GeoJSON file's, a geometry node's) reach a host operator as a
         // FeatureCollection, as Noodles' GeoJSON values were; any other relation as rows
         const rel = this.runtime.program()?.relations.find(r => r.id === ir)
