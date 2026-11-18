@@ -447,7 +447,8 @@ describe('DeckLayerBuilder style props', () => {
             },
           ])
           .get(kind) ?? []
-      expect((layer?.props.data as { length: number }).length, kind).toBe(n)
+      const data = layer?.props.data as { length: number } | undefined
+      expect(data?.length, kind).toBe(n)
     }
   })
 
