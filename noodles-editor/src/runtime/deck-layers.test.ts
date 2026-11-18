@@ -122,8 +122,8 @@ describe('DeckLayerBuilder', () => {
   })
 })
 
-// #891: what the depth toggles draw. A red dot in front, drawn first, and a blue dot behind
-// it, drawn second: depth testing hides the blue one where they overlap.
+// #891: what the depth toggles draw. Two overlapping dots at different depths: with depth
+// testing on, the nearer one shows where they overlap whichever is drawn first.
 describe('DeckLayerBuilder depth toggles', () => {
   const dot = (id: string, z: number, fillColor: number[], props: Record<string, unknown> = {}) =>
     new DeckLayerBuilder()
@@ -145,23 +145,32 @@ describe('DeckLayerBuilder depth toggles', () => {
       .get(id) ?? []
   const RED = [255, 0, 0, 255]
   const BLUE = [0, 0, 255, 255]
-  // OrthographicView looks down the z axis from above: a larger z is nearer
-  const front = (props?: Record<string, unknown>) => dot('front', 10, [255, 0, 0], props)
-  const back = (props?: Record<string, unknown>) => dot('back', -10, [0, 0, 255], props)
+  const red = (props?: Record<string, unknown>) => dot('red', 10, [255, 0, 0], props)
+  const blue = (props?: Record<string, unknown>) => dot('blue', -10, [0, 0, 255], props)
+  const center = async (layers: Layer[]) => {
+    const pixel = await draw(layers)
+    const c = pixel(50, 50)
+    deck?.finalize()
+    canvas?.remove()
+    deck = null
+    return c
+  }
 
-  it('hides a layer behind another with depth testing on', async () => {
-    const pixel = await draw([...front(), ...back()])
-    expect(pixel(50, 50)).toEqual(RED)
-  })
-
-  it('draws a layer over the one in front of it with depth testing off', async () => {
-    const pixel = await draw([...front(), ...back({ depthTest: false })])
-    expect(pixel(50, 50)).toEqual(BLUE)
-  })
-
-  it('lets a later layer show through one that writes no depth', async () => {
-    const pixel = await draw([...front({ depthWrite: false }), ...back()])
-    expect(pixel(50, 50)).toEqual(BLUE)
+  it('hides the farther layer whichever is drawn first, and the toggles undo that', async () => {
+    const near = await center([...red(), ...blue()])
+    expect(await center([...blue(), ...red()])).toEqual(near)
+    expect([RED, BLUE]).toContainEqual(near)
+    const redIsNear = near[0] === 255
+    // The farther one drawn second, without depth testing, draws over the nearer one
+    const farOver = redIsNear
+      ? [...red(), ...blue({ depthTest: false })]
+      : [...blue(), ...red({ depthTest: false })]
+    expect(await center(farOver)).toEqual(redIsNear ? BLUE : RED)
+    // The nearer one drawn first, writing no depth, doesn't hide the farther one drawn after it
+    const nearNoWrite = redIsNear
+      ? [...red({ depthWrite: false }), ...blue()]
+      : [...blue({ depthWrite: false }), ...red()]
+    expect(await center(nearNoWrite)).toEqual(redIsNear ? BLUE : RED)
   })
 })
 
