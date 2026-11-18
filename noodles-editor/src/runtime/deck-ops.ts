@@ -184,9 +184,14 @@ const viewOp = (
     outputs: [{ name: 'view', type: 'value', shape: 'view' }],
     params: [...viewBase(noodles), ...params, field(noodles, 'viewState', viewState, true)],
   },
-  // deck clears a view only to an [r, g, b, a] clearColor, not to the param's hex string
+  // deck clears a view only to an [r, g, b, a] clearColor, not to the param's hex string.
+  // A transparent one is left out: deck clears to `clearColor[3] || 255`, so alpha 0 would
+  // clear opaque, while with none it clears to its own transparent [0, 0, 0, 0] (#892).
   build: (p, id, env) => {
-    const props = { ...p, clearColor: rgba(p.clearColor) ?? p.clearColor }
+    const { clearColor: hex, ...rest } = p
+    const clearColor = rgba(hex) ?? hex
+    const transparent = Array.isArray(clearColor) && clearColor[3] === 0
+    const props = transparent ? rest : { ...rest, clearColor }
     return build ? build(props, id, env) : { type: deckType, id, ...props }
   },
 })
