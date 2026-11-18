@@ -78,12 +78,20 @@ export function runRender(
   repoRoot: string,
   cwd: string,
   params: RenderParams,
-  onProgress: (progress: RenderProgress) => void = () => {}
+  onProgress: (progress: RenderProgress) => void = () => {},
+  signal?: AbortSignal
 ): Promise<RenderOutcome> {
   const { command, args, cwd: dir, out } = renderCommand(repoRoot, cwd, params)
   return new Promise(done => {
     const log: string[] = []
+    if (signal?.aborted) {
+      done({ ok: false, error: 'The render was cancelled', log })
+      return
+    }
     const child = spawn(command, args, { cwd: dir, stdio: ['ignore', 'pipe', 'pipe'] })
+    // A cancelled call stops the CLI, which closes its browser and writes nothing
+    const cancel = () => child.kill('SIGTERM')
+    signal?.addEventListener('abort', cancel, { once: true })
     let pending = ''
     const read = (chunk: Buffer) => {
       pending += chunk.toString()
@@ -99,8 +107,10 @@ export function runRender(
     child.stderr.on('data', read)
     child.on('error', error => done({ ok: false, error: error.message, log }))
     child.on('close', code => {
+      signal?.removeEventListener('abort', cancel)
       if (pending.trim()) log.push(pending)
-      if (code === 0) done({ ok: true, file: out, log })
+      if (signal?.aborted) done({ ok: false, error: 'The render was cancelled', log })
+      else if (code === 0) done({ ok: true, file: out, log })
       else {
         const reason = log.findLast(l => l.startsWith('Render failed:')) ?? log.at(-1)
         done({ ok: false, error: reason ?? `The render exited with code ${code}`, log })

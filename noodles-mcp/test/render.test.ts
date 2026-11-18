@@ -75,6 +75,24 @@ echo 'wrote out.mp4' >&2`)
     })
   })
 
+  it('stops the render when the call is cancelled', async () => {
+    fake(`trap 'echo stopped >&2; exit 143' TERM
+echo '{"state":"running","frame":1,"totalFrames":100}' >&2
+while true; do sleep 0.05; done`)
+    const controller = new AbortController()
+    const outcome = await runRender(
+      repo,
+      '/work',
+      { project: 'p', out: 'out.mp4' },
+      p => {
+        if (p.state === 'running') controller.abort()
+      },
+      controller.signal
+    )
+    assert.equal(outcome.ok, false)
+    assert.equal(!outcome.ok && outcome.error, 'The render was cancelled')
+  })
+
   it('reports why a render failed', async () => {
     fake(`echo 'Render failed: Frame 3 did not finish drawing within 120s' >&2
 exit 1`)

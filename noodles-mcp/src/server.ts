@@ -257,18 +257,24 @@ export function createServer({ repoRoot, cwd }: Context): McpServer {
     },
     async (params, extra) => {
       const token = extra._meta?.progressToken
-      const outcome = await runRender(repoRoot, cwd, params, progress => {
-        if (token === undefined) return
-        void extra.sendNotification({
-          method: 'notifications/progress',
-          params: {
-            progressToken: token,
-            progress: progress.frame,
-            total: progress.totalFrames,
-            message: `${progress.state} frame ${progress.frame}/${progress.totalFrames}`,
-          },
-        })
-      })
+      const outcome = await runRender(
+        repoRoot,
+        cwd,
+        params,
+        progress => {
+          if (token === undefined) return
+          void extra.sendNotification({
+            method: 'notifications/progress',
+            params: {
+              progressToken: token,
+              progress: progress.frame,
+              total: progress.totalFrames,
+              message: `${progress.state} frame ${progress.frame}/${progress.totalFrames}`,
+            },
+          })
+        },
+        extra.signal
+      )
       if (!outcome.ok) return fail(`${outcome.error}\n\n${outcome.log.slice(-10).join('\n')}`)
       return ok({ file: outcome.file, log: outcome.log.slice(-5) })
     }

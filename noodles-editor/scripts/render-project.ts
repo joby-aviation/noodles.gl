@@ -138,9 +138,11 @@ export async function readProjectFiles(
   const files: Record<string, string> = {}
   for (const entry of await walk(root)) {
     const name = relative(root, entry).split(sep).join('/')
-    // The project itself, its README, and the editor's own folders aren't data
+    // The project itself, its README, and hidden files aren't data. `.agent/` is: the
+    // assistant writes the files it makes there, and the project reads them as `@/.agent/...`
     if (root === folder && (name === basename(file) || /^readme\.md$/i.test(name))) continue
-    if (name.split('/').some(part => part.startsWith('.') || part === 'node_modules')) continue
+    const hidden = (part: string) => part.startsWith('.') && part !== '.agent'
+    if (name.split('/').some(part => hidden(part) || part === 'node_modules')) continue
     files[name] = (await readFile(entry)).toString('base64')
   }
   return { id: projectIdOf(folder), project, files }
@@ -200,7 +202,11 @@ async function startDevServer(): Promise<{ url: string; close: () => Promise<voi
   return { url, close: () => server.close() }
 }
 
-export async function render(options: RenderOptions, log = (line: string) => console.error(line)) {
+export async function render(
+  options: RenderOptions,
+  log = (line: string) => console.error(line),
+  signal?: AbortSignal
+) {
   const { id, project, files } = await readProjectFiles(options.project)
   const server = options.url ? null : await startDevServer()
   const url = options.url ?? server?.url
@@ -210,11 +216,26 @@ export async function render(options: RenderOptions, log = (line: string) => con
     log(`Gave up after ${options.timeoutSeconds}s`)
     void browser.close()
   }, options.timeoutSeconds * 1000)
+  let cancelled = false
+  const cancel = () => {
+    cancelled = true
+    log('cancelled')
+    void browser.close()
+  }
+  signal?.addEventListener('abort', cancel, { once: true })
   try {
     // One page, start to finish. A dev server on a cold cache reloads the page once it has
     // bundled the dependencies it found, which ends whatever the page was doing: start again.
     const attempt = async () => {
       const tab = await browser.newPage()
+      try {
+        return await run(tab)
+      } finally {
+        // A reloaded attempt's page would keep its editor, worker and canvas alive
+        await tab.close().catch(() => {})
+      }
+    }
+    const run = async (tab: Awaited<ReturnType<typeof browser.newPage>>) => {
       tab.on('pageerror', error => log(`page error: ${error.message}`))
       await tab.exposeFunction('__noodlesRenderProgress', (status: never) =>
         log(options.json ? JSON.stringify(status) : describeStatus(status))
@@ -256,7 +277,6 @@ export async function render(options: RenderOptions, log = (line: string) => con
       if (result?.status !== 'done') {
         throw new Error(result?.error ?? 'The editor returned no result')
       }
-      await tab.close()
       return result
     }
     let result: Awaited<ReturnType<typeof attempt>> | undefined
@@ -264,10 +284,11 @@ export async function render(options: RenderOptions, log = (line: string) => con
       try {
         result = await attempt()
       } catch (error) {
-        if (tries >= MAX_TRIES || !isReload(error)) throw error
+        if (cancelled || tries >= MAX_TRIES || !isReload(error)) throw error
         log('the page reloaded (the dev server bundled new dependencies); starting again')
       }
     }
+    if (cancelled) throw new Error('The render was cancelled')
     await mkdir(dirname(options.out), { recursive: true })
     const bytes = Buffer.from(result.base64, 'base64')
     await writeFile(options.out, bytes)
@@ -280,7 +301,10 @@ export async function render(options: RenderOptions, log = (line: string) => con
       fps: result.fps,
       bytes: bytes.length,
     }
+  } catch (error) {
+    throw cancelled ? new Error('The render was cancelled') : error
   } finally {
+    signal?.removeEventListener('abort', cancel)
     clearTimeout(deadline)
     await browser.close().catch(() => {})
     await server?.close()
@@ -293,7 +317,12 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
     console.error(`${args.error}\n\n${USAGE}`)
     process.exit(2)
   }
-  render(args.options).then(
+  // A caller that stops the render (the MCP tool, Ctrl-C) gets the browser closed with it
+  const controller = new AbortController()
+  for (const signal of ['SIGTERM', 'SIGINT'] as const) {
+    process.once(signal, () => controller.abort())
+  }
+  render(args.options, undefined, controller.signal).then(
     () => process.exit(0),
     error => {
       console.error(`Render failed: ${(error as Error).message}`)

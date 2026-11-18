@@ -86,10 +86,20 @@ describe('readProjectFiles', () => {
     await writeFile(join(dir, 'noodles.json'), JSON.stringify(PROJECT))
     await writeFile(join(dir, 'README.md'), '# hi')
     await writeFile(join(dir, 'data.csv'), 'x\n1\n')
-    await mkdir(join(dir, '.agent'))
-    await writeFile(join(dir, '.agent', 'notes.txt'), 'skip')
+    await writeFile(join(dir, '.DS_Store'), 'skip')
+    await mkdir(join(dir, '.git'))
+    await writeFile(join(dir, '.git', 'HEAD'), 'skip')
     const read = await readProjectFiles(join(dir, 'noodles.json'))
     expect(Object.keys(read.files)).toEqual(['data.csv'])
+  })
+
+  it("keeps the assistant's .agent/ files, which a project reads as @/.agent/", async () => {
+    const dir = await tempDir()
+    await mkdir(join(dir, 'data', '.agent'), { recursive: true })
+    await writeFile(join(dir, 'noodles.json'), JSON.stringify(PROJECT))
+    await writeFile(join(dir, 'data', '.agent', 'joined.csv'), 'x\n1\n')
+    const read = await readProjectFiles(dir)
+    expect(Object.keys(read.files)).toEqual(['.agent/joined.csv'])
   })
 })
 

@@ -73,6 +73,22 @@ describe('openProject', () => {
     useProjectOpen.setState({ status: 'idle' }, true)
   })
 
+  it('opens a new copy of a project whose route is already open', async () => {
+    const push = vi.spyOn(window.history, 'pushState').mockImplementation(() => {})
+    // An earlier call left /examples/cli-again open with its first document
+    useProjectOpen.setState({ status: 'open', route: '/examples/cli-again' }, true)
+    const seen: string[] = []
+    const unsubscribe = useProjectOpen.subscribe(state => seen.push(state.status))
+    const opened = openProject('cli-again', { project: { version: 1, nodes: [], edges: [] } })
+    await expect(opened).resolves.toEqual({ route: '/examples/cli-again' })
+    unsubscribe()
+    // It dropped the earlier open and opened the route again, rather than accepting it
+    expect(seen).toEqual(['idle', 'opening', 'open'])
+    expect(push).not.toHaveBeenCalled()
+    push.mockRestore()
+    useProjectOpen.setState({ status: 'idle' }, true)
+  })
+
   it('refuses an id that is not a plain name', async () => {
     await expect(openProject('../x', { project: {} })).rejects.toThrow(/must be letters/)
   })

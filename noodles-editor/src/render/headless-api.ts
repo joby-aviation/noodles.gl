@@ -62,9 +62,17 @@ export async function openProject(
   }
   const base = import.meta.env.BASE_URL.replace(/\/+$/, '')
   const route = `/examples/${id}`
-  // wouter follows pushState; the query (?headless=true) stays
-  window.history.pushState(null, '', `${base}${route}${window.location.search}`)
-  const { useProjectOpen } = await import('../editor/project-open')
+  const { closeProject, openRoute, useProjectOpen } = await import('../editor/project-open')
+  const before = useProjectOpen.getState()
+  if ('route' in before && before.route === route) {
+    // The route is already open, with the document from an earlier call: the URL doesn't
+    // change, so nothing would reopen it. Drop that open and open the new copy.
+    closeProject()
+    void openRoute('/examples', id)
+  } else {
+    // wouter follows pushState; the query (?headless=true) stays
+    window.history.pushState(null, '', `${base}${route}${window.location.search}`)
+  }
   await new Promise<void>((resolve, reject) => {
     const timer = setTimeout(() => {
       stop()
