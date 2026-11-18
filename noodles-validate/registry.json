@@ -3570,7 +3570,8 @@
         },
         "additionalProps": {
           "kind": "code",
-          "default": "{}"
+          "default": "{}",
+          "portType": "value"
         }
       }
     },
