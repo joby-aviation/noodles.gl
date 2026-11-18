@@ -147,6 +147,39 @@ describe('HostRunner', () => {
     expect(withTrackedParts(value, '/n.q', keyed, slots)).toBe(value)
   })
 
+  it("keeps an array a keyframed component is part of, as a camera's target", () => {
+    const viewState = { target: [1, 2, 3], zoom: 4 }
+    const keyed = new Set(['/c.viewState.target.0', '/c.viewState.offset.1'])
+    const slots = new Map<string, unknown>([
+      ['/c.viewState.target.0', 9],
+      ['/c.viewState.offset.1', 5],
+    ])
+    expect(withTrackedParts(viewState, '/c.viewState', keyed, slots)).toEqual({
+      target: [9, 2, 3],
+      zoom: 4,
+      offset: [undefined, 5],
+    })
+    expect(viewState.target).toEqual([1, 2, 3])
+  })
+
+  it('never writes through an inherited property', () => {
+    const keyed = new Set([
+      '/c.viewState.__proto__.polluted',
+      '/c.viewState.constructor.prototype.polluted',
+      '/c.viewState.toString.polluted',
+    ])
+    const slots = new Map<string, unknown>([...keyed].map(k => [k, 1]))
+    const out = withTrackedParts({ zoom: 1 }, '/c.viewState', keyed, slots) as Record<
+      string,
+      unknown
+    >
+    expect(({} as Record<string, unknown>).polluted).toBeUndefined()
+    expect(Object.prototype.toString).not.toHaveProperty('polluted')
+    // An own part named like an inherited one is the value's own
+    expect(Object.hasOwn(out, 'toString')).toBe(true)
+    expect(out.zoom).toBe(1)
+  })
+
   it("resolves op() in a CodeOp's code against the document", async () => {
     const code: EditorDoc = {
       ...doc(1),

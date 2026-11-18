@@ -361,14 +361,21 @@ export function withTrackedParts(
   const prefix = `${key}.`
   const parts = [...keyed].filter(k => k.startsWith(prefix) && slots.has(k))
   if (parts.length === 0) return value
-  const isObject = (v: unknown): v is Record<string, unknown> =>
-    !!v && typeof v === 'object' && !Array.isArray(v)
-  const out: Record<string, unknown> = isObject(value) ? structuredClone(value) : {}
+  type Container = Record<string, unknown> | unknown[]
+  const isContainer = (v: unknown): v is Container => !!v && typeof v === 'object'
+  // A track names a part of the value, never what objects inherit: `__proto__` would write
+  // to every object on the page
+  const unsafe = (step: string) =>
+    step === '__proto__' || step === 'constructor' || step === 'prototype'
+  const out = (isContainer(value) ? structuredClone(value) : {}) as Container
   for (const k of parts) {
     const path = k.slice(prefix.length).split('.')
-    let at = out
-    for (const step of path.slice(0, -1)) {
-      if (!isObject(at[step])) at[step] = {}
+    if (path.some(unsafe)) continue
+    let at = out as Record<string, unknown>
+    for (const [i, step] of path.slice(0, -1).entries()) {
+      const own = Object.hasOwn(at, step) ? at[step] : undefined
+      // An array (a camera's `target`) stays one, so its other components are kept
+      if (!isContainer(own)) at[step] = /^\d+$/.test(path[i + 1]) ? [] : {}
       at = at[step] as Record<string, unknown>
     }
     at[path[path.length - 1]] = slots.get(k)
