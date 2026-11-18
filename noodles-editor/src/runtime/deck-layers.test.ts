@@ -131,15 +131,24 @@ describe('DeckLayerBuilder depth toggles', () => {
         {
           id,
           kind: 'scatter',
+          // Color and radius per row, as the planned scatter test above draws them
           data: {
             rows: 1,
-            attributes: new Map([['P', { data: new Float32Array([0, 0, z]), width: 3 }]]),
+            attributes: new Map([
+              ['P', { data: new Float32Array([0, 0, z]), width: 3 }],
+              ['C', { data: new Float32Array(fillColor.map(c => c / 255)), width: 3 }],
+              ['R', { data: new Float32Array([40]), width: 1 }],
+            ]),
             strings: new Map(),
             evalMs: 0,
             code: '',
           },
-          bindings: [{ channel: 'position', attribute: 'P' }],
-          props: { radiusScale: 20, fillColor, ...props } as never,
+          bindings: [
+            { channel: 'position', attribute: 'P' },
+            { channel: 'color', attribute: 'C' },
+            { channel: 'radius', attribute: 'R' },
+          ],
+          props: { radiusScale: 1, ...props } as never,
         },
       ])
       .get(id) ?? []
@@ -157,6 +166,8 @@ describe('DeckLayerBuilder depth toggles', () => {
   }
 
   it('hides the farther layer whichever is drawn first, and the toggles undo that', async () => {
+    // A single dot in the plane draws at all
+    expect(await center(dot('flat', 0, [255, 0, 0])), 'a dot at z = 0').toEqual(RED)
     const near = await center([...red(), ...blue()])
     expect(await center([...blue(), ...red()])).toEqual(near)
     expect([RED, BLUE]).toContainEqual(near)
