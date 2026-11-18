@@ -1,5 +1,6 @@
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
 import { useCallback } from 'react'
+import { useUIStore } from '../../editor/ui-store'
 import type { RenderSource } from '../../render/render-analytics'
 import { useRenderSessionStore } from '../../render/render-session'
 import s from './export-button.module.css'
@@ -25,6 +26,8 @@ export function ExportButton({
   startRender,
 }: ExportButtonProps) {
   const percent = useRenderSessionStore(state => state.percent)
+  // The next-step bar points here once the map is animated (#787); opening the menu clears it
+  const highlighted = useUIStore(state => state.highlightedControl === 'export')
 
   // The menu can be open when another export starts (the export_video tool), so the
   // items and handlers check isRendering too, not just the trigger
@@ -47,7 +50,11 @@ export function ExportButton({
         : null
 
   return (
-    <DropdownMenu.Root>
+    <DropdownMenu.Root
+      onOpenChange={open => {
+        if (open && highlighted) useUIStore.getState().setHighlightedControl(null)
+      }}
+    >
       {/* The tooltip sits on a wrapper: a disabled button gets no hover events */}
       <span
         className={s.wrapper}
@@ -56,7 +63,9 @@ export function ExportButton({
         <DropdownMenu.Trigger asChild>
           <button
             type="button"
-            className={isRendering ? `${s.button} ${s.rendering}` : s.button}
+            className={[s.button, isRendering && s.rendering, highlighted && s.highlighted]
+              .filter(Boolean)
+              .join(' ')}
             disabled={disabledReason !== null}
           >
             {isRendering ? (
