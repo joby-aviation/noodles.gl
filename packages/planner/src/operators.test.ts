@@ -67,6 +67,24 @@ describe('layer style parameters', () => {
     expect(layerOf(scatterDoc({ blend: 'additive' })).props?.blend).toBe('additive')
   })
 
+  // #891: depth testing off draws a layer over 3D geometry in front of it
+  it('lowers the depth toggles to layer props only when they are off', () => {
+    const defaults = layerOf(scatterDoc()).props ?? {}
+    expect('depthTest' in defaults || 'depthWrite' in defaults).toBe(false)
+    expect(layerOf(scatterDoc({ depthTest: false })).props).toMatchObject({ depthTest: false })
+    expect(layerOf(scatterDoc({ depthWrite: false })).props).toMatchObject({ depthWrite: false })
+  })
+
+  it('gives every layer operator the depth toggles', () => {
+    const layers = OPERATORS.filter(op => op.params.some(p => p.name === 'blend'))
+    expect(layers.length).toBeGreaterThan(10)
+    for (const op of layers) {
+      const names = op.params.map(p => p.name)
+      expect(names, op.type).toContain('depthTest')
+      expect(names, op.type).toContain('depthWrite')
+    }
+  })
+
   it('lowers arc width units', () => {
     const doc: EditorDoc = {
       ...scatterDoc(),

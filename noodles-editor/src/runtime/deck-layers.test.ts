@@ -360,6 +360,19 @@ describe('DeckLayerBuilder style props', () => {
     return layers.map(l => l.props as unknown as Record<string, unknown>)
   }
 
+  // #891: luma 9 has no depthTest parameter; 'always' passes every fragment's depth test
+  it('turns the depth toggles into luma parameters, with the blend preset', () => {
+    expect(build('scatter', {})[0].parameters).toEqual({})
+    expect(build('scatter', { depthTest: false, depthWrite: false })[0].parameters).toEqual({
+      depthCompare: 'always',
+      depthWriteEnabled: false,
+    })
+    expect(build('scatter', { blend: 'additive', depthTest: false })[0].parameters).toMatchObject({
+      blend: true,
+      depthCompare: 'always',
+    })
+  })
+
   it('passes outlines, facing and antialiasing to a scatterplot', () => {
     const [p] = build('scatter', {
       stroked: true,

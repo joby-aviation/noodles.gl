@@ -664,13 +664,16 @@ const LAYER_IGNORED = new Set(['data', 'parameters', 'extensions', 'updateTrigge
 // noodles/operators.ts and JS_SCOPE in runtime/worker/js-scope.ts). `\w+Op` is an operator class.
 const HOST_GLOBALS = /\b(?:deck|Plot|Temporal|[A-Z]\w*Op)\b/
 
-// A layer's `parameters` the planner has no param for: depth testing off, so the layer draws
-// over 3D geometry (#311). Planner layers set only the blend preset.
-const depthOff = (v: unknown): boolean =>
-  !!v &&
-  typeof v === 'object' &&
-  ((v as Record<string, unknown>).depthTest === false ||
-    (v as Record<string, unknown>).depthWriteEnabled === false)
+// A layer's `parameters` (#311) as the planner layer's depth toggles: depth testing off draws
+// the layer over 3D geometry, depth writes off keeps it from hiding layers drawn after it. Only
+// the ones turned off, so a layer at the defaults converts as it did.
+const depthParams = (v: unknown): Record<string, ParamValue> => {
+  const p = v && typeof v === 'object' ? (v as Record<string, unknown>) : {}
+  return {
+    ...(p.depthTest === false ? { depthTest: false } : {}),
+    ...(p.depthWriteEnabled === false ? { depthWrite: false } : {}),
+  }
+}
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -2758,13 +2761,6 @@ export function toEditorDoc(original: NoodlesProject): Migrated {
       if (!mapped.includes(k) && !carried && !LAYER_IGNORED.has(k))
         warnings.push(`${layer.id}: dropped '${k}'`)
     }
-    const depth = layer.data?.inputs?.parameters
-    if (depthOff(depth)) {
-      const off = ['depthTest', 'depthWriteEnabled'].filter(
-        k => (depth as Record<string, unknown>)[k] === false
-      )
-      warnings.push(`${layer.id}: dropped 'parameters' (${off.join(', ')} off)`)
-    }
   }
 
   // --- host operators: their own inputs as parameters, wired by `par:` handles -----------
@@ -3431,6 +3427,7 @@ export function toEditorDoc(original: NoodlesProject): Migrated {
     const params: Record<string, ParamValue> = {
       opacity: num(i.opacity, 1),
       blend: blendOf(layer),
+      ...depthParams(i.parameters),
     }
     const push = (op: string) =>
       nodes.push({ id: layer.id, op, name: segment(layer.id), ...position(layer), params })
