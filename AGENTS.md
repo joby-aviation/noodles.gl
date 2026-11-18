@@ -227,7 +227,7 @@ The chat panel (`noodles-editor/src/ai-chat/`) has its own agent loop, tool surf
 
 See [dev-docs/claude-code-workflow.md](dev-docs/claude-code-workflow.md) for editing project files directly, validating changes, graph design guidelines, and connecting to a running browser via WebMCP.
 
-The `noodles` MCP server (`.mcp.json`, [noodles-mcp](noodles-mcp/README.md)) looks up operator schemas, docs and example projects without a browser, and validates project files. The [`noodles-live`](.claude/skills/noodles-live/SKILL.md) skill covers changing a project open in the editor.
+The `noodles` MCP server (`.mcp.json`, [noodles-mcp](noodles-mcp/README.md)) looks up operator schemas, docs and example projects without a browser, and validates project files. Its `render_project` tool, like `npm run render -- <project> --out x.mp4` at the repo root, renders a project to video in a headless Chromium with no editor open; with an editor open over WebMCP, use `export_video` instead. Scripts driving the editor follow an export through `window.__noodles.exportStatus()` and the `noodles:export` event. The [`noodles-live`](.claude/skills/noodles-live/SKILL.md) skill covers changing a project open in the editor.
 
 ---
 

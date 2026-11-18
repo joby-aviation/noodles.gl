@@ -22,6 +22,7 @@ The first five have the names and parameters of the in-app assistant's tools (`n
 | `list_examples` | `category?`, `tag?` | `[{id, name, description, category, tags, path}]` |
 | `get_example` | `id` | The project (large inline data trimmed to a sample), README, and the files beside it |
 | `validate_project` | `path` or `project` | `{summary, valid, errors, warnings, registry}` from [noodles-validate](../noodles-validate/README.md). `summary` starts with `OK` when the file is done, and with `PARTLY CHECKED` for a project outside the examples that is behind the schema |
+| `render_project` | `project`, `out`, `startTime?`, `endTime?`, `fps?`, `width?`, `height?`, `codec?`, `url?`, `timeoutSeconds?` | `{file, log}` once the video is written. Runs `npm run render` (`noodles-editor/scripts/render-project.ts`): the editor's dev server and a headless Chromium. Sends progress notifications when the client gives a progress token |
 
 The server's instructions tell the client the workflow: start from an example, read both operators' schemas before writing an edge, validate after each edit, and stop when `validate_project` returns `"valid": true`.
 
@@ -43,7 +44,7 @@ It starts the agent and prints a `ws://127.0.0.1:7341/acp?token=…` URL to past
 
 ## Not here
 
-- **A running editor.** To change what's on screen, use the editor's WebMCP tools through the relay (see `dev-docs/claude-code-workflow.md` and the `noodles-live` skill). The `--live` mode in the agent-ready docs spec is dropped: #668 removed the WebSocket proxy it would have wrapped.
+- **A running editor.** `render_project` starts its own editor to render; to change what's on screen, use the editor's WebMCP tools through the relay (see `dev-docs/claude-code-workflow.md` and the `noodles-live` skill). The `--live` mode in the agent-ready docs spec is dropped: #668 removed the WebSocket proxy it would have wrapped.
 - **Remote mode.** The spec's default reads `https://noodles.gl/r/`, which doesn't exist yet. Until it does, the server needs a checkout.
 - **npm.** Node won't strip types from files under `node_modules`, so publishing needs a build step first. Until it's published under a scope we own, don't register it as `npx noodles-mcp`: the name is unclaimed on npm, so npx in a checkout without `node_modules` would fetch whatever someone publishes under it. `.mcp.json` runs the file with `node` for that reason.
 

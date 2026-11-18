@@ -15,6 +15,7 @@ import {
   frameReadTimeoutMs,
   guardFrameStep,
 } from './frame-guard'
+import { exportStatus, setExportStatus } from './headless-api'
 import { type RenderErrorCategory, type RenderSource, trackRender } from './render-analytics'
 import { beginRender, useIsRendering } from './render-session'
 import { ALPHA_VIDEO_CODECS } from './video-export'
@@ -108,7 +109,7 @@ export const useRenderer = ({
   const currentFrame = useRef(0)
   const { setPosition } = getTimelineStore()
 
-  const startCapture = useCallback(
+  const capture = useCallback(
     async ({
       canvas,
       getCanvas = () => canvas,
@@ -575,6 +576,34 @@ export const useRenderer = ({
       setPosition,
       settle,
     ]
+  )
+
+  // Every video export reports its progress as window.__noodles.exportStatus() and a
+  // noodles:export event (#883). One that refuses because another runs leaves its status.
+  const startCapture = useCallback(
+    async (args: Parameters<typeof capture>[0]): Promise<CaptureResult> => {
+      if (exportStatus().state === 'running') return capture(args)
+      const start = args.startFrame ?? 0
+      const end = args.endFrame ?? Math.floor(sequenceLength * (args.fps ?? fps))
+      setExportStatus({ state: 'running', frame: 0, totalFrames: end - start + 1 })
+      const result = await capture({
+        ...args,
+        onFrameComplete: (frame, total) => {
+          setExportStatus({ state: 'running', frame, totalFrames: total })
+          args.onFrameComplete?.(frame, total)
+        },
+      })
+      const { frame, totalFrames } = exportStatus()
+      setExportStatus(
+        result.status === 'done'
+          ? { state: 'done', frame: totalFrames, totalFrames }
+          : result.status === 'error'
+            ? { state: 'error', frame, totalFrames, error: result.error.message }
+            : { state: 'cancelled', frame, totalFrames }
+      )
+      return result
+    },
+    [capture, sequenceLength, fps]
   )
 
   // Image sequence export — same frame loop as video capture, writes one PNG or EXR per frame.

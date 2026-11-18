@@ -21,7 +21,8 @@
 		"serve:website": "(cd website && npm run serve)",
 		"serve:app": "(cd noodles-editor && npm run serve)",
 		"validate:examples": "validate-projects noodles-editor/src/examples",
-		"validate:projects": "validate-projects"
+		"validate:projects": "validate-projects",
+		"render": "npm run render -w noodles-editor --"
 	},
 	"devDependencies": {
 		"@testing-library/dom": "^10.4.1"

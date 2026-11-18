@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { getTimelineStore } from '../timeline/timeline-store'
 import { analytics } from '../utils/analytics'
 import { CanvasFrameReader } from './capture-canvas-frame'
+import { EXPORT_EVENT, type ExportStatus, exportStatus } from './headless-api'
 import {
   type CaptureResult,
   captureScreenshot,
@@ -557,6 +558,35 @@ describe('useRenderer analytics on failure', () => {
       errorName: 'Error',
       framesDone: 0,
     })
+  })
+
+  // #883: a script follows an export through window.__noodles, not the page's text
+  it('reports a failed export as an error status, after a running one', async () => {
+    vi.spyOn(VideoEncoder, 'isConfigSupported').mockImplementation(async config => ({
+      supported: false,
+      config,
+    }))
+    const states: string[] = []
+    const listen = (e: Event) => states.push((e as CustomEvent<ExportStatus>).detail.state)
+    window.addEventListener(EXPORT_EVENT, listen)
+    const { result } = renderHook(() =>
+      useRenderer({ fps: 30, bitrateMode: 'constant', redraw: vi.fn() })
+    )
+    await act(async () => {
+      await result.current.startCapture({
+        canvas: document.createElement('canvas'),
+        width: 640,
+        height: 360,
+        codec: 'av1',
+        endFrame: 9,
+        target: 'buffer',
+        source: 'agent',
+      })
+    })
+    window.removeEventListener(EXPORT_EVENT, listen)
+    expect(states).toEqual(['running', 'error'])
+    expect(exportStatus()).toMatchObject({ state: 'error', totalFrames: 10 })
+    expect(exportStatus().error).toBeTruthy()
   })
 
   it('tracks a save dialog the browser refuses as a failure, not a cancellation', async () => {
