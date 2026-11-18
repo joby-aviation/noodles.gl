@@ -2,7 +2,7 @@
 // reload the style. A style load (the first one, or a new mapStyle) replaces the map's light
 // and sky with the style's own, so they are applied again on every 'style.load'.
 
-import type { Map as MapLibre, SkySpecification } from 'maplibre-gl'
+import type { LightSpecification, Map as MapLibre, SkySpecification } from 'maplibre-gl'
 import { debugRender } from '../utils/debug'
 
 export interface BasemapLight {
@@ -19,7 +19,7 @@ export interface BasemapSky {
   atmosphereBlend: number
 }
 
-type LightSkyMap = Pick<MapLibre, 'setLight' | 'setSky' | 'on' | 'off'>
+type LightSkyMap = Pick<MapLibre, 'setLight' | 'setSky' | 'getLight' | 'getSky' | 'on' | 'off'>
 
 /**
  * Sets the map's light and sky. With no sky configured the map's own (the style's `sky`) is
@@ -58,25 +58,35 @@ export function applyLightAndSky(
   }
 }
 
-// Applies now and after every style load. Returns a function that stops listening.
+/**
+ * Applies now and after every style load. Returns a function that stops listening and puts back
+ * what this changed: the style's own sky and light as they were before, so turning Sky or Custom
+ * light off shows the style's again (#884).
+ */
 export function syncLightAndSky(
   map: LightSkyMap,
   light: BasemapLight | undefined,
   sky: BasemapSky | undefined
 ) {
-  const apply = () => applyLightAndSky(map, light, sky)
+  // The style's own, read before each apply: a style load replaces them with the new style's
+  let saved: { sky?: SkySpecification; light?: LightSpecification } = {}
+  const apply = () => {
+    try {
+      saved = { sky: map.getSky(), light: map.getLight() }
+    } catch (e) {
+      debugRender('Light and sky wait for the style to load: %o', e)
+    }
+    applyLightAndSky(map, light, sky)
+  }
   apply()
   map.on('style.load', apply)
   return () => {
     map.off('style.load', apply)
-    // A sky this set goes with it, so one no longer configured doesn't stay on the map. The
-    // next sync sets it again if it is still configured.
-    if (sky?.enabled) {
-      try {
-        map.setSky(undefined as unknown as SkySpecification)
-      } catch (e) {
-        debugRender('Sky waits for the style to load: %o', e)
-      }
+    try {
+      if (sky) map.setSky((saved.sky ?? undefined) as unknown as SkySpecification)
+      if (light && saved.light) map.setLight(saved.light)
+    } catch (e) {
+      debugRender('Light and sky wait for the style to load: %o', e)
     }
   }
 }

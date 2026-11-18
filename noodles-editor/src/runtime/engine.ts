@@ -646,7 +646,7 @@ export class Engine {
    * the map when they change identity, and vis() runs on every frame of playback.
    */
   private lightAndSky(deck: DocNode): ReturnType<typeof lightAndSky> {
-    const value = lightAndSky(deck)
+    const value = lightAndSky(deck, this.slots)
     const key = JSON.stringify(value)
     if (this.lastLightSky?.key !== key) this.lastLightSky = { key, value }
     return this.lastLightSky.value
@@ -1070,12 +1070,20 @@ function cssColor(v: unknown, fallback: string): string {
  * The deck's Sky and Light as the map's: only those switched on, so a style's own sky and
  * light stay when they are off (#884).
  */
-export function lightAndSky(deck: DocNode): { sky?: BasemapSky; light?: BasemapLight } {
+export function lightAndSky(
+  deck: DocNode,
+  slots?: ReadonlyMap<string, unknown>
+): { sky?: BasemapSky; light?: BasemapLight } {
   const defaults = OPERATOR_INDEX.get('deck')?.params ?? []
-  const param = (name: string) => deck.params[name] ?? defaults.find(p => p.name === name)?.default
+  // A param's value at the playhead (a keyframe, an expression), else its literal or default
+  const param = (name: string) =>
+    slots?.get(`${deck.id}.${name}`) ??
+    deck.params[name] ??
+    defaults.find(p => p.name === name)?.default
+  const on = (name: string) => param(name) === true || param(name) === 1
   const number = (name: string) => Number(param(name))
   return {
-    ...(param('sky') === true
+    ...(on('sky')
       ? {
           sky: {
             enabled: true,
@@ -1086,7 +1094,7 @@ export function lightAndSky(deck: DocNode): { sky?: BasemapSky; light?: BasemapL
           },
         }
       : {}),
-    ...(param('light') === true
+    ...(on('light')
       ? {
           light: {
             anchor: param('lightAnchor') === 'map' ? 'map' : 'viewport',

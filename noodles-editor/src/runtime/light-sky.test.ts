@@ -34,4 +34,16 @@ describe('lightAndSky', () => {
       polar: 60,
     })
   })
+
+  // #900 review: keyframes and expressions reach the map at the playhead
+  it('reads the value at the playhead over the saved one', () => {
+    const slots = new Map<string, unknown>([
+      ['deck.light', true],
+      ['deck.lightAzimuthal', 95],
+      ['deck.skyHorizonBlend', 0.25],
+    ])
+    const at = lightAndSky(deck({ lightAzimuthal: { expr: '90 + T' }, sky: true }), slots)
+    expect(at.light?.azimuthal).toBe(95)
+    expect(at.sky?.skyHorizonBlend).toBe(0.25)
+  })
 })

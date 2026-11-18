@@ -676,6 +676,13 @@ const depthOff = (v: unknown): boolean =>
 // light was always applied, but its defaults are MapLibre's own, so only a changed one turns
 // Custom light on.
 const BASEMAP_LIGHT = { anchor: 'viewport', azimuthal: 210, polar: 30 }
+// MaplibreBasemap's keyframable sky and light fields, as the deck's params
+const BASEMAP_LIGHT_SKY_TRACKS: Record<string, string> = {
+  'sky.skyHorizonBlend': 'skyHorizonBlend',
+  'sky.atmosphereBlend': 'atmosphereBlend',
+  'light.azimuthal': 'lightAzimuthal',
+  'light.polar': 'lightPolar',
+}
 const rgbOf = (hex: unknown, fallback: number[]): number[] => {
   // A color the timeline overrode is { r, g, b } in 0 to 1
   if (hex && typeof hex === 'object' && 'r' in hex) {
@@ -4539,6 +4546,23 @@ function trackTarget(path: string, nodes: DocNode[]): string | undefined {
   if (camera && !node) {
     const deck = nodes.find(n => n.op === 'deck')
     return deck ? `${deck.id}.${camera[1]}` : undefined
+  }
+  // A basemap's sky and light numbers are the deck's (#884). A keyframed light was applied, as
+  // every MaplibreBasemap's was, so it turns Custom light on.
+  const lightSky = BASEMAP_LIGHT_SKY_TRACKS[field]
+  if (lightSky && !node) {
+    const deck = nodes.find(n => n.op === 'deck')
+    if (!deck) return undefined
+    if (field.startsWith('light.') && deck.params.light !== true) {
+      deck.params = {
+        lightAnchor: BASEMAP_LIGHT.anchor,
+        lightAzimuthal: BASEMAP_LIGHT.azimuthal,
+        lightPolar: BASEMAP_LIGHT.polar,
+        ...deck.params,
+        light: true,
+      }
+    }
+    return `${deck.id}.${lightSky}`
   }
   if (!node) return undefined
   if (node.op === 'number' && field === 'val') return `${id}.value`

@@ -21,6 +21,11 @@ function fakeMap() {
     setSky: vi.fn(() => {
       if (!map.loaded) throw new Error('Style is not done loading.')
     }),
+    // What the style itself defines, which getSky and getLight read before anything changes it
+    styleSky: undefined as unknown,
+    styleLight: undefined as unknown,
+    getSky: vi.fn(() => map.styleSky),
+    getLight: vi.fn(() => map.styleLight),
     on: vi.fn((type: string, fn: () => void) => {
       if (!listeners.has(type)) listeners.set(type, new Set())
       listeners.get(type)?.add(fn)
@@ -97,6 +102,25 @@ describe('syncLightAndSky', () => {
     const none = fakeMap()
     syncLightAndSky(none, undefined, undefined)()
     expect(none.setSky).not.toHaveBeenCalled()
+  })
+
+  // #900 review: turning Sky or Custom light off shows the style's own again
+  it("puts the style's own sky and light back when it stops", () => {
+    const map = fakeMap()
+    map.styleSky = { 'sky-color': '#123456' }
+    map.styleLight = { anchor: 'map', position: [1.5, 90, 80] }
+    syncLightAndSky(map, light, sky)()
+    expect(map.setSky).toHaveBeenLastCalledWith({ 'sky-color': '#123456' })
+    expect(map.setLight).toHaveBeenLastCalledWith({ anchor: 'map', position: [1.5, 90, 80] })
+  })
+
+  it("reads the new style's own after a style load, and puts that back", () => {
+    const map = fakeMap()
+    const stop = syncLightAndSky(map, undefined, sky)
+    map.styleSky = { 'sky-color': '#abcdef' }
+    map.loadStyle()
+    stop()
+    expect(map.setSky).toHaveBeenLastCalledWith({ 'sky-color': '#abcdef' })
   })
 
   it('stops reapplying after cleanup', () => {
